@@ -6,6 +6,7 @@
 struct UserRecord {
     QString id;
     QString fio;
+    QString login;
     QString role;
     QString mainId;
 };

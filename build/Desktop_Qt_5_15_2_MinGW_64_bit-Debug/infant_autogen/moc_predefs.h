@@ -211,6 +211,7 @@
 #define __DEC128_MIN_EXP__ (-6142)
 #define __cpp_nested_namespace_definitions 201411
 #define __INT_FAST32_TYPE__ int
+#define QT_CONCURRENT_LIB 1
 #define __UINT_LEAST16_TYPE__ short unsigned int
 #define __FLT64X_HAS_INFINITY__ 1
 #define __INT16_MAX__ 0x7fff
@@ -342,6 +343,7 @@
 #define __INT_FAST8_TYPE__ signed char
 #define __fastcall __attribute__((__fastcall__))
 #define __FLT64X_MIN__ 3.36210314311209350626267781732175260e-4932F64x
+#define QT_SQL_LIB 1
 #define __GNUC_STDC_INLINE__ 1
 #define __FLT64_HAS_DENORM__ 1
 #define __FLT32_EPSILON__ 1.19209289550781250000000000000000000e-7F32
@@ -418,7 +420,6 @@
 #define __SSE3__ 1
 #define __UINT_FAST8_TYPE__ unsigned char
 #define __WIN64__ 1
-#define DEV_LICENSE_BYPASS 1
 #define __cpp_init_captures 201304
 #define __ATOMIC_ACQ_REL 4
 #define __ATOMIC_RELEASE 3

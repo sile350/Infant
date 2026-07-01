@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "src/custommessagebox.h"
 
 #include <QAction>
 #include <QCheckBox>
@@ -9,7 +10,6 @@
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPrinter>
 #include <QPrintDialog>
 #include <QRegularExpression>
@@ -78,7 +78,7 @@ void MainWindow::buildLoginPage() {
     cardLayout->addWidget(title);
 
     m_loginEdit = new QLineEdit(card);
-    m_loginEdit->setPlaceholderText("ФИО");
+    m_loginEdit->setPlaceholderText("Логин");
     cardLayout->addWidget(m_loginEdit);
 
     m_passwordEdit = new QLineEdit(card);
@@ -338,16 +338,16 @@ void MainWindow::onLoginClicked() {
     const QString fio = m_loginEdit->text().trimmed();
     const QString password = m_passwordEdit->text();
     if (fio.isEmpty() || password.isEmpty()) {
-        QMessageBox::warning(this, "Вход", "Введите логин и пароль.");
+        CustomMessageBox::showWarning(this, "Введите логин и пароль.");
         return;
     }
     const auto user = m_repository.login(fio, password);
     if (!user.has_value()) {
-        QMessageBox::critical(this, "Вход", "Неверный логин или пароль.");
+        CustomMessageBox::showError(this, "Неверный логин или пароль.");
         return;
     }
     if (user->role != "Администратор" && user->role != "Специалист") {
-        QMessageBox::critical(this, "Вход", "Недостаточный уровень доступа.");
+        CustomMessageBox::showError(this, "Недостаточный уровень доступа.");
         return;
     }
     m_session = user;
@@ -383,11 +383,11 @@ void MainWindow::onUsersSaveClicked() {
     const QString role = m_userRoleCombo->currentText();
 
     if (fio.isEmpty()) {
-        QMessageBox::warning(this, "Пользователи", "Заполните ФИО.");
+        CustomMessageBox::showWarning(this, "Заполните ФИО.");
         return;
     }
     if (!password.isEmpty() && password != repeat) {
-        QMessageBox::warning(this, "Пользователи", "Пароль и подтверждение не совпадают.");
+        CustomMessageBox::showWarning(this, "Пароль и подтверждение не совпадают.");
         return;
     }
 
@@ -395,15 +395,15 @@ void MainWindow::onUsersSaveClicked() {
     bool ok = false;
     if (m_editingUserId.isEmpty()) {
         if (password.isEmpty()) {
-            QMessageBox::warning(this, "Пользователи", "Введите пароль для нового пользователя.");
+            CustomMessageBox::showWarning(this, "Введите пароль для нового пользователя.");
             return;
         }
-        ok = m_repository.createUser(fio, password, role, m_session->id, &errorText);
+        ok = m_repository.createUser(fio, fio, password, role, m_session->id, &errorText);
     } else {
-        ok = m_repository.updateUser(m_editingUserId, fio, password, role, &errorText);
+        ok = m_repository.updateUser(m_editingUserId, fio, fio, password, role, &errorText);
     }
     if (!ok) {
-        QMessageBox::critical(this, "Пользователи", errorText.isEmpty() ? "Не удалось сохранить пользователя." : errorText);
+        CustomMessageBox::showError(this, errorText.isEmpty() ? "Не удалось сохранить пользователя." : errorText);
         return;
     }
     onUsersNewClicked();
@@ -416,12 +416,12 @@ void MainWindow::onUsersDeleteClicked() {
         return;
     }
     const QString id = m_usersTable->item(row, 0)->text();
-    if (QMessageBox::question(this, "Пользователи", "Удалить выбранного пользователя?") != QMessageBox::Yes) {
+    if (!CustomMessageBox::askConfirm(this, "Вы собираетесь удалить данные!\nЭто действие необратимо!")) {
         return;
     }
     QString errorText;
     if (!m_repository.deleteUser(id, &errorText)) {
-        QMessageBox::critical(this, "Пользователи", errorText.isEmpty() ? "Не удалось удалить пользователя." : errorText);
+        CustomMessageBox::showError(this, errorText.isEmpty() ? "Не удалось удалить пользователя." : errorText);
         return;
     }
     onUsersNewClicked();
@@ -471,12 +471,12 @@ void MainWindow::onPatientDeleteClicked() {
         return;
     }
     const QString id = m_patientsTable->item(row, 0)->text();
-    if (QMessageBox::question(this, "Пациенты", "Удалить выбранную карту?") != QMessageBox::Yes) {
+    if (!CustomMessageBox::askConfirm(this, "Вы собираетесь удалить данные!\nЭто действие необратимо!")) {
         return;
     }
     QString errorText;
     if (!m_repository.deletePatient(id, &errorText)) {
-        QMessageBox::critical(this, "Пациенты", errorText.isEmpty() ? "Не удалось удалить карту." : errorText);
+        CustomMessageBox::showError(this, errorText.isEmpty() ? "Не удалось удалить карту." : errorText);
         return;
     }
     refreshPatients();
@@ -487,14 +487,21 @@ void MainWindow::onSaveAnamnesisClicked() {
     QString detectedBirthDate;
     QString errorText;
     QString patientId = m_currentPatientId;
-    if (!m_repository.savePatientAnamnesis(&patientId, m_licenseKey, m_anamnesisEdit->toHtml(), &detectedFio, &detectedBirthDate, &errorText)) {
-        QMessageBox::critical(this, "Анамнез", errorText.isEmpty() ? "Не удалось сохранить карту." : errorText);
+    if (!m_repository.savePatientAnamnesis(
+            &patientId,
+            m_licenseKey,
+            m_anamnesisEdit->toPlainText(),
+            m_anamnesisEdit->toHtml(),
+            &detectedFio,
+            &detectedBirthDate,
+            &errorText)) {
+        CustomMessageBox::showError(this, errorText.isEmpty() ? "Не удалось сохранить карту." : errorText);
         return;
     }
     m_currentPatientId = patientId;
     m_currentPatientBirthDate = detectedBirthDate;
     m_patientTitleLabel->setText("ФИО: " + detectedFio + "   Дата рождения: " + detectedBirthDate);
-    QMessageBox::information(this, "Анамнез", "Карта успешно сохранена.");
+    CustomMessageBox::showInfo(this, "Карта успешно сохранена.");
     refreshPatients();
 }
 
@@ -535,7 +542,7 @@ void MainWindow::onTemplateSaveClicked() {
     }
     QString errorText;
     if (!m_repository.saveTemplate(name, m_fontSizeSpin->value(), m_anamnesisEdit->toHtml(), &errorText)) {
-        QMessageBox::critical(this, "Шаблон", errorText.isEmpty() ? "Не удалось сохранить шаблон." : errorText);
+        CustomMessageBox::showError(this, errorText.isEmpty() ? "Не удалось сохранить шаблон." : errorText);
         return;
     }
     refreshTemplateNames();
@@ -582,7 +589,7 @@ void MainWindow::showAdminPage() {
         return;
     }
     if (m_session->role != "Администратор") {
-        QMessageBox::warning(this, "Администрирование", "Ваш уровень доступа не позволяет открыть этот раздел.");
+        CustomMessageBox::showError(this, "Ваш уровень доступа не позволяет открыть этот раздел.");
         return;
     }
     refreshUsers();

@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    InfantWindow w(licenseService.key());
+    InfantWindow w(licenseService.key(), licenseService.freshActivation());
     w.show();
     return a.exec();
 }

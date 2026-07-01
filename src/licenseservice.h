@@ -13,6 +13,7 @@ public:
 
     bool ensureActivated(QWidget *parent);
     QString key() const;
+    bool freshActivation() const;
 
 private:
     QString localLicensePath() const;
@@ -22,6 +23,7 @@ private:
 
     Repository *m_repository;
     QString m_key;
+    bool m_freshActivation = false;
 };
 
 #endif

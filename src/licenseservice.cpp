@@ -1,4 +1,5 @@
 #include "licenseservice.h"
+#include "custommessagebox.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -7,24 +8,73 @@
 #include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QMessageBox>
-#include <QSysInfo>
 #include <QStandardPaths>
+#include <QSysInfo>
+#include <QProcess>
 #include <QTextStream>
+
+namespace {
+
+QString lastFourChars(const QString &value) {
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty()) {
+        return QStringLiteral("0000");
+    }
+    return trimmed.length() >= 4 ? trimmed.right(4) : trimmed.rightJustified(4, QChar('0'));
+}
+
+#ifdef Q_OS_WIN
+QString wmicPropertyValue(const char *wmicClass, const char *property) {
+    QProcess process;
+    process.start(
+        QStringLiteral("wmic"),
+        {QString::fromLatin1(wmicClass), QStringLiteral("get"), QString::fromLatin1(property), QStringLiteral("/value")}
+    );
+    if (!process.waitForFinished(10000)) {
+        process.kill();
+        return {};
+    }
+    const QStringList lines = QString::fromUtf8(process.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        const int eq = line.indexOf('=');
+        if (eq < 0) {
+            continue;
+        }
+        const QString value = line.mid(eq + 1).trimmed();
+        if (!value.isEmpty()) {
+            return value;
+        }
+    }
+    return {};
+}
+
+QString windowsHardwareFingerprint() {
+    const QString processorId = wmicPropertyValue("cpu", "ProcessorId");
+    QString boardSerial = wmicPropertyValue("baseboard", "SerialNumber");
+    if (boardSerial == QStringLiteral("N/A") || boardSerial == QStringLiteral("NA")) {
+        boardSerial = QStringLiteral("0000000000");
+    }
+    const QString diskModel = wmicPropertyValue("diskdrive", "Model");
+    const QString fingerprint = lastFourChars(processorId) + lastFourChars(boardSerial) + lastFourChars(diskModel);
+    return fingerprint.trimmed().isEmpty() ? QString{} : fingerprint;
+}
+#endif
+
+} // namespace
 
 LicenseService::LicenseService(Repository *repository, QObject *parent)
     : QObject(parent), m_repository(repository) {}
 
 bool LicenseService::ensureActivated(QWidget *parent) {
-#ifdef DEV_LICENSE_BYPASS
-    Q_UNUSED(parent);
-    m_key = "DEV_LICENSE_BYPASS";
-    return true;
-#else
+    if (!ApiClient::supportsHttps()) {
+        CustomMessageBox::showError(parent, ApiClient::userFacingNetworkError(QStringLiteral("TLS initialization failed")));
+        return false;
+    }
+
     m_key = loadSavedKey();
     const QString fingerprint = hardwareFingerprint();
     if (fingerprint.isEmpty()) {
-        QMessageBox::critical(parent, "Лицензия", "Не удалось получить идентификатор оборудования.");
+        CustomMessageBox::showError(parent, "Не удалось получить идентификатор оборудования.");
         return false;
     }
 
@@ -43,28 +93,32 @@ bool LicenseService::ensureActivated(QWidget *parent) {
         }
         QString errorText;
         if (!m_repository->activateLicenseKey(enteredKey, fingerprint, &errorText)) {
-            QMessageBox::critical(parent, "Лицензия", errorText);
+            CustomMessageBox::showError(parent, errorText);
             return false;
         }
         m_key = enteredKey;
+        m_freshActivation = true;
         if (!saveKey(m_key)) {
-            QMessageBox::critical(parent, "Лицензия", "Не удалось сохранить файл лицензии.");
+            CustomMessageBox::showError(parent, "Не удалось сохранить файл лицензии.");
             return false;
         }
     }
 
     QString errorText;
     if (!m_repository->verifyLicenseKeyForMachine(m_key, fingerprint, &errorText)) {
-        QMessageBox::critical(parent, "Лицензия", errorText);
+        CustomMessageBox::showError(parent, errorText);
         return false;
     }
 
     return true;
-#endif
 }
 
 QString LicenseService::key() const {
     return m_key;
+}
+
+bool LicenseService::freshActivation() const {
+    return m_freshActivation;
 }
 
 QString LicenseService::localLicensePath() const {
@@ -107,14 +161,7 @@ bool LicenseService::saveKey(const QString &key) {
 
 QString LicenseService::hardwareFingerprint() const {
 #ifdef Q_OS_WIN
-    QString source = QString::fromLatin1(QSysInfo::machineUniqueId());
-    if (source.trimmed().isEmpty()) {
-        source = QSysInfo::machineHostName() + "|" + QSysInfo::prettyProductName();
-    }
-    if (source.trimmed().isEmpty()) {
-        return {};
-    }
-    return QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(), QCryptographicHash::Sha256).toHex().left(12)).toUpper();
+    return windowsHardwareFingerprint();
 #else
     QString machineId;
     {

@@ -26,6 +26,9 @@ public:
     QString lastError() const;
     QString baseUrl() const;
 
+    static bool supportsHttps();
+    static QString userFacingNetworkError(const QString &apiError);
+
 private:
     QString post(const QString &endpoint, const QMap<QString, QString> &params);
 

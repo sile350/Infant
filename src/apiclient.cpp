@@ -3,6 +3,7 @@
 #include <QEventLoop>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslSocket>
 #include <QTimer>
 #include <QUrlQuery>
 
@@ -74,6 +75,27 @@ QString ApiClient::lastError() const {
 
 QString ApiClient::baseUrl() const {
     return m_baseUrl;
+}
+
+bool ApiClient::supportsHttps() {
+    return QSslSocket::supportsSsl();
+}
+
+QString ApiClient::userFacingNetworkError(const QString &apiError) {
+    if (apiError.contains(QStringLiteral("TLS initialization failed"), Qt::CaseInsensitive)
+        || apiError.contains(QStringLiteral("ssl"), Qt::CaseInsensitive)) {
+        return QStringLiteral(
+            "Не удается установить защищенное соединение (HTTPS).\n"
+            "Для Windows положите libcrypto-1_1-x64.dll и libssl-1_1-x64.dll рядом с infant.exe "
+            "(они копируются автоматически при сборке, если установлен OpenSSL в Qt Tools).");
+    }
+    if (apiError == QStringLiteral("timeout")) {
+        return QStringLiteral("Не удается соединиться с сервером. Истекло время ожидания ответа.");
+    }
+    if (apiError.trimmed().isEmpty()) {
+        return QStringLiteral("Не удается соединиться с сервером. Проверьте интернет-соединение.");
+    }
+    return QStringLiteral("Не удается соединиться с сервером. ") + apiError;
 }
 
 QString ApiClient::post(const QString &endpoint, const QMap<QString, QString> &params) {

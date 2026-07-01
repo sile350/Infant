@@ -340,5 +340,6 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wchar.h \
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wctype.h \
   D:/projects/DokitLab/infant/src/apiclient.h \
+  D:/projects/DokitLab/infant/src/localdatabase.h \
   D:/projects/DokitLab/infant/src/models.h \
   D:/projects/DokitLab/infant/src/repository.h

@@ -9,6 +9,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QSharedDataPointer \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QString \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QStringList \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/QTimer \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QUrl \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QVariant \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QVector \
@@ -18,6 +19,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qatomic.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qatomic_cxx11.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qbasicatomic.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/qbasictimer.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qbytearray.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qbytearraylist.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qcalendar.h \
@@ -76,6 +78,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qsystemdetection.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtcore-config.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtextstream.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/qtimer.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtypeinfo.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qurl.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvariant.h \
@@ -133,10 +136,13 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLabel \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLineEdit \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QMainWindow \
-  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSpinBox \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSlider \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QStackedWidget \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QStyledItemDelegate \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTableWidget \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTextBrowser \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTextEdit \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTreeWidget \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractbutton.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemdelegate.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemview.h \
@@ -154,8 +160,9 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qrubberband.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qsizepolicy.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qslider.h \
-  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qspinbox.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qstackedwidget.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qstyle.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qstyleditemdelegate.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qstyleoption.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtabbar.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtableview.h \
@@ -163,6 +170,9 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtabwidget.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtextbrowser.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtextedit.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtreeview.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtreewidget.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtreewidgetitemiterator.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtwidgets-config.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtwidgetsglobal.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qwidget.h \
@@ -340,5 +350,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wchar.h \
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wctype.h \
   D:/projects/DokitLab/infant/src/apiclient.h \
+  D:/projects/DokitLab/infant/src/imagebutton.h \
+  D:/projects/DokitLab/infant/src/localdatabase.h \
   D:/projects/DokitLab/infant/src/models.h \
   D:/projects/DokitLab/infant/src/repository.h

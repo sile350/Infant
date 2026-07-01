@@ -297,8 +297,8 @@ CMAKE_TAPI:FILEPATH=CMAKE_TAPI-NOTFOUND
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
-//Bypass license checks for development
-DEV_LICENSE_BYPASS:BOOL=ON
+//Path to a file.
+INFANT_OPENSSL_DLL_DIR:PATH=D:/Qt/Tools/mingw1120_64/opt/bin
 
 //Use CLI mode for Qt Creator's MaintenanceTool find_package provider
 QT_CREATOR_MAINTENANCE_TOOL_PROVIDER_USE_CLI:BOOL=OFF
@@ -321,6 +321,9 @@ QT_MAINTENANCE_TOOL:FILEPATH=D:/Qt/MaintenanceTool.exe
 //No help, variable specified on the command line.
 QT_QMAKE_EXECUTABLE:FILEPATH=D:/Qt/5.15.2/mingw81_64/bin/qmake.exe
 
+//The directory containing a CMake configuration file for Qt5Concurrent.
+Qt5Concurrent_DIR:PATH=D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Concurrent
+
 //The directory containing a CMake configuration file for Qt5Core.
 Qt5Core_DIR:PATH=D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Core
 
@@ -332,6 +335,9 @@ Qt5Network_DIR:PATH=D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Network
 
 //The directory containing a CMake configuration file for Qt5PrintSupport.
 Qt5PrintSupport_DIR:PATH=D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5PrintSupport
+
+//The directory containing a CMake configuration file for Qt5Sql.
+Qt5Sql_DIR:PATH=D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Sql
 
 //The directory containing a CMake configuration file for Qt5Widgets.
 Qt5Widgets_DIR:PATH=D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets
