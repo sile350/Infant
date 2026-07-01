@@ -16,6 +16,7 @@
 #include <QHeaderView>
 #include <QIcon>
 #include <QInputDialog>
+#include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPalette>
 #include <QColor>
@@ -42,8 +43,10 @@
 #include <QPropertyAnimation>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QScreen>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QWindow>
 #include <QSlider>
 #include <memory>
 #include <QRegularExpression>
@@ -280,6 +283,65 @@ private:
     QColor m_background;
 };
 
+class ContentMousePanel final : public QWidget {
+public:
+    explicit ContentMousePanel(QWidget *parent = nullptr) : QWidget(parent) {
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setAutoFillBackground(false);
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override { event->accept(); }
+    void mouseMoveEvent(QMouseEvent *event) override { event->accept(); }
+    void mouseReleaseEvent(QMouseEvent *event) override { event->accept(); }
+};
+
+class TitleBarDragWidget final : public QWidget {
+public:
+    explicit TitleBarDragWidget(QMainWindow *window, QWidget *parent = nullptr)
+        : QWidget(parent), m_window(window) {
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setAutoFillBackground(false);
+        setCursor(Qt::ArrowCursor);
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() != Qt::LeftButton || !m_window) {
+            QWidget::mousePressEvent(event);
+            return;
+        }
+        if (QWindow *windowHandle = m_window->windowHandle()) {
+            if (windowHandle->startSystemMove()) {
+                event->accept();
+                return;
+            }
+        }
+        m_manualDrag = true;
+        m_dragOffset = event->globalPos() - m_window->frameGeometry().topLeft();
+        event->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (m_manualDrag && m_window && (event->buttons() & Qt::LeftButton)) {
+            m_window->move(event->globalPos() - m_dragOffset);
+            event->accept();
+            return;
+        }
+        QWidget::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        m_manualDrag = false;
+        QWidget::mouseReleaseEvent(event);
+    }
+
+private:
+    QMainWindow *m_window = nullptr;
+    bool m_manualDrag = false;
+    QPoint m_dragOffset;
+};
+
 class GrayTitleLabel final : public QLabel {
 public:
     explicit GrayTitleLabel(QWidget *parent = nullptr) : QLabel(parent) {
@@ -427,11 +489,13 @@ InfantWindow::InfantWindow(const QString &licenseKey, bool openAdminOnStart, QWi
     } else {
         setScreen(ScreenMode::Enter);
     }
+    m_savedWindowGeometry = geometry();
 }
 
 void InfantWindow::buildUi() {
-    setWindowFlags(Qt::FramelessWindowHint);
-    setFixedSize(1920, 1080);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
+    resize(kDesignWidth, kDesignHeight);
+    setMinimumSize(1024, 768);
     setWindowTitle("Инфант");
     const QString iconFile = resourcePath("infant.ico");
     if (!iconFile.isEmpty()) {
@@ -440,6 +504,12 @@ void InfantWindow::buildUi() {
 
     m_root = new QWidget(this);
     setCentralWidget(m_root);
+
+    m_contentMousePanel = new ContentMousePanel(m_root);
+    m_contentMousePanel->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
+
+    m_titleBarDrag = new TitleBarDragWidget(this, m_root);
+    m_titleBarDrag->setGeometry(0, 0, kDesignWidth, kTitleBarHeight);
 
     m_bClose = new ImageButton(m_root);
     m_bClose->setGeometry(1878, 10, 36, 34);
@@ -610,7 +680,7 @@ void InfantWindow::buildUi() {
     m_adminEye2->setGeometry(kAdminFormX + kAdminFormW + 8, kAdminFirstFieldY + kAdminFieldStep * 3 + 7, 35, 23);
 
     m_userRole = new QComboBox(m_panelAdmin);
-    m_userRole->setGeometry(kAdminFormX + 168, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, 150, 24);
+    m_userRole->setGeometry(kAdminFormX + 154, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 154, 24);
     m_userRole->addItems({"Специалист", "Администратор"});
 
     m_userSaveButton = new ImageButton(m_panelAdmin);
@@ -739,6 +809,23 @@ void InfantWindow::buildUi() {
     m_workStack->hide();
 
     buildSlidePanels();
+
+    if (m_contentMousePanel) {
+        m_contentMousePanel->lower();
+    }
+    if (m_titleBarDrag) {
+        m_titleBarDrag->raise();
+    }
+    const QWidgetList chromeWidgets = {
+        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
+        m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr, m_patientTitle,
+        m_userOpenPatients, m_authorsFilterHost
+    };
+    for (QWidget *widget : chromeWidgets) {
+        if (widget) {
+            widget->raise();
+        }
+    }
 }
 
 void InfantWindow::buildSlidePanels() {
@@ -1144,16 +1231,13 @@ void InfantWindow::applyLegacyStyle() {
 
 void InfantWindow::bindSignals() {
     connect(m_bClose, &ImageButton::clicked, this, &InfantWindow::close);
-    connect(m_bLine, &ImageButton::clicked, this, &InfantWindow::showMinimized);
-    connect(m_bUp, &ImageButton::clicked, this, [this]() {
-        if (height() == 1080) {
-            setFixedHeight(1036);
-            setImage(m_bUp, "down.png");
-        } else {
-            setFixedHeight(1080);
-            setImage(m_bUp, "up.png");
+    connect(m_bLine, &ImageButton::clicked, this, [this]() {
+        if (!m_isCustomMaximized) {
+            m_savedWindowGeometry = geometry();
         }
+        showMinimized();
     });
+    connect(m_bUp, &ImageButton::clicked, this, [this]() { toggleWindowMaximize(); });
     connect(m_bExit, &ImageButton::clicked, this, [this]() {
         if (m_currentScreen == ScreenMode::Anamnesis) {
             tryAutoSaveAnamnesis();
@@ -1487,6 +1571,56 @@ void InfantWindow::navigateBack() {
     m_navHistory.removeLast();
     setScreen(m_navHistory.last(), false);
     m_navigatingBack = false;
+}
+
+void InfantWindow::toggleWindowMaximize() {
+    if (m_isCustomMaximized) {
+        const QRect restoreRect = m_normalGeometryBeforeMaximize.isValid()
+            ? m_normalGeometryBeforeMaximize
+            : QRect(0, 0, kDesignWidth, kDesignHeight);
+        setGeometry(restoreRect);
+        m_savedWindowGeometry = restoreRect;
+        m_isCustomMaximized = false;
+    } else {
+        m_normalGeometryBeforeMaximize = geometry();
+        m_savedWindowGeometry = m_normalGeometryBeforeMaximize;
+        QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
+        if (screen) {
+            setGeometry(screen->availableGeometry());
+        }
+        m_isCustomMaximized = true;
+    }
+    updateMaximizeButtonIcon();
+}
+
+void InfantWindow::updateMaximizeButtonIcon() {
+    setImage(m_bUp, m_isCustomMaximized ? "down.png" : "up.png");
+}
+
+void InfantWindow::changeEvent(QEvent *event) {
+    if (event->type() == QEvent::WindowStateChange) {
+        const auto *stateEvent = static_cast<QWindowStateChangeEvent *>(event);
+        const Qt::WindowStates oldState = stateEvent->oldState();
+        const Qt::WindowStates newState = windowState();
+
+        if (!(oldState & Qt::WindowMinimized) && (newState & Qt::WindowMinimized)) {
+            if (!m_isCustomMaximized) {
+                m_savedWindowGeometry = geometry();
+            }
+        } else if ((oldState & Qt::WindowMinimized) && !(newState & Qt::WindowMinimized)) {
+            QTimer::singleShot(0, this, [this]() {
+                if (m_isCustomMaximized) {
+                    QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
+                    if (screen) {
+                        setGeometry(screen->availableGeometry());
+                    }
+                } else if (m_savedWindowGeometry.isValid()) {
+                    setGeometry(m_savedWindowGeometry);
+                }
+            });
+        }
+    }
+    QMainWindow::changeEvent(event);
 }
 
 void InfantWindow::updatePatientTabIcons() {
