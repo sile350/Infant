@@ -32,6 +32,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     enum class ScreenMode { Enter, Patients, Admin, Anamnesis, Protocols, Exercises };
@@ -45,6 +46,10 @@ private:
     void updatePatientTabIcons();
     void toggleWindowMaximize();
     void updateMaximizeButtonIcon();
+    void applyNormalWindowGeometry();
+    QRect calculateNormalWindowGeometry() const;
+    QRect calculateMaximizedWindowGeometry() const;
+    bool isAnamnesisImportSuccessful() const;
 
     QString imagePath(const QString &name) const;
     QString resourcePath(const QString &name) const;
@@ -272,9 +277,11 @@ private:
     static constexpr int kDesignWidth = 1920;
     static constexpr int kDesignHeight = 1080;
     static constexpr int kTitleBarHeight = 57;
+    static constexpr int kTaskbarReserve = 44;
     QRect m_savedWindowGeometry;
     QRect m_normalGeometryBeforeMaximize;
     bool m_isCustomMaximized = false;
+    bool m_geometryInitialized = false;
 
     QDialog *m_infoPopup = nullptr;
     QDialog *m_helpWindow = nullptr;

@@ -43,6 +43,7 @@
 #include <QPropertyAnimation>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QShowEvent>
 #include <QScreen>
 #include <QScrollBar>
 #include <QShortcut>
@@ -388,6 +389,28 @@ QByteArray compactAnamnesisRtf(const QByteArray &rtf) {
     return data.toLatin1();
 }
 
+bool isRawRtfPlainText(const QString &plainText) {
+    return plainText.trimmed().startsWith(QStringLiteral("{\\rtf"));
+}
+
+class AnamnesisRtfImporter final : public QTextEdit {
+public:
+    explicit AnamnesisRtfImporter(QTextDocument *document) {
+        setDocument(document);
+    }
+
+    void importRtf(const QByteArray &rtf) {
+        clear();
+        QMimeData mime;
+        mime.setData(QStringLiteral("text/rtf"), rtf);
+        mime.setData(QStringLiteral("application/rtf"), rtf);
+#ifdef Q_OS_WIN
+        mime.setData(QStringLiteral("Rich Text Format"), rtf);
+#endif
+        insertFromMimeData(&mime);
+    }
+};
+
 } // namespace
 
 class PatientsItemDelegate final : public QStyledItemDelegate {
@@ -489,7 +512,6 @@ InfantWindow::InfantWindow(const QString &licenseKey, bool openAdminOnStart, QWi
     } else {
         setScreen(ScreenMode::Enter);
     }
-    m_savedWindowGeometry = geometry();
 }
 
 void InfantWindow::buildUi() {
@@ -1575,19 +1597,14 @@ void InfantWindow::navigateBack() {
 
 void InfantWindow::toggleWindowMaximize() {
     if (m_isCustomMaximized) {
-        const QRect restoreRect = m_normalGeometryBeforeMaximize.isValid()
-            ? m_normalGeometryBeforeMaximize
-            : QRect(0, 0, kDesignWidth, kDesignHeight);
-        setGeometry(restoreRect);
-        m_savedWindowGeometry = restoreRect;
+        const QRect restored = calculateNormalWindowGeometry();
+        setGeometry(restored);
+        m_savedWindowGeometry = restored;
         m_isCustomMaximized = false;
     } else {
         m_normalGeometryBeforeMaximize = geometry();
         m_savedWindowGeometry = m_normalGeometryBeforeMaximize;
-        QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
-        if (screen) {
-            setGeometry(screen->availableGeometry());
-        }
+        setGeometry(calculateMaximizedWindowGeometry());
         m_isCustomMaximized = true;
     }
     updateMaximizeButtonIcon();
@@ -1610,17 +1627,68 @@ void InfantWindow::changeEvent(QEvent *event) {
         } else if ((oldState & Qt::WindowMinimized) && !(newState & Qt::WindowMinimized)) {
             QTimer::singleShot(0, this, [this]() {
                 if (m_isCustomMaximized) {
-                    QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
-                    if (screen) {
-                        setGeometry(screen->availableGeometry());
-                    }
-                } else if (m_savedWindowGeometry.isValid()) {
-                    setGeometry(m_savedWindowGeometry);
+                    setGeometry(calculateMaximizedWindowGeometry());
+                } else {
+                    applyNormalWindowGeometry();
                 }
             });
         }
     }
     QMainWindow::changeEvent(event);
+}
+
+void InfantWindow::showEvent(QShowEvent *event) {
+    QMainWindow::showEvent(event);
+    if (!m_geometryInitialized) {
+        m_geometryInitialized = true;
+        applyNormalWindowGeometry();
+    }
+}
+
+QRect InfantWindow::calculateNormalWindowGeometry() const {
+    QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
+    if (!screen) {
+        return QRect(0, 0, kDesignWidth, kDesignHeight - kTaskbarReserve);
+    }
+
+    const QRect available = screen->availableGeometry();
+    const int width = qMin(kDesignWidth, available.width());
+    int height = qMin(kDesignHeight - kTaskbarReserve, available.height() - kTaskbarReserve);
+    if (height < 600) {
+        height = qMax(600, available.height() - kTaskbarReserve);
+    }
+    const int x = available.x() + qMax(0, (available.width() - width) / 2);
+    const int y = available.y();
+    return QRect(x, y, width, height);
+}
+
+QRect InfantWindow::calculateMaximizedWindowGeometry() const {
+    QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
+    if (!screen) {
+        return QRect(0, 0, kDesignWidth, kDesignHeight);
+    }
+    return screen->availableGeometry();
+}
+
+void InfantWindow::applyNormalWindowGeometry() {
+    const QRect normalGeometry = calculateNormalWindowGeometry();
+    setGeometry(normalGeometry);
+    m_savedWindowGeometry = normalGeometry;
+    m_isCustomMaximized = false;
+    updateMaximizeButtonIcon();
+}
+
+bool InfantWindow::isAnamnesisImportSuccessful() const {
+    if (!m_anamnesisEdit) {
+        return false;
+    }
+    const QString plain = m_anamnesisEdit->toPlainText().trimmed();
+    if (plain.isEmpty() || isRawRtfPlainText(plain)) {
+        return false;
+    }
+    return plain.contains(QStringLiteral("Психологический"))
+        || plain.contains(QStringLiteral("Ф.И.О."))
+        || plain.contains(QStringLiteral("Анамнез"));
 }
 
 void InfantWindow::updatePatientTabIcons() {
@@ -2280,16 +2348,15 @@ QString InfantWindow::profileConfigPath() const {
 }
 
 QString InfantWindow::defaultAnamnesisHtml() const {
-    const QString path = htmlPath("anamnez.rtf");
-    if (!path.isEmpty()) {
-        QFile file(path);
+    const QString htmlPathValue = htmlPath("anamnez.html");
+    if (!htmlPathValue.isEmpty()) {
+        QFile file(htmlPathValue);
         if (file.open(QIODevice::ReadOnly)) {
-            const QString raw = QString::fromUtf8(file.readAll());
+            const QString html = normalizeAnamnesisHtmlFonts(QString::fromUtf8(file.readAll()));
             file.close();
-            if (raw.trimmed().isEmpty()) {
-                return m_repository.defaultAnamnesisTemplate();
+            if (!html.trimmed().isEmpty()) {
+                return html;
             }
-            return decodeDocument(raw);
         }
     }
     return m_repository.defaultAnamnesisTemplate();
@@ -2304,7 +2371,7 @@ void InfantWindow::setImage(ImageButton *button, const QString &name) {
 
 QString InfantWindow::decodeDocument(const QString &raw) const {
     if (raw.trimmed().startsWith("{\\rtf")) {
-        return raw;
+        return QString();
     }
     if (raw.trimmed().isEmpty()) {
         return defaultAnamnesisHtml();
@@ -2315,25 +2382,16 @@ QString InfantWindow::decodeDocument(const QString &raw) const {
 void InfantWindow::loadAnamnesisRtf(const QByteArray &rtf) {
     const QByteArray compactRtf = compactAnamnesisRtf(rtf);
     m_lastAnamnesisRtf = compactRtf;
-    m_anamnesisEdit->clear();
-    if (compactRtf.isEmpty()) {
+    if (!m_anamnesisEdit || compactRtf.isEmpty()) {
+        loadStandardAnamnesisHtml();
         return;
     }
 
-    auto *mimeData = new QMimeData();
-    mimeData->setData(QStringLiteral("application/rtf"), compactRtf);
-    mimeData->setData(QStringLiteral("text/rtf"), compactRtf);
-#ifdef Q_OS_WIN
-    mimeData->setData(QStringLiteral("Rich Text Format"), compactRtf);
-#endif
-
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setMimeData(mimeData, QClipboard::Clipboard);
-    m_anamnesisEdit->setFocus();
-    m_anamnesisEdit->paste();
+    AnamnesisRtfImporter importer(m_anamnesisEdit->document());
+    importer.importRtf(compactRtf);
     QApplication::processEvents();
 
-    if (m_anamnesisEdit->toPlainText().contains(QStringLiteral("Психологический"))) {
+    if (isAnamnesisImportSuccessful()) {
         applyAnamnesisDocumentFontDefaults();
         applyCompactAnamnesisLineSpacing();
         return;
@@ -2389,6 +2447,10 @@ void InfantWindow::applyAnamnesisDocument(const QString &raw) {
         loadDefaultAnamnesisTemplate();
         return;
     }
+    if (isRawRtfPlainText(raw)) {
+        loadStandardAnamnesisHtml();
+        return;
+    }
     m_anamnesisEdit->setHtml(raw);
     applyAnamnesisDocumentFontDefaults();
     applyCompactAnamnesisLineSpacing();
@@ -2408,6 +2470,9 @@ void InfantWindow::loadDefaultAnamnesisTemplate() {
     }
 
     if (profileName == QStringLiteral("Стандартный")) {
+#ifndef Q_OS_WIN
+        loadStandardAnamnesisHtml();
+#else
         const QString rtfPath = htmlPath("anamnez.rtf");
         if (!rtfPath.isEmpty()) {
             QFile rtfFile(rtfPath);
@@ -2419,6 +2484,7 @@ void InfantWindow::loadDefaultAnamnesisTemplate() {
         } else {
             loadStandardAnamnesisHtml();
         }
+#endif
         int fontSize = 24;
         const QString configPath = profileConfigPath();
         if (!configPath.isEmpty()) {
@@ -2441,11 +2507,7 @@ void InfantWindow::loadDefaultAnamnesisTemplate() {
     }
 
     const QString templateData = m_repository.loadTemplate(profileName);
-    if (templateData.trimmed().startsWith("{\\rtf")) {
-        applyAnamnesisDocument(templateData);
-        return;
-    }
-    m_anamnesisEdit->setHtml(decodeDocument(templateData));
+    applyAnamnesisDocument(templateData);
 }
 
 void InfantWindow::saveUser() {
