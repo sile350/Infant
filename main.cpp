@@ -3,7 +3,6 @@
 #include "src/repository.h"
 
 #include <QApplication>
-#include <QCoreApplication>
 
 int main(int argc, char *argv[])
 {
@@ -12,8 +11,6 @@ int main(int argc, char *argv[])
     QApplication::setAttribute(Qt::AA_Use96Dpi);
 #endif
     QApplication a(argc, argv);
-    QCoreApplication::setOrganizationName(QStringLiteral("DokitLab"));
-    QCoreApplication::setApplicationName(QStringLiteral("Infant"));
 
     ApiClient api;
     Repository repository(&api);
