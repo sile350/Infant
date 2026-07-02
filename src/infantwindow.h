@@ -49,7 +49,6 @@ private:
     void applyNormalWindowGeometry();
     QRect calculateNormalWindowGeometry() const;
     QRect calculateMaximizedWindowGeometry() const;
-    bool isAnamnesisImportSuccessful() const;
 
     QString imagePath(const QString &name) const;
     QString resourcePath(const QString &name) const;

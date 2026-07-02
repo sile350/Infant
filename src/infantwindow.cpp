@@ -395,12 +395,16 @@ bool isRawRtfPlainText(const QString &plainText) {
 
 class AnamnesisRtfImporter final : public QTextEdit {
 public:
-    explicit AnamnesisRtfImporter(QTextDocument *document) {
-        setDocument(document);
+    AnamnesisRtfImporter() {
+        setAcceptRichText(true);
     }
 
-    void importRtf(const QByteArray &rtf) {
+    bool importRtf(const QByteArray &rtf, QString *htmlOut) {
         clear();
+        if (rtf.isEmpty()) {
+            return false;
+        }
+
         QMimeData mime;
         mime.setData(QStringLiteral("text/rtf"), rtf);
         mime.setData(QStringLiteral("application/rtf"), rtf);
@@ -408,6 +412,20 @@ public:
         mime.setData(QStringLiteral("Rich Text Format"), rtf);
 #endif
         insertFromMimeData(&mime);
+
+        const QString plain = toPlainText().trimmed();
+        if (plain.isEmpty() || isRawRtfPlainText(plain)) {
+            return false;
+        }
+        if (!plain.contains(QStringLiteral("Психологический"))
+            && !plain.contains(QStringLiteral("Ф.И.О."))
+            && !plain.contains(QStringLiteral("Анамнез"))) {
+            return false;
+        }
+        if (htmlOut) {
+            *htmlOut = toHtml();
+        }
+        return true;
     }
 };
 
@@ -1678,19 +1696,6 @@ void InfantWindow::applyNormalWindowGeometry() {
     updateMaximizeButtonIcon();
 }
 
-bool InfantWindow::isAnamnesisImportSuccessful() const {
-    if (!m_anamnesisEdit) {
-        return false;
-    }
-    const QString plain = m_anamnesisEdit->toPlainText().trimmed();
-    if (plain.isEmpty() || isRawRtfPlainText(plain)) {
-        return false;
-    }
-    return plain.contains(QStringLiteral("Психологический"))
-        || plain.contains(QStringLiteral("Ф.И.О."))
-        || plain.contains(QStringLiteral("Анамнез"));
-}
-
 void InfantWindow::updatePatientTabIcons() {
     setImage(m_pAna, m_currentScreen == ScreenMode::Anamnesis ? "anaon.png" : "anaoff.png");
     setImage(m_pProto, m_currentScreen == ScreenMode::Protocols ? "proton.png" : "protoff.png");
@@ -2387,11 +2392,10 @@ void InfantWindow::loadAnamnesisRtf(const QByteArray &rtf) {
         return;
     }
 
-    AnamnesisRtfImporter importer(m_anamnesisEdit->document());
-    importer.importRtf(compactRtf);
-    QApplication::processEvents();
-
-    if (isAnamnesisImportSuccessful()) {
+    AnamnesisRtfImporter importer;
+    QString html;
+    if (importer.importRtf(compactRtf, &html)) {
+        m_anamnesisEdit->setHtml(html);
         applyAnamnesisDocumentFontDefaults();
         applyCompactAnamnesisLineSpacing();
         return;
@@ -3323,16 +3327,20 @@ void InfantWindow::refreshProtocolsView() {
         inner = m_repository.loadPatientProtocols(m_currentPatientId);
     }
 
-    auto *doc = new QTextDocument(m_protocolsView);
+    QTextDocument *doc = m_protocolsView->document();
+    if (!doc) {
+        doc = new QTextDocument(m_protocolsView);
+        m_protocolsView->setDocument(doc);
+    }
     doc->setDefaultStyleSheet(QStringLiteral(
         "html, body { background-color: #ffffff; color: #000000; }"
     ));
+    doc->clear();
     doc->setHtml(protocolsDocumentHtml(inner));
     if (m_protocolsView->viewport()) {
         doc->setTextWidth(static_cast<qreal>(m_protocolsView->viewport()->width()));
     }
 
-    m_protocolsView->setDocument(doc);
     m_protocolsView->moveCursor(QTextCursor::Start);
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
