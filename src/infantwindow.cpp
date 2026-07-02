@@ -412,30 +412,48 @@ bool isWordExportHtml(const QString &html) {
         || html.contains(QStringLiteral("class=MsoNormal"));
 }
 
+QString extractHtmlBodyContent(const QString &html) {
+    const int bodyStart = html.indexOf(QStringLiteral("<body"), 0, Qt::CaseInsensitive);
+    if (bodyStart < 0) {
+        return html;
+    }
+    const int contentStart = html.indexOf(QLatin1Char('>'), bodyStart);
+    if (contentStart < 0) {
+        return html;
+    }
+    const int bodyEnd = html.indexOf(QStringLiteral("</body>"), contentStart, Qt::CaseInsensitive);
+    if (bodyEnd < 0) {
+        return html;
+    }
+    return html.mid(contentStart + 1, bodyEnd - contentStart - 1);
+}
+
+QString stripWordArtifacts(QString html) {
+    html.remove(QStringLiteral("<o:p></o:p>"));
+    html.remove(QStringLiteral("<o:p/>"));
+    while (true) {
+        const int start = html.indexOf(QStringLiteral("<o:p"));
+        if (start < 0) {
+            break;
+        }
+        const int end = html.indexOf(QStringLiteral("</o:p>"), start);
+        if (end < 0) {
+            break;
+        }
+        html.remove(start, end + 6 - start);
+    }
+    return html;
+}
+
 QString prepareAnamnesisHtml(QString html) {
     if (html.size() > 50000 || isWordExportHtml(html)) {
-        const QRegularExpression bodyRe(
-            QStringLiteral("(?is)<body[^>]*>(.*)</body>"),
-            QRegularExpression::DotMatchesEverythingOption
-        );
-        const QRegularExpressionMatch match = bodyRe.match(html);
-        if (match.hasMatch()) {
-            html = match.captured(1);
-        }
+        html = stripWordArtifacts(extractHtmlBodyContent(html));
     }
 
-    html.replace(
-        QRegularExpression(QStringLiteral("<!--\\[if[^>]*>.*?<!(?:\\[endif\\]|endif)-->"), QRegularExpression::DotMatchesEverythingOption),
-        QString()
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("<o:p[^>]*>.*?</o:p>"), QRegularExpression::DotMatchesEverythingOption),
-        QString()
-    );
-    html.replace(QStringLiteral("<o:p/>"), QString());
-    html.replace(QStringLiteral("<o:p></o:p>"), QString());
-    html.replace(QRegularExpression(QStringLiteral("\\s+class=Mso\\w+")), QString());
-    html.replace(QRegularExpression(QStringLiteral("\\s+mso-[^:]+:[^;\"']+;?")), QString());
+    if (html.size() > 150000) {
+        return {};
+    }
+
     html = normalizeAnamnesisHtmlFonts(html);
 
     if (!html.contains(QStringLiteral("<html"), Qt::CaseInsensitive)) {
@@ -448,11 +466,6 @@ QString prepareAnamnesisHtml(QString html) {
         ).arg(html);
     }
 
-#ifndef Q_OS_WIN
-    if (html.size() > 200000) {
-        return {};
-    }
-#endif
     return html;
 }
 
@@ -464,7 +477,56 @@ QString loadAnamnesisTemplateFromFile(const QString &path) {
     if (!file.open(QIODevice::ReadOnly)) {
         return {};
     }
-    return prepareAnamnesisHtml(QString::fromUtf8(file.readAll()));
+    const QByteArray raw = file.readAll();
+    if (raw.isEmpty()) {
+        return {};
+    }
+
+    const QString source = QString::fromUtf8(raw);
+    if (path.endsWith(QStringLiteral("anamnez_clean.html"), Qt::CaseInsensitive)) {
+        return prepareAnamnesisHtml(source);
+    }
+
+#ifndef Q_OS_WIN
+    if (raw.size() > 50000 || isWordExportHtml(source)) {
+        return {};
+    }
+#endif
+
+    return prepareAnamnesisHtml(source);
+}
+
+QString resolveHtmlAssetPath(const QString &name) {
+    const QStringList roots = {
+        QCoreApplication::applicationDirPath() + "/assets/htmls",
+        QCoreApplication::applicationDirPath() + "/../assets/htmls",
+        QCoreApplication::applicationDirPath() + "/../../assets/htmls",
+        QCoreApplication::applicationDirPath() + "/../../../assets/htmls",
+        QDir::currentPath() + "/assets/htmls",
+        QDir::currentPath() + "/../old_project/serv9 2025/WindowsFormsApp1/bin/Debug/htmls"
+    };
+    for (const QString &root : roots) {
+        const QString candidate = QDir(root).filePath(name);
+        if (QFile::exists(candidate)) {
+            return candidate;
+        }
+    }
+    return {};
+}
+
+QString readAnamnesisTemplateHtml() {
+    const QString preparedClean = loadAnamnesisTemplateFromFile(
+        resolveHtmlAssetPath(QStringLiteral("anamnez_clean.html"))
+    );
+    if (!preparedClean.trimmed().isEmpty()) {
+        return preparedClean;
+    }
+
+#ifndef Q_OS_WIN
+    return {};
+#else
+    return loadAnamnesisTemplateFromFile(resolveHtmlAssetPath(QStringLiteral("anamnez.html")));
+#endif
 }
 
 } // namespace
@@ -2419,7 +2481,7 @@ QString InfantWindow::profileConfigPath() const {
 }
 
 QString InfantWindow::defaultAnamnesisHtml() const {
-    const QString prepared = loadAnamnesisTemplateFromFile(htmlPath(QStringLiteral("anamnez.html")));
+    const QString prepared = readAnamnesisTemplateHtml();
     if (!prepared.trimmed().isEmpty()) {
         return prepared;
     }
@@ -2481,7 +2543,7 @@ void InfantWindow::loadStandardAnamnesisHtml() {
         return;
     }
     m_lastAnamnesisRtf.clear();
-    const QString prepared = loadAnamnesisTemplateFromFile(htmlPath(QStringLiteral("anamnez.html")));
+    const QString prepared = readAnamnesisTemplateHtml();
     if (prepared.trimmed().isEmpty()) {
         m_anamnesisEdit->setHtml(m_repository.defaultAnamnesisTemplate());
         applyAnamnesisDocumentFontDefaults();
