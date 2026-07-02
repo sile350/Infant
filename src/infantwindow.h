@@ -281,6 +281,7 @@ private:
     QRect m_normalGeometryBeforeMaximize;
     bool m_isCustomMaximized = false;
     bool m_geometryInitialized = false;
+    bool m_screenTransitionGuard = false;
 
     QDialog *m_infoPopup = nullptr;
     QDialog *m_helpWindow = nullptr;

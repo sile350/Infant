@@ -406,6 +406,67 @@ bool isAnamnesisTemplateLoaded(const QTextEdit *edit) {
         || plain.contains(QStringLiteral("Анамнез"));
 }
 
+bool isWordExportHtml(const QString &html) {
+    return html.contains(QStringLiteral("schemas-microsoft-com:office"))
+        || html.contains(QStringLiteral("ProgId content=\"Word.Document\""))
+        || html.contains(QStringLiteral("class=MsoNormal"));
+}
+
+QString prepareAnamnesisHtml(QString html) {
+    if (html.size() > 50000 || isWordExportHtml(html)) {
+        const QRegularExpression bodyRe(
+            QStringLiteral("(?is)<body[^>]*>(.*)</body>"),
+            QRegularExpression::DotMatchesEverythingOption
+        );
+        const QRegularExpressionMatch match = bodyRe.match(html);
+        if (match.hasMatch()) {
+            html = match.captured(1);
+        }
+    }
+
+    html.replace(
+        QRegularExpression(QStringLiteral("<!--\\[if[^>]*>.*?<!(?:\\[endif\\]|endif)-->"), QRegularExpression::DotMatchesEverythingOption),
+        QString()
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("<o:p[^>]*>.*?</o:p>"), QRegularExpression::DotMatchesEverythingOption),
+        QString()
+    );
+    html.replace(QStringLiteral("<o:p/>"), QString());
+    html.replace(QStringLiteral("<o:p></o:p>"), QString());
+    html.replace(QRegularExpression(QStringLiteral("\\s+class=Mso\\w+")), QString());
+    html.replace(QRegularExpression(QStringLiteral("\\s+mso-[^:]+:[^;\"']+;?")), QString());
+    html = normalizeAnamnesisHtmlFonts(html);
+
+    if (!html.contains(QStringLiteral("<html"), Qt::CaseInsensitive)) {
+        html = QStringLiteral(
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+            "<style>"
+            "body { font-family: 'Times New Roman', serif; font-size: 12pt; color: #000000; background-color: #ffffff; }"
+            "p { margin-top: 0pt; margin-bottom: 0pt; line-height: 85%; }"
+            "</style></head><body>%1</body></html>"
+        ).arg(html);
+    }
+
+#ifndef Q_OS_WIN
+    if (html.size() > 200000) {
+        return {};
+    }
+#endif
+    return html;
+}
+
+QString loadAnamnesisTemplateFromFile(const QString &path) {
+    if (path.isEmpty()) {
+        return {};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return prepareAnamnesisHtml(QString::fromUtf8(file.readAll()));
+}
+
 } // namespace
 
 class PatientsItemDelegate final : public QStyledItemDelegate {
@@ -772,7 +833,11 @@ void InfantWindow::buildUi() {
     );
     if (m_protocolsView->viewport()) {
         m_protocolsView->viewport()->setAttribute(Qt::WA_StaticContents, false);
+#ifndef Q_OS_WIN
+        m_protocolsView->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
+#else
         m_protocolsView->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
+#endif
         m_protocolsView->viewport()->setAutoFillBackground(true);
     }
 
@@ -1431,12 +1496,18 @@ void InfantWindow::bindSignals() {
 
 void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     const ScreenMode previousScreen = m_currentScreen;
+    m_screenTransitionGuard = true;
+    struct ScreenTransitionGuard {
+        bool *flag = nullptr;
+        ~ScreenTransitionGuard() {
+            if (flag) {
+                *flag = false;
+            }
+        }
+    } transitionGuard{&m_screenTransitionGuard};
 
     if (previousScreen == ScreenMode::Anamnesis && mode != ScreenMode::Anamnesis) {
         tryAutoSaveAnamnesis();
-    }
-    if (previousScreen == ScreenMode::Protocols && mode != ScreenMode::Protocols && m_protocolsView) {
-        m_protocolsView->clear();
     }
 
     if (pushHistory && !m_navigatingBack) {
@@ -1482,6 +1553,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
             }
             m_workStack->setCurrentWidget(m_panelExercises);
         }
+        m_workStack->update();
     }
     if (m_authorsFilterHost) {
         m_authorsFilterHost->setVisible(exercises);
@@ -1535,30 +1607,34 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     }
     if (anamnesis) {
         m_helpIndex = "анамнез.html";
-        styleAnamnesisScreen();
-        refreshTemplateNames();
-        if (m_currentPatientId.isEmpty() && m_anamnesisEdit->toPlainText().trimmed().isEmpty()) {
-            loadDefaultAnamnesisTemplate();
-        } else {
-            int fontSize = 24;
-            const QString configPath = profileConfigPath();
-            if (!configPath.isEmpty()) {
-                QFile configFile(configPath);
-                if (configFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                    const QStringList parts = QString::fromUtf8(configFile.readAll()).trimmed().split(';');
-                    if (parts.size() > 1) {
-                        fontSize = parts.at(1).toInt();
+        QTimer::singleShot(0, this, [this]() {
+            if (m_currentScreen != ScreenMode::Anamnesis) {
+                return;
+            }
+            refreshTemplateNames();
+            if (m_currentPatientId.isEmpty() && m_anamnesisEdit->toPlainText().trimmed().isEmpty()) {
+                loadDefaultAnamnesisTemplate();
+            } else {
+                int fontSize = 24;
+                const QString configPath = profileConfigPath();
+                if (!configPath.isEmpty()) {
+                    QFile configFile(configPath);
+                    if (configFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                        const QStringList parts = QString::fromUtf8(configFile.readAll()).trimmed().split(';');
+                        if (parts.size() > 1) {
+                            fontSize = parts.at(1).toInt();
+                        }
                     }
                 }
+                if (m_fontSlider) {
+                    QSignalBlocker blocker(m_fontSlider);
+                    m_fontSlider->setValue(fontSize);
+                }
+                if (m_fontSizeLabel) {
+                    m_fontSizeLabel->setText(QString::number(fontSize));
+                }
             }
-            if (m_fontSlider) {
-                QSignalBlocker blocker(m_fontSlider);
-                m_fontSlider->setValue(fontSize);
-            }
-            if (m_fontSizeLabel) {
-                m_fontSizeLabel->setText(QString::number(fontSize));
-            }
-        }
+        });
     }
     if (protocols) {
         m_helpIndex = "протоколы.html";
@@ -1570,8 +1646,11 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     }
     if (exercises) {
         m_helpIndex = "упражнения.html";
-        styleExercisesScreen();
-        refreshExercisesTree();
+        QTimer::singleShot(0, this, [this]() {
+            if (m_currentScreen == ScreenMode::Exercises) {
+                refreshExercisesTree();
+            }
+        });
     }
     if (workScreen) {
         updatePatientTabIcons();
@@ -1965,6 +2044,9 @@ void InfantWindow::applyAnamnesisDocumentFontDefaults() {
 }
 
 void InfantWindow::applyCompactAnamnesisLineSpacing() {
+#ifndef Q_OS_WIN
+    return;
+#else
     if (!m_anamnesisEdit) {
         return;
     }
@@ -1983,6 +2065,7 @@ void InfantWindow::applyCompactAnamnesisLineSpacing() {
         cursor.mergeBlockFormat(fmt);
     }
     cursor.endEditBlock();
+#endif
 }
 
 void InfantWindow::styleProtocolsView() {
@@ -2336,16 +2419,9 @@ QString InfantWindow::profileConfigPath() const {
 }
 
 QString InfantWindow::defaultAnamnesisHtml() const {
-    const QString htmlPathValue = htmlPath("anamnez.html");
-    if (!htmlPathValue.isEmpty()) {
-        QFile file(htmlPathValue);
-        if (file.open(QIODevice::ReadOnly)) {
-            const QString html = normalizeAnamnesisHtmlFonts(QString::fromUtf8(file.readAll()));
-            file.close();
-            if (!html.trimmed().isEmpty()) {
-                return html;
-            }
-        }
+    const QString prepared = loadAnamnesisTemplateFromFile(htmlPath(QStringLiteral("anamnez.html")));
+    if (!prepared.trimmed().isEmpty()) {
+        return prepared;
     }
     return m_repository.defaultAnamnesisTemplate();
 }
@@ -2405,26 +2481,19 @@ void InfantWindow::loadStandardAnamnesisHtml() {
         return;
     }
     m_lastAnamnesisRtf.clear();
-    const QString path = htmlPath("anamnez.html");
-    if (path.isEmpty()) {
+    const QString prepared = loadAnamnesisTemplateFromFile(htmlPath(QStringLiteral("anamnez.html")));
+    if (prepared.trimmed().isEmpty()) {
         m_anamnesisEdit->setHtml(m_repository.defaultAnamnesisTemplate());
         applyAnamnesisDocumentFontDefaults();
         return;
     }
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
-        m_anamnesisEdit->setHtml(m_repository.defaultAnamnesisTemplate());
-        applyAnamnesisDocumentFontDefaults();
-        return;
-    }
-    QString html = normalizeAnamnesisHtmlFonts(QString::fromUtf8(file.readAll()));
-    m_anamnesisEdit->document()->setMetaInformation(
-        QTextDocument::DocumentUrl,
-        QUrl::fromLocalFile(path).toString()
-    );
-    m_anamnesisEdit->setHtml(html);
+    m_anamnesisEdit->setHtml(prepared);
     applyAnamnesisDocumentFontDefaults();
+#ifndef Q_OS_WIN
+    return;
+#else
     applyCompactAnamnesisLineSpacing();
+#endif
 }
 
 void InfantWindow::applyAnamnesisFont(int pointSize) {
@@ -2458,9 +2527,23 @@ void InfantWindow::applyAnamnesisDocument(const QString &raw) {
         loadStandardAnamnesisHtml();
         return;
     }
-    m_anamnesisEdit->setHtml(raw);
+    QString html = raw;
+#ifndef Q_OS_WIN
+    if (isWordExportHtml(html) || html.size() > 100000) {
+        html = prepareAnamnesisHtml(html);
+        if (html.trimmed().isEmpty()) {
+            loadStandardAnamnesisHtml();
+            return;
+        }
+    }
+#endif
+    m_anamnesisEdit->setHtml(html);
     applyAnamnesisDocumentFontDefaults();
+#ifndef Q_OS_WIN
+    return;
+#else
     applyCompactAnamnesisLineSpacing();
+#endif
 }
 
 void InfantWindow::loadDefaultAnamnesisTemplate() {
@@ -3078,7 +3161,7 @@ void InfantWindow::saveAnamnesisToDb() {
 }
 
 bool InfantWindow::eventFilter(QObject *watched, QEvent *event) {
-    if (watched == m_anamnesisEdit && event->type() == QEvent::FocusOut) {
+    if (watched == m_anamnesisEdit && event->type() == QEvent::FocusOut && !m_screenTransitionGuard) {
         tryAutoSaveAnamnesis();
     }
 
@@ -3326,7 +3409,7 @@ QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
 }
 
 void InfantWindow::refreshProtocolsView() {
-    if (!m_protocolsView) {
+    if (!m_protocolsView || m_currentScreen != ScreenMode::Protocols) {
         return;
     }
 
@@ -3337,10 +3420,16 @@ void InfantWindow::refreshProtocolsView() {
         inner = m_repository.loadPatientProtocols(m_currentPatientId);
     }
 
-    m_protocolsView->setHtml(protocolsDocumentHtml(inner));
+    const QString html = protocolsDocumentHtml(inner);
+    m_protocolsView->setUpdatesEnabled(false);
+    m_protocolsView->setHtml(html);
     m_protocolsView->moveCursor(QTextCursor::Start);
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
+    }
+    m_protocolsView->setUpdatesEnabled(true);
+    if (m_protocolsView->viewport()) {
+        m_protocolsView->viewport()->update();
     }
 }
 

@@ -91,6 +91,15 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(infant)
 endif()
 
+if(UNIX AND NOT APPLE)
+    add_custom_command(TARGET infant POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:infant>/assets"
+        COMMENT "Copying infant assets next to executable"
+    )
+endif()
+
 if(WIN32)
     find_path(INFANT_OPENSSL_DLL_DIR
         NAMES libcrypto-1_1-x64.dll libssl-1_1-x64.dll
