@@ -2582,7 +2582,7 @@ void InfantWindow::applyAnamnesisDocument(const QString &raw) {
     }
     m_lastAnamnesisRtf.clear();
     if (raw.trimmed().isEmpty()) {
-        loadDefaultAnamnesisTemplate();
+        loadStandardAnamnesisHtml();
         return;
     }
     if (isRawRtfPlainText(raw)) {
@@ -2659,6 +2659,28 @@ void InfantWindow::loadDefaultAnamnesisTemplate() {
     }
 
     const QString templateData = m_repository.loadTemplate(profileName);
+    if (templateData.trimmed().isEmpty()) {
+        loadStandardAnamnesisHtml();
+        int fontSize = 24;
+        const QString configPath = profileConfigPath();
+        if (!configPath.isEmpty()) {
+            QFile configFile(configPath);
+            if (configFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                const QStringList parts = QString::fromUtf8(configFile.readAll()).trimmed().split(';');
+                if (parts.size() > 1) {
+                    fontSize = parts.at(1).toInt();
+                }
+            }
+        }
+        if (m_fontSlider) {
+            QSignalBlocker blocker(m_fontSlider);
+            m_fontSlider->setValue(fontSize);
+        }
+        if (m_fontSizeLabel) {
+            m_fontSizeLabel->setText(QString::number(fontSize));
+        }
+        return;
+    }
     applyAnamnesisDocument(templateData);
 }
 
