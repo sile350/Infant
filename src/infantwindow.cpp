@@ -601,7 +601,7 @@ InfantWindow::InfantWindow(const QString &licenseKey, bool openAdminOnStart, QWi
 
 void InfantWindow::buildUi() {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
-    resize(kDesignWidth, kDesignHeight - kTaskbarReserve);
+    resize(kDesignWidth, kDesignHeight);
     setMinimumSize(1024, 768);
     setWindowTitle("Инфант");
     const QString iconFile = resourcePath("infant.ico");
@@ -787,7 +787,7 @@ void InfantWindow::buildUi() {
     m_adminEye2->setGeometry(kAdminFormX + kAdminFormW + 8, kAdminFirstFieldY + kAdminFieldStep * 3 + 7, 35, 23);
 
     m_userRole = new QComboBox(m_panelAdmin);
-    m_userRole->setGeometry(kAdminFormX + 154, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 164, 24);
+    m_userRole->setGeometry(kAdminFormX + 164, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 174, 24);
     m_userRole->addItems({"Специалист", "Администратор"});
 
     m_userSaveButton = new ImageButton(m_panelAdmin);
@@ -1727,9 +1727,7 @@ void InfantWindow::changeEvent(QEvent *event) {
         const Qt::WindowStates newState = windowState();
 
         if (!(oldState & Qt::WindowMinimized) && (newState & Qt::WindowMinimized)) {
-            if (!m_isCustomMaximized) {
-                m_savedWindowGeometry = geometry();
-            }
+            m_savedWindowGeometry = geometry();
         } else if ((oldState & Qt::WindowMinimized) && !(newState & Qt::WindowMinimized)) {
             QTimer::singleShot(0, this, [this]() {
                 if (m_savedWindowGeometry.isValid()) {
@@ -1752,14 +1750,14 @@ void InfantWindow::showEvent(QShowEvent *event) {
 QRect InfantWindow::calculateNormalWindowGeometry() const {
     QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
     if (!screen) {
-        return QRect(0, 0, kDesignWidth, kDesignHeight - kTaskbarReserve);
+        return QRect(0, 0, kDesignWidth, kDesignHeight);
     }
 
-    const QRect available = screen->availableGeometry();
-    const int width = qMin(kDesignWidth, available.width());
-    const int height = kDesignHeight - kTaskbarReserve;
-    const int x = available.x() + qMax(0, (available.width() - width) / 2);
-    const int y = available.y();
+    const QRect screenGeometry = screen->geometry();
+    const int width = qMin(kDesignWidth, screenGeometry.width());
+    const int height = kDesignHeight;
+    const int x = screenGeometry.x() + qMax(0, (screenGeometry.width() - width) / 2);
+    const int y = screenGeometry.y();
     return QRect(x, y, width, height);
 }
 
@@ -1768,10 +1766,10 @@ QRect InfantWindow::calculateMaximizedWindowGeometry() const {
 }
 
 void InfantWindow::applyNormalWindowGeometry() {
-    const QRect normalGeometry = calculateNormalWindowGeometry();
-    setGeometry(normalGeometry);
-    m_savedWindowGeometry = normalGeometry;
-    m_isCustomMaximized = true;
+    const QRect initialGeometry = calculateNormalWindowGeometry();
+    setGeometry(initialGeometry);
+    m_savedWindowGeometry = initialGeometry;
+    m_isCustomMaximized = false;
     updateMaximizeButtonIcon();
 }
 
