@@ -1755,6 +1755,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
                 if (m_fontSizeLabel) {
                     m_fontSizeLabel->setText(QString::number(fontSize));
                 }
+                changeDocumentFontSize(fontSize, false);
             }
         });
     }
@@ -3263,6 +3264,7 @@ void InfantWindow::saveCurrentAnamnesisTemplate() {
         return;
     }
     const int fontSize = m_fontSlider ? m_fontSlider->value() : 24;
+    prepareAnamnesisDocumentForOutput();
     QString err;
     if (!m_repository.saveTemplate(name, fontSize, anamnesisTemplatePayload(), &err)) {
         CustomMessageBox::showError(this, err);
@@ -3317,6 +3319,9 @@ void InfantWindow::syncTemplateSelectorFromProfile() {
     if (m_fontSizeLabel) {
         m_fontSizeLabel->setText(QString::number(fontSize));
     }
+    if (m_currentScreen == ScreenMode::Anamnesis && m_anamnesisEdit) {
+        changeDocumentFontSize(fontSize, false);
+    }
     m_suppressTemplateLoad = false;
 }
 
@@ -3337,6 +3342,9 @@ void InfantWindow::openPatientFromTable() {
     m_selectedPatientRowId = patientId;
     m_patientTitle->setText(fio);
     applyAnamnesisDocument(m_repository.loadPatientAnamnesis(patientId));
+    if (m_fontSlider) {
+        changeDocumentFontSize(m_fontSlider->value(), false);
+    }
     setScreen(ScreenMode::Anamnesis);
 }
 
@@ -3360,6 +3368,7 @@ void InfantWindow::tryAutoSaveAnamnesis() {
     if (m_currentScreen != ScreenMode::Anamnesis || !m_anamnesisEdit) {
         return;
     }
+    prepareAnamnesisDocumentForOutput();
     QString patientId = m_currentPatientId;
     QString fio;
     QString dr;
@@ -3384,6 +3393,7 @@ void InfantWindow::tryAutoSaveAnamnesis() {
 }
 
 void InfantWindow::saveAnamnesisToDb() {
+    prepareAnamnesisDocumentForOutput();
     QString patientId = m_currentPatientId;
     QString fio;
     QString dr;
@@ -3563,7 +3573,7 @@ void InfantWindow::updateFormatButtonIcons() {
     });
 }
 
-void InfantWindow::changeDocumentFontSize(int pointSize) {
+void InfantWindow::changeDocumentFontSize(int pointSize, bool persistProfile) {
     if (!m_anamnesisEdit || pointSize <= 0) {
         return;
     }
@@ -3602,9 +3612,17 @@ void InfantWindow::changeDocumentFontSize(int pointSize) {
     applyAnamnesisFont(pointSize);
     applyCompactAnamnesisLineSpacing();
 #endif
-    if (m_templates) {
+    if (persistProfile && m_templates) {
         writeProfileConfig(m_templates->currentText(), pointSize);
     }
+}
+
+void InfantWindow::prepareAnamnesisDocumentForOutput() {
+    if (!m_anamnesisEdit) {
+        return;
+    }
+    const int fontSize = m_fontSlider ? m_fontSlider->value() : 24;
+    changeDocumentFontSize(fontSize, false);
 }
 
 void InfantWindow::writeProfileConfig(const QString &profileName, int fontSize) {
@@ -4090,6 +4108,10 @@ void InfantWindow::exportDocument() {
         return;
     }
 
+    if (selection.anamnesis) {
+        prepareAnamnesisDocumentForOutput();
+    }
+
     const QString content = assembleExportHtml(selection);
     if (content.trimmed().isEmpty()) {
         CustomMessageBox::showWarning(this, "Нет данных для сохранения.");
@@ -4126,6 +4148,10 @@ void InfantWindow::printSelectedContent() {
             QStringLiteral("Выберите содержимое для печати."),
             QStringLiteral("Выберите часть протоколов для печати."))) {
         return;
+    }
+
+    if (selection.anamnesis) {
+        prepareAnamnesisDocumentForOutput();
     }
 
     const QString content = assembleExportHtml(selection);

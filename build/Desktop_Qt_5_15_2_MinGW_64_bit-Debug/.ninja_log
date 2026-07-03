@@ -87,3 +87,11 @@
 5	87	8048045671542808	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
 87	3704	8048045672368265	CMakeFiles/infant.dir/src/infantwindow.cpp.obj	418e30f7ef62b32e
 3704	4793	8048045708534868	infant.exe	cabe620625752d90
+6	288	8048046703860838	infant_autogen/timestamp	928c61d4c371ba7e
+6	288	8048046703860838	infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+6	288	8048046703860838	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	928c61d4c371ba7e
+6	288	8048046703860838	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+290	1630	8048046704192486	CMakeFiles/infant.dir/main.cpp.obj	554f010039a8ba7
+288	1651	8048046704172963	CMakeFiles/infant.dir/infant_autogen/mocs_compilation.cpp.obj	6eef372d4a19db75
+291	4057	8048046704202271	CMakeFiles/infant.dir/src/infantwindow.cpp.obj	418e30f7ef62b32e
+4057	5156	8048046741860512	infant.exe	cabe620625752d90

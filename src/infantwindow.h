@@ -76,7 +76,8 @@ private:
     void loadAnamnesisRtf(const QByteArray &rtf);
     void applyAnamnesisFont(int pointSize);
     void applyAnamnesisFontToEntireDocument(int pointSize);
-    void changeDocumentFontSize(int pointSize);
+    void changeDocumentFontSize(int pointSize, bool persistProfile = true);
+    void prepareAnamnesisDocumentForOutput();
     void applyAnamnesisDocumentFontDefaults();
     void applyCompactAnamnesisLineSpacing();
     void writeProfileConfig(const QString &profileName, int fontSize);
