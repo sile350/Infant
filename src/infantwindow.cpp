@@ -351,6 +351,39 @@ protected:
     }
 };
 
+class ExercisesTreeHost final : public QWidget {
+public:
+    explicit ExercisesTreeHost(QWidget *parent = nullptr) : QWidget(parent) {
+        setAttribute(Qt::WA_StyledBackground, true);
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAutoFillBackground(true);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), Qt::white);
+        painter.setPen(QColor(0x7f, 0x9d, 0xb9));
+        painter.drawRect(QRect(29, 55, 899, 944));
+        QWidget::paintEvent(event);
+    }
+};
+
+class ViewportWhitePaintFilter final : public QObject {
+public:
+    explicit ViewportWhitePaintFilter(QObject *parent = nullptr) : QObject(parent) {}
+
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Paint) {
+            if (auto *widget = qobject_cast<QWidget *>(watched)) {
+                QPainter painter(widget);
+                painter.fillRect(widget->rect(), Qt::white);
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
+
 class WorkPanelWidget final : public QWidget {
 public:
     explicit WorkPanelWidget(QWidget *parent = nullptr, const QColor &background = QColor(0xf2, 0xf0, 0xf0))
@@ -896,7 +929,10 @@ void InfantWindow::buildUi() {
     m_workStack->setGeometry((1920 - 965) / 2, 57, 965, 1000);
     m_workStack->setAutoFillBackground(true);
     m_workStack->setAttribute(Qt::WA_StyledBackground, true);
-    m_workStack->setStyleSheet(QStringLiteral("QStackedWidget#workStack { background-color: #ffffff; }"));
+    m_workStack->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    m_workStack->setStyleSheet(QStringLiteral(
+        "QStackedWidget#workStack { background-color: #ffffff; background-image: none; }"
+    ));
 
     m_panelProtocols = new WorkPanelWidget(m_workStack, Qt::white);
     m_panelProtocols->setAttribute(Qt::WA_OpaquePaintEvent, true);
@@ -942,12 +978,12 @@ void InfantWindow::buildUi() {
         QStringLiteral("Фатихова Л.Ф."),
         QStringLiteral("Избранное")
     });
-    auto *exercisesTreeHost = new WhitePanelWidget(m_panelExercises);
-    exercisesTreeHost->setObjectName(QStringLiteral("exercisesTreeHost"));
-    exercisesTreeHost->setGeometry(29, 55, 900, 945);
-    m_exercisesTree = new QTreeWidget(exercisesTreeHost);
+    m_exercisesTreeHost = new ExercisesTreeHost(m_panelExercises);
+    m_exercisesTreeHost->setObjectName(QStringLiteral("exercisesTreeHost"));
+    m_exercisesTreeHost->setGeometry(0, 0, 965, 1000);
+    m_exercisesTree = new QTreeWidget(m_exercisesTreeHost);
     m_exercisesTree->setObjectName(QStringLiteral("exercisesTree"));
-    m_exercisesTree->setGeometry(0, 0, 900, 945);
+    m_exercisesTree->setGeometry(29, 55, 900, 945);
     m_exercisesTree->setHeaderHidden(true);
     m_exercisesTree->setRootIsDecorated(true);
     m_exercisesTree->setIndentation(20);
@@ -958,6 +994,11 @@ void InfantWindow::buildUi() {
     m_exercisesTree->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_exercisesTree->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_exercisesTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    if (QWidget *treeViewport = m_exercisesTree->viewport()) {
+        treeViewport->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        treeViewport->setAutoFillBackground(true);
+        treeViewport->installEventFilter(new ViewportWhitePaintFilter(m_exercisesTree));
+    }
 
     m_panelWork = new WorkPanelWidget(m_workStack);
     m_panelWork->setGeometry(0, 0, 965, 1000);
@@ -2239,6 +2280,24 @@ void InfantWindow::styleExercisesScreen() {
         panelPalette.setColor(QPalette::Window, Qt::white);
         panelPalette.setColor(QPalette::Base, Qt::white);
         m_panelExercises->setPalette(panelPalette);
+        m_panelExercises->update();
+    }
+
+    if (m_exercisesTreeHost) {
+        m_exercisesTreeHost->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        m_exercisesTreeHost->setAutoFillBackground(true);
+        m_exercisesTreeHost->setStyleSheet(QStringLiteral(
+            "QWidget#exercisesTreeHost {"
+            "  background-color: #ffffff;"
+            "  background-image: none;"
+            "}"
+        ));
+        m_exercisesTreeHost->update();
+    }
+
+    if (m_workStack) {
+        m_workStack->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        m_workStack->update();
     }
 
     if (m_authorsFilterHost) {
@@ -2280,7 +2339,7 @@ void InfantWindow::styleExercisesScreen() {
     m_exercisesTree->setStyleSheet(
         QStringLiteral(
             "QTreeWidget#exercisesTree {"
-            "  background-color: #ffffff;"
+            "  background: transparent;"
             "  background-image: none;"
             "  color: #000000;"
             "  border: none;"
@@ -2290,10 +2349,15 @@ void InfantWindow::styleExercisesScreen() {
             "  background-image: none;"
             "  color: #000000;"
             "}"
+            "QTreeWidget#exercisesTree::item:selected {"
+            "  background-color: #316ac5;"
+            "  color: #ffffff;"
+            "}"
         ) + whiteScrollBarCss(QStringLiteral("QTreeWidget#exercisesTree"))
     );
     m_exercisesTree->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 9));
-    m_exercisesTree->setAutoFillBackground(true);
+    m_exercisesTree->setAutoFillBackground(false);
+    m_exercisesTree->setAttribute(Qt::WA_OpaquePaintEvent, false);
     QPalette treePalette = m_exercisesTree->palette();
     treePalette.setColor(QPalette::Base, Qt::white);
     treePalette.setColor(QPalette::Window, Qt::white);
@@ -2302,16 +2366,19 @@ void InfantWindow::styleExercisesScreen() {
     treePalette.setColor(QPalette::Highlight, QColor(0x31, 0x6a, 0xc5));
     treePalette.setColor(QPalette::HighlightedText, Qt::white);
     m_exercisesTree->setPalette(treePalette);
-    if (m_exercisesTree->viewport()) {
-        m_exercisesTree->viewport()->setAutoFillBackground(true);
-        QPalette viewportPalette = m_exercisesTree->viewport()->palette();
+    if (QWidget *treeViewport = m_exercisesTree->viewport()) {
+        treeViewport->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        treeViewport->setAutoFillBackground(true);
+        QPalette viewportPalette = treeViewport->palette();
         viewportPalette.setColor(QPalette::Base, Qt::white);
         viewportPalette.setColor(QPalette::Window, Qt::white);
-        m_exercisesTree->viewport()->setPalette(viewportPalette);
-        m_exercisesTree->viewport()->setStyleSheet(
+        treeViewport->setPalette(viewportPalette);
+        treeViewport->setStyleSheet(
             QStringLiteral("background-color: #ffffff; background-image: none;")
         );
+        treeViewport->update();
     }
+    m_exercisesTree->update();
 }
 
 void InfantWindow::styleTemplateComboBox() {

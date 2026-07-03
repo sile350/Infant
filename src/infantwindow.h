@@ -243,6 +243,7 @@ private:
     QTextEdit *m_anamnesisEdit = nullptr;
     QTextEdit *m_protocolsView = nullptr;
     QTreeWidget *m_exercisesTree = nullptr;
+    QWidget *m_exercisesTreeHost = nullptr;
     QComboBox *m_authorsFilter = nullptr;
     QWidget *m_authorsFilterHost = nullptr;
     QLabel *m_patientTitle = nullptr;
