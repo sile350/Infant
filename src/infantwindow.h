@@ -33,6 +33,8 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void changeEvent(QEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void moveEvent(QMoveEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     enum class ScreenMode { Enter, Patients, Admin, Anamnesis, Protocols, Exercises };
@@ -47,6 +49,7 @@ private:
     void toggleWindowMaximize();
     void updateMaximizeButtonIcon();
     void applyNormalWindowGeometry();
+    void applyWindowGeometry(const QRect &rect);
     QRect calculateNormalWindowGeometry() const;
     QRect calculateMaximizedWindowGeometry() const;
 
@@ -164,8 +167,6 @@ private:
     ImageButton *m_bClose = nullptr;
     ImageButton *m_bLine = nullptr;
     ImageButton *m_bUp = nullptr;
-    QWidget *m_titleBarDrag = nullptr;
-    QWidget *m_contentMousePanel = nullptr;
     ImageButton *m_bBack = nullptr;
     ImageButton *m_bList = nullptr;
     ImageButton *m_bExit = nullptr;
@@ -282,6 +283,7 @@ private:
     QRect m_normalGeometryBeforeMaximize;
     bool m_isCustomMaximized = false;
     bool m_geometryInitialized = false;
+    bool m_programmaticGeometryChange = false;
     bool m_screenTransitionGuard = false;
 
     QDialog *m_infoPopup = nullptr;

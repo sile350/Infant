@@ -18,6 +18,8 @@
 #include <QInputDialog>
 #include <QGuiApplication>
 #include <QMouseEvent>
+#include <QMoveEvent>
+#include <QResizeEvent>
 #include <QPalette>
 #include <QColor>
 #include <QBrush>
@@ -368,32 +370,6 @@ private:
     QColor m_background;
 };
 
-class ContentMousePanel final : public QWidget {
-public:
-    explicit ContentMousePanel(QWidget *parent = nullptr) : QWidget(parent) {
-        setAttribute(Qt::WA_NoSystemBackground, true);
-        setAutoFillBackground(false);
-    }
-
-protected:
-    void mousePressEvent(QMouseEvent *event) override { event->accept(); }
-    void mouseMoveEvent(QMouseEvent *event) override { event->accept(); }
-    void mouseReleaseEvent(QMouseEvent *event) override { event->accept(); }
-};
-
-class TitleBarDragWidget final : public QWidget {
-public:
-    explicit TitleBarDragWidget(QWidget *parent = nullptr) : QWidget(parent) {
-        setAttribute(Qt::WA_NoSystemBackground, true);
-        setAutoFillBackground(false);
-    }
-
-protected:
-    void mousePressEvent(QMouseEvent *event) override { event->accept(); }
-    void mouseMoveEvent(QMouseEvent *event) override { event->accept(); }
-    void mouseReleaseEvent(QMouseEvent *event) override { event->accept(); }
-};
-
 class GrayTitleLabel final : public QLabel {
 public:
     explicit GrayTitleLabel(QWidget *parent = nullptr) : QLabel(parent) {
@@ -695,12 +671,6 @@ void InfantWindow::buildUi() {
 
     m_root = new QWidget(this);
     setCentralWidget(m_root);
-
-    m_contentMousePanel = new ContentMousePanel(m_root);
-    m_contentMousePanel->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
-
-    m_titleBarDrag = new TitleBarDragWidget(m_root);
-    m_titleBarDrag->setGeometry(0, 0, kDesignWidth, kTitleBarHeight);
 
     m_bClose = new ImageButton(m_root);
     m_bClose->setGeometry(1878, 10, 36, 34);
@@ -1008,12 +978,6 @@ void InfantWindow::buildUi() {
 
     buildSlidePanels();
 
-    if (m_contentMousePanel) {
-        m_contentMousePanel->lower();
-    }
-    if (m_titleBarDrag) {
-        m_titleBarDrag->raise();
-    }
     const QWidgetList chromeWidgets = {
         m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
         m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr, m_patientTitle,
@@ -1791,7 +1755,7 @@ void InfantWindow::navigateBack() {
 }
 
 void InfantWindow::toggleWindowMaximize() {
-    QRect frame = geometry();
+    QRect frame = m_savedWindowGeometry.isValid() ? m_savedWindowGeometry : geometry();
     if (m_isCustomMaximized) {
         frame.setHeight(kDesignHeight);
         m_isCustomMaximized = false;
@@ -1799,9 +1763,41 @@ void InfantWindow::toggleWindowMaximize() {
         frame.setHeight(kDesignHeight - kTaskbarReserve);
         m_isCustomMaximized = true;
     }
-    setGeometry(frame);
-    m_savedWindowGeometry = frame;
+    applyWindowGeometry(frame);
     updateMaximizeButtonIcon();
+}
+
+void InfantWindow::applyWindowGeometry(const QRect &rect) {
+    m_programmaticGeometryChange = true;
+    setGeometry(rect);
+    m_savedWindowGeometry = rect;
+    m_programmaticGeometryChange = false;
+}
+
+void InfantWindow::moveEvent(QMoveEvent *event) {
+#ifndef Q_OS_WIN
+    if (!m_programmaticGeometryChange && m_savedWindowGeometry.isValid()
+        && pos() != m_savedWindowGeometry.topLeft()) {
+        m_programmaticGeometryChange = true;
+        move(m_savedWindowGeometry.topLeft());
+        m_programmaticGeometryChange = false;
+        return;
+    }
+#endif
+    QMainWindow::moveEvent(event);
+}
+
+void InfantWindow::resizeEvent(QResizeEvent *event) {
+#ifndef Q_OS_WIN
+    if (!m_programmaticGeometryChange && m_savedWindowGeometry.isValid()
+        && size() != m_savedWindowGeometry.size()) {
+        m_programmaticGeometryChange = true;
+        resize(m_savedWindowGeometry.size());
+        m_programmaticGeometryChange = false;
+        return;
+    }
+#endif
+    QMainWindow::resizeEvent(event);
 }
 
 void InfantWindow::updateMaximizeButtonIcon() {
@@ -1819,7 +1815,7 @@ void InfantWindow::changeEvent(QEvent *event) {
         } else if ((oldState & Qt::WindowMinimized) && !(newState & Qt::WindowMinimized)) {
             QTimer::singleShot(0, this, [this]() {
                 if (m_savedWindowGeometry.isValid()) {
-                    setGeometry(m_savedWindowGeometry);
+                    applyWindowGeometry(m_savedWindowGeometry);
                 }
             });
         }
@@ -1855,8 +1851,7 @@ QRect InfantWindow::calculateMaximizedWindowGeometry() const {
 
 void InfantWindow::applyNormalWindowGeometry() {
     const QRect initialGeometry = calculateNormalWindowGeometry();
-    setGeometry(initialGeometry);
-    m_savedWindowGeometry = initialGeometry;
+    applyWindowGeometry(initialGeometry);
     m_isCustomMaximized = false;
     updateMaximizeButtonIcon();
 }
