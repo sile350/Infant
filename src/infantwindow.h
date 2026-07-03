@@ -72,6 +72,7 @@ private:
     void applyAnamnesisDocument(const QString &raw);
     void loadAnamnesisRtf(const QByteArray &rtf);
     void applyAnamnesisFont(int pointSize);
+    void applyAnamnesisFontToEntireDocument(int pointSize);
     void changeDocumentFontSize(int pointSize);
     void applyAnamnesisDocumentFontDefaults();
     void applyCompactAnamnesisLineSpacing();

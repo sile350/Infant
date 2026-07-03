@@ -57,6 +57,7 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QCheckBox>
+#include <QGraphicsOpacityEffect>
 #include <QGroupBox>
 #include <QTextDocument>
 #include <algorithm>
@@ -141,6 +142,89 @@ QString dropdownArrowCss() {
         "  height: 6px;"
         "  image: url(\"%1\");"
     ).arg(path);
+}
+
+struct CheckBoxIndicatorPaths {
+    QString unchecked;
+    QString checked;
+    QString disabledUnchecked;
+    QString disabledChecked;
+};
+
+CheckBoxIndicatorPaths ensureCheckBoxIndicatorImages() {
+    static CheckBoxIndicatorPaths paths;
+    if (!paths.unchecked.isEmpty()) {
+        return paths;
+    }
+
+    const QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    const auto makeIndicator = [&](bool checked, bool disabled, const QString &fileName) -> QString {
+        const QString filePath = QDir(tempDir).filePath(fileName);
+        if (!QFile::exists(filePath)) {
+            QPixmap pixmap(13, 13);
+            pixmap.fill(Qt::transparent);
+            QPainter painter(&pixmap);
+            painter.setRenderHint(QPainter::Antialiasing);
+            const QColor borderColor = disabled ? QColor(0xa0, 0xa0, 0xa0) : QColor(0x80, 0x80, 0x80);
+            const QColor fillColor = disabled ? QColor(0xf4, 0xf4, 0xf4) : Qt::white;
+            painter.fillRect(QRect(1, 1, 11, 11), fillColor);
+            painter.setPen(QPen(borderColor, 1));
+            painter.drawRect(QRect(1, 1, 11, 11));
+            if (checked) {
+                painter.setPen(QPen(disabled ? QColor(0x90, 0x90, 0x90) : QColor(0x22, 0x22, 0x22), 2));
+                painter.drawLine(3, 7, 5, 9);
+                painter.drawLine(5, 9, 10, 3);
+            }
+            pixmap.save(filePath, "PNG");
+        }
+        return QDir::fromNativeSeparators(filePath);
+    };
+
+    paths.unchecked = makeIndicator(false, false, QStringLiteral("infant_cb_unchecked.png"));
+    paths.checked = makeIndicator(true, false, QStringLiteral("infant_cb_checked.png"));
+    paths.disabledUnchecked = makeIndicator(false, true, QStringLiteral("infant_cb_disabled_unchecked.png"));
+    paths.disabledChecked = makeIndicator(true, true, QStringLiteral("infant_cb_disabled_checked.png"));
+    return paths;
+}
+
+QString checkBoxIndicatorCss() {
+    const CheckBoxIndicatorPaths paths = ensureCheckBoxIndicatorImages();
+    return QStringLiteral(
+        "QCheckBox::indicator { width: 13px; height: 13px; }"
+        "QCheckBox::indicator:unchecked { image: url(\"%1\"); }"
+        "QCheckBox::indicator:checked { image: url(\"%2\"); }"
+        "QCheckBox::indicator:unchecked:disabled { image: url(\"%3\"); }"
+        "QCheckBox::indicator:checked:disabled { image: url(\"%4\"); }"
+    ).arg(paths.unchecked, paths.checked, paths.disabledUnchecked, paths.disabledChecked);
+}
+
+QString panelCheckBoxStyleSheet() {
+    return QStringLiteral(
+        "QCheckBox {"
+        "  background: transparent;"
+        "  color: #000000;"
+        "  font-family: 'Microsoft Sans Serif';"
+        "  font-size: 8.25pt;"
+        "  spacing: 4px;"
+        "}"
+        "QCheckBox:disabled { color: rgba(0, 0, 0, 128); }"
+    ) + checkBoxIndicatorCss();
+}
+
+void setPanelChildOpacity(QWidget *widget, bool enabled) {
+    if (!widget) {
+        return;
+    }
+    if (enabled) {
+        widget->setGraphicsEffect(nullptr);
+        return;
+    }
+    auto *effect = qobject_cast<QGraphicsOpacityEffect *>(widget->graphicsEffect());
+    if (!effect) {
+        effect = new QGraphicsOpacityEffect(widget);
+        widget->setGraphicsEffect(effect);
+    }
+    effect->setOpacity(0.45);
 }
 
 QString whiteScrollBarCss(const QString &widgetSelector) {
@@ -888,9 +972,12 @@ void InfantWindow::buildUi() {
         QStringLiteral("Фатихова Л.Ф."),
         QStringLiteral("Избранное")
     });
-    m_exercisesTree = new QTreeWidget(m_panelExercises);
+    auto *exercisesTreeHost = new WhitePanelWidget(m_panelExercises);
+    exercisesTreeHost->setObjectName(QStringLiteral("exercisesTreeHost"));
+    exercisesTreeHost->setGeometry(29, 55, 900, 945);
+    m_exercisesTree = new QTreeWidget(exercisesTreeHost);
     m_exercisesTree->setObjectName(QStringLiteral("exercisesTree"));
-    m_exercisesTree->setGeometry(29, 55, 900, 945);
+    m_exercisesTree->setGeometry(0, 0, 900, 945);
     m_exercisesTree->setHeaderHidden(true);
     m_exercisesTree->setRootIsDecorated(true);
     m_exercisesTree->setIndentation(20);
@@ -967,10 +1054,7 @@ void InfantWindow::buildSlidePanels() {
         ).arg(QString::fromLatin1(objectName));
     };
     const QString transparentPanelStyle = QStringLiteral("background: transparent;");
-    const QString panelCheckBoxStyle = QStringLiteral(
-        "QCheckBox { background: transparent; color: #000000; font-family: 'Microsoft Sans Serif'; font-size: 8.25pt; spacing: 4px; }"
-        "QCheckBox::indicator { width: 13px; height: 13px; }"
-    );
+    const QString panelCheckBoxStyle = panelCheckBoxStyleSheet();
     const QString boldTitleStyle = QStringLiteral(
         "QLabel { background: transparent; color: #000000; font-family: 'Microsoft Sans Serif'; font-size: 8.25pt; font-weight: bold; }"
     );
@@ -1073,6 +1157,7 @@ void InfantWindow::buildSlidePanels() {
     m_saveProtocolsSubPanel->setGeometry(25, 79, 123, 60);
     m_saveProtocolsSubPanel->setStyleSheet(transparentPanelStyle);
     m_saveProtocolsSubPanel->setEnabled(false);
+    setPanelChildOpacity(m_saveProtocolsSubPanel, false);
     m_saveForPatientCb = new QCheckBox(QStringLiteral("Для пациента"), m_saveProtocolsSubPanel);
     m_saveForPatientCb->setGeometry(10, 10, 110, 20);
     m_saveForPatientCb->setStyleSheet(panelCheckBoxStyle);
@@ -1105,6 +1190,7 @@ void InfantWindow::buildSlidePanels() {
     m_printProtocolsSubPanel->setGeometry(42, 93, 123, 60);
     m_printProtocolsSubPanel->setStyleSheet(transparentPanelStyle);
     m_printProtocolsSubPanel->setEnabled(false);
+    setPanelChildOpacity(m_printProtocolsSubPanel, false);
     m_printForPatientCb = new QCheckBox(QStringLiteral("Для пациента"), m_printProtocolsSubPanel);
     m_printForPatientCb->setGeometry(10, 10, 110, 20);
     m_printForPatientCb->setStyleSheet(panelCheckBoxStyle);
@@ -1176,6 +1262,7 @@ void InfantWindow::buildSlidePanels() {
     connect(cancelTemplateBtn, &ImageButton::clicked, this, [this]() { showSettingsSaveTemplateView(false); });
     connect(m_saveProtocolsCb, &QCheckBox::toggled, this, [this](bool checked) {
         m_saveProtocolsSubPanel->setEnabled(checked);
+        setPanelChildOpacity(m_saveProtocolsSubPanel, checked);
         if (!checked) {
             m_saveForPatientCb->setChecked(false);
             m_saveForSpecialistCb->setChecked(false);
@@ -1183,6 +1270,7 @@ void InfantWindow::buildSlidePanels() {
     });
     connect(m_printProtocolsCb, &QCheckBox::toggled, this, [this](bool checked) {
         m_printProtocolsSubPanel->setEnabled(checked);
+        setPanelChildOpacity(m_printProtocolsSubPanel, checked);
         if (!checked) {
             m_printForPatientCb->setChecked(false);
             m_printForSpecialistCb->setChecked(false);
@@ -1873,18 +1961,16 @@ void InfantWindow::stylePatientsScreen() {
     m_patientSearch->setPalette(searchPalette);
 
     m_dateFilter->setStyleSheet(
-        "QCheckBox {"
-        "  color: white;"
-        "  font-family: 'Microsoft Sans Serif';"
-        "  font-size: 9pt;"
-        "  font-weight: bold;"
-        "  spacing: 6px;"
-        "  background: transparent;"
-        "}"
-        "QCheckBox::indicator {"
-        "  width: 13px;"
-        "  height: 13px;"
-        "}"
+        QStringLiteral(
+            "QCheckBox {"
+            "  color: white;"
+            "  font-family: 'Microsoft Sans Serif';"
+            "  font-size: 9pt;"
+            "  font-weight: bold;"
+            "  spacing: 6px;"
+            "  background: transparent;"
+            "}"
+        ) + checkBoxIndicatorCss()
     );
 
     const QString dateLabelStyle =
@@ -2202,16 +2288,12 @@ void InfantWindow::styleExercisesScreen() {
             "  background-color: #ffffff;"
             "  background-image: none;"
             "  color: #000000;"
-            "  border: 1px solid #808080;"
+            "  border: none;"
             "}"
             "QTreeWidget#exercisesTree::item {"
             "  background-color: #ffffff;"
             "  background-image: none;"
             "  color: #000000;"
-            "}"
-            "QTreeWidget#exercisesTree::branch {"
-            "  background-color: #ffffff;"
-            "  background-image: none;"
             "}"
         ) + whiteScrollBarCss(QStringLiteral("QTreeWidget#exercisesTree"))
     );
@@ -2555,6 +2637,43 @@ void InfantWindow::applyAnamnesisFont(int pointSize) {
     }
 }
 
+void InfantWindow::applyAnamnesisFontToEntireDocument(int pointSize) {
+    if (pointSize <= 0 || !m_anamnesisEdit) {
+        return;
+    }
+
+    const double fontPt = pointSize / 2.0;
+    QTextDocument *doc = m_anamnesisEdit->document();
+    if (!doc) {
+        return;
+    }
+
+    QTextCursor cursor(doc);
+    cursor.beginEditBlock();
+    cursor.select(QTextCursor::Document);
+    QTextCharFormat format;
+    format.setFontFamily(QStringLiteral("Times New Roman"));
+    format.setFontPointSize(fontPt);
+    cursor.mergeCharFormat(format);
+    cursor.clearSelection();
+    cursor.endEditBlock();
+
+    QFont defaultFont(QStringLiteral("Times New Roman"));
+    defaultFont.setPointSizeF(fontPt);
+    doc->setDefaultFont(defaultFont);
+    doc->setDefaultStyleSheet(
+        QStringLiteral(
+            "body { font-family: 'Times New Roman'; font-size: %1pt; color: #000000; background-color: #ffffff; }"
+            "p { margin-top: 0pt; margin-bottom: 0pt; line-height: 85%%; }"
+        ).arg(fontPt, 0, 'f', 1)
+    );
+    m_anamnesisEdit->setFont(defaultFont);
+
+    if (m_fontSizeLabel) {
+        m_fontSizeLabel->setText(QString::number(pointSize));
+    }
+}
+
 void InfantWindow::applyAnamnesisDocument(const QString &raw) {
     if (raw.trimmed().startsWith("{\\rtf")) {
 #ifndef Q_OS_WIN
@@ -2636,9 +2755,7 @@ void InfantWindow::loadDefaultAnamnesisTemplate() {
             QSignalBlocker blocker(m_fontSlider);
             m_fontSlider->setValue(fontSize);
         }
-        if (m_fontSizeLabel) {
-            m_fontSizeLabel->setText(QString::number(fontSize));
-        }
+        changeDocumentFontSize(fontSize);
         return;
     }
 
@@ -2660,9 +2777,7 @@ void InfantWindow::loadDefaultAnamnesisTemplate() {
             QSignalBlocker blocker(m_fontSlider);
             m_fontSlider->setValue(fontSize);
         }
-        if (m_fontSizeLabel) {
-            m_fontSizeLabel->setText(QString::number(fontSize));
-        }
+        changeDocumentFontSize(fontSize);
         return;
     }
     applyAnamnesisDocument(templateData);
@@ -3397,6 +3512,7 @@ void InfantWindow::changeDocumentFontSize(int pointSize) {
     bool reloadedFromRtf = false;
 #ifndef Q_OS_WIN
     m_lastAnamnesisRtf.clear();
+    applyAnamnesisFontToEntireDocument(pointSize);
 #else
     if (!m_lastAnamnesisRtf.isEmpty()) {
         QString rtf = QString::fromLatin1(m_lastAnamnesisRtf);
@@ -3407,7 +3523,6 @@ void InfantWindow::changeDocumentFontSize(int pointSize) {
         loadAnamnesisRtf(m_lastAnamnesisRtf);
         reloadedFromRtf = true;
     }
-#endif
     if (!reloadedFromRtf) {
         QString html = m_anamnesisEdit->toHtml();
         for (int size = 21; size <= 28; ++size) {
@@ -3424,6 +3539,7 @@ void InfantWindow::changeDocumentFontSize(int pointSize) {
 
     applyAnamnesisFont(pointSize);
     applyCompactAnamnesisLineSpacing();
+#endif
     if (m_templates) {
         writeProfileConfig(m_templates->currentText(), pointSize);
     }
