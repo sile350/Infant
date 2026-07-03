@@ -299,48 +299,15 @@ protected:
 
 class TitleBarDragWidget final : public QWidget {
 public:
-    explicit TitleBarDragWidget(QMainWindow *window, QWidget *parent = nullptr)
-        : QWidget(parent), m_window(window) {
+    explicit TitleBarDragWidget(QWidget *parent = nullptr) : QWidget(parent) {
         setAttribute(Qt::WA_NoSystemBackground, true);
         setAutoFillBackground(false);
-        setCursor(Qt::ArrowCursor);
     }
 
 protected:
-    void mousePressEvent(QMouseEvent *event) override {
-        if (event->button() != Qt::LeftButton || !m_window) {
-            QWidget::mousePressEvent(event);
-            return;
-        }
-        if (QWindow *windowHandle = m_window->windowHandle()) {
-            if (windowHandle->startSystemMove()) {
-                event->accept();
-                return;
-            }
-        }
-        m_manualDrag = true;
-        m_dragOffset = event->globalPos() - m_window->frameGeometry().topLeft();
-        event->accept();
-    }
-
-    void mouseMoveEvent(QMouseEvent *event) override {
-        if (m_manualDrag && m_window && (event->buttons() & Qt::LeftButton)) {
-            m_window->move(event->globalPos() - m_dragOffset);
-            event->accept();
-            return;
-        }
-        QWidget::mouseMoveEvent(event);
-    }
-
-    void mouseReleaseEvent(QMouseEvent *event) override {
-        m_manualDrag = false;
-        QWidget::mouseReleaseEvent(event);
-    }
-
-private:
-    QMainWindow *m_window = nullptr;
-    bool m_manualDrag = false;
-    QPoint m_dragOffset;
+    void mousePressEvent(QMouseEvent *event) override { event->accept(); }
+    void mouseMoveEvent(QMouseEvent *event) override { event->accept(); }
+    void mouseReleaseEvent(QMouseEvent *event) override { event->accept(); }
 };
 
 class GrayTitleLabel final : public QLabel {
@@ -634,7 +601,7 @@ InfantWindow::InfantWindow(const QString &licenseKey, bool openAdminOnStart, QWi
 
 void InfantWindow::buildUi() {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window);
-    resize(kDesignWidth, kDesignHeight);
+    resize(kDesignWidth, kDesignHeight - kTaskbarReserve);
     setMinimumSize(1024, 768);
     setWindowTitle("Инфант");
     const QString iconFile = resourcePath("infant.ico");
@@ -648,7 +615,7 @@ void InfantWindow::buildUi() {
     m_contentMousePanel = new ContentMousePanel(m_root);
     m_contentMousePanel->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
 
-    m_titleBarDrag = new TitleBarDragWidget(this, m_root);
+    m_titleBarDrag = new TitleBarDragWidget(m_root);
     m_titleBarDrag->setGeometry(0, 0, kDesignWidth, kTitleBarHeight);
 
     m_bClose = new ImageButton(m_root);
@@ -820,7 +787,7 @@ void InfantWindow::buildUi() {
     m_adminEye2->setGeometry(kAdminFormX + kAdminFormW + 8, kAdminFirstFieldY + kAdminFieldStep * 3 + 7, 35, 23);
 
     m_userRole = new QComboBox(m_panelAdmin);
-    m_userRole->setGeometry(kAdminFormX + 154, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 154, 24);
+    m_userRole->setGeometry(kAdminFormX + 154, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 164, 24);
     m_userRole->addItems({"Специалист", "Администратор"});
 
     m_userSaveButton = new ImageButton(m_panelAdmin);
@@ -1710,6 +1677,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
         m_helpIndex = "упражнения.html";
         QTimer::singleShot(0, this, [this]() {
             if (m_currentScreen == ScreenMode::Exercises) {
+                styleExercisesScreen();
                 refreshExercisesTree();
             }
         });
@@ -1735,17 +1703,16 @@ void InfantWindow::navigateBack() {
 }
 
 void InfantWindow::toggleWindowMaximize() {
+    QRect frame = geometry();
     if (m_isCustomMaximized) {
-        const QRect restored = calculateNormalWindowGeometry();
-        setGeometry(restored);
-        m_savedWindowGeometry = restored;
+        frame.setHeight(kDesignHeight);
         m_isCustomMaximized = false;
     } else {
-        m_normalGeometryBeforeMaximize = geometry();
-        m_savedWindowGeometry = m_normalGeometryBeforeMaximize;
-        setGeometry(calculateMaximizedWindowGeometry());
+        frame.setHeight(kDesignHeight - kTaskbarReserve);
         m_isCustomMaximized = true;
     }
+    setGeometry(frame);
+    m_savedWindowGeometry = frame;
     updateMaximizeButtonIcon();
 }
 
@@ -1765,10 +1732,8 @@ void InfantWindow::changeEvent(QEvent *event) {
             }
         } else if ((oldState & Qt::WindowMinimized) && !(newState & Qt::WindowMinimized)) {
             QTimer::singleShot(0, this, [this]() {
-                if (m_isCustomMaximized) {
-                    setGeometry(calculateMaximizedWindowGeometry());
-                } else {
-                    applyNormalWindowGeometry();
+                if (m_savedWindowGeometry.isValid()) {
+                    setGeometry(m_savedWindowGeometry);
                 }
             });
         }
@@ -1792,28 +1757,21 @@ QRect InfantWindow::calculateNormalWindowGeometry() const {
 
     const QRect available = screen->availableGeometry();
     const int width = qMin(kDesignWidth, available.width());
-    int height = qMin(kDesignHeight - kTaskbarReserve, available.height() - kTaskbarReserve);
-    if (height < 600) {
-        height = qMax(600, available.height() - kTaskbarReserve);
-    }
+    const int height = kDesignHeight - kTaskbarReserve;
     const int x = available.x() + qMax(0, (available.width() - width) / 2);
     const int y = available.y();
     return QRect(x, y, width, height);
 }
 
 QRect InfantWindow::calculateMaximizedWindowGeometry() const {
-    QScreen *screen = windowHandle() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
-    if (!screen) {
-        return QRect(0, 0, kDesignWidth, kDesignHeight);
-    }
-    return screen->availableGeometry();
+    return calculateNormalWindowGeometry();
 }
 
 void InfantWindow::applyNormalWindowGeometry() {
     const QRect normalGeometry = calculateNormalWindowGeometry();
     setGeometry(normalGeometry);
     m_savedWindowGeometry = normalGeometry;
-    m_isCustomMaximized = false;
+    m_isCustomMaximized = true;
     updateMaximizeButtonIcon();
 }
 
@@ -2071,13 +2029,18 @@ void InfantWindow::styleAnamnesisScreen() {
     m_anamnesisEdit->setFrameShadow(QFrame::Sunken);
     m_anamnesisEdit->setLineWidth(1);
     m_anamnesisEdit->setAutoFillBackground(true);
+    m_anamnesisEdit->setAttribute(Qt::WA_OpaquePaintEvent, true);
     m_anamnesisEdit->setStyleSheet(
-        "QTextEdit {"
-        "  background-color: #ffffff;"
-        "  color: #000000;"
-        "  selection-background-color: #316ac5;"
-        "  selection-color: #ffffff;"
-        "}"
+        whiteScrollBarCss(QStringLiteral("QTextEdit")) +
+        QStringLiteral(
+            "QTextEdit {"
+            "  background-color: #ffffff;"
+            "  background-image: none;"
+            "  color: #000000;"
+            "  selection-background-color: #316ac5;"
+            "  selection-color: #ffffff;"
+            "}"
+        )
     );
     applyAnamnesisDocumentFontDefaults();
     m_anamnesisEdit->document()->setDocumentMargin(6);
@@ -2087,8 +2050,11 @@ void InfantWindow::styleAnamnesisScreen() {
     editorPalette.setColor(QPalette::Window, Qt::white);
     m_anamnesisEdit->setPalette(editorPalette);
     if (m_anamnesisEdit->viewport()) {
+        m_anamnesisEdit->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
         m_anamnesisEdit->viewport()->setAutoFillBackground(true);
-        m_anamnesisEdit->viewport()->setStyleSheet("background-color: #ffffff;");
+        m_anamnesisEdit->viewport()->setStyleSheet(
+            QStringLiteral("background-color: #ffffff; background-image: none;")
+        );
     }
 }
 
@@ -2232,7 +2198,25 @@ void InfantWindow::styleExercisesScreen() {
     if (exercisesUiStyle) {
         m_exercisesTree->setStyle(exercisesUiStyle);
     }
-    m_exercisesTree->setStyleSheet(whiteScrollBarCss(QStringLiteral("QTreeWidget#exercisesTree")));
+    m_exercisesTree->setStyleSheet(
+        QStringLiteral(
+            "QTreeWidget#exercisesTree {"
+            "  background-color: #ffffff;"
+            "  background-image: none;"
+            "  color: #000000;"
+            "  border: 1px solid #808080;"
+            "}"
+            "QTreeWidget#exercisesTree::item {"
+            "  background-color: #ffffff;"
+            "  background-image: none;"
+            "  color: #000000;"
+            "}"
+            "QTreeWidget#exercisesTree::branch {"
+            "  background-color: #ffffff;"
+            "  background-image: none;"
+            "}"
+        ) + whiteScrollBarCss(QStringLiteral("QTreeWidget#exercisesTree"))
+    );
     m_exercisesTree->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 9));
     m_exercisesTree->setAutoFillBackground(true);
     QPalette treePalette = m_exercisesTree->palette();
@@ -2249,7 +2233,9 @@ void InfantWindow::styleExercisesScreen() {
         viewportPalette.setColor(QPalette::Base, Qt::white);
         viewportPalette.setColor(QPalette::Window, Qt::white);
         m_exercisesTree->viewport()->setPalette(viewportPalette);
-        m_exercisesTree->viewport()->setStyleSheet(QString());
+        m_exercisesTree->viewport()->setStyleSheet(
+            QStringLiteral("background-color: #ffffff; background-image: none;")
+        );
     }
 }
 
