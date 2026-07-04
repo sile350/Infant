@@ -2,6 +2,9 @@
 #include "custommessagebox.h"
 #include "fieldcrypto.h"
 #include "licenseactivationdialog.h"
+#ifndef Q_OS_WIN
+#include "smbiosreader.h"
+#endif
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -11,7 +14,6 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QStandardPaths>
-#include <QTextStream>
 
 namespace {
 
@@ -63,82 +65,15 @@ QString windowsHardwareFingerprint() {
     return fingerprint.trimmed().isEmpty() ? QString{} : fingerprint;
 }
 #else
-QString readSysfsTextFile(const QString &path) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return {};
-    }
-    return QString::fromUtf8(file.readAll()).trimmed();
-}
-
-QString normalizeBoardSerial(QString value) {
-    value = value.trimmed();
-    if (value.isEmpty()
-        || value.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) == 0
-        || value.compare(QStringLiteral("NA"), Qt::CaseInsensitive) == 0
-        || value.compare(QStringLiteral("None"), Qt::CaseInsensitive) == 0
-        || value.contains(QStringLiteral("To Be Filled"), Qt::CaseInsensitive)) {
-        return QStringLiteral("0000000000");
-    }
-    return value;
-}
-
-QString linuxProcessorHardwareId() {
-    QProcess process;
-    process.start(QStringLiteral("dmidecode"), {QStringLiteral("-t"), QStringLiteral("4")});
-    if (process.waitForFinished(5000) && process.exitStatus() == QProcess::NormalExit) {
-        const QString output = QString::fromUtf8(process.readAllStandardOutput());
-        QString processorId;
-        QString processorSerial;
-        for (const QString &line : output.split('\n')) {
-            const QString trimmed = line.trimmed();
-            if (trimmed.startsWith(QStringLiteral("Serial Number:"))) {
-                processorSerial = trimmed.mid(14).trimmed();
-            } else if (trimmed.startsWith(QStringLiteral("ID:"))) {
-                processorId = trimmed.mid(3).trimmed();
-                processorId.remove(QLatin1Char(' '));
-            }
-        }
-        if (!processorSerial.isEmpty()
-            && !processorSerial.contains(QStringLiteral("Not Specified"), Qt::CaseInsensitive)
-            && processorSerial.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) != 0) {
-            return processorSerial;
-        }
-        if (!processorId.isEmpty()) {
-            return processorId;
-        }
-    }
-
-    QFile cpuInfo(QStringLiteral("/proc/cpuinfo"));
-    if (cpuInfo.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream stream(&cpuInfo);
-        while (!stream.atEnd()) {
-            const QString line = stream.readLine();
-            if (line.startsWith(QStringLiteral("Serial"))) {
-                const QStringList parts = line.split(':');
-                if (parts.size() > 1) {
-                    const QString serial = parts.at(1).trimmed();
-                    if (!serial.isEmpty()) {
-                        return serial;
-                    }
-                }
-            }
-        }
-    }
-    return {};
-}
-
 QString linuxHardwareFingerprint() {
-    const QString processorId = linuxProcessorHardwareId();
-    const QString boardSerial = normalizeBoardSerial(
-        readSysfsTextFile(QStringLiteral("/sys/class/dmi/id/board_serial")));
-
-    if (processorId.isEmpty() && boardSerial == QStringLiteral("0000000000")) {
+    SmbiosReader::HardwareIds ids;
+    if (!SmbiosReader::readHardwareIds(&ids)) {
         return {};
     }
-
-    const QString fingerprint = lastFourChars(processorId) + lastFourChars(boardSerial);
-    return fingerprint.trimmed().isEmpty() ? QString{} : fingerprint;
+    if (ids.processorId.isEmpty() && ids.boardSerial == QStringLiteral("0000000000")) {
+        return {};
+    }
+    return lastFourChars(ids.processorId) + lastFourChars(ids.boardSerial);
 }
 #endif
 

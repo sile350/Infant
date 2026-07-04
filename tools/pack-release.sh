@@ -135,6 +135,17 @@ fi
 
 chmod +x "$RELEASE_DIR/infant"
 
+if command -v setcap >/dev/null 2>&1; then
+    echo "Granting SMBIOS read capability to infant ..."
+    if setcap cap_sys_rawio=ep "$RELEASE_DIR/infant"; then
+        echo "OK: cap_sys_rawio set on infant (no dmidecode / sudo needed on client)."
+    else
+        echo "WARNING: setcap failed. Run as root on build machine: setcap cap_sys_rawio=ep $RELEASE_DIR/infant"
+    fi
+else
+    echo "WARNING: setcap not found. Install libcap2-bin on build machine."
+fi
+
 echo ""
 echo "Checking (must work without Infant.sh) ..."
 cd "$RELEASE_DIR"
@@ -160,7 +171,7 @@ echo ""
 echo "Release ready: $RELEASE_DIR"
 echo ""
 echo "Send to customer:"
-echo "  tar -czvf Infant.tar.gz -C dist Infant"
+echo "  tar --xattrs -czvf Infant.tar.gz -C dist Infant"
 echo ""
 echo "Customer runs (from unpacked folder):"
 echo "  chmod +x infant   # once, if needed"

@@ -37,6 +37,13 @@ set(PROJECT_SOURCES
         src/imagebutton.cpp
 )
 
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND PROJECT_SOURCES
+        src/smbiosreader.h
+        src/smbiosreader.cpp
+    )
+endif()
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(infant
         MANUAL_FINALIZATION
@@ -93,7 +100,22 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(infant)
 endif()
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_custom_command(TARGET infant POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:infant>/assets"
+        COMMENT "Copying infant assets next to executable"
+    )
+
+    find_program(INFANT_SETCAP setcap)
+    if(INFANT_SETCAP)
+        add_custom_command(TARGET infant POST_BUILD
+            COMMAND /bin/sh -c "${INFANT_SETCAP} cap_sys_rawio=ep $<TARGET_FILE:infant> || true"
+            COMMENT "Granting SMBIOS read capability to infant (Linux dev build)"
+        )
+    endif()
+elseif(UNIX AND NOT APPLE)
     add_custom_command(TARGET infant POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/assets"
