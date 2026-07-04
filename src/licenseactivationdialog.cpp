@@ -1,7 +1,6 @@
 #include "licenseactivationdialog.h"
 
 #include <QDialog>
-#include <QGraphicsDropShadowEffect>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -16,39 +15,28 @@ public:
         : QDialog(parent, Qt::FramelessWindowHint | Qt::Dialog) {
         setModal(true);
         setFixedSize(470, 176);
+        setStyleSheet(QStringLiteral("QDialog { background-color: #f0f0f0; border: none; }"));
 
-        auto *shadowHost = new QWidget(this);
-        shadowHost->setGeometry(8, 8, 454, 160);
-        shadowHost->setStyleSheet(
-            "background-color: #f0f0f0;"
-            "border: 1px solid #b0b0b0;"
-        );
-
-        auto *shadow = new QGraphicsDropShadowEffect(shadowHost);
-        shadow->setBlurRadius(18);
-        shadow->setOffset(4, 4);
-        shadow->setColor(QColor(0, 0, 0, 120));
-        shadowHost->setGraphicsEffect(shadow);
-
-        auto *layout = new QVBoxLayout(shadowHost);
-        layout->setContentsMargins(56, 24, 56, 20);
-        layout->setSpacing(12);
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(40, 28, 40, 20);
+        layout->setSpacing(10);
 
         auto *prompt = new QLabel(
             QStringLiteral("Пожалуйста, введите ваш 10-значный ключ"),
-            shadowHost
+            this
         );
         prompt->setAlignment(Qt::AlignCenter);
         prompt->setWordWrap(true);
         prompt->setStyleSheet(
             "color: black;"
             "font-family: 'Microsoft Sans Serif';"
-            "font-size: 14pt;"
+            "font-size: 12pt;"
             "background: transparent;"
+            "border: none;"
         );
         layout->addWidget(prompt);
 
-        m_keyEdit = new QLineEdit(shadowHost);
+        m_keyEdit = new QLineEdit(this);
         m_keyEdit->setMaxLength(10);
         m_keyEdit->setFixedHeight(24);
         m_keyEdit->setStyleSheet(
@@ -63,7 +51,7 @@ public:
         );
         layout->addWidget(m_keyEdit);
 
-        auto *submit = new QPushButton(QStringLiteral("Отправить"), shadowHost);
+        auto *submit = new QPushButton(QStringLiteral("Отправить"), this);
         submit->setFixedSize(109, 37);
         submit->setCursor(Qt::PointingHandCursor);
         submit->setStyleSheet(
