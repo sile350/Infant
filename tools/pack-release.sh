@@ -77,6 +77,7 @@ cp "$BINARY" "$APPDIR/usr/bin/infant"
 chmod +x "$APPDIR/usr/bin/infant"
 cp -r "$ASSETS_SRC" "$APPDIR/usr/bin/assets"
 mkdir -p "$APPDIR/usr/bin/data"
+mkdir -p "$APPDIR/usr/bin/key"
 
 cat > "$APPDIR/infant.desktop" <<'EOF'
 [Desktop Entry]
@@ -103,6 +104,7 @@ mkdir -p "$RELEASE_DIR"
 cp -a "$APPDIR/usr/bin/infant" "$RELEASE_DIR/"
 cp -a "$APPDIR/usr/bin/assets" "$RELEASE_DIR/"
 mkdir -p "$RELEASE_DIR/data"
+mkdir -p "$RELEASE_DIR/key"
 
 if [[ -d "$APPDIR/usr/lib" ]]; then
     cp -a "$APPDIR/usr/lib" "$RELEASE_DIR/"

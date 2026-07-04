@@ -65,6 +65,8 @@
 #include <algorithm>
 #include <QCalendarWidget>
 #include <QToolTip>
+#include <QAbstractButton>
+#include <QFileInfo>
 
 namespace {
 
@@ -310,7 +312,7 @@ public:
         painter->setPen(QPen(Qt::white, 1));
         const QRect rect = option.rect;
         painter->drawLine(rect.bottomLeft(), rect.bottomRight());
-        if (index.column() == 1) {
+        if (index.column() == 1 || index.column() == 2) {
             painter->drawLine(rect.topRight(), rect.bottomRight());
         }
         painter->restore();
@@ -528,6 +530,90 @@ QString prepareAnamnesisHtml(QString html) {
 
     return html;
 }
+
+QString prepareHelpHtml(QString html) {
+    html.replace(
+        QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+")),
+        QStringLiteral("line-height:100%")
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px")),
+        QStringLiteral("margin-bottom:2px")
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px")),
+        QStringLiteral("margin-top:0px")
+    );
+    html.replace(QStringLiteral("></span></div>"), QStringLiteral("></div>"));
+    return html;
+}
+
+QString loadHelpHtmlFromFile(const QString &path) {
+    if (path.isEmpty()) {
+        return {};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    const QString source = QString::fromUtf8(file.readAll());
+    if (source.isEmpty()) {
+        return {};
+    }
+    return prepareHelpHtml(source);
+}
+
+class HelpWindowDragFilter final : public QObject {
+public:
+    explicit HelpWindowDragFilter(QDialog *dialog, int titleHeight, QObject *parent = nullptr)
+        : QObject(parent), m_dialog(dialog), m_titleHeight(titleHeight) {
+        dialog->installEventFilter(this);
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched != m_dialog || !m_dialog) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        switch (event->type()) {
+        case QEvent::MouseButtonPress: {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() != Qt::LeftButton || mouseEvent->pos().y() >= m_titleHeight) {
+                break;
+            }
+            QWidget *child = m_dialog->childAt(mouseEvent->pos());
+            while (child && child != m_dialog) {
+                if (qobject_cast<QAbstractButton *>(child)) {
+                    return QObject::eventFilter(watched, event);
+                }
+                child = child->parentWidget();
+            }
+            m_dragging = true;
+            m_dragOffset = mouseEvent->globalPos() - m_dialog->frameGeometry().topLeft();
+            return true;
+        }
+        case QEvent::MouseMove:
+            if (m_dragging) {
+                auto *mouseEvent = static_cast<QMouseEvent *>(event);
+                m_dialog->move(mouseEvent->globalPos() - m_dragOffset);
+                return true;
+            }
+            break;
+        case QEvent::MouseButtonRelease:
+            m_dragging = false;
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QDialog *m_dialog = nullptr;
+    int m_titleHeight = 110;
+    bool m_dragging = false;
+    QPoint m_dragOffset;
+};
 
 QString loadAnamnesisTemplateFromFile(const QString &path) {
     if (path.isEmpty()) {
@@ -799,8 +885,8 @@ void InfantWindow::buildUi() {
 
     m_usersTable = new QTableWidget(m_panelAdmin);
     m_usersTable->setGeometry(kAdminTableX, 45, kAdminTableW, 120);
-    m_usersTable->setColumnCount(3);
-    m_usersTable->setHorizontalHeaderLabels({"id", "Список пользователей", "Уровень доступа"});
+    m_usersTable->setColumnCount(4);
+    m_usersTable->setHorizontalHeaderLabels({"id", "ФИО", "Логин", "Уровень доступа"});
     m_usersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_usersTable->setSelectionMode(QAbstractItemView::SingleSelection);
     m_usersTable->setFrameShape(QFrame::NoFrame);
@@ -834,7 +920,7 @@ void InfantWindow::buildUi() {
     m_userFioPanel->setAttribute(Qt::WA_StyledBackground, true);
     m_userFio = new QLineEdit(m_userFioPanel);
     m_userFio->setGeometry(8, 5, kAdminFormW - 42, 22);
-    m_userFio->setAlignment(Qt::AlignCenter);
+    m_userFio->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_userFioClear = new ImageButton(m_userFioPanel);
     m_userFioClear->setGeometry(kAdminFormW - 30, 5, 23, 22);
     m_userFioClear->hide();
@@ -844,7 +930,7 @@ void InfantWindow::buildUi() {
     m_userLoginPanel->setAttribute(Qt::WA_StyledBackground, true);
     m_userLogin = new QLineEdit(m_userLoginPanel);
     m_userLogin->setGeometry(8, 5, kAdminFormW - 42, 22);
-    m_userLogin->setAlignment(Qt::AlignCenter);
+    m_userLogin->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     m_userLoginClear = new ImageButton(m_userLoginPanel);
     m_userLoginClear->setGeometry(kAdminFormW - 30, 5, 23, 22);
     m_userLoginClear->hide();
@@ -880,7 +966,7 @@ void InfantWindow::buildUi() {
     m_userSaveButton = new ImageButton(m_panelAdmin);
     m_userSaveButton->setGeometry(kAdminFormX + (kAdminFormW - 101) / 2, kAdminSaveY, 101, 30);
     m_userOpenPatients = new ImageButton(m_root);
-    m_userOpenPatients->setGeometry(1780, 100 + kAdminSaveY + 30 + 16, 100, 36);
+    m_userOpenPatients->setGeometry(kAdminFormX + kAdminFormW - 100, 100 + kAdminSaveY + 30 + 16, 100, 36);
 
     m_panelPatients = new QWidget(m_root);
     m_panelPatients->setGeometry((1920 - 749) / 2, 80, 749, 950);
@@ -1921,7 +2007,7 @@ void InfantWindow::styleAdminInputField(QLineEdit *edit) const {
         "  color: black;"
         "  background: white;"
         "  border: none;"
-        "  padding: 0px;"
+        "  padding: 0px 0px 0px 2px;"
         "}"
     );
     QPalette palette = edit->palette();
@@ -2463,6 +2549,7 @@ void InfantWindow::styleUsersTable() {
 
     m_usersTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     m_usersTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Fixed);
+    m_usersTable->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Fixed);
 
     QPalette tablePalette = m_usersTable->palette();
     tablePalette.setColor(QPalette::Base, Qt::transparent);
@@ -3070,8 +3157,8 @@ void InfantWindow::refreshUsers() {
 
     const int oldRows = m_usersTable->rowCount();
     for (int i = 0; i < oldRows; ++i) {
-        if (QWidget *widget = m_usersTable->cellWidget(i, 2)) {
-            m_usersTable->removeCellWidget(i, 2);
+        if (QWidget *widget = m_usersTable->cellWidget(i, 3)) {
+            m_usersTable->removeCellWidget(i, 3);
             widget->deleteLater();
         }
     }
@@ -3086,6 +3173,7 @@ void InfantWindow::refreshUsers() {
         const QString userId = users.at(i).id;
         m_usersTable->setItem(i, 0, makeTextItem(userId));
         m_usersTable->setItem(i, 1, makeTextItem(users.at(i).fio));
+        m_usersTable->setItem(i, 2, makeTextItem(users.at(i).login));
 
         auto *roleCell = new QWidget(m_usersTable);
         roleCell->setAttribute(Qt::WA_StyledBackground, true);
@@ -3122,11 +3210,12 @@ void InfantWindow::refreshUsers() {
 
         auto *placeholder = new QTableWidgetItem;
         placeholder->setFlags(Qt::NoItemFlags);
-        m_usersTable->setItem(i, 2, placeholder);
-        m_usersTable->setCellWidget(i, 2, roleCell);
+        m_usersTable->setItem(i, 3, placeholder);
+        m_usersTable->setCellWidget(i, 3, roleCell);
     }
-    m_usersTable->setColumnWidth(1, 250);
-    m_usersTable->setColumnWidth(2, 286);
+    m_usersTable->setColumnWidth(1, 180);
+    m_usersTable->setColumnWidth(2, 120);
+    m_usersTable->setColumnWidth(3, 236);
     styleUsersTable();
     fitUsersTableToContent();
     m_usersTable->viewport()->update();
@@ -4240,6 +4329,24 @@ void InfantWindow::showInfoPopup() {
 }
 
 void InfantWindow::showHelpWindow(const QString &address) {
+    const auto loadHelpPage = [this](const QString &path) {
+        if (!m_helpBrowser || path.isEmpty()) {
+            return;
+        }
+        const QString html = loadHelpHtmlFromFile(path);
+        if (html.isEmpty()) {
+            return;
+        }
+        const QFileInfo info(path);
+        m_helpBrowser->document()->setBaseUrl(QUrl::fromLocalFile(info.absolutePath() + QStringLiteral("/")));
+        m_helpBrowser->document()->setDocumentMargin(8);
+        m_helpBrowser->document()->setDefaultStyleSheet(
+            "body, p, span, div { line-height: 100%; }"
+            "p { margin-top: 0; margin-bottom: 2px; }"
+        );
+        m_helpBrowser->setHtml(html);
+    };
+
     if (!m_helpWindow) {
         m_helpWindow = new QDialog(this, Qt::FramelessWindowHint);
         m_helpWindow->setFixedSize(873, 900);
@@ -4247,6 +4354,9 @@ void InfantWindow::showHelpWindow(const QString &address) {
 
         m_helpBrowser = new QTextBrowser(m_helpWindow);
         m_helpBrowser->setGeometry(10, 110, 851, 767);
+        m_helpBrowser->setOpenExternalLinks(false);
+
+        new HelpWindowDragFilter(m_helpWindow, 110, m_helpWindow);
 
         ImageButton *closeBtn = new ImageButton(m_helpWindow);
         closeBtn->setGeometry(817, 12, 44, 38);
@@ -4259,20 +4369,16 @@ void InfantWindow::showHelpWindow(const QString &address) {
         ImageButton *manualBtn = new ImageButton(m_helpWindow);
         manualBtn->setGeometry(733, 74, 100, 30);
         manualBtn->setImagePath(imagePath("toogl.png"));
-        connect(manualBtn, &ImageButton::clicked, this, [this]() {
+        connect(manualBtn, &ImageButton::clicked, this, [this, loadHelpPage]() {
             QString path = htmlPath("spravka/руководствопользователя.html");
             if (path.isEmpty()) {
                 path = htmlPath("spravka/основныеэлементыуправления.html");
             }
-            if (!path.isEmpty() && m_helpBrowser) {
-                m_helpBrowser->setSource(QUrl::fromLocalFile(path));
-            }
+            loadHelpPage(path);
         });
     }
 
-    if (m_helpBrowser) {
-        m_helpBrowser->setSource(QUrl::fromLocalFile(address));
-    }
+    loadHelpPage(address);
     m_helpWindow->show();
     m_helpWindow->raise();
     m_helpWindow->activateWindow();

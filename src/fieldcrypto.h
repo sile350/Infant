@@ -8,6 +8,9 @@ namespace FieldCrypto {
 QString encryptPatientFio(const QString &plain);
 QString decryptPatientFio(const QString &stored);
 
+QString encryptLicenseBlob(const QString &plain);
+QString decryptLicenseBlob(const QString &stored);
+
 } // namespace FieldCrypto
 
 #endif
