@@ -67,6 +67,7 @@
 #include <QToolTip>
 #include <QAbstractButton>
 #include <QFileInfo>
+#include <functional>
 
 namespace {
 
@@ -601,6 +602,29 @@ void compactHelpDocumentSpacing(QTextDocument *doc) {
     }
     cursor.endEditBlock();
 }
+
+class HelpTextBrowser final : public QTextBrowser {
+public:
+    using LinkHandler = std::function<void(const QUrl &)>;
+
+    explicit HelpTextBrowser(QWidget *parent = nullptr) : QTextBrowser(parent) {}
+
+    void setLinkHandler(LinkHandler handler) {
+        m_linkHandler = std::move(handler);
+    }
+
+protected:
+    void setSource(const QUrl &name) override {
+        if (m_linkHandler) {
+            m_linkHandler(name);
+            return;
+        }
+        QTextBrowser::setSource(name);
+    }
+
+private:
+    LinkHandler m_linkHandler;
+};
 
 QString loadHelpHtmlFromFile(const QString &path) {
     if (path.isEmpty()) {
@@ -4384,7 +4408,29 @@ void InfantWindow::showInfoPopup() {
 }
 
 void InfantWindow::showHelpWindow(const QString &address) {
-    const auto loadHelpPage = [this](const QString &path) {
+    const auto resolveHelpLinkTarget = [this](const QUrl &link) -> QString {
+        if (m_currentHelpFilePath.isEmpty()) {
+            return {};
+        }
+        const QUrl baseUrl = QUrl::fromLocalFile(m_currentHelpFilePath);
+        const QString path = baseUrl.resolved(link).toLocalFile();
+        if (path.isEmpty()) {
+            return {};
+        }
+        if (QFile::exists(path)) {
+            return path;
+        }
+        const QDir dir(QFileInfo(path).absolutePath());
+        const QString fileName = QFileInfo(path).fileName();
+        for (const QString &entry : dir.entryList(QDir::Files)) {
+            if (entry.compare(fileName, Qt::CaseInsensitive) == 0) {
+                return dir.filePath(entry);
+            }
+        }
+        return htmlPath(QStringLiteral("spravka/") + fileName);
+    };
+
+    const auto loadHelpPage = [this, resolveHelpLinkTarget](const QString &path) {
         if (!m_helpBrowser || path.isEmpty()) {
             return;
         }
@@ -4392,6 +4438,7 @@ void InfantWindow::showHelpWindow(const QString &address) {
         if (html.isEmpty()) {
             return;
         }
+        m_currentHelpFilePath = path;
         const QFileInfo info(path);
         m_helpBrowser->document()->setBaseUrl(QUrl::fromLocalFile(info.absolutePath() + QStringLiteral("/")));
         m_helpBrowser->document()->setDocumentMargin(8);
@@ -4403,12 +4450,39 @@ void InfantWindow::showHelpWindow(const QString &address) {
         compactHelpDocumentSpacing(m_helpBrowser->document());
     };
 
+    const auto navigateHelpLink = [this, loadHelpPage, resolveHelpLinkTarget](const QUrl &url) {
+        if (!m_helpBrowser) {
+            return;
+        }
+
+        const QString fragment = url.fragment();
+        const QUrl pageUrl = url.adjusted(QUrl::RemoveFragment);
+        if (pageUrl.path().isEmpty() && !fragment.isEmpty()) {
+            m_helpBrowser->scrollToAnchor(fragment);
+            return;
+        }
+
+        const QString target = resolveHelpLinkTarget(pageUrl.isEmpty() ? url : pageUrl);
+        if (target.isEmpty()) {
+            return;
+        }
+
+        if (target != m_currentHelpFilePath) {
+            loadHelpPage(target);
+        }
+        if (!fragment.isEmpty()) {
+            m_helpBrowser->scrollToAnchor(fragment);
+        }
+    };
+
     if (!m_helpWindow) {
         m_helpWindow = new QDialog(this, Qt::FramelessWindowHint);
         m_helpWindow->setFixedSize(873, 900);
         m_helpWindow->setStyleSheet("QDialog { background-image: url('" + imagePath("spravka.png") + "'); }");
 
-        m_helpBrowser = new QTextBrowser(m_helpWindow);
+        auto *helpBrowser = new HelpTextBrowser(m_helpWindow);
+        m_helpBrowser = helpBrowser;
+        helpBrowser->setLinkHandler(navigateHelpLink);
         m_helpBrowser->setGeometry(10, 110, 851, 767);
         m_helpBrowser->setOpenExternalLinks(false);
 

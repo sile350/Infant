@@ -292,6 +292,7 @@ private:
     QDialog *m_helpWindow = nullptr;
     QDialog *m_aboutWindow = nullptr;
     QTextBrowser *m_helpBrowser = nullptr;
+    QString m_currentHelpFilePath;
 };
 
 #endif
