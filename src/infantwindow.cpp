@@ -960,13 +960,14 @@ void InfantWindow::buildUi() {
     m_adminEye2->setGeometry(kAdminFormX + kAdminFormW + 8, kAdminFirstFieldY + kAdminFieldStep * 3 + 7, 35, 23);
 
     m_userRole = new QComboBox(m_panelAdmin);
-    m_userRole->setGeometry(kAdminFormX + 164, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 174, 24);
+    m_userRole->setGeometry(kAdminFormX + 164, kAdminFirstFieldY + kAdminFieldStep * 3 + 42, kAdminFormW - 164, 24);
     m_userRole->addItems({"Специалист", "Администратор"});
 
     m_userSaveButton = new ImageButton(m_panelAdmin);
     m_userSaveButton->setGeometry(kAdminFormX + (kAdminFormW - 101) / 2, kAdminSaveY, 101, 30);
-    m_userOpenPatients = new ImageButton(m_root);
-    m_userOpenPatients->setGeometry(kAdminFormX + kAdminFormW - 100, 100 + kAdminSaveY + 30 + 16, 100, 36);
+    constexpr int kAdminEnterW = 100;
+    m_userOpenPatients = new ImageButton(m_panelAdmin);
+    m_userOpenPatients->setGeometry(kAdminFormX + kAdminFormW - kAdminEnterW, kAdminSaveY, kAdminEnterW, 30);
 
     m_panelPatients = new QWidget(m_root);
     m_panelPatients->setGeometry((1920 - 749) / 2, 80, 749, 950);
