@@ -10,6 +10,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -140,8 +141,13 @@ bool LicenseService::ensureActivated(QWidget *parent) {
         }
         m_key = enteredKey;
         m_freshActivation = true;
-        if (!saveKey(m_key)) {
-            CustomMessageBox::showError(parent, "Не удалось сохранить файл лицензии.");
+        QString saveError;
+        if (!saveKey(m_key, &saveError)) {
+            CustomMessageBox::showError(
+                parent,
+                saveError.isEmpty()
+                    ? QStringLiteral("Не удалось сохранить файл лицензии.")
+                    : saveError);
             return false;
         }
     }
@@ -164,12 +170,7 @@ bool LicenseService::freshActivation() const {
 }
 
 QString LicenseService::localLicensePath() const {
-    const QString keyDir = QCoreApplication::applicationDirPath() + QStringLiteral("/key");
-    QDir dir(keyDir);
-    if (!dir.exists()) {
-        dir.mkpath(QStringLiteral("."));
-    }
-    return dir.filePath(QStringLiteral("license.json"));
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("key/license.json"));
 }
 
 QString LicenseService::loadSavedKey() const {
@@ -180,18 +181,70 @@ QString LicenseService::loadSavedKey() const {
     return readKeyFromFile(legacyLicensePath());
 }
 
-bool LicenseService::saveKey(const QString &key) {
+bool LicenseService::saveKey(const QString &key, QString *errorText) {
+    const QString path = localLicensePath();
+    const QFileInfo info(path);
+    const QString dirPath = info.absolutePath();
+
+    if (info.exists() && info.isDir()) {
+        if (errorText) {
+            *errorText = QStringLiteral("Не удалось сохранить ключ: %1 — это каталог, а не файл.")
+                             .arg(path);
+        }
+        return false;
+    }
+
+    if (QFileInfo(dirPath).exists() && !QFileInfo(dirPath).isDir()) {
+        if (errorText) {
+            *errorText = QStringLiteral("Не удалось сохранить ключ: путь %1 занят файлом.").arg(dirPath);
+        }
+        return false;
+    }
+
+    if (!QDir().mkpath(dirPath)) {
+        if (errorText) {
+            *errorText = QStringLiteral("Не удалось создать каталог %1.").arg(dirPath);
+        }
+        return false;
+    }
+
+    const QString probePath = QDir(dirPath).filePath(QStringLiteral(".write_test"));
+    {
+        QFile probe(probePath);
+        if (!probe.open(QIODevice::WriteOnly)) {
+            if (errorText) {
+                *errorText = QStringLiteral(
+                    "Нет прав на запись в %1.\n"
+                    "Если dist собирался через sudo, выполните:\n"
+                    "  sudo chown -R $USER \"%2\"")
+                    .arg(dirPath, QCoreApplication::applicationDirPath());
+            }
+            return false;
+        }
+    }
+    QFile::remove(probePath);
+
     QJsonObject obj;
     obj.insert(QStringLiteral("key"), key);
     obj.insert(QStringLiteral("updated_at"), QString::number(QDateTime::currentSecsSinceEpoch()));
     const QString encrypted = FieldCrypto::encryptLicenseBlob(
         QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact)));
 
-    QFile file(localLicensePath());
+    QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (errorText) {
+            *errorText = QStringLiteral("Не удалось сохранить %1: %2")
+                             .arg(path, file.errorString());
+        }
         return false;
     }
-    file.write(encrypted.toUtf8());
+    if (file.write(encrypted.toUtf8()) < 0) {
+        if (errorText) {
+            *errorText = QStringLiteral("Не удалось записать %1: %2")
+                             .arg(path, file.errorString());
+        }
+        return false;
+    }
     file.close();
     return true;
 }

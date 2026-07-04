@@ -18,7 +18,7 @@ public:
 private:
     QString localLicensePath() const;
     QString loadSavedKey() const;
-    bool saveKey(const QString &key);
+    bool saveKey(const QString &key, QString *errorText = nullptr);
     QString hardwareFingerprint() const;
 
     Repository *m_repository;

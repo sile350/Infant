@@ -105,6 +105,11 @@ cp -a "$APPDIR/usr/bin/infant" "$RELEASE_DIR/"
 cp -a "$APPDIR/usr/bin/assets" "$RELEASE_DIR/"
 mkdir -p "$RELEASE_DIR/data"
 mkdir -p "$RELEASE_DIR/key"
+chmod 755 "$RELEASE_DIR/key"
+
+if [[ -n "${SUDO_UID:-}" && -n "${SUDO_GID:-}" ]]; then
+    chown -R "$SUDO_UID:$SUDO_GID" "$RELEASE_DIR"
+fi
 
 if [[ -d "$APPDIR/usr/lib" ]]; then
     cp -a "$APPDIR/usr/lib" "$RELEASE_DIR/"
