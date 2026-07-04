@@ -5,8 +5,9 @@
 # (no shell wrapper — RPATH + qt.conf are baked in)
 #
 # Prerequisites on BUILD machine only:
-#   sudo apt install qt5-qmake qtbase5-dev patchelf wget
+#   sudo apt install qt5-qmake qtbase5-dev patchelf wget libcap2-bin
 #   Release build in build-astra/
+#   setcap requires root once during packaging (see below)
 #
 # Usage:
 #   cd ~/DokitLab/Infant
@@ -20,6 +21,23 @@ DIST_DIR="$ROOT/dist"
 APPDIR="$DIST_DIR/Infant.AppDir"
 RELEASE_DIR="$DIST_DIR/Infant"
 TOOLS_CACHE="$ROOT/tools/.cache"
+
+find_setcap() {
+    local candidate
+    for candidate in setcap /sbin/setcap /usr/sbin/setcap; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            command -v "$candidate"
+            return 0
+        fi
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+SETCAP="$(find_setcap || true)"
 
 BINARY="$BUILD_DIR/infant"
 ASSETS_SRC="$BUILD_DIR/assets"
@@ -47,6 +65,13 @@ fi
 
 if ! command -v patchelf >/dev/null 2>&1; then
     echo "ERROR: patchelf not found. Install: sudo apt install patchelf"
+    exit 1
+fi
+
+if [[ -z "$SETCAP" ]]; then
+    echo "ERROR: setcap not found."
+    echo "Install on build machine: sudo apt install libcap2-bin"
+    echo "Then re-run: bash tools/pack-release.sh"
     exit 1
 fi
 
@@ -135,15 +160,27 @@ fi
 
 chmod +x "$RELEASE_DIR/infant"
 
-if command -v setcap >/dev/null 2>&1; then
-    echo "Granting SMBIOS read capability to infant ..."
-    if setcap cap_sys_rawio=ep "$RELEASE_DIR/infant"; then
-        echo "OK: cap_sys_rawio set on infant (no dmidecode / sudo needed on client)."
-    else
-        echo "WARNING: setcap failed. Run as root on build machine: setcap cap_sys_rawio=ep $RELEASE_DIR/infant"
+echo "Granting SMBIOS read capability to infant ..."
+if ! "$SETCAP" cap_sys_rawio=ep "$RELEASE_DIR/infant"; then
+    echo ""
+    echo "ERROR: setcap failed (usually needs root on build machine)."
+    echo "Run once, then pack again:"
+    echo "  sudo $SETCAP cap_sys_rawio=ep $RELEASE_DIR/infant"
+    echo ""
+    echo "Or re-run packaging with sudo:"
+    echo "  sudo bash tools/pack-release.sh"
+    exit 1
+fi
+
+if command -v getcap >/dev/null 2>&1; then
+    cap_line="$(getcap "$RELEASE_DIR/infant" 2>/dev/null || true)"
+    if [[ -z "$cap_line" ]] || ! grep -q 'cap_sys_rawio' <<<"$cap_line"; then
+        echo "ERROR: cap_sys_rawio was not applied to $RELEASE_DIR/infant"
+        exit 1
     fi
+    echo "OK: $cap_line"
 else
-    echo "WARNING: setcap not found. Install libcap2-bin on build machine."
+    echo "OK: cap_sys_rawio set on infant (no dmidecode / sudo needed on client)."
 fi
 
 echo ""
