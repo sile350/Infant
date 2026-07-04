@@ -538,14 +538,68 @@ QString prepareHelpHtml(QString html) {
     );
     html.replace(
         QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px")),
-        QStringLiteral("margin-bottom:2px")
+        QStringLiteral("margin-bottom:0")
     );
     html.replace(
         QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px")),
-        QStringLiteral("margin-top:0px")
+        QStringLiteral("margin-top:0")
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+(\\d+px)")),
+        QStringLiteral("margin-left:\\1")
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px")),
+        QStringLiteral("margin:0")
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+(\\d+px)")),
+        QStringLiteral("margin-left:\\1")
+    );
+    html.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+0px")),
+        QStringLiteral("margin:0")
+    );
+    html.replace(
+        QStringLiteral("margin: 48px 48px 48px 48px"),
+        QStringLiteral("margin: 8px")
     );
     html.replace(QStringLiteral("></span></div>"), QStringLiteral("></div>"));
+
+    const QRegularExpression emptyParagraph(
+        QStringLiteral("<p[^>]*>\\s*(<span[^>]*>\\s*)?(<br\\s*/?>|&nbsp;|\\s)*\\s*(</span>\\s*)?</p>"),
+        QRegularExpression::CaseInsensitiveOption);
+    for (int i = 0; i < 32; ++i) {
+        const QString next = html.replace(emptyParagraph, QString());
+        if (next == html) {
+            break;
+        }
+        html = next;
+    }
+
+    html.replace(
+        QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*){2,}"), QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("<br>")
+    );
+
     return html;
+}
+
+void compactHelpDocumentSpacing(QTextDocument *doc) {
+    if (!doc || doc->isEmpty()) {
+        return;
+    }
+    QTextCursor cursor(doc);
+    cursor.beginEditBlock();
+    for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
+        QTextBlockFormat fmt = block.blockFormat();
+        fmt.setLineHeight(100, QTextBlockFormat::ProportionalHeight);
+        fmt.setTopMargin(0);
+        fmt.setBottomMargin(0);
+        cursor.setPosition(block.position());
+        cursor.mergeBlockFormat(fmt);
+    }
+    cursor.endEditBlock();
 }
 
 QString loadHelpHtmlFromFile(const QString &path) {
@@ -4342,10 +4396,11 @@ void InfantWindow::showHelpWindow(const QString &address) {
         m_helpBrowser->document()->setBaseUrl(QUrl::fromLocalFile(info.absolutePath() + QStringLiteral("/")));
         m_helpBrowser->document()->setDocumentMargin(8);
         m_helpBrowser->document()->setDefaultStyleSheet(
-            "body, p, span, div { line-height: 100%; }"
-            "p { margin-top: 0; margin-bottom: 2px; }"
+            "body, p, span, div, li { line-height: 100%; margin-top: 0; margin-bottom: 0; }"
+            "p { padding: 0; }"
         );
         m_helpBrowser->setHtml(html);
+        compactHelpDocumentSpacing(m_helpBrowser->document());
     };
 
     if (!m_helpWindow) {
