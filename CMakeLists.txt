@@ -107,14 +107,6 @@ if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "$<TARGET_FILE_DIR:infant>/assets"
         COMMENT "Copying infant assets next to executable"
     )
-
-    find_program(INFANT_SETCAP setcap)
-    if(INFANT_SETCAP)
-        add_custom_command(TARGET infant POST_BUILD
-            COMMAND /bin/sh -c "${INFANT_SETCAP} cap_sys_rawio=ep $<TARGET_FILE:infant> || true"
-            COMMENT "Granting SMBIOS read capability to infant (Linux dev build)"
-        )
-    endif()
 elseif(UNIX AND NOT APPLE)
     add_custom_command(TARGET infant POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
