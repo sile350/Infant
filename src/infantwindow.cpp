@@ -539,62 +539,15 @@ void appendStyleAttribute(QString *openTag, const QString &styleToAdd);
 void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &classRules);
 void reinforceHelpRichTextTags(QString &html);
 QString buildHelpDefaultStylesheet(const QString &html);
-void normalizeHelpLineBreaks(QString &html);
+void compactHelpSpacingStyles(QString &html);
+void compactHelpDocumentSpacing(QTextDocument *doc);
 
 QString prepareHelpHtml(QString html) {
     const QString stylesheet = extractHelpStylesheet(html);
     const QHash<QString, QString> classRules = parseHelpCssClassRules(stylesheet);
     applyHelpClassStylesToHtml(html, classRules);
-
-    html.replace(
-        QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+")),
-        QStringLiteral("line-height:100%")
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px")),
-        QStringLiteral("margin-bottom:0")
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px")),
-        QStringLiteral("margin-top:0")
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+(\\d+px)")),
-        QStringLiteral("margin-left:\\1")
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px")),
-        QStringLiteral("margin:0")
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+(\\d+px)")),
-        QStringLiteral("margin-left:\\1")
-    );
-    html.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+0px")),
-        QStringLiteral("margin:0")
-    );
-    html.replace(
-        QStringLiteral("margin: 48px 48px 48px 48px"),
-        QStringLiteral("margin: 8px")
-    );
-    html.replace(QStringLiteral("></span></div>"), QStringLiteral("></div>"));
-
-    normalizeHelpLineBreaks(html);
-
-    const QRegularExpression emptyParagraph(
-        QStringLiteral("<p[^>]*>\\s*(<span[^>]*>\\s*)?(&nbsp;|\\s)*\\s*(</span>\\s*)?</p>"),
-        QRegularExpression::CaseInsensitiveOption);
-    for (int i = 0; i < 32; ++i) {
-        const QString next = html.replace(emptyParagraph, QString());
-        if (next == html) {
-            break;
-        }
-        html = next;
-    }
-
+    compactHelpSpacingStyles(html);
     reinforceHelpRichTextTags(html);
-
     return html;
 }
 
@@ -693,30 +646,6 @@ QHash<QString, QString> parseHelpCssClassRules(const QString &stylesheet) {
         }
     }
     return rules;
-}
-
-void normalizeHelpLineBreaks(QString &html) {
-    html.replace(
-        QRegularExpression(
-            QStringLiteral("<br\\s*(?:/>|></br>|>)"),
-            QRegularExpression::CaseInsensitiveOption),
-        QStringLiteral("<br/>"));
-
-    html.replace(
-        QRegularExpression(
-            QStringLiteral(R"re(<p([^>]*)>\s*<span[^>]*>\s*<br/>\s*</span>\s*</p>)re"),
-            QRegularExpression::CaseInsensitiveOption),
-        QStringLiteral("<p\\1><br/></p>"));
-
-    html.replace(
-        QRegularExpression(
-            QStringLiteral(R"re(<p([^>]*)>\s*<br/>\s*</p>)re"),
-            QRegularExpression::CaseInsensitiveOption),
-        QStringLiteral("<p\\1><br/></p>"));
-
-    html.replace(
-        QRegularExpression(QStringLiteral(">\\s*<br/>\\s*<")),
-        QStringLiteral("><p><br/></p><"));
 }
 
 void appendStyleAttribute(QString *openTag, const QString &styleToAdd) {
@@ -844,6 +773,49 @@ void reinforceHelpRichTextTags(QString &html) {
     }
     result += html.mid(offset);
     html = result;
+}
+
+void compactHelpSpacingStyles(QString &html) {
+    const int styleStart = html.indexOf(QStringLiteral("<style"), 0, Qt::CaseInsensitive);
+    if (styleStart < 0) {
+        return;
+    }
+    const int contentStart = html.indexOf(QLatin1Char('>'), styleStart);
+    if (contentStart < 0) {
+        return;
+    }
+    const int styleEnd = html.indexOf(QStringLiteral("</style>"), contentStart, Qt::CaseInsensitive);
+    if (styleEnd < 0) {
+        return;
+    }
+
+    QString css = html.mid(contentStart + 1, styleEnd - contentStart - 1);
+    css.replace(
+        QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+")),
+        QStringLiteral("line-height:100%"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px")),
+        QStringLiteral("margin-bottom:0"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px")),
+        QStringLiteral("margin-top:0"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+(\\d+px)")),
+        QStringLiteral("margin-left:\\1"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px")),
+        QStringLiteral("margin:0"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+(\\d+px)")),
+        QStringLiteral("margin-left:\\1"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+0px")),
+        QStringLiteral("margin:0"));
+    css.replace(
+        QStringLiteral("margin: 48px 48px 48px 48px"),
+        QStringLiteral("margin: 8px"));
+
+    html.replace(contentStart + 1, styleEnd - contentStart - 1, css);
 }
 
 QString buildHelpDefaultStylesheet(const QString &html) {
