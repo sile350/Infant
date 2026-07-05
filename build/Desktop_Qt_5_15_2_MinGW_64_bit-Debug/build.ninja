@@ -121,6 +121,14 @@ build CMakeFiles/infant.dir/src/licenseservice.cpp.obj: CXX_COMPILER__infant_uns
   OBJECT_DIR = CMakeFiles\infant.dir
   OBJECT_FILE_DIR = CMakeFiles\infant.dir\src
 
+build CMakeFiles/infant.dir/src/licenseactivationdialog.cpp.obj: CXX_COMPILER__infant_unscanned_Debug D$:/projects/DokitLab/infant/src/licenseactivationdialog.cpp || cmake_object_order_depends_target_infant
+  DEFINES = -DQT_CONCURRENT_LIB -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_PRINTSUPPORT_LIB -DQT_SQL_LIB -DQT_WIDGETS_LIB
+  DEP_FILE = CMakeFiles\infant.dir\src\licenseactivationdialog.cpp.obj.d
+  FLAGS = -DQT_QML_DEBUG -g -std=gnu++17 -fdiagnostics-color=always
+  INCLUDES = -ID:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/include -isystem D:/Qt/5.15.2/mingw81_64/include -isystem D:/Qt/5.15.2/mingw81_64/include/QtWidgets -isystem D:/Qt/5.15.2/mingw81_64/include/QtGui -isystem D:/Qt/5.15.2/mingw81_64/include/QtANGLE -isystem D:/Qt/5.15.2/mingw81_64/include/QtCore -isystem D:/Qt/5.15.2/mingw81_64/./mkspecs/win32-g++ -isystem D:/Qt/5.15.2/mingw81_64/include/QtNetwork -isystem D:/Qt/5.15.2/mingw81_64/include/QtPrintSupport -isystem D:/Qt/5.15.2/mingw81_64/include/QtSql -isystem D:/Qt/5.15.2/mingw81_64/include/QtConcurrent
+  OBJECT_DIR = CMakeFiles\infant.dir
+  OBJECT_FILE_DIR = CMakeFiles\infant.dir\src
+
 build CMakeFiles/infant.dir/src/custommessagebox.cpp.obj: CXX_COMPILER__infant_unscanned_Debug D$:/projects/DokitLab/infant/src/custommessagebox.cpp || cmake_object_order_depends_target_infant
   DEFINES = -DQT_CONCURRENT_LIB -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_PRINTSUPPORT_LIB -DQT_SQL_LIB -DQT_WIDGETS_LIB
   DEP_FILE = CMakeFiles\infant.dir\src\custommessagebox.cpp.obj.d
@@ -145,7 +153,7 @@ build CMakeFiles/infant.dir/src/imagebutton.cpp.obj: CXX_COMPILER__infant_unscan
 #############################################
 # Link the executable infant.exe
 
-build infant.exe: CXX_EXECUTABLE_LINKER__infant_Debug CMakeFiles/infant.dir/infant_autogen/mocs_compilation.cpp.obj CMakeFiles/infant.dir/main.cpp.obj CMakeFiles/infant.dir/mainwindow.cpp.obj CMakeFiles/infant.dir/src/infantwindow.cpp.obj CMakeFiles/infant.dir/src/apiclient.cpp.obj CMakeFiles/infant.dir/src/repository.cpp.obj CMakeFiles/infant.dir/src/localdatabase.cpp.obj CMakeFiles/infant.dir/src/fieldcrypto.cpp.obj CMakeFiles/infant.dir/src/licenseservice.cpp.obj CMakeFiles/infant.dir/src/custommessagebox.cpp.obj CMakeFiles/infant.dir/src/imagebutton.cpp.obj | D$:/Qt/5.15.2/mingw81_64/lib/libQt5Network.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5PrintSupport.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Sql.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Concurrent.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Widgets.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Gui.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Core.a D$:/Qt/5.15.2/mingw81_64/lib/libqtmain.a || infant_autogen infant_autogen_timestamp_deps
+build infant.exe: CXX_EXECUTABLE_LINKER__infant_Debug CMakeFiles/infant.dir/infant_autogen/mocs_compilation.cpp.obj CMakeFiles/infant.dir/main.cpp.obj CMakeFiles/infant.dir/mainwindow.cpp.obj CMakeFiles/infant.dir/src/infantwindow.cpp.obj CMakeFiles/infant.dir/src/apiclient.cpp.obj CMakeFiles/infant.dir/src/repository.cpp.obj CMakeFiles/infant.dir/src/localdatabase.cpp.obj CMakeFiles/infant.dir/src/fieldcrypto.cpp.obj CMakeFiles/infant.dir/src/licenseservice.cpp.obj CMakeFiles/infant.dir/src/licenseactivationdialog.cpp.obj CMakeFiles/infant.dir/src/custommessagebox.cpp.obj CMakeFiles/infant.dir/src/imagebutton.cpp.obj | D$:/Qt/5.15.2/mingw81_64/lib/libQt5Network.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5PrintSupport.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Sql.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Concurrent.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Widgets.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Gui.a D$:/Qt/5.15.2/mingw81_64/lib/libQt5Core.a D$:/Qt/5.15.2/mingw81_64/lib/libqtmain.a || infant_autogen infant_autogen_timestamp_deps
   FLAGS = -DQT_QML_DEBUG -g
   LINK_FLAGS = -mwindows
   LINK_LIBRARIES = D:/Qt/5.15.2/mingw81_64/lib/libQt5Network.a  D:/Qt/5.15.2/mingw81_64/lib/libQt5PrintSupport.a  D:/Qt/5.15.2/mingw81_64/lib/libQt5Sql.a  D:/Qt/5.15.2/mingw81_64/lib/libQt5Concurrent.a  D:/Qt/5.15.2/mingw81_64/lib/libQt5Widgets.a  D:/Qt/5.15.2/mingw81_64/lib/libQt5Gui.a  D:/Qt/5.15.2/mingw81_64/lib/libQt5Core.a  D:/Qt/5.15.2/mingw81_64/lib/libqtmain.a  -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32

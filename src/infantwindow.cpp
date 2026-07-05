@@ -631,9 +631,11 @@ QString simplifyHelpInlineStyle(QString declarations) {
     declarations.remove(dropRule);
 
     declarations.replace(
-        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px\\s*;?"), QStringLiteral("margin-bottom:0;"));
+        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px\\s*;?")),
+        QStringLiteral("margin-bottom:0;"));
     declarations.replace(
-        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px\\s*;?"), QStringLiteral("margin-top:0;"));
+        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px\\s*;?")),
+        QStringLiteral("margin-top:0;"));
     declarations.replace(
         QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+\\d+px\\s*;?")),
         QStringLiteral("margin:0;"));
@@ -641,7 +643,8 @@ QString simplifyHelpInlineStyle(QString declarations) {
         QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px\\s*;?")),
         QStringLiteral("margin:0;"));
     declarations.replace(
-        QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+\\s*;?")), QStringLiteral("line-height:100%;"));
+        QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+\\s*;?")),
+        QStringLiteral("line-height:100%;"));
     declarations.replace(
         QRegularExpression(QStringLiteral("(text-align|font-weight|font-style|color|text-decoration)\\s*:\\s*"),
                            QRegularExpression::CaseInsensitiveOption),
@@ -702,14 +705,18 @@ void appendStyleAttribute(QString *openTag, const QString &styleToAdd) {
         static const QRegularExpression styleAttrRe(
             QStringLiteral(R"rx(style="([^"]*)")rx"),
             QRegularExpression::CaseInsensitiveOption);
-        openTag->replace(styleAttrRe, [&styleToAdd](const QRegularExpressionMatch &styleMatch) {
+        const QRegularExpressionMatch styleMatch = styleAttrRe.match(*openTag);
+        if (styleMatch.hasMatch()) {
             QString merged = styleMatch.captured(1).trimmed();
             if (!merged.isEmpty() && !merged.endsWith(QLatin1Char(';'))) {
                 merged += QLatin1Char(';');
             }
             merged += styleToAdd;
-            return QStringLiteral("style=\"") + merged + QLatin1Char('"');
-        });
+            openTag->replace(
+                styleMatch.capturedStart(0),
+                styleMatch.capturedLength(0),
+                QStringLiteral("style=\"") + merged + QLatin1Char('"'));
+        }
     } else {
         *openTag += QStringLiteral(" style=\"") + styleToAdd + QLatin1Char('"');
     }
@@ -733,7 +740,13 @@ void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &cl
                 .arg(QRegularExpression::escape(className)),
             QRegularExpression::CaseInsensitiveOption);
 
-        html.replace(tagRe, [&inlineStyle](const QRegularExpressionMatch &match) {
+        QString rebuilt;
+        int offset = 0;
+        auto tagIt = tagRe.globalMatch(html);
+        while (tagIt.hasNext()) {
+            const QRegularExpressionMatch match = tagIt.next();
+            rebuilt += html.mid(offset, match.capturedStart(0) - offset);
+
             QString openTag = match.captured(1) + match.captured(2) + match.captured(3);
             appendStyleAttribute(&openTag, inlineStyle);
 
@@ -743,8 +756,13 @@ void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &cl
                 openTag += QStringLiteral(" align=\"center\"");
             }
 
-            return QLatin1Char('<') + openTag + match.captured(4);
-        });
+            rebuilt += QLatin1Char('<') + openTag + match.captured(4);
+            offset = match.capturedEnd(0);
+        }
+        if (offset > 0) {
+            rebuilt += html.mid(offset);
+            html = rebuilt;
+        }
     }
 }
 
@@ -810,9 +828,10 @@ QString buildHelpDefaultStylesheet(const QString &html) {
     QString css = extractHelpStylesheet(html);
     css.replace(QRegularExpression(QStringLiteral("<!--|-->")), QString());
     css.replace(
-        QRegularExpression(QStringLiteral("(widows|orphans|text-justify|text-align-last)\\s*:[^;\"']*;?"),
-        QString(),
-        QRegularExpression::CaseInsensitiveOption);
+        QRegularExpression(
+            QStringLiteral("(widows|orphans|text-justify|text-align-last)\\s*:[^;\"']*;?"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
     css.replace(QStringLiteral("'Calibri Light'"), QStringLiteral("'DejaVu Sans','Liberation Sans',sans-serif"));
     css.replace(QStringLiteral("'Calibri'"), QStringLiteral("'DejaVu Sans','Liberation Sans',sans-serif"));
     css.replace(

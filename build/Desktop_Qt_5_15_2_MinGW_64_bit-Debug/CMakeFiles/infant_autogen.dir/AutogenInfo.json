@@ -138,6 +138,12 @@
 			null
 		],
 		[
+			"D:/projects/DokitLab/infant/src/licenseactivationdialog.h",
+			"MU",
+			"UVLADIE3JM/moc_licenseactivationdialog.cpp",
+			null
+		],
+		[
 			"D:/projects/DokitLab/infant/src/licenseservice.h",
 			"MU",
 			"UVLADIE3JM/moc_licenseservice.cpp",
@@ -233,6 +239,11 @@
 		[ "D:/projects/DokitLab/infant/src/fieldcrypto.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/imagebutton.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/infantwindow.cpp", "MU", null ],
+		[
+			"D:/projects/DokitLab/infant/src/licenseactivationdialog.cpp",
+			"MU",
+			null
+		],
 		[ "D:/projects/DokitLab/infant/src/licenseservice.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/localdatabase.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/repository.cpp", "MU", null ]
