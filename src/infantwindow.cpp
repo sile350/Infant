@@ -541,6 +541,7 @@ void reinforceHelpRichTextTags(QString &html);
 QString buildHelpDefaultStylesheet(const QString &html);
 void compactHelpSpacingStyles(QString &html);
 void compactHelpDocumentSpacing(QTextDocument *doc);
+QString normalizeHelpMarginsInCss(QString css);
 
 QString prepareHelpHtml(QString html) {
     const QString stylesheet = extractHelpStylesheet(html);
@@ -570,6 +571,28 @@ QString extractHelpStylesheet(const QString &html) {
     return css;
 }
 
+QString normalizeHelpMarginsInCss(QString css) {
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+(\\d+)px\\s+(\\d+)px\\s*;?")),
+        QStringLiteral("margin-top:0;margin-bottom:\\1px;margin-left:\\2px;"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+(\\d+)px\\s+0px\\s*;?")),
+        QStringLiteral("margin-top:0;margin-bottom:\\1px;"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+(\\d+)px\\s*;?")),
+        QStringLiteral("margin-top:0;margin-left:\\1px;"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+0px\\s*;?")),
+        QStringLiteral("margin:0;"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px\\s*;?")),
+        QStringLiteral("margin-top:0;"));
+    css.replace(
+        QRegularExpression(QStringLiteral("margin-bottom:\\s*11px\\s*;?")),
+        QStringLiteral("margin-bottom:8px;"));
+    return css;
+}
+
 QString simplifyHelpInlineStyle(QString declarations) {
     declarations = declarations.trimmed();
     if (declarations.isEmpty()) {
@@ -581,18 +604,7 @@ QString simplifyHelpInlineStyle(QString declarations) {
         QRegularExpression::CaseInsensitiveOption);
     declarations.remove(dropRule);
 
-    declarations.replace(
-        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px\\s*;?")),
-        QStringLiteral("margin-bottom:0;"));
-    declarations.replace(
-        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px\\s*;?")),
-        QStringLiteral("margin-top:0;"));
-    declarations.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+\\d+px\\s*;?")),
-        QStringLiteral("margin:0;"));
-    declarations.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px\\s*;?")),
-        QStringLiteral("margin:0;"));
+    declarations = normalizeHelpMarginsInCss(declarations);
     declarations.replace(
         QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+\\s*;?")),
         QStringLiteral("line-height:100%;"));
@@ -690,6 +702,9 @@ void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &cl
                 R"re(<(?:(span|p|a|div|li|ul|ol|h[1-6]))([^>]*?\bclass=(?:%1|"%1"|'%1')\b)([^>]*?)(>))re")
                 .arg(QRegularExpression::escape(className)),
             QRegularExpression::CaseInsensitiveOption);
+        if (!tagRe.isValid()) {
+            continue;
+        }
 
         QString rebuilt;
         int offset = 0;
@@ -721,6 +736,9 @@ void reinforceHelpRichTextTags(QString &html) {
     static const QRegularExpression styledInline(
         QStringLiteral(R"rx(<(span|a|p)([^>]*style="([^"]*)"[^>]*>([^<]+)</\1>)rx"),
         QRegularExpression::CaseInsensitiveOption);
+    if (!styledInline.isValid()) {
+        return;
+    }
 
     auto styledIt = styledInline.globalMatch(html);
     if (!styledIt.hasNext()) {
@@ -793,24 +811,7 @@ void compactHelpSpacingStyles(QString &html) {
     css.replace(
         QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+")),
         QStringLiteral("line-height:100%"));
-    css.replace(
-        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px")),
-        QStringLiteral("margin-bottom:0"));
-    css.replace(
-        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px")),
-        QStringLiteral("margin-top:0"));
-    css.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+(\\d+px)")),
-        QStringLiteral("margin-left:\\1"));
-    css.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px")),
-        QStringLiteral("margin:0"));
-    css.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+(\\d+px)")),
-        QStringLiteral("margin-left:\\1"));
-    css.replace(
-        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+0px\\s+0px")),
-        QStringLiteral("margin:0"));
+    css = normalizeHelpMarginsInCss(css);
     css.replace(
         QStringLiteral("margin: 48px 48px 48px 48px"),
         QStringLiteral("margin: 8px"));
@@ -833,7 +834,7 @@ QString buildHelpDefaultStylesheet(const QString &html) {
         QStringLiteral(".rv"));
     css += QStringLiteral(
         "body { margin: 8px; line-height: 100%; }"
-        "p, ul, ol { margin-top: 0; margin-bottom: 0; line-height: 100%; }"
+        "p, ul, ol { margin-top: 0; margin-bottom: 8px; line-height: 100%; }"
         "a { color: #0563c1; text-decoration: underline; }"
     );
     return css;
@@ -848,8 +849,6 @@ void compactHelpDocumentSpacing(QTextDocument *doc) {
     for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
         QTextBlockFormat fmt = block.blockFormat();
         fmt.setLineHeight(100, QTextBlockFormat::ProportionalHeight);
-        fmt.setTopMargin(0);
-        fmt.setBottomMargin(0);
         cursor.setPosition(block.position());
         cursor.mergeBlockFormat(fmt);
     }
