@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QTimer>
 #include <algorithm>
 
 Repository::Repository(ApiClient *api, QObject *parent)
@@ -242,10 +243,10 @@ bool Repository::savePatientAnamnesis(QString *patientId, const QString &license
         if (patientId) {
             *patientId = lastId;
         }
-        const QString ownerId = m_api->loadOneData("SELECT id FROM org WHERE ky='" + ApiClient::escapeSql(licenseKey) + "'");
-        if (!ownerId.trimmed().isEmpty() && !lastId.isEmpty()) {
-            m_api->insert("INSERT INTO accepted (owner,pid) VALUES(" + ownerId.trimmed() + "," + lastId + ")");
-        }
+        const QString capturedKey = licenseKey;
+        QTimer::singleShot(0, this, [this, lastId, capturedKey]() {
+            registerNewPatientAccepted(lastId, capturedKey);
+        });
     } else {
         const QString updateSql = "UPDATE patients SET fio='" + LocalDatabase::escape(storedFio) + "',dr='"
             + LocalDatabase::escape(dr) + "',dt='" + QString::number(now) + "',an='" + escapedHtml + "' WHERE id="
@@ -258,6 +259,17 @@ bool Repository::savePatientAnamnesis(QString *patientId, const QString &license
         }
     }
     return true;
+}
+
+void Repository::registerNewPatientAccepted(const QString &patientId, const QString &licenseKey) {
+    if (patientId.trimmed().isEmpty()) {
+        return;
+    }
+    const QString ownerId = m_api->loadOneData(
+        "SELECT id FROM org WHERE ky='" + ApiClient::escapeSql(licenseKey) + "'");
+    if (!ownerId.trimmed().isEmpty()) {
+        m_api->insert("INSERT INTO accepted (owner,pid) VALUES(" + ownerId.trimmed() + "," + patientId + ")");
+    }
 }
 
 bool Repository::deletePatient(const QString &patientId, QString *errorText) {

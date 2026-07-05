@@ -110,7 +110,8 @@ private:
     void handlePatientsTableClick(int row, int column);
     void handlePatientsHeaderClick(int section);
     void openPatientFromTable();
-    void tryAutoSaveAnamnesis();
+    void tryAutoSaveAnamnesis(bool forceRefreshPatients = false);
+    void setAnamnesisDbControlsEnabled(bool enabled);
     void updatePatientTitleFromDocument();
     void styleTemplateComboBox();
     void saveAnamnesisToDb();
@@ -221,6 +222,7 @@ private:
     ImageButton *m_userOpenPatients = nullptr;
     QString m_editUserId;
     bool m_userSaveInProgress = false;
+    bool m_anamnesisSaveInProgress = false;
     QString m_lastManagedUserId;
     QString m_lastManagedUserLogin;
     QString m_lastManagedUserPassword;

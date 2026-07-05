@@ -35,6 +35,7 @@ public:
     QString loadPatientAnamnesis(const QString &patientId);
     bool verifyPatientAccess(const QString &patientId, const QString &licenseKey, QString *errorText);
     bool savePatientAnamnesis(QString *patientId, const QString &licenseKey, const QString &plainText, const QString &html, QString *detectedFio, QString *detectedBirthDate, QString *errorText);
+    void registerNewPatientAccepted(const QString &patientId, const QString &licenseKey);
     void extractPatientFields(const QString &plainText, QString *fio, QString *birthDate) const;
     bool deletePatient(const QString &patientId, QString *errorText);
 

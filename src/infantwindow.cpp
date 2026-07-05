@@ -533,6 +533,10 @@ QString prepareAnamnesisHtml(QString html) {
 }
 
 QString prepareHelpHtml(QString html) {
+    const QString stylesheet = extractHelpStylesheet(html);
+    const QHash<QString, QString> classRules = parseHelpCssClassRules(stylesheet);
+    applyHelpClassStylesToHtml(html, classRules);
+
     html.replace(
         QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+")),
         QStringLiteral("line-height:100%")
@@ -583,7 +587,235 @@ QString prepareHelpHtml(QString html) {
         QStringLiteral("<br>")
     );
 
+    reinforceHelpRichTextTags(html);
+
     return html;
+}
+
+QString extractHelpStylesheet(const QString &html) {
+    const int styleStart = html.indexOf(QStringLiteral("<style"), 0, Qt::CaseInsensitive);
+    if (styleStart < 0) {
+        return {};
+    }
+    const int contentStart = html.indexOf(QLatin1Char('>'), styleStart);
+    if (contentStart < 0) {
+        return {};
+    }
+    const int styleEnd = html.indexOf(QStringLiteral("</style>"), contentStart, Qt::CaseInsensitive);
+    if (styleEnd < 0) {
+        return {};
+    }
+    QString css = html.mid(contentStart + 1, styleEnd - contentStart - 1);
+    css.replace(QStringLiteral("<!--"), QString());
+    css.replace(QStringLiteral("-->"), QString());
+    return css;
+}
+
+QString simplifyHelpInlineStyle(QString declarations) {
+    declarations = declarations.trimmed();
+    if (declarations.isEmpty()) {
+        return {};
+    }
+
+    static const QRegularExpression dropRule(
+        QStringLiteral("(widows|orphans|text-justify|text-align-last)\\s*:[^;\"']*;?"),
+        QRegularExpression::CaseInsensitiveOption);
+    declarations.remove(dropRule);
+
+    declarations.replace(
+        QRegularExpression(QStringLiteral("margin-bottom:\\s*\\d+px\\s*;?"), QStringLiteral("margin-bottom:0;"));
+    declarations.replace(
+        QRegularExpression(QStringLiteral("margin-top:\\s*\\d+px\\s*;?"), QStringLiteral("margin-top:0;"));
+    declarations.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+\\d+px\\s*;?")),
+        QStringLiteral("margin:0;"));
+    declarations.replace(
+        QRegularExpression(QStringLiteral("margin:\\s*0px\\s+0px\\s+\\d+px\\s+0px\\s*;?")),
+        QStringLiteral("margin:0;"));
+    declarations.replace(
+        QRegularExpression(QStringLiteral("line-height:\\s*[^;\"']+\\s*;?")), QStringLiteral("line-height:100%;"));
+    declarations.replace(
+        QRegularExpression(QStringLiteral("(text-align|font-weight|font-style|color|text-decoration)\\s*:\\s*"),
+                           QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("\\1:"));
+
+    declarations.replace(QStringLiteral("'Calibri Light'"), QStringLiteral("'DejaVu Sans','Liberation Sans',sans-serif"));
+    declarations.replace(QStringLiteral("'Calibri'"), QStringLiteral("'DejaVu Sans','Liberation Sans',sans-serif"));
+    declarations.replace(QStringLiteral("'Arial', 'Helvetica', sans-serif"), QStringLiteral("sans-serif"));
+
+    while (declarations.contains(QStringLiteral(";;"))) {
+        declarations.replace(QStringLiteral(";;"), QStringLiteral(";"));
+    }
+    return declarations.trimmed();
+}
+
+QHash<QString, QString> parseHelpCssClassRules(const QString &stylesheet) {
+    QHash<QString, QString> rules;
+    if (stylesheet.isEmpty()) {
+        return rules;
+    }
+
+    QRegularExpression blockRe(
+        QStringLiteral("([^{]+)\\{([^}]*)\\}"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto it = blockRe.globalMatch(stylesheet);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        const QStringList selectors = match.captured(1).split(QLatin1Char(','), Qt::SkipEmptyParts);
+        const QString inlineStyle = simplifyHelpInlineStyle(match.captured(2));
+        if (inlineStyle.isEmpty()) {
+            continue;
+        }
+        for (QString selector : selectors) {
+            selector = selector.trimmed();
+            const QRegularExpression classRe(
+                QStringLiteral("\\.(rv(?:ts|ps)\\d+)\\b"),
+                QRegularExpression::CaseInsensitiveOption);
+            const QRegularExpressionMatch classMatch = classRe.match(selector);
+            if (!classMatch.hasMatch()) {
+                continue;
+            }
+            const QString className = classMatch.captured(1);
+            if (rules.contains(className)) {
+                rules[className] = rules.value(className) + QLatin1Char(';') + inlineStyle;
+            } else {
+                rules.insert(className, inlineStyle);
+            }
+        }
+    }
+    return rules;
+}
+
+void appendStyleAttribute(QString *openTag, const QString &styleToAdd) {
+    if (styleToAdd.isEmpty()) {
+        return;
+    }
+    if (openTag->contains(QStringLiteral("style="), Qt::CaseInsensitive)) {
+        static const QRegularExpression styleAttrRe(
+            QStringLiteral("style=\"([^\"]*)\"),
+            QRegularExpression::CaseInsensitiveOption);
+        openTag->replace(styleAttrRe, [&styleToAdd](const QRegularExpressionMatch &styleMatch) {
+            QString merged = styleMatch.captured(1).trimmed();
+            if (!merged.isEmpty() && !merged.endsWith(QLatin1Char(';'))) {
+                merged += QLatin1Char(';');
+            }
+            merged += styleToAdd;
+            return QStringLiteral("style=\"") + merged + QLatin1Char('"');
+        });
+    } else {
+        *openTag += QStringLiteral(" style=\"") + styleToAdd + QLatin1Char('"');
+    }
+}
+
+void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &classRules) {
+    if (classRules.isEmpty()) {
+        return;
+    }
+
+    for (auto it = classRules.constBegin(); it != classRules.constEnd(); ++it) {
+        const QString className = it.key();
+        const QString inlineStyle = it.value();
+        if (inlineStyle.isEmpty()) {
+            continue;
+        }
+
+        const QRegularExpression tagRe(
+            QStringLiteral(
+                R"(<(?:(span|p|a|div|li|ul|ol|h[1-6]))([^>]*?\bclass=(?:%1|"%1"|'%1')\b)([^>]*?)(>))")
+                .arg(QRegularExpression::escape(className)),
+            QRegularExpression::CaseInsensitiveOption);
+
+        html.replace(tagRe, [&inlineStyle](const QRegularExpressionMatch &match) {
+            QString openTag = match.captured(1) + match.captured(2) + match.captured(3);
+            appendStyleAttribute(&openTag, inlineStyle);
+
+            if (match.captured(1).compare(QStringLiteral("p"), Qt::CaseInsensitive) == 0
+                && inlineStyle.contains(QStringLiteral("text-align:center"), Qt::CaseInsensitive)
+                && !openTag.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                openTag += QStringLiteral(" align=\"center\"");
+            }
+
+            return QLatin1Char('<') + openTag + match.captured(4);
+        });
+    }
+}
+
+void reinforceHelpRichTextTags(QString &html) {
+    static const QRegularExpression styledInline(
+        QStringLiteral(R"(<(span|a|p)([^>]*style="([^"]*)"[^>]*)>([^<]+)</\1>)"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    auto styledIt = styledInline.globalMatch(html);
+    if (!styledIt.hasNext()) {
+        return;
+    }
+
+    int offset = 0;
+    QString result;
+    styledIt = styledInline.globalMatch(html);
+    while (styledIt.hasNext()) {
+        const QRegularExpressionMatch match = styledIt.next();
+        result += html.mid(offset, match.capturedStart(0) - offset);
+
+        const QString tag = match.captured(1);
+        const QString attrs = match.captured(2);
+        const QString style = match.captured(3);
+        QString text = match.captured(4);
+
+        static const QRegularExpression boldRe(
+            QStringLiteral("font-weight\\s*:\\s*(?:bold|700)"),
+            QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression italicRe(
+            QStringLiteral("font-style\\s*:\\s*italic"),
+            QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression underlineRe(
+            QStringLiteral("text-decoration\\s*:\\s*underline"),
+            QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression colorRe(
+            QStringLiteral("color\\s*:\\s*(#[0-9a-fA-F]{3,6})"),
+            QRegularExpression::CaseInsensitiveOption);
+
+        if (boldRe.match(style).hasMatch()) {
+            text = QStringLiteral("<b>") + text + QStringLiteral("</b>");
+        }
+        if (italicRe.match(style).hasMatch()) {
+            text = QStringLiteral("<i>") + text + QStringLiteral("</i>");
+        }
+        if (underlineRe.match(style).hasMatch()) {
+            text = QStringLiteral("<u>") + text + QStringLiteral("</u>");
+        }
+        const QRegularExpressionMatch colorMatch = colorRe.match(style);
+        if (colorMatch.hasMatch()) {
+            text = QStringLiteral("<font color=\"") + colorMatch.captured(1) + QStringLiteral("\">")
+                + text + QStringLiteral("</font>");
+        }
+
+        result += QLatin1Char('<') + tag + attrs + QLatin1Char('>') + text + QStringLiteral("</") + tag
+            + QLatin1Char('>');
+        offset = match.capturedEnd(0);
+    }
+    result += html.mid(offset);
+    html = result;
+}
+
+QString buildHelpDefaultStylesheet(const QString &html) {
+    QString css = extractHelpStylesheet(html);
+    css.replace(QRegularExpression(QStringLiteral("<!--|-->")), QString());
+    css.replace(
+        QRegularExpression(QStringLiteral("(widows|orphans|text-justify|text-align-last)\\s*:[^;\"']*;?"),
+        QString(),
+        QRegularExpression::CaseInsensitiveOption);
+    css.replace(QStringLiteral("'Calibri Light'"), QStringLiteral("'DejaVu Sans','Liberation Sans',sans-serif"));
+    css.replace(QStringLiteral("'Calibri'"), QStringLiteral("'DejaVu Sans','Liberation Sans',sans-serif"));
+    css.replace(
+        QRegularExpression(QStringLiteral("(span|a|p|div|li|body|table|ul|ol)\\.rv")),
+        QStringLiteral(".rv"));
+    css += QStringLiteral(
+        "body { margin: 8px; line-height: 100%; }"
+        "p, ul, ol { margin-top: 0; margin-bottom: 0; line-height: 100%; }"
+        "a { color: #0563c1; text-decoration: underline; }"
+    );
+    return css;
 }
 
 void compactHelpDocumentSpacing(QTextDocument *doc) {
@@ -626,7 +858,7 @@ private:
     LinkHandler m_linkHandler;
 };
 
-QString loadHelpHtmlFromFile(const QString &path) {
+QString loadHelpHtmlFromFile(const QString &path, QString *rawSource = nullptr) {
     if (path.isEmpty()) {
         return {};
     }
@@ -637,6 +869,9 @@ QString loadHelpHtmlFromFile(const QString &path) {
     const QString source = QString::fromUtf8(file.readAll());
     if (source.isEmpty()) {
         return {};
+    }
+    if (rawSource) {
+        *rawSource = source;
     }
     return prepareHelpHtml(source);
 }
@@ -1763,7 +1998,7 @@ void InfantWindow::bindSignals() {
     m_anamnesisEdit->installEventFilter(this);
     auto *anamnesisAutoSaveTimer = new QTimer(this);
     anamnesisAutoSaveTimer->setSingleShot(true);
-    anamnesisAutoSaveTimer->setInterval(400);
+    anamnesisAutoSaveTimer->setInterval(1200);
     connect(m_anamnesisEdit, &QTextEdit::textChanged, this, [this, anamnesisAutoSaveTimer]() {
         updatePatientTitleFromDocument();
         anamnesisAutoSaveTimer->start();
@@ -1794,7 +2029,8 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     } transitionGuard{&m_screenTransitionGuard};
 
     if (previousScreen == ScreenMode::Anamnesis && mode != ScreenMode::Anamnesis) {
-        tryAutoSaveAnamnesis();
+        tryAutoSaveAnamnesis(true);
+        refreshPatients();
     }
 
     if (pushHistory && !m_navigatingBack) {
@@ -3532,35 +3768,79 @@ void InfantWindow::updatePatientTitleFromDocument() {
     }
 }
 
-void InfantWindow::tryAutoSaveAnamnesis() {
+void InfantWindow::setAnamnesisDbControlsEnabled(bool enabled) {
+    const bool allow = enabled && !m_anamnesisSaveInProgress;
+    if (m_bList) {
+        m_bList->setEnabled(allow);
+    }
+    if (m_bBack) {
+        m_bBack->setEnabled(allow);
+    }
+    if (m_pAna) {
+        m_pAna->setEnabled(allow);
+    }
+    if (m_pProto) {
+        m_pProto->setEnabled(allow);
+    }
+    if (m_pUpr) {
+        m_pUpr->setEnabled(allow);
+    }
+    if (m_addPatient) {
+        m_addPatient->setEnabled(allow);
+    }
+    if (m_bExit) {
+        m_bExit->setEnabled(allow);
+    }
+}
+
+void InfantWindow::tryAutoSaveAnamnesis(bool forceRefreshPatients) {
+    if (m_anamnesisSaveInProgress) {
+        return;
+    }
     if (m_currentScreen != ScreenMode::Anamnesis || !m_anamnesisEdit) {
         return;
     }
+
+    m_anamnesisSaveInProgress = true;
+    setAnamnesisDbControlsEnabled(false);
+
     prepareAnamnesisDocumentForOutput();
     QString patientId = m_currentPatientId;
     QString fio;
     QString dr;
     QString err;
     const QString plainText = m_anamnesisEdit->toPlainText();
-    if (!m_repository.savePatientAnamnesis(
-            &patientId,
-            m_licenseKey,
-            plainText,
-            m_anamnesisEdit->toHtml(),
-            &fio,
-            &dr,
-            &err)) {
-        return;
+    const bool saved = m_repository.savePatientAnamnesis(
+        &patientId,
+        m_licenseKey,
+        plainText,
+        m_anamnesisEdit->toHtml(),
+        &fio,
+        &dr,
+        &err);
+
+    if (saved) {
+        m_currentPatientId = patientId;
+        if (!fio.trimmed().isEmpty()) {
+            m_patientTitle->setText(fio.trimmed());
+            m_selectedPatientRowId = patientId;
+        }
+        if (forceRefreshPatients) {
+            refreshPatients();
+        }
     }
-    m_currentPatientId = patientId;
-    if (!fio.trimmed().isEmpty()) {
-        m_patientTitle->setText(fio.trimmed());
-        m_selectedPatientRowId = patientId;
-    }
-    refreshPatients();
+
+    m_anamnesisSaveInProgress = false;
+    setAnamnesisDbControlsEnabled(true);
 }
 
 void InfantWindow::saveAnamnesisToDb() {
+    if (m_anamnesisSaveInProgress) {
+        return;
+    }
+    m_anamnesisSaveInProgress = true;
+    setAnamnesisDbControlsEnabled(false);
+
     prepareAnamnesisDocumentForOutput();
     QString patientId = m_currentPatientId;
     QString fio;
@@ -3574,12 +3854,16 @@ void InfantWindow::saveAnamnesisToDb() {
             &fio,
             &dr,
             &err)) {
+        m_anamnesisSaveInProgress = false;
+        setAnamnesisDbControlsEnabled(true);
         CustomMessageBox::showError(this, err);
         return;
     }
     m_currentPatientId = patientId;
     m_patientTitle->setText(fio.trimmed());
     refreshPatients();
+    m_anamnesisSaveInProgress = false;
+    setAnamnesisDbControlsEnabled(true);
     CustomMessageBox::showInfo(this, "Сохранено.");
 }
 
@@ -4434,7 +4718,8 @@ void InfantWindow::showHelpWindow(const QString &address) {
         if (!m_helpBrowser || path.isEmpty()) {
             return;
         }
-        const QString html = loadHelpHtmlFromFile(path);
+        QString rawSource;
+        const QString html = loadHelpHtmlFromFile(path, &rawSource);
         if (html.isEmpty()) {
             return;
         }
@@ -4442,10 +4727,7 @@ void InfantWindow::showHelpWindow(const QString &address) {
         const QFileInfo info(path);
         m_helpBrowser->document()->setBaseUrl(QUrl::fromLocalFile(info.absolutePath() + QStringLiteral("/")));
         m_helpBrowser->document()->setDocumentMargin(8);
-        m_helpBrowser->document()->setDefaultStyleSheet(
-            "body, p, span, div, li { line-height: 100%; margin-top: 0; margin-bottom: 0; }"
-            "p { padding: 0; }"
-        );
+        m_helpBrowser->document()->setDefaultStyleSheet(buildHelpDefaultStylesheet(rawSource));
         m_helpBrowser->setHtml(html);
         compactHelpDocumentSpacing(m_helpBrowser->document());
     };
