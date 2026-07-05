@@ -532,6 +532,14 @@ QString prepareAnamnesisHtml(QString html) {
     return html;
 }
 
+QString extractHelpStylesheet(const QString &html);
+QString simplifyHelpInlineStyle(QString declarations);
+QHash<QString, QString> parseHelpCssClassRules(const QString &stylesheet);
+void appendStyleAttribute(QString *openTag, const QString &styleToAdd);
+void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &classRules);
+void reinforceHelpRichTextTags(QString &html);
+QString buildHelpDefaultStylesheet(const QString &html);
+
 QString prepareHelpHtml(QString html) {
     const QString stylesheet = extractHelpStylesheet(html);
     const QHash<QString, QString> classRules = parseHelpCssClassRules(stylesheet);
@@ -692,7 +700,7 @@ void appendStyleAttribute(QString *openTag, const QString &styleToAdd) {
     }
     if (openTag->contains(QStringLiteral("style="), Qt::CaseInsensitive)) {
         static const QRegularExpression styleAttrRe(
-            QStringLiteral("style=\"([^\"]*)\"),
+            QStringLiteral(R"rx(style="([^"]*)")rx"),
             QRegularExpression::CaseInsensitiveOption);
         openTag->replace(styleAttrRe, [&styleToAdd](const QRegularExpressionMatch &styleMatch) {
             QString merged = styleMatch.captured(1).trimmed();
@@ -720,8 +728,8 @@ void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &cl
         }
 
         const QRegularExpression tagRe(
-            QStringLiteral(
-                R"(<(?:(span|p|a|div|li|ul|ol|h[1-6]))([^>]*?\bclass=(?:%1|"%1"|'%1')\b)([^>]*?)(>))")
+            QString(
+                R"re(<(?:(span|p|a|div|li|ul|ol|h[1-6]))([^>]*?\bclass=(?:%1|"%1"|'%1')\b)([^>]*?)(>))re")
                 .arg(QRegularExpression::escape(className)),
             QRegularExpression::CaseInsensitiveOption);
 
@@ -742,7 +750,7 @@ void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &cl
 
 void reinforceHelpRichTextTags(QString &html) {
     static const QRegularExpression styledInline(
-        QStringLiteral(R"(<(span|a|p)([^>]*style="([^"]*)"[^>]*)>([^<]+)</\1>)"),
+        QStringLiteral(R"rx(<(span|a|p)([^>]*style="([^"]*)"[^>]*>([^<]+)</\1>)rx"),
         QRegularExpression::CaseInsensitiveOption);
 
     auto styledIt = styledInline.globalMatch(html);
