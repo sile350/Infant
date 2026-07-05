@@ -539,6 +539,7 @@ void appendStyleAttribute(QString *openTag, const QString &styleToAdd);
 void applyHelpClassStylesToHtml(QString &html, const QHash<QString, QString> &classRules);
 void reinforceHelpRichTextTags(QString &html);
 QString buildHelpDefaultStylesheet(const QString &html);
+void normalizeHelpLineBreaks(QString &html);
 
 QString prepareHelpHtml(QString html) {
     const QString stylesheet = extractHelpStylesheet(html);
@@ -579,8 +580,10 @@ QString prepareHelpHtml(QString html) {
     );
     html.replace(QStringLiteral("></span></div>"), QStringLiteral("></div>"));
 
+    normalizeHelpLineBreaks(html);
+
     const QRegularExpression emptyParagraph(
-        QStringLiteral("<p[^>]*>\\s*(<span[^>]*>\\s*)?(<br\\s*/?>|&nbsp;|\\s)*\\s*(</span>\\s*)?</p>"),
+        QStringLiteral("<p[^>]*>\\s*(<span[^>]*>\\s*)?(&nbsp;|\\s)*\\s*(</span>\\s*)?</p>"),
         QRegularExpression::CaseInsensitiveOption);
     for (int i = 0; i < 32; ++i) {
         const QString next = html.replace(emptyParagraph, QString());
@@ -589,11 +592,6 @@ QString prepareHelpHtml(QString html) {
         }
         html = next;
     }
-
-    html.replace(
-        QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*){2,}"), QRegularExpression::CaseInsensitiveOption),
-        QStringLiteral("<br>")
-    );
 
     reinforceHelpRichTextTags(html);
 
@@ -695,6 +693,30 @@ QHash<QString, QString> parseHelpCssClassRules(const QString &stylesheet) {
         }
     }
     return rules;
+}
+
+void normalizeHelpLineBreaks(QString &html) {
+    html.replace(
+        QRegularExpression(
+            QStringLiteral("<br\\s*(?:/>|></br>|>)"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("<br/>"));
+
+    html.replace(
+        QRegularExpression(
+            QStringLiteral(R"re(<p([^>]*)>\s*<span[^>]*>\s*<br/>\s*</span>\s*</p>)re"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("<p\\1><br/></p>"));
+
+    html.replace(
+        QRegularExpression(
+            QStringLiteral(R"re(<p([^>]*)>\s*<br/>\s*</p>)re"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("<p\\1><br/></p>"));
+
+    html.replace(
+        QRegularExpression(QStringLiteral(">\\s*<br/>\\s*<")),
+        QStringLiteral("><p><br/></p><"));
 }
 
 void appendStyleAttribute(QString *openTag, const QString &styleToAdd) {
