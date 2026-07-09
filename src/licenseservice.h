@@ -18,8 +18,10 @@ public:
 private:
     QString localLicensePath() const;
     QString loadSavedKey() const;
-    bool saveKey(const QString &key, QString *errorText = nullptr);
+    bool saveKey(const QString &key, QString *errorText = nullptr, const QString &hardware = QString());
+    QString loadSavedHardware() const;
     QString hardwareFingerprint() const;
+    static bool isWeakFingerprint(const QString &fingerprint);
 
     Repository *m_repository;
     QString m_key;

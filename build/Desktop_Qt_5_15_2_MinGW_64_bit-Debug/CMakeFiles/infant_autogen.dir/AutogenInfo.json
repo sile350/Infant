@@ -114,9 +114,33 @@
 			null
 		],
 		[
+			"D:/projects/DokitLab/infant/src/appsettings.h",
+			"MU",
+			"UVLADIE3JM/moc_appsettings.cpp",
+			null
+		],
+		[
 			"D:/projects/DokitLab/infant/src/custommessagebox.h",
 			"MU",
 			"UVLADIE3JM/moc_custommessagebox.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseassets.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseassets.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exercisehost.h",
+			"MU",
+			"UVLADIE3JM/moc_exercisehost.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocol.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseprotocol.cpp",
 			null
 		],
 		[
@@ -159,6 +183,18 @@
 			"D:/projects/DokitLab/infant/src/models.h",
 			"MU",
 			"UVLADIE3JM/moc_models.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/onlypexercise.h",
+			"MU",
+			"UVLADIE3JM/moc_onlypexercise.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/patientdisplay.h",
+			"MU",
+			"UVLADIE3JM/moc_patientdisplay.cpp",
 			null
 		],
 		[
@@ -235,7 +271,11 @@
 		[ "D:/projects/DokitLab/infant/main.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/mainwindow.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/apiclient.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/appsettings.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/custommessagebox.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exerciseassets.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exercisehost.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exerciseprotocol.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/fieldcrypto.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/imagebutton.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/infantwindow.cpp", "MU", null ],
@@ -246,6 +286,8 @@
 		],
 		[ "D:/projects/DokitLab/infant/src/licenseservice.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/localdatabase.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/onlypexercise.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/patientdisplay.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/repository.cpp", "MU", null ]
 	],
 	"UIC_OPTIONS" : [],

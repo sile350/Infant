@@ -1,4 +1,5 @@
 #include "infantwindow.h"
+#include "appsettings.h"
 #include "custommessagebox.h"
 
 #include <QClipboard>
@@ -1302,6 +1303,10 @@ void InfantWindow::buildUi() {
     m_userOpenPatients = new ImageButton(m_panelAdmin);
     m_userOpenPatients->setGeometry(kAdminFormX + kAdminFormW - kAdminEnterW, kAdminSaveY, kAdminEnterW, 30);
 
+    m_dualScreenCheck = new QCheckBox(QStringLiteral("Два экрана"), m_panelAdmin);
+    m_dualScreenCheck->setGeometry(kAdminFormX, kAdminSaveY + 40, kAdminFormW, 24);
+    m_dualScreenCheck->setChecked(AppSettings::dualScreenEnabled());
+
     m_panelPatients = new QWidget(m_root);
     m_panelPatients->setGeometry((1920 - 749) / 2, 80, 749, 950);
     m_panelPatients->setAttribute(Qt::WA_StyledBackground, true);
@@ -1901,6 +1906,7 @@ void InfantWindow::bindSignals() {
         }
         m_session = user;
         m_mainId = user->id;
+        rememberManagedUser(user->id, user->login, m_passwordEdit->text());
         refreshPatients();
         setScreen(ScreenMode::Patients);
     });
@@ -1926,6 +1932,7 @@ void InfantWindow::bindSignals() {
         }
         m_session = user;
         m_mainId = user->mainId.isEmpty() ? user->fio : user->mainId;
+        rememberManagedUser(user->id, user->login, m_passwordEdit->text());
         refreshUsers();
         setScreen(ScreenMode::Admin);
     });
@@ -2032,7 +2039,14 @@ void InfantWindow::bindSignals() {
         if (!item || item->childCount() > 0) {
             return;
         }
-        CustomMessageBox::showInfo(this, "Упражнение «" + item->text(0) + "» будет открыто в следующей версии.");
+        const QString exerciseId = item->data(0, Qt::UserRole).toString();
+        if (exerciseId.isEmpty()) {
+            return;
+        }
+        openExercise(exerciseId);
+    });
+    connect(m_dualScreenCheck, &QCheckBox::toggled, this, [](bool checked) {
+        AppSettings::setDualScreenEnabled(checked);
     });
 }
 
@@ -2106,6 +2120,9 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     }
     m_adminTitle->setVisible(admin);
     m_userOpenPatients->setVisible(admin);
+    if (m_dualScreenCheck) {
+        m_dualScreenCheck->setVisible(admin);
+    }
     m_userOpenPatients->raise();
 
     m_bBack->setVisible(patients || workScreen);
@@ -2146,6 +2163,9 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     }
     if (admin) {
         m_helpIndex = "администрирование.html";
+        if (m_dualScreenCheck) {
+            m_dualScreenCheck->setChecked(AppSettings::dualScreenEnabled());
+        }
         refreshUsers();
     }
     if (anamnesis) {
@@ -2373,6 +2393,10 @@ void InfantWindow::styleAdminScreen() {
     m_adminLabel2->setStyleSheet(
         "color: white; font-family: 'Microsoft Sans Serif'; font-size: 12pt; font-weight: bold; background: transparent;"
     );
+    if (m_dualScreenCheck) {
+        m_dualScreenCheck->setStyleSheet(
+            "QCheckBox { color: white; font-family: 'Microsoft Sans Serif'; font-size: 10pt; background: transparent; }");
+    }
     m_userRole->setStyleSheet(QString(
         "QComboBox {"
         "  font-family: 'Microsoft Sans Serif';"
@@ -3351,32 +3375,49 @@ void InfantWindow::rememberManagedUser(const QString &userId, const QString &log
 }
 
 void InfantWindow::enterAsManagedUser() {
-    QString login = m_userLogin->text().trimmed();
-    QString password = m_userPass->text();
-
-    if (login.isEmpty()) {
-        login = m_lastManagedUserLogin;
-    }
-    if (password.isEmpty()) {
-        password = m_lastManagedUserPassword;
-    }
-
-    if (login.isEmpty()) {
-        CustomMessageBox::showWarning(this, "Сначала добавьте или выберите пользователя.");
+    const QList<UserRecord> users = m_repository.fetchUsers();
+    if (users.isEmpty()) {
+        CustomMessageBox::showWarning(this, QStringLiteral("Вначале добавьте пользователя"));
         return;
     }
+
+    if (m_session.has_value()) {
+        refreshPatients();
+        setScreen(ScreenMode::Patients);
+        return;
+    }
+
+    QString login = m_loginEdit ? m_loginEdit->text().trimmed() : QString();
+    QString password = m_passwordEdit ? m_passwordEdit->text() : QString();
+    const UserRecord &lastUser = users.last();
+
+    if (login.isEmpty()) {
+        login = lastUser.login;
+    }
     if (password.isEmpty()) {
-        CustomMessageBox::showWarning(this, "Введите пароль пользователя для входа.");
+        if (m_lastManagedUserLogin == login) {
+            password = m_lastManagedUserPassword;
+        } else if (m_lastManagedUserId == lastUser.id) {
+            login = m_lastManagedUserLogin.isEmpty() ? lastUser.login : m_lastManagedUserLogin;
+            password = m_lastManagedUserPassword;
+        }
+    }
+
+    if (login.isEmpty()) {
+        login = lastUser.login;
+    }
+    if (password.isEmpty()) {
+        CustomMessageBox::showWarning(this, QStringLiteral("Введите пароль пользователя для входа."));
         return;
     }
 
     const auto user = m_repository.login(login, password);
     if (!user.has_value()) {
-        CustomMessageBox::showError(this, "Неверный логин или пароль!");
+        CustomMessageBox::showError(this, QStringLiteral("Неверный логин или пароль!"));
         return;
     }
-    if (user->role != "Администратор" && user->role != "Специалист") {
-        CustomMessageBox::showError(this, "Недостаточный уровень доступа.");
+    if (user->role != QStringLiteral("Администратор") && user->role != QStringLiteral("Специалист")) {
+        CustomMessageBox::showError(this, QStringLiteral("Недостаточный уровень доступа."));
         return;
     }
 
@@ -4404,14 +4445,75 @@ void InfantWindow::refreshExercisesTree() {
 
     for (int i = 0; i < m_exercisesTree->topLevelItemCount(); ++i) {
         QTreeWidgetItem *topItem = m_exercisesTree->topLevelItem(i);
-        topItem->setExpanded(true);
+        const auto hasVisibleDescendant = [&](const auto &self, QTreeWidgetItem *node) -> bool {
+            if (node->childCount() == 0) {
+                return node->data(0, Qt::UserRole).isValid();
+            }
+            for (int childIndex = 0; childIndex < node->childCount(); ++childIndex) {
+                if (self(self, node->child(childIndex))) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        if (authorFilter == QStringLiteral("Избранное")) {
+            topItem->setExpanded(hasVisibleDescendant(hasVisibleDescendant, topItem));
+        } else {
+            topItem->setExpanded(false);
+        }
         for (int j = 0; j < topItem->childCount(); ++j) {
             QTreeWidgetItem *subItem = topItem->child(j);
             if (subItem->childCount() > 0) {
-                subItem->setExpanded(false);
+                if (authorFilter == QStringLiteral("Избранное")) {
+                    subItem->setExpanded(hasVisibleDescendant(hasVisibleDescendant, subItem));
+                } else {
+                    subItem->setExpanded(true);
+                }
             }
         }
     }
+}
+
+void InfantWindow::openExercise(const QString &exerciseId) {
+    if (m_currentPatientId.isEmpty()) {
+        CustomMessageBox::showWarning(this, QStringLiteral("Сначала выберите пациента в списке."));
+        return;
+    }
+    if (exerciseId != QStringLiteral("1.2")) {
+        CustomMessageBox::showInfo(
+            this,
+            QStringLiteral("Упражнение «%1» будет доступно в следующей версии.").arg(exerciseId));
+        return;
+    }
+
+    if (!m_exerciseHost) {
+        m_exerciseHost = new ExerciseHost(m_root);
+        m_exerciseHost->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
+        connect(m_exerciseHost, &ExerciseHost::protocolSaved, this, [this]() { refreshProtocolsView(); });
+    }
+
+    QString patientFio = m_patientTitle ? m_patientTitle->text().trimmed() : QString();
+    if (patientFio == QStringLiteral("Новая карта")) {
+        patientFio.clear();
+    }
+    const QString specialistFio = m_session ? m_session->fio : QString();
+    m_exerciseHost->openExercise(
+        exerciseId,
+        m_currentPatientId,
+        specialistFio,
+        patientFio,
+        currentPatientBirthDate(),
+        &m_repository,
+        AppSettings::dualScreenEnabled());
+    m_exerciseHost->show();
+    m_exerciseHost->raise();
+}
+
+void InfantWindow::closeExerciseHost() {
+    if (m_exerciseHost) {
+        m_exerciseHost->hide();
+    }
+    refreshProtocolsView();
 }
 
 QString InfantWindow::currentPatientBirthDate() const {

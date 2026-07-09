@@ -1,4 +1,6 @@
 #include "repository.h"
+
+#include "exerciseprotocol.h"
 #include "fieldcrypto.h"
 
 #include <QDateTime>
@@ -437,18 +439,31 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
 
 bool Repository::verifyLicenseKeyForMachine(const QString &key, const QString &hardware, QString *errorText) {
     const qint64 now = QDateTime::currentSecsSinceEpoch();
-    const QString sql = "SELECT name FROM org WHERE ky='" + ApiClient::escapeSql(key) + "' AND hard='" + ApiClient::escapeSql(hardware) + "' AND dt>=" + QString::number(now);
-    const QString raw = m_api->loadData(sql);
-    if (!m_api->lastError().isEmpty()) {
+    QString networkError;
+    const auto queryHardware = [&](const QString &hardwareId) -> QList<QStringList> {
+        const QString sql = "SELECT name FROM org WHERE ky='" + ApiClient::escapeSql(key) + "' AND hard='"
+            + ApiClient::escapeSql(hardwareId) + "' AND dt>=" + QString::number(now);
+        const QString raw = m_api->loadData(sql);
+        if (!m_api->lastError().isEmpty()) {
+            networkError = ApiClient::userFacingNetworkError(m_api->lastError());
+            return {};
+        }
+        return ApiClient::parseRows(raw);
+    };
+
+    QList<QStringList> rows = queryHardware(hardware);
+    if (rows.isEmpty() && networkError.isEmpty() && hardware.length() > 8) {
+        rows = queryHardware(hardware.left(8));
+    }
+    if (!networkError.isEmpty()) {
         if (errorText) {
-            *errorText = ApiClient::userFacingNetworkError(m_api->lastError());
+            *errorText = networkError;
         }
         return false;
     }
-    const QList<QStringList> rows = ApiClient::parseRows(raw);
     if (rows.isEmpty()) {
         if (errorText) {
-            *errorText = "Ключ не активирован для этой машины или срок действия истек.";
+            *errorText = QStringLiteral("Ключ не активирован для этой машины или срок действия истек.");
         }
         return false;
     }
@@ -537,4 +552,70 @@ bool Repository::patientMatchesSearch(const QString &fio, const QString &search)
         }
     }
     return false;
+}
+
+bool Repository::saveExerciseProtocol(
+    const QString &patientId,
+    const QString &exerciseId,
+    const QString &protocolHtml,
+    bool partly,
+    QString *errorText,
+    QString *protocolId) {
+    if (patientId.trimmed().isEmpty()) {
+        if (errorText) {
+            *errorText = QStringLiteral("Не выбран пациент");
+        }
+        return false;
+    }
+    const QString escapedHtml = LocalDatabase::escape(protocolHtml);
+    if (partly) {
+        const QString lastId = m_local.queryScalar(
+            "SELECT id FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
+            + LocalDatabase::escape(exerciseId) + "' ORDER BY id DESC LIMIT 1");
+        if (lastId.isEmpty()) {
+            if (errorText) {
+                *errorText = QStringLiteral("Не найден протокол для обновления");
+            }
+            return false;
+        }
+        if (!m_local.exec(
+                "UPDATE protocols SET pr='" + escapedHtml + "' WHERE id='" + LocalDatabase::escape(lastId) + "'")) {
+            if (errorText) {
+                *errorText = m_local.lastError();
+            }
+            return false;
+        }
+        if (protocolId) {
+            *protocolId = lastId;
+        }
+        return true;
+    }
+
+    if (!m_local.exec(
+            "INSERT INTO protocols (userid, uprid, pr) VALUES('"
+            + LocalDatabase::escape(patientId) + "','" + LocalDatabase::escape(exerciseId) + "','" + escapedHtml
+            + "')")) {
+        if (errorText) {
+            *errorText = m_local.lastError();
+        }
+        return false;
+    }
+    const QString newId = m_local.queryScalar("SELECT last_insert_rowid()");
+    if (protocolId) {
+        *protocolId = newId;
+    }
+    return true;
+}
+
+QString Repository::loadProtocolViewHtml(
+    const QString &exerciseId,
+    const QString &protocolId,
+    const QString &patientFio,
+    const QString &patientBirthDate) {
+    const QString body = m_local.queryScalar(
+        "SELECT pr FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
+    if (body.isEmpty()) {
+        return {};
+    }
+    return ExerciseProtocol::protocolViewHtml(exerciseId, body, patientFio, patientBirthDate);
 }

@@ -143,6 +143,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTextBrowser \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTextEdit \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTreeWidget \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QWidget \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractbutton.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemdelegate.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemview.h \
@@ -350,6 +351,9 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wchar.h \
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wctype.h \
   D:/projects/DokitLab/infant/src/apiclient.h \
+  D:/projects/DokitLab/infant/src/appsettings.h \
+  D:/projects/DokitLab/infant/src/exercisehost.h \
+  D:/projects/DokitLab/infant/src/exerciseprotocol.h \
   D:/projects/DokitLab/infant/src/imagebutton.h \
   D:/projects/DokitLab/infant/src/localdatabase.h \
   D:/projects/DokitLab/infant/src/models.h \

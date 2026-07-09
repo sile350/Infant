@@ -1,7 +1,8 @@
 #ifndef INFANTWINDOW_H
 #define INFANTWINDOW_H
 
-#include "apiclient.h"
+#include "appsettings.h"
+#include "exercisehost.h"
 #include "imagebutton.h"
 #include "repository.h"
 
@@ -101,6 +102,8 @@ private:
     bool addExerciseToFavorites(const QString &exerciseId, const QString &displayText);
     bool removeExerciseFromFavorites(const QString &exerciseId);
     void showExercisesContextMenu(const QPoint &pos);
+    void openExercise(const QString &exerciseId);
+    void closeExerciseHost();
     void resetUserCreateForm();
     void loadUserForEdit(const QString &id);
     void deleteUserById(const QString &userId);
@@ -220,6 +223,7 @@ private:
     QComboBox *m_userRole = nullptr;
     ImageButton *m_userSaveButton = nullptr;
     ImageButton *m_userOpenPatients = nullptr;
+    QCheckBox *m_dualScreenCheck = nullptr;
     QString m_editUserId;
     bool m_userSaveInProgress = false;
     bool m_anamnesisSaveInProgress = false;
@@ -295,6 +299,8 @@ private:
     QDialog *m_aboutWindow = nullptr;
     QTextBrowser *m_helpBrowser = nullptr;
     QString m_currentHelpFilePath;
+
+    ExerciseHost *m_exerciseHost = nullptr;
 };
 
 #endif

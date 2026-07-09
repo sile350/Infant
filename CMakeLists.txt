@@ -35,6 +35,18 @@ set(PROJECT_SOURCES
         src/custommessagebox.cpp
         src/imagebutton.h
         src/imagebutton.cpp
+        src/appsettings.h
+        src/appsettings.cpp
+        src/exerciseassets.h
+        src/exerciseassets.cpp
+        src/exerciseprotocol.h
+        src/exerciseprotocol.cpp
+        src/onlypexercise.h
+        src/onlypexercise.cpp
+        src/patientdisplay.h
+        src/patientdisplay.cpp
+        src/exercisehost.h
+        src/exercisehost.cpp
 )
 
 if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")

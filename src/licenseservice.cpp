@@ -18,6 +18,10 @@
 
 namespace {
 
+QString licenseMismatchMessage() {
+    return QStringLiteral("Ключ не активирован для этой машины или срок действия истек.");
+}
+
 QString lastFourChars(const QString &value) {
     const QString trimmed = value.trimmed();
     if (trimmed.isEmpty()) {
@@ -32,12 +36,11 @@ QString legacyLicensePath() {
 }
 
 #ifdef Q_OS_WIN
-QString wmicPropertyValue(const char *wmicClass, const char *property) {
+QString wmicFirstValue(const char *wmicClass, const char *property) {
     QProcess process;
     process.start(
         QStringLiteral("wmic"),
-        {QString::fromLatin1(wmicClass), QStringLiteral("get"), QString::fromLatin1(property), QStringLiteral("/value")}
-    );
+        {QString::fromLatin1(wmicClass), QStringLiteral("get"), QString::fromLatin1(property), QStringLiteral("/value")});
     if (!process.waitForFinished(10000)) {
         process.kill();
         return {};
@@ -56,54 +59,91 @@ QString wmicPropertyValue(const char *wmicClass, const char *property) {
     return {};
 }
 
+QString powershellFirstDiskModel() {
+    QProcess process;
+    process.start(
+        QStringLiteral("powershell"),
+        {QStringLiteral("-NoProfile"),
+         QStringLiteral("-Command"),
+         QStringLiteral("(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).Model")});
+    if (!process.waitForFinished(10000)) {
+        process.kill();
+        return {};
+    }
+    return QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+}
+
 QString windowsHardwareFingerprint() {
-    const QString processorId = wmicPropertyValue("cpu", "ProcessorId");
-    QString boardSerial = wmicPropertyValue("baseboard", "SerialNumber");
-    if (boardSerial == QStringLiteral("N/A") || boardSerial == QStringLiteral("NA")) {
+    const QString processorId = wmicFirstValue("cpu", "ProcessorId");
+    QString boardSerial = wmicFirstValue("baseboard", "SerialNumber");
+    if (boardSerial.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) == 0
+        || boardSerial.compare(QStringLiteral("NA"), Qt::CaseInsensitive) == 0) {
         boardSerial = QStringLiteral("0000000000");
     }
-    const QString fingerprint = lastFourChars(processorId) + lastFourChars(boardSerial);
-    return fingerprint.trimmed().isEmpty() ? QString{} : fingerprint;
+    QString diskModel = wmicFirstValue("diskdrive", "Model");
+    if (diskModel.isEmpty()) {
+        diskModel = powershellFirstDiskModel();
+    }
+    if (processorId.isEmpty() && boardSerial == QStringLiteral("0000000000") && diskModel.isEmpty()) {
+        return {};
+    }
+    return lastFourChars(processorId) + lastFourChars(boardSerial) + lastFourChars(diskModel);
 }
 #else
+QString linuxDiskModel() {
+    QFile file(QStringLiteral("/sys/block/sda/device/model"));
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QString::fromUtf8(file.readAll()).trimmed();
+}
+
 QString linuxHardwareFingerprint() {
     SmbiosReader::HardwareIds ids;
     if (!SmbiosReader::readHardwareIds(&ids)) {
         return {};
     }
-    if (ids.processorId.isEmpty() && ids.boardSerial == QStringLiteral("0000000000")) {
-        return {};
-    }
-    return lastFourChars(ids.processorId) + lastFourChars(ids.boardSerial);
+    const QString diskModel = linuxDiskModel();
+    return lastFourChars(ids.processorId) + lastFourChars(ids.boardSerial) + lastFourChars(diskModel);
 }
 #endif
 
-QString readKeyFromFile(const QString &path) {
+struct LicenseFileData {
+    QString key;
+    QString hardware;
+};
+
+LicenseFileData readLicenseFile(const QString &path) {
+    LicenseFileData data;
     QFile file(path);
     if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
-        return {};
+        return data;
     }
     const QByteArray raw = file.readAll().trimmed();
     file.close();
     if (raw.isEmpty()) {
-        return {};
+        return data;
     }
 
     const QString asText = QString::fromUtf8(raw);
+    QJsonDocument doc;
     if (asText.startsWith(QStringLiteral("~lic~"))) {
         const QString decrypted = FieldCrypto::decryptLicenseBlob(asText);
-        const QJsonDocument doc = QJsonDocument::fromJson(decrypted.toUtf8());
-        if (doc.isObject()) {
-            return doc.object().value(QStringLiteral("key")).toString().trimmed();
-        }
-        return {};
+        doc = QJsonDocument::fromJson(decrypted.toUtf8());
+    } else {
+        doc = QJsonDocument::fromJson(raw);
     }
+    if (!doc.isObject()) {
+        return data;
+    }
+    const QJsonObject obj = doc.object();
+    data.key = obj.value(QStringLiteral("key")).toString().trimmed();
+    data.hardware = obj.value(QStringLiteral("hardware")).toString().trimmed();
+    return data;
+}
 
-    const QJsonDocument doc = QJsonDocument::fromJson(raw);
-    if (doc.isObject()) {
-        return doc.object().value(QStringLiteral("key")).toString().trimmed();
-    }
-    return {};
+QString readKeyFromFile(const QString &path) {
+    return readLicenseFile(path).key;
 }
 
 } // namespace
@@ -117,14 +157,38 @@ bool LicenseService::ensureActivated(QWidget *parent) {
         return false;
     }
 
-    m_key = loadSavedKey();
-    if (!m_key.isEmpty() && readKeyFromFile(localLicensePath()).isEmpty()) {
-        saveKey(m_key);
-    }
-
     const QString fingerprint = hardwareFingerprint();
     if (fingerprint.isEmpty()) {
-        CustomMessageBox::showError(parent, "Не удалось получить идентификатор оборудования.");
+        CustomMessageBox::showError(parent, QStringLiteral("Не удалось получить идентификатор оборудования."));
+        return false;
+    }
+    if (isWeakFingerprint(fingerprint)) {
+        CustomMessageBox::showError(
+            parent,
+            QStringLiteral("Не удалось однозначно определить оборудование. Запустите программу от имени администратора."));
+        return false;
+    }
+
+    const LicenseFileData savedLicense = readLicenseFile(localLicensePath());
+    m_key = savedLicense.key;
+    if (m_key.isEmpty()) {
+        m_key = readKeyFromFile(legacyLicensePath());
+    }
+
+    if (!m_key.isEmpty() && savedLicense.key.isEmpty()) {
+        QString saveError;
+        if (!saveKey(m_key, &saveError, fingerprint)) {
+            CustomMessageBox::showError(
+                parent,
+                saveError.isEmpty()
+                    ? QStringLiteral("Не удалось сохранить файл лицензии.")
+                    : saveError);
+            return false;
+        }
+    }
+
+    if (!m_key.isEmpty() && !savedLicense.hardware.isEmpty() && savedLicense.hardware != fingerprint) {
+        CustomMessageBox::showError(parent, licenseMismatchMessage());
         return false;
     }
 
@@ -142,7 +206,7 @@ bool LicenseService::ensureActivated(QWidget *parent) {
         m_key = enteredKey;
         m_freshActivation = true;
         QString saveError;
-        if (!saveKey(m_key, &saveError)) {
+        if (!saveKey(m_key, &saveError, fingerprint)) {
             CustomMessageBox::showError(
                 parent,
                 saveError.isEmpty()
@@ -150,12 +214,25 @@ bool LicenseService::ensureActivated(QWidget *parent) {
                     : saveError);
             return false;
         }
+        return true;
     }
 
     QString errorText;
     if (!m_repository->verifyLicenseKeyForMachine(m_key, fingerprint, &errorText)) {
         CustomMessageBox::showError(parent, errorText);
         return false;
+    }
+
+    if (savedLicense.hardware.isEmpty()) {
+        QString saveError;
+        if (!saveKey(m_key, &saveError, fingerprint)) {
+            CustomMessageBox::showError(
+                parent,
+                saveError.isEmpty()
+                    ? QStringLiteral("Не удалось обновить файл лицензии.")
+                    : saveError);
+            return false;
+        }
     }
 
     return true;
@@ -174,14 +251,22 @@ QString LicenseService::localLicensePath() const {
 }
 
 QString LicenseService::loadSavedKey() const {
-    QString key = readKeyFromFile(localLicensePath());
+    const QString key = readLicenseFile(localLicensePath()).key;
     if (!key.isEmpty()) {
         return key;
     }
     return readKeyFromFile(legacyLicensePath());
 }
 
-bool LicenseService::saveKey(const QString &key, QString *errorText) {
+QString LicenseService::loadSavedHardware() const {
+    const QString hardware = readLicenseFile(localLicensePath()).hardware;
+    if (!hardware.isEmpty()) {
+        return hardware;
+    }
+    return readLicenseFile(legacyLicensePath()).hardware;
+}
+
+bool LicenseService::saveKey(const QString &key, QString *errorText, const QString &hardware) {
     const QString path = localLicensePath();
     const QFileInfo info(path);
     const QString dirPath = info.absolutePath();
@@ -226,6 +311,14 @@ bool LicenseService::saveKey(const QString &key, QString *errorText) {
 
     QJsonObject obj;
     obj.insert(QStringLiteral("key"), key);
+    if (!hardware.isEmpty()) {
+        obj.insert(QStringLiteral("hardware"), hardware);
+    } else {
+        const QString existingHardware = loadSavedHardware();
+        if (!existingHardware.isEmpty()) {
+            obj.insert(QStringLiteral("hardware"), existingHardware);
+        }
+    }
     obj.insert(QStringLiteral("updated_at"), QString::number(QDateTime::currentSecsSinceEpoch()));
     const QString encrypted = FieldCrypto::encryptLicenseBlob(
         QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact)));
@@ -255,4 +348,13 @@ QString LicenseService::hardwareFingerprint() const {
 #else
     return linuxHardwareFingerprint();
 #endif
+}
+
+bool LicenseService::isWeakFingerprint(const QString &fingerprint) {
+    if (fingerprint.length() < 8) {
+        return true;
+    }
+    return fingerprint == QStringLiteral("000000000000")
+        || fingerprint == QStringLiteral("00000000")
+        || fingerprint == QString(12, QChar('0'));
 }

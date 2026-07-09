@@ -50,6 +50,19 @@ public:
     bool verifyLicenseKeyForMachine(const QString &key, const QString &hardware, QString *errorText);
     bool activateLicenseKey(const QString &key, const QString &hardware, QString *errorText);
 
+    bool saveExerciseProtocol(
+        const QString &patientId,
+        const QString &exerciseId,
+        const QString &protocolHtml,
+        bool partly,
+        QString *errorText,
+        QString *protocolId = nullptr);
+    QString loadProtocolViewHtml(
+        const QString &exerciseId,
+        const QString &protocolId,
+        const QString &patientFio,
+        const QString &patientBirthDate);
+
     QString lastError() const;
 
 private:

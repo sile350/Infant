@@ -144,6 +144,7 @@ infant_autogen/timestamp: \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTextEdit \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QToolButton \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTreeWidget \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QWidget \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractbutton.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemdelegate.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemview.h \
@@ -432,8 +433,16 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/mainwindow.h \
 	D:/projects/DokitLab/infant/src/apiclient.cpp \
 	D:/projects/DokitLab/infant/src/apiclient.h \
+	D:/projects/DokitLab/infant/src/appsettings.cpp \
+	D:/projects/DokitLab/infant/src/appsettings.h \
 	D:/projects/DokitLab/infant/src/custommessagebox.cpp \
 	D:/projects/DokitLab/infant/src/custommessagebox.h \
+	D:/projects/DokitLab/infant/src/exerciseassets.cpp \
+	D:/projects/DokitLab/infant/src/exerciseassets.h \
+	D:/projects/DokitLab/infant/src/exercisehost.cpp \
+	D:/projects/DokitLab/infant/src/exercisehost.h \
+	D:/projects/DokitLab/infant/src/exerciseprotocol.cpp \
+	D:/projects/DokitLab/infant/src/exerciseprotocol.h \
 	D:/projects/DokitLab/infant/src/fieldcrypto.cpp \
 	D:/projects/DokitLab/infant/src/fieldcrypto.h \
 	D:/projects/DokitLab/infant/src/imagebutton.cpp \
@@ -447,6 +456,10 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/src/localdatabase.cpp \
 	D:/projects/DokitLab/infant/src/localdatabase.h \
 	D:/projects/DokitLab/infant/src/models.h \
+	D:/projects/DokitLab/infant/src/onlypexercise.cpp \
+	D:/projects/DokitLab/infant/src/onlypexercise.h \
+	D:/projects/DokitLab/infant/src/patientdisplay.cpp \
+	D:/projects/DokitLab/infant/src/patientdisplay.h \
 	D:/projects/DokitLab/infant/src/repository.cpp \
 	D:/projects/DokitLab/infant/src/repository.h \
 	D:/Qt/Tools/CMake_64/bin/cmake.exe
