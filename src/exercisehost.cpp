@@ -22,6 +22,11 @@
 #include <QTextBrowser>
 #include <QTextCursor>
 #include <QTimer>
+#include <QHBoxLayout>
+#include <QScrollBar>
+#include <QSizePolicy>
+#include <QStyleOption>
+#include <QStyle>
 #include <QVBoxLayout>
 #include <QtMath>
 
@@ -32,6 +37,70 @@ constexpr QColor kDocumentBg(0xff, 0xff, 0xff);
 constexpr int kPanelX = 51;
 constexpr int kPanelY = 4;
 constexpr int kScrollWidth = 870;
+
+constexpr int kScrollBarGutter = 20;
+
+const char *kScrollWhiteStyle =
+    "QScrollArea { background-color:#ffffff; border:none; }"
+    "QScrollBar:vertical { background-color:#ffffff; border:none; width:14px; margin:0; }"
+    "QScrollBar::handle:vertical { background-color:#d0d0d0; min-height:20px; border-radius:2px; }"
+    "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { background-color:#ffffff; height:0px; border:none; }"
+    "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background-color:#ffffff; }"
+    "QScrollBar:horizontal { background-color:#ffffff; height:0px; }";
+
+class WhiteLabel final : public QLabel {
+public:
+    using QLabel::QLabel;
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), kDocumentBg);
+        QStyleOption opt;
+        opt.initFrom(this);
+        style()->drawItemText(
+            &painter,
+            rect().adjusted(2, 0, -2, 0),
+            alignment(),
+            opt.palette,
+            true,
+            text(),
+            foregroundRole());
+        event->accept();
+    }
+};
+
+class WhiteViewportFilter final : public QObject {
+public:
+    explicit WhiteViewportFilter(QObject *parent = nullptr) : QObject(parent) {}
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::Paint) {
+            auto *viewport = qobject_cast<QWidget *>(watched);
+            if (viewport) {
+                QPainter painter(viewport);
+                painter.fillRect(viewport->rect(), kDocumentBg);
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
+
+class WhiteCheckBox final : public QCheckBox {
+public:
+    using QCheckBox::QCheckBox;
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), kDocumentBg);
+        QStyleOptionButton opt;
+        initStyleOption(&opt);
+        style()->drawControl(QStyle::CE_CheckBox, &opt, &painter, this);
+        event->accept();
+    }
+};
 
 class OpaquePanel final : public QWidget {
 public:
@@ -118,22 +187,17 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     rowLayout->setContentsMargins(0, 2, 0, 2);
     rowLayout->setSpacing(8);
 
-    row.box = new QCheckBox(wrap);
+    row.box = new WhiteCheckBox(wrap);
     row.box->setFixedSize(18, 18);
-    row.box->setStyleSheet(QStringLiteral(
-        "QCheckBox { background:#ffffff; spacing:0; margin:0; padding:0; }"
-        "QCheckBox::indicator { width:13px; height:13px; background:#ffffff; border:1px solid #808080; }"));
 
-    row.label = new QLabel(text, wrap);
+    row.label = new WhiteLabel(text, wrap);
     row.label->setWordWrap(true);
     row.label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     if (contentWidth > 40) {
         row.label->setMaximumWidth(contentWidth - 34);
     }
-    applyWidgetBackground(row.label, kDocumentBg);
     row.label->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000;"
-        "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"));
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
 
     rowLayout->addWidget(row.box, 0, Qt::AlignTop);
     rowLayout->addWidget(row.label, 1);
@@ -173,10 +237,15 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     applyWidgetBackground(m_scrollArea, kDocumentBg);
-    m_scrollArea->setStyleSheet(QStringLiteral("QScrollArea { background-color:#ffffff; border:none; }"));
+    m_scrollArea->setStyleSheet(QString::fromLatin1(kScrollWhiteStyle));
     if (m_scrollArea->viewport()) {
         applyWidgetBackground(m_scrollArea->viewport(), kDocumentBg);
-        m_scrollArea->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+        m_scrollArea->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
+        m_scrollArea->viewport()->installEventFilter(new WhiteViewportFilter(m_scrollArea));
+    }
+    if (m_scrollArea->verticalScrollBar()) {
+        applyWidgetBackground(m_scrollArea->verticalScrollBar(), kDocumentBg);
+        m_scrollArea->verticalScrollBar()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
     }
 
     m_scrollContent = new OpaquePanel(kDocumentBg);
@@ -211,20 +280,18 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     hrLine->setStyleSheet(QStringLiteral("background-color:#000000; border:none;"));
     evaluationLayout->addWidget(hrLine);
 
-    auto *evalTitle = new QLabel(QStringLiteral("Оценка результатов"), m_evaluationPanel);
+    auto *evalTitle = new WhiteLabel(QStringLiteral("Оценка результатов"), m_evaluationPanel);
     evalTitle->setAlignment(Qt::AlignCenter);
-    applyWidgetBackground(evalTitle, kDocumentBg);
     evalTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:16px; font-weight:bold; padding:4px 0; }"));
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:16px; font-weight:bold; padding:4px 0;"));
     evaluationLayout->addWidget(evalTitle);
 
-    auto *activityTitle = new QLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
+    auto *activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     activityTitle->setAlignment(Qt::AlignCenter);
-    applyWidgetBackground(activityTitle, kDocumentBg);
     activityTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:15px; font-weight:bold; padding:2px 0; }"));
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:15px; font-weight:bold; padding:2px 0;"));
     evaluationLayout->addWidget(activityTitle);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
@@ -256,17 +323,15 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         });
     }
 
-    auto *helpTitle = new QLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
+    auto *helpTitle = new WhiteLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
     helpTitle->setAlignment(Qt::AlignCenter);
-    applyWidgetBackground(helpTitle, kDocumentBg);
     helpTitle->setStyleSheet(activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
-    auto *stimHelpLabel = new QLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
-    applyWidgetBackground(stimHelpLabel, kDocumentBg);
+    auto *stimHelpLabel = new WhiteLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
     stimHelpLabel->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:14px; font-weight:bold; padding:4px 0 0 16px; }"));
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
     checkboxLayout->addWidget(stimHelpLabel);
     m_helpChecks << makeCheckRow(
         QStringLiteral(
@@ -275,8 +340,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         checkboxLayout,
         initialCheckWidth);
 
-    auto *directHelpLabel = new QLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
-    applyWidgetBackground(directHelpLabel, kDocumentBg);
+    auto *directHelpLabel = new WhiteLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
     directHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(directHelpLabel);
     m_helpChecks << makeCheckRow(
@@ -290,8 +354,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         checkboxLayout,
         initialCheckWidth);
 
-    auto *teachHelpLabel = new QLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
-    applyWidgetBackground(teachHelpLabel, kDocumentBg);
+    auto *teachHelpLabel = new WhiteLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
     teachHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(teachHelpLabel);
     m_helpChecks << makeCheckRow(
@@ -379,7 +442,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
 void ExerciseHost::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
-    painter.fillRect(rect(), kExerciseBg);
+    const int leftWhiteWidth = kPanelX + kScrollWidth + kScrollBarGutter;
+    painter.fillRect(QRect(0, 0, leftWhiteWidth, height()), kDocumentBg);
+    if (leftWhiteWidth < width()) {
+        painter.fillRect(QRect(leftWhiteWidth, 0, width() - leftWhiteWidth, height()), kExerciseBg);
+    }
     QWidget::paintEvent(event);
 }
 
@@ -390,7 +457,7 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
 
 void ExerciseHost::updateChromeLayout() {
     if (m_leftBackdrop) {
-        m_leftBackdrop->setGeometry(0, 0, kPanelX + kScrollWidth, height());
+        m_leftBackdrop->setGeometry(0, 0, kPanelX + kScrollWidth + kScrollBarGutter, height());
         m_leftBackdrop->lower();
     }
     if (m_scrollArea) {
@@ -540,12 +607,24 @@ void ExerciseHost::updateContentHeights() {
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.label) {
             row.label->setMaximumWidth(qMax(120, checkWidth - 34));
+            if (row.label->parentWidget()) {
+                row.label->parentWidget()->setMinimumWidth(textWidth);
+            }
         }
     }
     for (const ExerciseCheckRow &row : m_helpChecks) {
         if (row.label) {
             row.label->setMaximumWidth(qMax(120, checkWidth - 34));
+            if (row.label->parentWidget()) {
+                row.label->parentWidget()->setMinimumWidth(textWidth);
+            }
         }
+    }
+    if (m_checkboxPanel) {
+        m_checkboxPanel->setMinimumWidth(textWidth);
+    }
+    if (m_evaluationPanel) {
+        m_evaluationPanel->setMinimumWidth(textWidth);
     }
     if (m_scrollContent) {
         m_scrollContent->adjustSize();
