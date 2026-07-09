@@ -10,6 +10,7 @@
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QTimer>
+#include <QtMath>
 #include <functional>
 
 namespace {
@@ -136,12 +137,61 @@ void OnlyPExercise::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
 }
 
+void OnlyPExercise::setDisplayRole(DisplayRole role) {
+    m_displayRole = role;
+    updateWidgetLayout();
+}
+
+void OnlyPExercise::initAnswerButtons(const QString &exerciseId) {
+    const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
+    const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
+    if (!rightPath.isEmpty()) {
+        setWhiteBackedPixmap(m_rightButton, QPixmap(rightPath));
+        m_rightButton->show();
+    }
+    if (!wrongPath.isEmpty()) {
+        setWhiteBackedPixmap(m_wrongButton, QPixmap(wrongPath));
+        m_wrongButton->show();
+    }
+}
+
+void OnlyPExercise::updateWidgetLayout() {
+    if (m_displayRole == DisplayRole::Headless) {
+        hide();
+        return;
+    }
+
+    constexpr qreal kRefW = 1920.0;
+    constexpr qreal kRefH = 1080.0;
+    const qreal sx = width() > 0 ? width() / kRefW : 1.0;
+    const qreal sy = height() > 0 ? height() / kRefH : 1.0;
+
+    const bool showButtons =
+        m_displayRole == DisplayRole::Primary || m_displayRole == DisplayRole::Specialist;
+
+    if (!m_pictureSource.isNull()) {
+        const int picW = qMax(1, qRound(m_pictureSource.width() * sx));
+        const int picH = qMax(1, qRound(m_pictureSource.height() * sy));
+        const QPixmap scaled = m_pictureSource.scaled(picW, picH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        m_picture->setPixmap(scaled);
+        m_picture->setFixedSize(scaled.size());
+        m_picture->move(qRound(kPictureLeft * sx), qRound(kPictureTop * sy));
+        m_picture->show();
+    }
+
+    m_stopButton->setVisible(showButtons);
+    m_rightButton->setVisible(showButtons);
+    m_wrongButton->setVisible(showButtons);
+    if (showButtons) {
+        m_stopButton->move(qRound(kStopLeft * sx), qRound(kStopTop * sy));
+        m_rightButton->move(qRound(kRightLeft * sx), qRound(kAnswerTop * sy));
+        m_wrongButton->move(qRound(kWrongLeft * sx), qRound(kAnswerTop * sy));
+    }
+}
+
 void OnlyPExercise::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    m_picture->move(kPictureLeft, kPictureTop);
-    m_stopButton->move(kStopLeft, kStopTop);
-    m_rightButton->move(kRightLeft, kAnswerTop);
-    m_wrongButton->move(kWrongLeft, kAnswerTop);
+    updateWidgetLayout();
 }
 
 void OnlyPExercise::showEvent(QShowEvent *event) {
@@ -168,23 +218,16 @@ void OnlyPExercise::start(const QString &exerciseId) {
     m_index = 0;
     m_elapsedSeconds = 0;
 
-    const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
-    const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
-    if (!rightPath.isEmpty()) {
-        setWhiteBackedPixmap(m_rightButton, QPixmap(rightPath));
-        m_rightButton->move(kRightLeft, kAnswerTop);
-        m_rightButton->show();
-    }
-    if (!wrongPath.isEmpty()) {
-        setWhiteBackedPixmap(m_wrongButton, QPixmap(wrongPath));
-        m_wrongButton->move(kWrongLeft, kAnswerTop);
-        m_wrongButton->show();
+    if (m_displayRole != DisplayRole::Headless) {
+        initAnswerButtons(exerciseId);
     }
 
     loadPicture(1);
     m_timer->start();
-    show();
-    raise();
+    if (m_displayRole != DisplayRole::Headless) {
+        show();
+        raise();
+    }
 }
 
 void OnlyPExercise::loadPicture(int index) {
@@ -192,9 +235,8 @@ void OnlyPExercise::loadPicture(int index) {
     if (path.isEmpty()) {
         return;
     }
-    const QPixmap pixmap(path);
-    setAutoSizePixmap(m_picture, pixmap);
-    m_picture->move(kPictureLeft, kPictureTop);
+    m_pictureSource.load(path);
+    updateWidgetLayout();
     m_picture->raise();
     emit pictureChanged(index);
 }
@@ -214,21 +256,10 @@ void OnlyPExercise::setMirrorMode(bool enabled) {
 void OnlyPExercise::prepareMirrorUi(const QString &exerciseId) {
     m_exerciseId = exerciseId;
     setProperty("exerciseId", exerciseId);
-    const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
-    const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
-    if (!rightPath.isEmpty()) {
-        setWhiteBackedPixmap(m_rightButton, QPixmap(rightPath));
-        m_rightButton->move(kRightLeft, kAnswerTop);
-        m_rightButton->show();
+    if (m_displayRole == DisplayRole::Specialist) {
+        initAnswerButtons(exerciseId);
     }
-    if (!wrongPath.isEmpty()) {
-        setWhiteBackedPixmap(m_wrongButton, QPixmap(wrongPath));
-        m_wrongButton->move(kWrongLeft, kAnswerTop);
-        m_wrongButton->show();
-    }
-    if (m_stopButton) {
-        m_stopButton->hide();
-    }
+    updateWidgetLayout();
     show();
 }
 

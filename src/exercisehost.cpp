@@ -466,6 +466,24 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_onlyP = new OnlyPExercise(this);
     m_onlyP->hide();
 
+    m_specialistExercise = new OnlyPExercise(m_rightPanel);
+    m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
+    m_specialistExercise->setMirrorMode(true);
+    m_specialistExercise->hide();
+    connect(m_onlyP, &OnlyPExercise::pictureChanged, m_specialistExercise, &OnlyPExercise::showPicture, Qt::UniqueConnection);
+    connect(
+        m_specialistExercise,
+        &OnlyPExercise::mirrorAnswerRequested,
+        m_onlyP,
+        &OnlyPExercise::submitAnswer,
+        Qt::UniqueConnection);
+    connect(
+        m_specialistExercise,
+        &OnlyPExercise::mirrorStopRequested,
+        m_onlyP,
+        &OnlyPExercise::stopExercise,
+        Qt::UniqueConnection);
+
     m_patientDisplay = new PatientDisplay;
 
     connect(m_beginButton, &ImageButton::clicked, this, [this]() {
@@ -481,7 +499,22 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_elapsedSeconds = elapsedSeconds;
         m_exerciseDone = true;
         m_protocolFormed = false;
-        restoreExerciseOverlay();
+        m_exerciseRunning = false;
+        if (m_dualScreen) {
+            if (m_specialistExercise) {
+                m_specialistExercise->hide();
+            }
+            if (m_onlyP) {
+                m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
+                m_onlyP->hide();
+            }
+            if (m_previewImage && !m_previewSource.isNull()) {
+                m_previewImage->show();
+                updatePreviewLayout();
+            }
+        } else {
+            restoreExerciseOverlay();
+        }
         setExerciseChromeVisible(true);
         updateChromeLayout();
         showResultLabels(answers, elapsedSeconds);
@@ -508,7 +541,7 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
 }
 
 void ExerciseHost::updateChromeLayout() {
-    if (m_exerciseRunning) {
+    if (m_exerciseRunning && !m_dualScreen) {
         updateExerciseOverlayGeometry();
         if (m_onlyP && m_onlyP->isVisible()) {
             m_onlyP->raise();
@@ -527,6 +560,10 @@ void ExerciseHost::updateChromeLayout() {
     if (m_rightPanel) {
         m_rightPanel->setGeometry(kPanelX + kScrollWidth, 0, qMax(0, width() - kPanelX - kScrollWidth), height());
         m_rightPanel->raise();
+    }
+    if (m_dualScreen && m_exerciseRunning && m_specialistExercise && m_rightPanel) {
+        m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        m_specialistExercise->raise();
     }
     if (m_beginButton) {
         m_beginButton->setGeometry(976, 12, 158, 33);
@@ -793,8 +830,14 @@ void ExerciseHost::restoreExerciseOverlay() {
 }
 
 void ExerciseHost::setDualScreenEnabled(bool enabled) {
+    const bool wasDual = m_dualScreen;
     m_dualScreen = enabled;
-    syncPatientDisplay();
+    if (!enabled && m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
+    }
+    if (enabled && !wasDual && m_exerciseRunning) {
+        syncPatientDisplay();
+    }
 }
 
 void ExerciseHost::syncPatientDisplay() {
@@ -814,16 +857,38 @@ void ExerciseHost::runOnlyPExercise() {
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     m_dualScreen = AppSettings::dualScreenEnabled();
-    setExerciseChromeVisible(false);
-    showExerciseOverlay();
+    m_exerciseRunning = true;
 
-    if (m_dualScreen && m_patientDisplay) {
-        m_patientDisplay->attachExercise(m_onlyP);
+    if (m_dualScreen) {
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Headless);
+        m_onlyP->start(m_exerciseId);
+
+        if (m_specialistExercise && m_rightPanel) {
+            m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
+            m_specialistExercise->setMirrorMode(true);
+            m_specialistExercise->prepareMirrorUi(m_exerciseId);
+            m_specialistExercise->showPicture(1);
+            m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+            m_specialistExercise->show();
+            m_specialistExercise->raise();
+        }
+
+        if (m_patientDisplay) {
+            m_patientDisplay->attachExercise(m_onlyP);
+        }
+        syncPatientDisplay();
+        updateChromeLayout();
+        return;
     }
 
+    setExerciseChromeVisible(false);
+    showExerciseOverlay();
+    m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
     m_onlyP->start(m_exerciseId);
     m_onlyP->raise();
-    syncPatientDisplay();
 }
 
 void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSeconds) {

@@ -2,6 +2,7 @@
 #define ONLYPEXERCISE_H
 
 #include <QList>
+#include <QPixmap>
 #include <QWidget>
 
 class QLabel;
@@ -10,12 +11,20 @@ class QTimer;
 class OnlyPExercise final : public QWidget {
     Q_OBJECT
 public:
+    enum class DisplayRole {
+        Primary,
+        Specialist,
+        Patient,
+        Headless
+    };
+
     explicit OnlyPExercise(QWidget *parent = nullptr);
 
     void start(const QString &exerciseId);
     void showPicture(int index);
     void submitAnswer(bool correct);
     void setMirrorMode(bool enabled);
+    void setDisplayRole(DisplayRole role);
     void prepareMirrorUi(const QString &exerciseId);
     void stopExercise();
     QList<bool> answers() const { return m_answers; }
@@ -37,12 +46,16 @@ private:
     void loadPicture(int index);
     void recordAnswer(bool correct);
     void finishExercise();
+    void initAnswerButtons(const QString &exerciseId);
+    void updateWidgetLayout();
 
     QString m_exerciseId;
     QList<bool> m_answers;
     int m_index = 0;
     int m_elapsedSeconds = 0;
     bool m_mirrorMode = false;
+    DisplayRole m_displayRole = DisplayRole::Primary;
+    QPixmap m_pictureSource;
 
     QLabel *m_picture = nullptr;
     QLabel *m_stopButton = nullptr;

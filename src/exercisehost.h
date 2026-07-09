@@ -102,6 +102,7 @@ private:
     ImageButton *m_beginButton = nullptr;
     ImageButton *m_formProtocolButton = nullptr;
     OnlyPExercise *m_onlyP = nullptr;
+    OnlyPExercise *m_specialistExercise = nullptr;
     PatientDisplay *m_patientDisplay = nullptr;
 };
 
