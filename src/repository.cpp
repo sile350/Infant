@@ -21,6 +21,18 @@ QString protocolPageBreakHtml() {
         "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>");
 }
 
+void closeLastOpenResultsTable(QString &body) {
+    const int markerPos = body.lastIndexOf(QStringLiteral("<!--s-->"));
+    if (markerPos >= 0) {
+        const QString afterMarker = body.mid(markerPos + 7);
+        if (!afterMarker.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            body += QStringLiteral("</table>");
+            return;
+        }
+    }
+    body += QStringLiteral("</table>");
+}
+
 void appendProtocolRecord(
     QString &body,
     const QString &uprid,
@@ -28,7 +40,7 @@ void appendProtocolRecord(
     bool continuation,
     const std::function<QString(const QString &)> &headerForExercise) {
     if (continuation) {
-        body += QStringLiteral("</table>");
+        closeLastOpenResultsTable(body);
         body += protocolPageBreakHtml();
     }
     body += headerForExercise(uprid) + protocolBody;
@@ -371,7 +383,7 @@ bool Repository::deleteTemplate(const QString &name, QString *errorText) {
     return true;
 }
 
-QString Repository::loadPatientProtocols(const QString &patientId) {
+QString Repository::assembleProtocolsBody(const QString &patientId, const QString &role) {
     const QList<QStringList> rows = m_local.queryRows(
         "SELECT uprid, pr FROM protocols WHERE userid='" + LocalDatabase::escape(patientId)
         + "' ORDER BY uprid, id ASC");
@@ -386,10 +398,18 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
             continue;
         }
         const QString uprid = row.at(0);
-        const QString pr = row.at(1);
+        QString pr = row.at(1);
         const bool continuation = !lastUprid.isEmpty() && uprid == lastUprid;
         if (uprid != lastUprid) {
             lastUprid = uprid;
+        }
+        pr.replace(QStringLiteral("скачать"), QString());
+        if (role != QLatin1String("s")) {
+            const int marker = pr.indexOf(QStringLiteral("<!--s-->"));
+            if (marker >= 0) {
+                pr = pr.left(marker);
+                pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
+            }
         }
         appendProtocolRecord(
             body,
@@ -397,6 +417,14 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
             pr,
             continuation,
             [this](const QString &exerciseId) { return exerciseHeaderFragment(exerciseId); });
+    }
+    return body;
+}
+
+QString Repository::loadPatientProtocols(const QString &patientId) {
+    const QString body = assembleProtocolsBody(patientId, QStringLiteral("s"));
+    if (body.isEmpty()) {
+        return {};
     }
 
     const QString zag = QStringLiteral(
@@ -406,9 +434,9 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
         "<head><meta http-equiv='Content-Type' content='text/html; charset=utf-8' />"
         "<title>Выгрузка</title>")
         + ExerciseAssets::protocolTableStyleHtml()
-        + QStringLiteral("</head><body>"
-        "<table width='670'><tr><td>");
-    return ExerciseAssets::wrapProtocolDocumentHtml(zag + body + QStringLiteral("</table></td></tr></table></body></html>"));
+        + QStringLiteral("</head><body>");
+    return ExerciseAssets::wrapProtocolDocumentHtml(
+        zag + body + QStringLiteral("</table></body></html>"));
 }
 
 QString Repository::exerciseHeaderFragment(const QString &uprid) const {
@@ -444,39 +472,9 @@ QString Repository::exerciseHeaderFragment(const QString &uprid) const {
 }
 
 QString Repository::loadPatientProtocolsForExport(const QString &patientId, const QString &role, const QString &patientDataHeader) {
-    const QList<QStringList> rows = m_local.queryRows(
-        "SELECT uprid, pr FROM protocols WHERE userid='" + LocalDatabase::escape(patientId)
-        + "' ORDER BY uprid, id ASC");
-    if (rows.isEmpty()) {
+    const QString body = assembleProtocolsBody(patientId, role);
+    if (body.isEmpty()) {
         return {};
-    }
-
-    QString body;
-    QString lastUprid;
-    for (const QStringList &row : rows) {
-        if (row.size() < 2) {
-            continue;
-        }
-        const QString uprid = row.at(0);
-        QString pr = row.at(1);
-        const bool continuation = !lastUprid.isEmpty() && uprid == lastUprid;
-        if (uprid != lastUprid) {
-            lastUprid = uprid;
-        }
-        pr.replace(QStringLiteral("скачать"), QString());
-        if (role != QLatin1String("s")) {
-            const int marker = pr.indexOf(QStringLiteral("<!--s-->"));
-            if (marker >= 0) {
-                pr = pr.left(marker);
-                pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
-            }
-        }
-        appendProtocolRecord(
-            body,
-            uprid,
-            pr,
-            continuation,
-            [this](const QString &exerciseId) { return exerciseHeaderFragment(exerciseId); });
     }
 
     const QString zag = QStringLiteral(
@@ -486,15 +484,13 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         "<head><meta http-equiv='Content-Type' content='text/html; charset=utf-8' />"
         "<title>Выгрузка</title>")
         + ExerciseAssets::protocolTableStyleHtml()
-        + QStringLiteral("</head><body>"
-        "<table width='670'><tr><td>");
+        + QStringLiteral("</head><body>");
     const QString piddata = QStringLiteral(
         "<div align='center' style='font-size:20px'>"
-        "Индивидуальная карта психологического развития ребенка<br><br>%1</div>")
+        "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>")
                             .arg(patientDataHeader);
     return ExerciseAssets::wrapProtocolDocumentHtml(
-        zag + piddata + QStringLiteral("<br><table>") + body
-        + QStringLiteral("</table></td></tr></table></body></html>"));
+        zag + piddata + body + QStringLiteral("</table></body></html>"));
 }
 
 bool Repository::verifyLicenseKeyForMachine(const QString &key, const QString &hardware, QString *errorText) {
@@ -692,7 +688,6 @@ QString Repository::loadProtocolViewHtml(
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>"
-               "<table width='670'><tr><td>%3</td></tr></table>")
+               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3")
         .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), protocolBlock);
 }

@@ -73,6 +73,7 @@ private:
     bool patientMatchesSearch(const QString &fio, const QString &search) const;
     QString extractValueByPrefix(const QString &text, const QString &prefix) const;
     QString exerciseHeaderFragment(const QString &uprid) const;
+    QString assembleProtocolsBody(const QString &patientId, const QString &role);
     qint64 unixTime(const QDate &date, bool endOfDay) const;
 
     ApiClient *m_api;
