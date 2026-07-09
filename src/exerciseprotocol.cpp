@@ -12,6 +12,18 @@ QString answerText(bool correct) {
     return correct ? QStringLiteral("верно") : QStringLiteral("неверно");
 }
 
+QString readExerciseHeaderHtml(const QString &exerciseId) {
+    const QString path = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("header.html"));
+    if (path.isEmpty()) {
+        return {};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QString::fromUtf8(file.readAll());
+}
+
 QString readHeaderRows(const QString &exerciseId) {
     const QString path = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("header.html"));
     if (path.isEmpty()) {
@@ -131,20 +143,13 @@ QString ExerciseProtocol::protocolViewHtml(
     const QString &protocolBody,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    QString header = readHeaderRows(exerciseId);
-    const int firstRow = header.indexOf(QStringLiteral("<tr"), 0, Qt::CaseInsensitive);
-    if (firstRow > 0) {
-        header = header.mid(firstRow);
-    }
-    QString body = protocolBody;
-    if (!body.contains(QStringLiteral("<table"), Qt::CaseInsensitive)) {
-        body = header + body;
-    }
+    const QString headerHtml = readExerciseHeaderHtml(exerciseId);
+    const QString body = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3</table>")
-        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), body);
+               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3%4</table>")
+        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), headerHtml, body);
 }
 
 ExerciseProtocol::CheckboxValues ExerciseProtocol::readCheckboxValues(const QString &orHtml) {

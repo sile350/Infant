@@ -52,6 +52,7 @@ private:
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
+    void setExerciseChromeVisible(bool visible);
     ExerciseProtocol::CheckboxValues checkboxValues() const;
     QString orHtmlSnapshot() const;
 

@@ -433,6 +433,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_elapsedSeconds = elapsedSeconds;
         m_exerciseDone = true;
         m_protocolFormed = false;
+        setExerciseChromeVisible(true);
+        updateChromeLayout();
         showResultLabels(answers, elapsedSeconds);
         if (m_patientDisplay) {
             m_patientDisplay->hideDisplay();
@@ -536,6 +538,7 @@ void ExerciseHost::openExercise(
     m_elapsedSeconds = 0;
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
+    setExerciseChromeVisible(true);
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
         row.box->setChecked(false);
@@ -632,10 +635,35 @@ void ExerciseHost::updateContentHeights() {
     }
 }
 
+void ExerciseHost::setExerciseChromeVisible(bool visible) {
+    if (m_leftBackdrop) {
+        m_leftBackdrop->setVisible(visible);
+    }
+    if (m_scrollArea) {
+        m_scrollArea->setVisible(visible);
+    }
+    if (m_beginButton) {
+        m_beginButton->setVisible(visible);
+    }
+    if (m_rightPanel) {
+        m_rightPanel->setVisible(visible);
+    }
+    if (m_previewImage) {
+        m_previewImage->setVisible(visible && !m_previewImage->pixmap(Qt::ReturnByValue).isNull());
+    }
+    if (m_rightCountLabel) {
+        m_rightCountLabel->setVisible(visible && m_exerciseDone);
+    }
+    if (m_wrongCountLabel) {
+        m_wrongCountLabel->setVisible(visible && m_exerciseDone);
+    }
+}
+
 void ExerciseHost::runOnlyPExercise() {
     m_protocolFormed = false;
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
+    setExerciseChromeVisible(false);
     m_onlyP->setGeometry(0, 0, width(), height());
     m_onlyP->start(m_exerciseId);
     m_onlyP->raise();
@@ -713,9 +741,17 @@ void ExerciseHost::formProtocol() {
 
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
-    m_templateBrowser->setHtml(viewHtml);
+    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    const QString wrapped = QStringLiteral(
+                                "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+                                "<style>body{background:#ffffff;color:#000000;margin:0;padding:8px;}"
+                                "table{table-layout:fixed;}</style></head><body>%1</body></html>")
+                                .arg(viewHtml);
+    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(wrapped, baseDir));
     applyCompactLineHeight(m_templateBrowser->document());
+    m_templateBrowser->setMaximumHeight(QWIDGETSIZE_MAX);
     layoutContent();
+    QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
 
     m_protocolFormed = true;
     m_partly = true;

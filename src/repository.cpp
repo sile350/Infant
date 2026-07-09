@@ -348,12 +348,42 @@ bool Repository::deleteTemplate(const QString &name, QString *errorText) {
 }
 
 QString Repository::loadPatientProtocols(const QString &patientId) {
-    const QString html = m_local.queryScalar(
-        "SELECT GROUP_CONCAT(pr, '<hr>') FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "'");
-    if (html.trimmed().isEmpty()) {
-        return QStringLiteral("Пока ни одного протокола не сформировано");
+    const QList<QStringList> rows = m_local.queryRows(
+        "SELECT uprid, pr FROM protocols WHERE userid='" + LocalDatabase::escape(patientId)
+        + "' ORDER BY uprid, id ASC");
+    if (rows.isEmpty()) {
+        return {};
     }
-    return html;
+
+    QString body;
+    QString lastUprid;
+    for (const QStringList &row : rows) {
+        if (row.size() < 2) {
+            continue;
+        }
+        const QString uprid = row.at(0);
+        QString pr = row.at(1);
+        QString head;
+        if (uprid != lastUprid) {
+            lastUprid = uprid;
+            head = exerciseHeaderFragment(uprid);
+        } else {
+            head = QStringLiteral(
+                "</table><table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' "
+                "width='671'><tr style='visibility:hidden;height:0px'><td width='200'></td>"
+                "<td width='471'></td></tr>");
+        }
+        body += head + pr;
+    }
+
+    const QString zag = QStringLiteral(
+        "<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Transitional//EN' "
+        "'http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd'>"
+        "<html xmlns='http://www.w3.org/1999/xhtml'>"
+        "<head><meta http-equiv='Content-Type' content='text/html; charset=utf-8' />"
+        "<title>Выгрузка</title></head><body>"
+        "<table width='670'><tr><td>");
+    return zag + body + QStringLiteral("</table></td></tr></table></body></html>");
 }
 
 QString Repository::exerciseHeaderFragment(const QString &uprid) const {

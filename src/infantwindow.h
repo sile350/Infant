@@ -250,6 +250,8 @@ private:
     QStackedWidget *m_workStack = nullptr;
     QTextEdit *m_anamnesisEdit = nullptr;
     QTextEdit *m_protocolsView = nullptr;
+    QLabel *m_protocolsTitle = nullptr;
+    QLabel *m_protocolsPatient = nullptr;
     QTreeWidget *m_exercisesTree = nullptr;
     QWidget *m_exercisesTreeHost = nullptr;
     QComboBox *m_authorsFilter = nullptr;

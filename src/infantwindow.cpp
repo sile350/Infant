@@ -1359,19 +1359,33 @@ void InfantWindow::buildUi() {
         "QStackedWidget#workStack { background-color: #ffffff; background-image: none; }"
     ));
 
-    m_panelProtocols = new WorkPanelWidget(m_workStack, Qt::white);
+    m_panelProtocols = new WorkPanelWidget(m_workStack);
     m_panelProtocols->setAttribute(Qt::WA_OpaquePaintEvent, true);
     m_panelProtocols->setGeometry(0, 0, 965, 1000);
+
+    m_protocolsTitle = new QLabel(m_panelProtocols);
+    m_protocolsTitle->setGeometry(195, 15, 625, 30);
+    m_protocolsTitle->setText(QStringLiteral("Индивидуальная карта психологического развития ребенка"));
+    m_protocolsTitle->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:16pt; text-decoration: underline; background: transparent;"));
+
+    m_protocolsPatient = new QLabel(m_panelProtocols);
+    m_protocolsPatient->setGeometry(197, 55, 560, 20);
+    m_protocolsPatient->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:9pt; background: transparent;"));
+
     m_protocolsView = new QTextEdit(m_panelProtocols);
     m_protocolsView->setReadOnly(true);
     m_protocolsView->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    m_protocolsView->setGeometry(29, 55, 900, 950);
-    m_protocolsView->setFrameShape(QFrame::StyledPanel);
-    m_protocolsView->setFrameShadow(QFrame::Sunken);
-    m_protocolsView->setLineWidth(1);
+    m_protocolsView->setGeometry(100, 99, 760, 920);
+    m_protocolsView->setFrameShape(QFrame::NoFrame);
+    m_protocolsView->setLineWidth(0);
     m_protocolsView->setAutoFillBackground(true);
     m_protocolsView->setAttribute(Qt::WA_StaticContents, false);
     m_protocolsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_protocolsView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_protocolsView->setStyleSheet(
         "QTextEdit { background-color: #ffffff; color: #000000; }"
     );
@@ -4178,22 +4192,18 @@ QString InfantWindow::exerciseNamesPath(const QString &name) const {
 }
 
 QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
-    const int minHeight = m_protocolsView && m_protocolsView->viewport()
-        ? qMax(900, m_protocolsView->viewport()->height())
-        : 900;
-
-    QString inner = innerContent.trimmed();
-    if (inner.isEmpty()) {
-        inner = QStringLiteral("<p>Пока ни одного протокола не сформировано</p>");
-    } else if (!inner.contains(QLatin1Char('<'))) {
-        inner = QStringLiteral("<p>%1</p>").arg(inner.toHtmlEscaped());
+    const QString trimmed = innerContent.trimmed();
+    if (trimmed.startsWith(QStringLiteral("<!DOCTYPE"), Qt::CaseInsensitive)
+        || trimmed.startsWith(QStringLiteral("<html"), Qt::CaseInsensitive)) {
+        return trimmed;
     }
-
+    if (trimmed.isEmpty()) {
+        return {};
+    }
     return QStringLiteral(
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head>"
-        "<body style=\"background-color:#ffffff;color:#000000;margin:0;padding:8px;min-height:%1px;\">"
-        "%2</body></html>"
-    ).arg(minHeight).arg(inner);
+        "<body style=\"background-color:#ffffff;color:#000000;margin:0;padding:8px;\">%1</body></html>"
+    ).arg(trimmed);
 }
 
 void InfantWindow::refreshProtocolsView() {
@@ -4201,17 +4211,34 @@ void InfantWindow::refreshProtocolsView() {
         return;
     }
 
+    const QString fio = m_patientTitle ? m_patientTitle->text().trimmed() : QString();
+    const QString birthDate = currentPatientBirthDate();
+    if (m_protocolsPatient) {
+        m_protocolsPatient->setText(
+            QStringLiteral("ФИО: %1       Дата рождения: %2").arg(fio, birthDate));
+    }
+    if (m_protocolsTitle) {
+        m_protocolsTitle->show();
+    }
+    if (m_protocolsPatient) {
+        m_protocolsPatient->show();
+    }
+
     QString inner;
     if (m_currentPatientId.isEmpty()) {
-        inner = QStringLiteral("<p>Пока ни одного протокола не сформировано</p>");
+        inner.clear();
     } else {
         inner = m_repository.loadPatientProtocols(m_currentPatientId);
     }
 
-    const QString html = protocolsDocumentHtml(inner);
     m_protocolsView->setUpdatesEnabled(false);
-    m_protocolsView->setHtml(html);
-    m_protocolsView->moveCursor(QTextCursor::Start);
+    if (inner.trimmed().isEmpty()) {
+        m_protocolsView->setPlainText(QStringLiteral("Пока ни одного протокола не сформировано"));
+    } else {
+        const QString html = protocolsDocumentHtml(inner);
+        m_protocolsView->setHtml(html);
+        m_protocolsView->moveCursor(QTextCursor::Start);
+    }
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
     }

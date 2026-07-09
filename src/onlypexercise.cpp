@@ -28,27 +28,39 @@ ClickableLabel *asClickable(QLabel *label) {
     return static_cast<ClickableLabel *>(label);
 }
 
+void setAutoSizePixmap(QLabel *label, const QPixmap &pixmap) {
+    if (pixmap.isNull()) {
+        return;
+    }
+    label->setPixmap(pixmap);
+    label->setFixedSize(pixmap.size());
+}
+
 } // namespace
 
 OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setAutoFillBackground(true);
     setStyleSheet(QStringLiteral("background-color: #f8f8f8;"));
 
     m_picture = new QLabel(this);
-    m_picture->setGeometry(700, 240, 800, 600);
-    m_picture->setAlignment(Qt::AlignCenter);
+    m_picture->setGeometry(700, 240, 1, 1);
+    m_picture->setScaledContents(false);
+    m_picture->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_picture->setStyleSheet(QStringLiteral("background: transparent;"));
 
     m_stopButton = new ClickableLabel(this);
     m_stopButton->setGeometry(971, 72, 134, 29);
-    m_stopButton->setScaledContents(true);
+    m_stopButton->setScaledContents(false);
 
     m_rightButton = new ClickableLabel(this);
     m_rightButton->setGeometry(1225, 72, 134, 29);
-    m_rightButton->setScaledContents(true);
+    m_rightButton->setScaledContents(false);
 
     m_wrongButton = new ClickableLabel(this);
     m_wrongButton->setGeometry(1355, 72, 134, 29);
-    m_wrongButton->setScaledContents(true);
+    m_wrongButton->setScaledContents(false);
 
     m_timer = new QTimer(this);
     m_timer->setInterval(1000);
@@ -69,7 +81,8 @@ void OnlyPExercise::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
     if (!stopPath.isEmpty()) {
-        asClickable(m_stopButton)->setPixmap(QPixmap(stopPath));
+        setAutoSizePixmap(m_stopButton, QPixmap(stopPath));
+        m_stopButton->move(971, 72);
     }
 }
 
@@ -86,11 +99,13 @@ void OnlyPExercise::start(const QString &exerciseId) {
     const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
     if (!rightPath.isEmpty()) {
-        asClickable(m_rightButton)->setPixmap(QPixmap(rightPath));
+        setAutoSizePixmap(m_rightButton, QPixmap(rightPath));
+        m_rightButton->move(1225, 72);
         m_rightButton->show();
     }
     if (!wrongPath.isEmpty()) {
-        asClickable(m_wrongButton)->setPixmap(QPixmap(wrongPath));
+        setAutoSizePixmap(m_wrongButton, QPixmap(wrongPath));
+        m_wrongButton->move(1355, 72);
         m_wrongButton->show();
     }
 
@@ -105,7 +120,9 @@ void OnlyPExercise::loadPicture(int index) {
     if (path.isEmpty()) {
         return;
     }
-    m_picture->setPixmap(QPixmap(path));
+    const QPixmap pixmap(path);
+    setAutoSizePixmap(m_picture, pixmap);
+    m_picture->move(700, 240);
     emit pictureChanged(index);
 }
 
@@ -127,11 +144,13 @@ void OnlyPExercise::prepareMirrorUi(const QString &exerciseId) {
     const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
     if (!rightPath.isEmpty()) {
-        asClickable(m_rightButton)->setPixmap(QPixmap(rightPath));
+        setAutoSizePixmap(m_rightButton, QPixmap(rightPath));
+        m_rightButton->move(1225, 72);
         m_rightButton->show();
     }
     if (!wrongPath.isEmpty()) {
-        asClickable(m_wrongButton)->setPixmap(QPixmap(wrongPath));
+        setAutoSizePixmap(m_wrongButton, QPixmap(wrongPath));
+        m_wrongButton->move(1355, 72);
         m_wrongButton->show();
     }
     show();
