@@ -18,6 +18,7 @@ public:
     static QString prepareTemplateHtml(const QString &html, const QString &baseDir);
     static QString protocolTableStyleHtml();
     static QString wrapProtocolDocumentHtml(const QString &html);
+    static QString buildProtocolDocumentHtml(const QString &bodyFragment);
 };
 
 #endif

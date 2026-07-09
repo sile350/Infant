@@ -197,7 +197,7 @@ QString ExerciseAssets::prepareOrHtml(
     const QString style = QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
-        ".or-strip { background-color:#f8f8f8; margin:0; padding:8px 0 2px 0; }"
+        ".or-strip { background-color:#f8f8f8; margin:0; padding:12px 0 2px 0; }"
         "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 8px 0; padding:2px 0; line-height:130%; white-space:normal; }"
         "a:last-of-type { margin-bottom:0; }"
         "a:hover { text-decoration:underline; }"
@@ -240,6 +240,12 @@ QString ExerciseAssets::wrapProtocolDocumentHtml(const QString &html) {
     result.replace(QStringLiteral("width=\"500\""), QStringLiteral("width=\"506\""));
     result.replace(QStringLiteral("width='184'"), QStringLiteral("width='194'"));
     result.replace(QStringLiteral("width=\"184\""), QStringLiteral("width=\"194\""));
+    result.replace(QStringLiteral("width='230'"), QStringLiteral("width='229'"));
+    result.replace(QStringLiteral("width=\"230\""), QStringLiteral("width=\"229\""));
+    result.replace(QStringLiteral("width='162'"), QStringLiteral("width='160'"));
+    result.replace(QStringLiteral("width=\"162\""), QStringLiteral("width=\"160\""));
+    result.replace(QStringLiteral("width='722'"), QStringLiteral("width='671'"));
+    result.replace(QStringLiteral("width=\"722\""), QStringLiteral("width=\"671\""));
     if (!result.contains(QStringLiteral("table-layout:fixed"), Qt::CaseInsensitive)) {
         const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
         if (headEnd >= 0) {
@@ -247,6 +253,13 @@ QString ExerciseAssets::wrapProtocolDocumentHtml(const QString &html) {
         }
     }
     return result;
+}
+
+QString ExerciseAssets::buildProtocolDocumentHtml(const QString &bodyFragment) {
+    return wrapProtocolDocumentHtml(QStringLiteral(
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\">%1</head>"
+        "<body style=\"margin:0;padding:0;background-color:#ffffff;color:#000000;\">%2</body></html>")
+        .arg(protocolTableStyleHtml(), bodyFragment));
 }
 
 QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &baseDir) {

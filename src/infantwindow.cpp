@@ -4701,8 +4701,7 @@ QString InfantWindow::assembleExportHtml(const ExportSelection &selection) {
         }
         combined += part;
     }
-    return QStringLiteral(
-        "<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>%1</body></html>").arg(combined);
+    return ExerciseAssets::buildProtocolDocumentHtml(combined);
 }
 
 void InfantWindow::renderExportToPrinter(
@@ -4716,6 +4715,10 @@ void InfantWindow::renderExportToPrinter(
 
     QTextDocument doc;
     doc.setHtml(assembledHtml);
+    doc.setDocumentMargin(0);
+    if (selection.protocols) {
+        doc.setTextWidth(671);
+    }
     doc.print(&printer);
 }
 

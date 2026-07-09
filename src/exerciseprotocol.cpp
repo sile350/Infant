@@ -92,10 +92,10 @@ QString ExerciseProtocol::createProtocolHtml(
             "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
             "</table><!--s-->"
             "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-            "<tr><td width='230' align='center'>Картинка(описание)</td>"
-            "<td width='89' align='center'>Уровень выполнения</td>"
-            "<td align='center' width='162'>Характер деятельности ребенка</td>"
-            "<td align='center' width='190'>Виды помощи</td></tr>");
+            "<tr><td width='229' align='center'>Картинка(описание)</td>"
+            "<td width='88' align='center'>Уровень выполнения</td>"
+            "<td align='center' width='160'>Характер деятельности ребенка</td>"
+            "<td align='center' width='194'>Виды помощи</td></tr>");
     } else {
         add = existingProtocolHtml;
         const int marker = add.indexOf(QStringLiteral("<!--s-->"));
@@ -108,10 +108,10 @@ QString ExerciseProtocol::createProtocolHtml(
         }
         add += QStringLiteral(
             "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-            "<tr><td width='230' align='center'>Картинка(описание)</td>"
-            "<td width='89' align='center'>Уровень выполнения</td>"
-            "<td align='center' width='162'>Характер деятельности ребенка</td>"
-            "<td align='center' width='190'>Виды помощи</td></tr>");
+            "<tr><td width='229' align='center'>Картинка(описание)</td>"
+            "<td width='88' align='center'>Уровень выполнения</td>"
+            "<td align='center' width='160'>Характер деятельности ребенка</td>"
+            "<td align='center' width='194'>Виды помощи</td></tr>");
     }
 
     const QString descriptions[] = {
@@ -143,7 +143,7 @@ QString ExerciseProtocol::protocolViewHtml(
     const QString &protocolBody,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    const QString headerHtml = readExerciseHeaderHtml(exerciseId);
+    const QString headerHtml = readHeaderRows(exerciseId);
     const QString body = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"

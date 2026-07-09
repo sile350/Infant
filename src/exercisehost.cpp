@@ -689,7 +689,9 @@ void ExerciseHost::updateContentHeights() {
         m_templateBrowser->setMinimumHeight(templateHeight);
         m_templateBrowser->setMaximumHeight(templateHeight);
         m_templateBrowser->setMinimumWidth(kTemplateTableWidth);
+        m_templateBrowser->setMaximumWidth(kTemplateTableWidth);
         m_templatePanel->setMinimumWidth(kTemplateTableWidth);
+        m_templatePanel->setMaximumWidth(kTemplateTableWidth + 16);
     }
     const int checkWidth = textWidth - 16;
     for (const ExerciseCheckRow &row : m_activityChecks) {
@@ -861,15 +863,13 @@ void ExerciseHost::formProtocol() {
 
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
-    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
-    const QString wrapped = QStringLiteral(
-                                "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-                                "<style>body{background:#ffffff;color:#000000;margin:0;padding:8px;}"
-                                "table{table-layout:fixed;}</style></head><body>%1</body></html>")
-                                .arg(viewHtml);
-    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(wrapped, baseDir));
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
-    m_templateBrowser->setMaximumHeight(QWIDGETSIZE_MAX);
+    if (m_templateBrowser->document()) {
+        m_templateBrowser->document()->setTextWidth(kTemplateTableWidth);
+    }
+    m_templateBrowser->setFixedWidth(kTemplateTableWidth);
+    m_templatePanel->setMaximumWidth(kTemplateTableWidth + 16);
     layoutContent();
     QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
 
