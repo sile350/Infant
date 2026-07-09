@@ -567,6 +567,7 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_beginButton) {
         m_beginButton->setGeometry(976, 12, 158, 33);
+        m_beginButton->setVisible(!m_exerciseRunning);
         m_beginButton->raise();
     }
     if (m_previewImage) {
@@ -783,7 +784,7 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
         m_scrollArea->setVisible(visible);
     }
     if (m_beginButton) {
-        m_beginButton->setVisible(visible);
+        m_beginButton->setVisible(visible && !m_exerciseRunning);
     }
     if (m_rightPanel) {
         m_rightPanel->setVisible(visible);
@@ -863,6 +864,9 @@ void ExerciseHost::runOnlyPExercise() {
     m_wrongCountLabel->hide();
     m_dualScreen = AppSettings::dualScreenEnabled();
     m_exerciseRunning = true;
+    if (m_beginButton) {
+        m_beginButton->hide();
+    }
 
     if (m_dualScreen) {
         if (m_previewImage) {
