@@ -7,6 +7,7 @@
 #include "patientdisplay.h"
 #include "repository.h"
 
+#include <QAbstractTextDocumentLayout>
 #include <QAbstractScrollArea>
 #include <QCheckBox>
 #include <QFile>
@@ -39,6 +40,7 @@ constexpr int kPanelY = 0;
 constexpr int kScrollWidth = 870;
 
 constexpr int kScrollBarGutter = 20;
+constexpr int kTemplateTableWidth = 671;
 
 const char *kScrollWhiteStyle =
     "QScrollArea { background-color:#ffffff; border:none; }"
@@ -91,14 +93,35 @@ class WhiteCheckBox final : public QCheckBox {
 public:
     using QCheckBox::QCheckBox;
 
+    WhiteCheckBox(QWidget *parent = nullptr) : QCheckBox(parent) {
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAutoFillBackground(true);
+        setFocusPolicy(Qt::NoFocus);
+    }
+
 protected:
     void paintEvent(QPaintEvent *event) override {
+        Q_UNUSED(event);
         QPainter painter(this);
-        painter.fillRect(rect(), kDocumentBg);
-        QStyleOptionButton opt;
-        initStyleOption(&opt);
-        style()->drawControl(QStyle::CE_CheckBox, &opt, &painter, this);
-        event->accept();
+        painter.fillRect(rect(), Qt::white);
+
+        const int indicatorSize = 16;
+        QRect indicator(
+            (width() - indicatorSize) / 2,
+            (height() - indicatorSize) / 2,
+            indicatorSize,
+            indicatorSize);
+
+        painter.fillRect(indicator, Qt::white);
+        painter.setPen(QPen(QColor(0x4a, 0x4a, 0x4a)));
+        painter.drawRect(indicator.adjusted(0, 0, -1, -1));
+
+        if (isChecked()) {
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            painter.setPen(QPen(Qt::black, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter.drawLine(indicator.left() + 3, indicator.top() + 8, indicator.left() + 6, indicator.top() + 11);
+            painter.drawLine(indicator.left() + 6, indicator.top() + 11, indicator.right() - 3, indicator.top() + 4);
+        }
     }
 };
 
@@ -169,6 +192,12 @@ void applyCompactLineHeight(QTextDocument *doc) {
         return;
     }
     doc->setDocumentMargin(0);
+    QTextFrameFormat rootFormat = doc->rootFrame()->frameFormat();
+    rootFormat.setMargin(0);
+    rootFormat.setPadding(0);
+    rootFormat.setBorder(0);
+    doc->rootFrame()->setFrameFormat(rootFormat);
+
     QTextCursor cursor(doc);
     cursor.beginEditBlock();
     for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
@@ -180,6 +209,13 @@ void applyCompactLineHeight(QTextDocument *doc) {
         cursor.mergeBlockFormat(fmt);
     }
     cursor.endEditBlock();
+}
+
+int tightDocumentHeight(QTextDocument *doc) {
+    if (!doc) {
+        return 0;
+    }
+    return static_cast<int>(qCeil(doc->documentLayout()->documentSize().height()));
 }
 
 ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int contentWidth) {
@@ -274,8 +310,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_evaluationPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
     m_evaluationPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     auto *evaluationLayout = new QVBoxLayout(m_evaluationPanel);
-    evaluationLayout->setContentsMargins(8, 12, 8, 12);
-    evaluationLayout->setSpacing(6);
+    evaluationLayout->setContentsMargins(8, 0, 8, 12);
+    evaluationLayout->setSpacing(4);
 
     auto *hrLine = new QFrame(m_evaluationPanel);
     hrLine->setFrameShape(QFrame::HLine);
@@ -288,14 +324,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     evalTitle->setAlignment(Qt::AlignCenter);
     evalTitle->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:16px; font-weight:bold; padding:4px 0;"));
+        "font-size:16px; font-weight:bold; padding:0;"));
     evaluationLayout->addWidget(evalTitle);
 
     auto *activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     activityTitle->setAlignment(Qt::AlignCenter);
     activityTitle->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:15px; font-weight:bold; padding:2px 0;"));
+        "font-size:15px; font-weight:bold; padding:0;"));
     evaluationLayout->addWidget(activityTitle);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
@@ -634,9 +670,13 @@ void ExerciseHost::updateContentHeights() {
 
     if (m_orBrowser) {
         m_orBrowser->document()->setTextWidth(textWidth);
-        const int orHeight = static_cast<int>(qCeil(m_orBrowser->document()->size().height()));
+        const int orHeight = tightDocumentHeight(m_orBrowser->document());
         m_orBrowser->setMinimumHeight(orHeight);
         m_orBrowser->setMaximumHeight(orHeight);
+        if (QWidget *orPanel = m_orBrowser->parentWidget()) {
+            orPanel->setMinimumHeight(orHeight);
+            orPanel->setMaximumHeight(orHeight);
+        }
     }
     if (m_evaluationPanel) {
         m_evaluationPanel->setMinimumHeight(0);
@@ -644,10 +684,12 @@ void ExerciseHost::updateContentHeights() {
         m_evaluationPanel->adjustSize();
     }
     if (m_templateBrowser) {
-        m_templateBrowser->document()->setTextWidth(textWidth);
+        m_templateBrowser->document()->setTextWidth(kTemplateTableWidth);
         const int templateHeight = static_cast<int>(qCeil(m_templateBrowser->document()->size().height())) + 2;
         m_templateBrowser->setMinimumHeight(templateHeight);
         m_templateBrowser->setMaximumHeight(templateHeight);
+        m_templateBrowser->setMinimumWidth(kTemplateTableWidth);
+        m_templatePanel->setMinimumWidth(kTemplateTableWidth);
     }
     const int checkWidth = textWidth - 16;
     for (const ExerciseCheckRow &row : m_activityChecks) {

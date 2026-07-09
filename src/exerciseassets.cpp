@@ -43,16 +43,20 @@ QString extractDivInnerHtml(const QString &html, const QString &divId) {
 }
 
 void replaceDivState(QString &html, const QString &divId, bool open, const QString &sourceHtml) {
-    QString inner = open ? extractDivInnerHtml(sourceHtml, divId) : QString();
-    if (open && divId == QStringLiteral("div2")) {
-        inner.replace(QRegularExpression(QStringLiteral("^(\\s|&nbsp;)+")), QString());
-    }
-    const QString style = open ? QStringLiteral("display:block;margin:0;padding:0;height:auto;overflow:visible")
-                               : QStringLiteral("display:none;margin:0;padding:0;height:0;overflow:hidden");
     const QRegularExpression divRe(
         QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>.*?</div>")
             .arg(QRegularExpression::escape(divId)),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    if (!open) {
+        html.replace(divRe, QString());
+        return;
+    }
+
+    QString inner = extractDivInnerHtml(sourceHtml, divId);
+    if (divId == QStringLiteral("div2")) {
+        inner.replace(QRegularExpression(QStringLiteral("^(\\s|&nbsp;)+")), QString());
+    }
+    const QString style = QStringLiteral("display:block;margin:0;padding:0;line-height:120%;height:auto;overflow:visible");
     html.replace(
         divRe,
         QStringLiteral("<div id='%1' style=\"%2\">%3</div>").arg(divId, style, inner));
@@ -61,9 +65,16 @@ void replaceDivState(QString &html, const QString &divId, bool open, const QStri
 void compactOrSectionSpacing(QString &html) {
     html.replace(QRegularExpression(QStringLiteral("</div>\\s+<a")), QStringLiteral("</div><a"));
     html.replace(
+        QRegularExpression(QStringLiteral("</a>\\s+<div")),
+        QStringLiteral("</a><div"));
+    html.replace(
+        QRegularExpression(QStringLiteral("</a>\\s+<a")),
+        QStringLiteral("</a><a"));
+    html.replace(
         QRegularExpression(QStringLiteral("</div>\\s*<br\\s*/?>\\s*<a")),
         QStringLiteral("</div><a"));
     html.replace(QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*){2,}")), QStringLiteral("<br>"));
+    html.replace(QRegularExpression(QStringLiteral("<body[^>]*>"), QRegularExpression::CaseInsensitiveOption), QStringLiteral("<body>"));
 }
 
 } // namespace
@@ -170,10 +181,20 @@ QString ExerciseAssets::prepareOrHtml(
     replaceDivState(result, QStringLiteral("div3"), open3, sourceHtml);
     compactOrSectionSpacing(result);
 
+    const int bodyOpen = result.indexOf(QStringLiteral("<body"), 0, Qt::CaseInsensitive);
+    const int bodyContentStart = bodyOpen >= 0 ? result.indexOf(QLatin1Char('>'), bodyOpen) + 1 : -1;
+    const int bodyClose = result.indexOf(QStringLiteral("</body>"), 0, Qt::CaseInsensitive);
+    if (bodyContentStart > 0 && bodyClose > bodyContentStart) {
+        QString inner = result.mid(bodyContentStart, bodyClose - bodyContentStart).trimmed();
+        inner = QStringLiteral("<div class=\"or-strip\">%1</div>").arg(inner);
+        result = result.left(bodyContentStart) + inner + result.mid(bodyClose);
+    }
+
     const QString style = QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
-        "a { color:#000000; text-decoration:none; display:inline; text-align:left; margin:0; padding:0; }"
+        ".or-strip { background-color:#f8f8f8; margin:0; padding:0; }"
+        "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0; padding:0; line-height:120%; }"
         "a:hover { text-decoration:underline; }"
         "div,ul,li,p,br { margin:0; padding:0; text-align:left; }"
         "</style>");
@@ -200,7 +221,11 @@ QString ExerciseAssets::prepareOrHtml(
 QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &baseDir) {
     QString result = html;
     const QString style = QStringLiteral(
-        "<style>body { background-color:#ffffff; color:#000000; }</style>");
+        "<style>"
+        "body { background-color:#ffffff; color:#000000; margin:0; padding:0; }"
+        "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; }"
+        "td,th { overflow:hidden; word-wrap:break-word; }"
+        "</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {
         result.insert(headEnd, style);

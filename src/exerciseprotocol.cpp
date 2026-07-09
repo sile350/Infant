@@ -82,20 +82,20 @@ QString ExerciseProtocol::createProtocolHtml(
 
     QString add;
     const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
-    add += QStringLiteral("<tr><td>Дата/специалист</td><td colspan='2'>%1   %2</td></tr>")
+    add += QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
                .arg(now, userFio.toHtmlEscaped());
 
     if (!partly) {
         add += QStringLiteral(
-            "<tr><td>Результат: вывод об уровне развития</td><td colspan='2'><div contenteditable='true'></div></td></tr>"
-            "<tr><td>Примечание</td><td colspan='3'><div contenteditable='true'></div></td></tr>"
-            "<tr><td align='center' colspan='4'>Процесс выполнения диагностической методики</td></tr>"
+            "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
+            "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
+            "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
             "</table><!--s-->"
             "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
             "<tr><td width='230' align='center'>Картинка(описание)</td>"
             "<td width='89' align='center'>Уровень выполнения</td>"
             "<td align='center' width='162'>Характер деятельности ребенка</td>"
-            "<td align='center' width='186'>Виды помощи</td></tr>");
+            "<td align='center' width='190'>Виды помощи</td></tr>");
     } else {
         add = existingProtocolHtml;
         const int marker = add.indexOf(QStringLiteral("<!--s-->"));
@@ -111,7 +111,7 @@ QString ExerciseProtocol::createProtocolHtml(
             "<tr><td width='230' align='center'>Картинка(описание)</td>"
             "<td width='89' align='center'>Уровень выполнения</td>"
             "<td align='center' width='162'>Характер деятельности ребенка</td>"
-            "<td align='center' width='186'>Виды помощи</td></tr>");
+            "<td align='center' width='190'>Виды помощи</td></tr>");
     }
 
     const QString descriptions[] = {

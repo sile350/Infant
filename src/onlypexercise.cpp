@@ -22,11 +22,41 @@ constexpr int kRightLeft = 1225;
 constexpr int kWrongLeft = 1355;
 constexpr int kAnswerTop = 72;
 
+QPixmap flattenPixmapOnWhite(const QPixmap &source) {
+    if (source.isNull()) {
+        return source;
+    }
+    QPixmap target(source.size());
+    target.fill(Qt::white);
+    QPainter painter(&target);
+    painter.drawPixmap(0, 0, source);
+    painter.end();
+    return target;
+}
+
 class ClickableLabel final : public QLabel {
 public:
     using QLabel::QLabel;
     std::function<void()> onClick;
+
+    void setWhiteBackedPixmap(const QPixmap &pixmap) {
+        setPixmap(flattenPixmapOnWhite(pixmap));
+        if (!pixmap.isNull()) {
+            setFixedSize(pixmap.size());
+        }
+    }
+
 protected:
+    void paintEvent(QPaintEvent *event) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), Qt::white);
+        const QPixmap pixmap = this->pixmap(Qt::ReturnByValue);
+        if (!pixmap.isNull()) {
+            painter.drawPixmap(0, 0, pixmap);
+        }
+        event->accept();
+    }
+
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && onClick) {
             onClick();
@@ -47,6 +77,15 @@ void setAutoSizePixmap(QLabel *label, const QPixmap &pixmap) {
     label->setFixedSize(pixmap.size());
 }
 
+void setWhiteBackedPixmap(QLabel *label, const QPixmap &pixmap) {
+    auto *button = dynamic_cast<ClickableLabel *>(label);
+    if (button) {
+        button->setWhiteBackedPixmap(pixmap);
+        return;
+    }
+    setAutoSizePixmap(label, flattenPixmapOnWhite(pixmap));
+}
+
 } // namespace
 
 OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
@@ -64,14 +103,17 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     m_stopButton = new ClickableLabel(this);
     m_stopButton->setGeometry(kStopLeft, kStopTop, 134, 29);
     m_stopButton->setScaledContents(false);
+    m_stopButton->setAutoFillBackground(true);
 
     m_rightButton = new ClickableLabel(this);
     m_rightButton->setGeometry(kRightLeft, kAnswerTop, 134, 29);
     m_rightButton->setScaledContents(false);
+    m_rightButton->setAutoFillBackground(true);
 
     m_wrongButton = new ClickableLabel(this);
     m_wrongButton->setGeometry(kWrongLeft, kAnswerTop, 134, 29);
     m_wrongButton->setScaledContents(false);
+    m_wrongButton->setAutoFillBackground(true);
 
     m_timer = new QTimer(this);
     m_timer->setInterval(1000);
@@ -106,7 +148,7 @@ void OnlyPExercise::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
     if (!stopPath.isEmpty()) {
-        setAutoSizePixmap(m_stopButton, QPixmap(stopPath));
+        setWhiteBackedPixmap(m_stopButton, QPixmap(stopPath));
         m_stopButton->move(kStopLeft, kStopTop);
     }
     raise();
@@ -129,12 +171,12 @@ void OnlyPExercise::start(const QString &exerciseId) {
     const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
     if (!rightPath.isEmpty()) {
-        setAutoSizePixmap(m_rightButton, QPixmap(rightPath));
+        setWhiteBackedPixmap(m_rightButton, QPixmap(rightPath));
         m_rightButton->move(kRightLeft, kAnswerTop);
         m_rightButton->show();
     }
     if (!wrongPath.isEmpty()) {
-        setAutoSizePixmap(m_wrongButton, QPixmap(wrongPath));
+        setWhiteBackedPixmap(m_wrongButton, QPixmap(wrongPath));
         m_wrongButton->move(kWrongLeft, kAnswerTop);
         m_wrongButton->show();
     }
@@ -175,12 +217,12 @@ void OnlyPExercise::prepareMirrorUi(const QString &exerciseId) {
     const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
     if (!rightPath.isEmpty()) {
-        setAutoSizePixmap(m_rightButton, QPixmap(rightPath));
+        setWhiteBackedPixmap(m_rightButton, QPixmap(rightPath));
         m_rightButton->move(kRightLeft, kAnswerTop);
         m_rightButton->show();
     }
     if (!wrongPath.isEmpty()) {
-        setAutoSizePixmap(m_wrongButton, QPixmap(wrongPath));
+        setWhiteBackedPixmap(m_wrongButton, QPixmap(wrongPath));
         m_wrongButton->move(kWrongLeft, kAnswerTop);
         m_wrongButton->show();
     }
