@@ -63,17 +63,14 @@ void replaceDivState(QString &html, const QString &divId, bool open, const QStri
 }
 
 void compactOrSectionSpacing(QString &html) {
-    html.replace(QRegularExpression(QStringLiteral("</div>\\s+<a")), QStringLiteral("</div><a"));
+    html.replace(QRegularExpression(QStringLiteral("</div>\\s+<a")), QStringLiteral("</div><br><br><a"));
     html.replace(
         QRegularExpression(QStringLiteral("</a>\\s+<div")),
         QStringLiteral("</a><div"));
     html.replace(
         QRegularExpression(QStringLiteral("</a>\\s+<a")),
-        QStringLiteral("</a><br><a"));
-    html.replace(
-        QRegularExpression(QStringLiteral("</div>\\s*<br\\s*/?>\\s*<a")),
-        QStringLiteral("</div><a"));
-    html.replace(QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*){2,}")), QStringLiteral("<br>"));
+        QStringLiteral("</a><br><br><a"));
+    html.replace(QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*){3,}")), QStringLiteral("<br><br>"));
     html.replace(QRegularExpression(QStringLiteral("<body[^>]*>"), QRegularExpression::CaseInsensitiveOption), QStringLiteral("<body>"));
 }
 
@@ -190,6 +187,7 @@ QString ExerciseAssets::prepareOrHtml(
     const int bodyClose = result.indexOf(QStringLiteral("</body>"), 0, Qt::CaseInsensitive);
     if (bodyContentStart > 0 && bodyClose > bodyContentStart) {
         QString inner = result.mid(bodyContentStart, bodyClose - bodyContentStart).trimmed();
+        inner = QStringLiteral("<br><br>") + inner;
         inner = QStringLiteral("<div class=\"or-strip\">%1</div>").arg(inner);
         result = result.left(bodyContentStart) + inner + result.mid(bodyClose);
     }
@@ -197,8 +195,8 @@ QString ExerciseAssets::prepareOrHtml(
     const QString style = QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
-        ".or-strip { background-color:#f8f8f8; margin:0; padding:12px 0 2px 0; }"
-        "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 8px 0; padding:2px 0; line-height:130%; white-space:normal; }"
+        ".or-strip { background-color:#f8f8f8; margin:0; padding:16px 0 4px 0; }"
+        "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 12px 0; padding:2px 0; line-height:130%; white-space:normal; }"
         "a:last-of-type { margin-bottom:0; }"
         "a:hover { text-decoration:underline; }"
         "div,ul,li,p,br { margin:0; padding:0; text-align:left; }"
