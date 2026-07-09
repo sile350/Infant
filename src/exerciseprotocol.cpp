@@ -81,11 +81,10 @@ QString ExerciseProtocol::createProtocolHtml(
     }
 
     QString add;
-    const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
-    add += QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
-               .arg(now, userFio.toHtmlEscaped());
-
     if (!partly) {
+        const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
+        add += QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
+                   .arg(now, userFio.toHtmlEscaped());
         add += QStringLiteral(
             "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
             "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
@@ -97,21 +96,7 @@ QString ExerciseProtocol::createProtocolHtml(
             "<td align='center' width='160'>Характер деятельности ребенка</td>"
             "<td align='center' width='194'>Виды помощи</td></tr>");
     } else {
-        add = existingProtocolHtml;
-        const int marker = add.indexOf(QStringLiteral("<!--s-->"));
-        if (marker >= 0) {
-            add = add.left(marker);
-        }
-        const int tableStart = add.lastIndexOf(QStringLiteral("<table"), -1, Qt::CaseInsensitive);
-        if (tableStart >= 0) {
-            add = add.left(tableStart);
-        }
-        add += QStringLiteral(
-            "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-            "<tr><td width='229' align='center'>Картинка(описание)</td>"
-            "<td width='88' align='center'>Уровень выполнения</td>"
-            "<td align='center' width='160'>Характер деятельности ребенка</td>"
-            "<td align='center' width='194'>Виды помощи</td></tr>");
+        add = existingProtocolHtml.trimmed();
     }
 
     const QString descriptions[] = {

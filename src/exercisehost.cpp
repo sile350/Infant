@@ -584,8 +584,7 @@ void ExerciseHost::openExercise(
     m_dualScreen = dualScreen;
     m_exerciseDone = false;
     m_protocolFormed = true;
-    m_partly = m_repository
-        && !m_repository->loadLastExerciseProtocolBody(patientId, exerciseId).trimmed().isEmpty();
+    m_partly = false;
     m_orOpen1 = false;
     m_orOpen2 = false;
     m_orOpen3 = false;
