@@ -244,6 +244,8 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; background-color:#ffffff; "
         "box-sizing:border-box; }"
         "div[contenteditable='true'] { min-height:1.2em; }"
+        ".protocol-page-break { page-break-before:always; break-before:page; height:0; margin:24px 0; }"
+        "@media print { .protocol-page-break { page-break-before:always; break-before:page; } }"
         "</style>");
 }
 

@@ -60,17 +60,6 @@ QString resultsTableHeaderHtml() {
         "<td align='center' width='194'>Виды помощи</td></tr>");
 }
 
-void closeOpenResultsTable(QString &html) {
-    const int markerPos = html.indexOf(QStringLiteral("<!--s-->"));
-    if (markerPos < 0) {
-        return;
-    }
-    const int closePos = html.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
-    if (closePos > markerPos) {
-        html = html.left(closePos).trimmed();
-    }
-}
-
 QString extractCheckedValue(const QString &html, const QString &id) {
     const QRegularExpression checkedRe(
         QStringLiteral("id=['\"]%1['\"][^>]*checked").arg(QRegularExpression::escape(id)),
@@ -96,28 +85,21 @@ QString ExerciseProtocol::createProtocolHtml(
     const QList<bool> &answers,
     const CheckboxValues &checkboxes) {
     Q_UNUSED(elapsedSeconds);
+    Q_UNUSED(partly);
+    Q_UNUSED(existingProtocolHtml);
     if (exerciseId != QStringLiteral("1.2")) {
         return existingProtocolHtml;
     }
 
-    QString add;
-    if (!partly) {
-        const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
-        add += QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
-                   .arg(now, userFio.toHtmlEscaped());
-        add += QStringLiteral(
-            "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
-            "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
-            "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
-            "</table><!--s-->")
-               + resultsTableHeaderHtml();
-    } else {
-        add = existingProtocolHtml.trimmed();
-        if (!add.isEmpty()) {
-            closeOpenResultsTable(add);
-            add += QStringLiteral("</table><!--s-->") + resultsTableHeaderHtml();
-        }
-    }
+    const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
+    QString add = QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
+                      .arg(now, userFio.toHtmlEscaped());
+    add += QStringLiteral(
+        "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
+        "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
+        "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
+        "</table><!--s-->")
+           + resultsTableHeaderHtml();
 
     const QString descriptions[] = {
         QStringLiteral("1. Бабушка на диване без ножки."),
@@ -140,6 +122,7 @@ QString ExerciseProtocol::createProtocolHtml(
                        .arg(descriptions[i], answerText(correct));
         }
     }
+    add += QStringLiteral("</table>");
     return add;
 }
 
@@ -150,11 +133,14 @@ QString ExerciseProtocol::protocolViewHtml(
     const QString &patientBirthDate) {
     const QString headerHtml = readHeaderRows(exerciseId);
     const QString body = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
+    const QString tableClose = protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)
+                                 ? QString()
+                                 : QStringLiteral("</table>");
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3%4</table>")
-        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), headerHtml, body);
+               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3%4%5")
+        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), headerHtml, body, tableClose);
 }
 
 ExerciseProtocol::CheckboxValues ExerciseProtocol::readCheckboxValues(const QString &orHtml) {

@@ -14,6 +14,27 @@
 #include <QTimer>
 #include <algorithm>
 
+namespace {
+
+QString protocolContinuationHeader(bool previousProtocolClosed) {
+    QString head;
+    if (!previousProtocolClosed) {
+        head += QStringLiteral("</table>");
+    }
+    head += QStringLiteral(
+        "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>"
+        "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' "
+        "width='671'><tr style='visibility:hidden;height:0px'><td width='200'></td>"
+        "<td width='471'></td></tr>");
+    return head;
+}
+
+bool protocolBodyIsClosed(const QString &protocolBody) {
+    return protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive);
+}
+
+} // namespace
+
 Repository::Repository(ApiClient *api, QObject *parent)
     : QObject(parent), m_api(api) {
     QString openError;
@@ -359,23 +380,23 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
 
     QString body;
     QString lastUprid;
+    bool previousProtocolClosed = false;
     for (const QStringList &row : rows) {
         if (row.size() < 2) {
             continue;
         }
         const QString uprid = row.at(0);
-        QString pr = row.at(1);
+        const QString pr = row.at(1);
         QString head;
         if (uprid != lastUprid) {
             lastUprid = uprid;
             head = exerciseHeaderFragment(uprid);
+            previousProtocolClosed = false;
         } else {
-            head = QStringLiteral(
-                "</table><table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' "
-                "width='671'><tr style='visibility:hidden;height:0px'><td width='200'></td>"
-                "<td width='471'></td></tr>");
+            head = protocolContinuationHeader(previousProtocolClosed);
         }
         body += head + pr;
+        previousProtocolClosed = protocolBodyIsClosed(pr);
     }
 
     const QString zag = QStringLiteral(
@@ -432,6 +453,7 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
 
     QString body;
     QString lastUprid;
+    bool previousProtocolClosed = false;
     for (const QStringList &row : rows) {
         if (row.size() < 2) {
             continue;
@@ -442,11 +464,9 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         if (uprid != lastUprid) {
             lastUprid = uprid;
             head = exerciseHeaderFragment(uprid);
+            previousProtocolClosed = false;
         } else {
-            head = QStringLiteral(
-                "</table><table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' "
-                "width='671'><tr style='visibility:hidden;height:0px'><td width='200'></td>"
-                "<td width='471'></td></tr>");
+            head = protocolContinuationHeader(previousProtocolClosed);
         }
         pr.replace(QStringLiteral("скачать"), QString());
         if (role != QLatin1String("s")) {
@@ -457,6 +477,7 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
             }
         }
         body += head + pr;
+        previousProtocolClosed = protocolBodyIsClosed(pr);
     }
 
     const QString zag = QStringLiteral(

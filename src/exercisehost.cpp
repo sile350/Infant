@@ -954,19 +954,22 @@ void ExerciseHost::formProtocol() {
         return;
     }
 
+    const bool separateProtocolRecords = (m_exerciseId == QStringLiteral("1.2"));
+    const bool partlySave = m_partly && !separateProtocolRecords;
+
     const QString protocolBody = ExerciseProtocol::createProtocolHtml(
         m_exerciseId,
         m_specialistFio,
         m_elapsedSeconds,
-        m_partly,
-        m_partly ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
-                 : QString(),
+        partlySave,
+        partlySave ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
+                   : QString(),
         m_answers,
         checkboxValues());
 
     QString error;
     QString protocolId;
-    if (!m_repository->saveExerciseProtocol(m_patientId, m_exerciseId, protocolBody, m_partly, &error, &protocolId)) {
+    if (!m_repository->saveExerciseProtocol(m_patientId, m_exerciseId, protocolBody, partlySave, &error, &protocolId)) {
         CustomMessageBox::showError(this, error);
         return;
     }
@@ -986,6 +989,8 @@ void ExerciseHost::formProtocol() {
     QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
 
     m_protocolFormed = true;
-    m_partly = true;
+    if (!separateProtocolRecords) {
+        m_partly = true;
+    }
     emit protocolSaved();
 }
