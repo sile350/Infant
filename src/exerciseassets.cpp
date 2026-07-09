@@ -181,6 +181,10 @@ QString ExerciseAssets::prepareOrHtml(
     replaceDivState(result, QStringLiteral("div3"), open3, sourceHtml);
     compactOrSectionSpacing(result);
 
+    result.replace(
+        QStringLiteral("<b>Анализируемые показатели и нормативы выполнения.</b>"),
+        QStringLiteral("<b>Анализируемые показатели<br>и нормативы выполнения.</b>"));
+
     const int bodyOpen = result.indexOf(QStringLiteral("<body"), 0, Qt::CaseInsensitive);
     const int bodyContentStart = bodyOpen >= 0 ? result.indexOf(QLatin1Char('>'), bodyOpen) + 1 : -1;
     const int bodyClose = result.indexOf(QStringLiteral("</body>"), 0, Qt::CaseInsensitive);
@@ -193,8 +197,8 @@ QString ExerciseAssets::prepareOrHtml(
     const QString style = QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
-        ".or-strip { background-color:#f8f8f8; margin:0; padding:0; }"
-        "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0; padding:0; line-height:120%; }"
+        ".or-strip { background-color:#f8f8f8; margin:0; padding:6px 0 0 0; }"
+        "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0; padding:0; line-height:120%; white-space:normal; }"
         "a:hover { text-decoration:underline; }"
         "div,ul,li,p,br { margin:0; padding:0; text-align:left; }"
         "</style>");
@@ -218,14 +222,35 @@ QString ExerciseAssets::prepareOrHtml(
     return result;
 }
 
-QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &baseDir) {
-    QString result = html;
-    const QString style = QStringLiteral(
+QString ExerciseAssets::protocolTableStyleHtml() {
+    return QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; }"
         "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; }"
         "td,th { overflow:hidden; word-wrap:break-word; }"
         "</style>");
+}
+
+QString ExerciseAssets::wrapProtocolDocumentHtml(const QString &html) {
+    QString result = html;
+    result.replace(QStringLiteral("width='186'"), QStringLiteral("width='190'"));
+    result.replace(QStringLiteral("width=\"186\""), QStringLiteral("width=\"190\""));
+    result.replace(QStringLiteral("width='500'"), QStringLiteral("width='506'"));
+    result.replace(QStringLiteral("width=\"500\""), QStringLiteral("width=\"506\""));
+    result.replace(QStringLiteral("width='184'"), QStringLiteral("width='194'"));
+    result.replace(QStringLiteral("width=\"184\""), QStringLiteral("width=\"194\""));
+    if (!result.contains(QStringLiteral("table-layout:fixed"), Qt::CaseInsensitive)) {
+        const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
+        if (headEnd >= 0) {
+            result.insert(headEnd, protocolTableStyleHtml());
+        }
+    }
+    return result;
+}
+
+QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &baseDir) {
+    QString result = html;
+    const QString style = protocolTableStyleHtml();
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {
         result.insert(headEnd, style);

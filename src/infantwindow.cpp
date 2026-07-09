@@ -1,6 +1,7 @@
 #include "infantwindow.h"
 #include "appsettings.h"
 #include "custommessagebox.h"
+#include "exerciseassets.h"
 
 #include <QClipboard>
 #include <QMimeData>
@@ -4193,17 +4194,18 @@ QString InfantWindow::exerciseNamesPath(const QString &name) const {
 
 QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
     const QString trimmed = innerContent.trimmed();
-    if (trimmed.startsWith(QStringLiteral("<!DOCTYPE"), Qt::CaseInsensitive)
-        || trimmed.startsWith(QStringLiteral("<html"), Qt::CaseInsensitive)) {
-        return trimmed;
-    }
     if (trimmed.isEmpty()) {
         return {};
     }
-    return QStringLiteral(
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head>"
-        "<body style=\"background-color:#ffffff;color:#000000;margin:0;padding:8px;\">%1</body></html>"
-    ).arg(trimmed);
+    if (trimmed.startsWith(QStringLiteral("<!DOCTYPE"), Qt::CaseInsensitive)
+        || trimmed.startsWith(QStringLiteral("<html"), Qt::CaseInsensitive)) {
+        return ExerciseAssets::wrapProtocolDocumentHtml(trimmed);
+    }
+    return ExerciseAssets::wrapProtocolDocumentHtml(
+        QStringLiteral(
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">%1</head>"
+            "<body>%2</body></html>")
+            .arg(ExerciseAssets::protocolTableStyleHtml(), trimmed));
 }
 
 void InfantWindow::refreshProtocolsView() {
@@ -4237,6 +4239,10 @@ void InfantWindow::refreshProtocolsView() {
     } else {
         const QString html = protocolsDocumentHtml(inner);
         m_protocolsView->setHtml(html);
+        if (QTextDocument *doc = m_protocolsView->document()) {
+            doc->setDocumentMargin(0);
+            doc->setTextWidth(671);
+        }
         m_protocolsView->moveCursor(QTextCursor::Start);
     }
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {

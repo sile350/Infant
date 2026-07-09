@@ -1,5 +1,7 @@
 #include "repository.h"
 
+#include "exerciseassets.h"
+
 #include "exerciseprotocol.h"
 #include "fieldcrypto.h"
 
@@ -381,9 +383,11 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
         "'http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd'>"
         "<html xmlns='http://www.w3.org/1999/xhtml'>"
         "<head><meta http-equiv='Content-Type' content='text/html; charset=utf-8' />"
-        "<title>Выгрузка</title></head><body>"
+        "<title>Выгрузка</title>")
+        + ExerciseAssets::protocolTableStyleHtml()
+        + QStringLiteral("</head><body>"
         "<table width='670'><tr><td>");
-    return zag + body + QStringLiteral("</table></td></tr></table></body></html>");
+    return ExerciseAssets::wrapProtocolDocumentHtml(zag + body + QStringLiteral("</table></td></tr></table></body></html>"));
 }
 
 QString Repository::exerciseHeaderFragment(const QString &uprid) const {
@@ -415,7 +419,7 @@ QString Repository::exerciseHeaderFragment(const QString &uprid) const {
         }
         return content;
     }
-    return QStringLiteral("<table border='1' width='722'>");
+    return QStringLiteral("<table border='1' cellspacing='0' style='table-layout:fixed' cellpadding='0' width='671'>");
 }
 
 QString Repository::loadPatientProtocolsForExport(const QString &patientId, const QString &role, const QString &patientDataHeader) {
