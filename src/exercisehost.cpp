@@ -646,10 +646,15 @@ void ExerciseHost::openExercise(
 }
 
 void ExerciseHost::updatePreviewLayout() {
-    if (!m_previewImage || m_previewSource.isNull()) {
-        if (m_previewImage) {
-            m_previewImage->hide();
-        }
+    if (!m_previewImage) {
+        return;
+    }
+    if (m_dualScreen && m_exerciseRunning) {
+        m_previewImage->hide();
+        return;
+    }
+    if (m_previewSource.isNull()) {
+        m_previewImage->hide();
         return;
     }
 
@@ -784,7 +789,7 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
         m_rightPanel->setVisible(visible);
     }
     if (m_previewImage) {
-        m_previewImage->setVisible(visible && !m_previewSource.isNull());
+        m_previewImage->setVisible(visible && !m_previewSource.isNull() && !(m_dualScreen && m_exerciseRunning));
     }
     if (m_rightCountLabel) {
         m_rightCountLabel->setVisible(visible && m_exerciseDone);
