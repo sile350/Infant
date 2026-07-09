@@ -62,6 +62,7 @@ public:
         const QString &protocolId,
         const QString &patientFio,
         const QString &patientBirthDate);
+    QString loadLastExerciseProtocolBody(const QString &patientId, const QString &exerciseId);
 
     QString lastError() const;
 

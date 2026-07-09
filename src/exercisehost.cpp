@@ -584,7 +584,8 @@ void ExerciseHost::openExercise(
     m_dualScreen = dualScreen;
     m_exerciseDone = false;
     m_protocolFormed = true;
-    m_partly = false;
+    m_partly = m_repository
+        && !m_repository->loadLastExerciseProtocolBody(patientId, exerciseId).trimmed().isEmpty();
     m_orOpen1 = false;
     m_orOpen2 = false;
     m_orOpen3 = false;
@@ -880,7 +881,8 @@ void ExerciseHost::formProtocol() {
         m_specialistFio,
         m_elapsedSeconds,
         m_partly,
-        m_templateBrowser->toHtml(),
+        m_partly ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
+                 : QString(),
         m_answers,
         checkboxValues());
 

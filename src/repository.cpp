@@ -647,6 +647,15 @@ bool Repository::saveExerciseProtocol(
     return true;
 }
 
+QString Repository::loadLastExerciseProtocolBody(const QString &patientId, const QString &exerciseId) {
+    if (patientId.trimmed().isEmpty() || exerciseId.trimmed().isEmpty()) {
+        return {};
+    }
+    return m_local.queryScalar(
+        "SELECT pr FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
+        + LocalDatabase::escape(exerciseId) + "' ORDER BY id DESC LIMIT 1");
+}
+
 QString Repository::loadProtocolViewHtml(
     const QString &exerciseId,
     const QString &protocolId,

@@ -101,10 +101,10 @@ QString ExerciseProtocol::createProtocolHtml(
         const int marker = add.indexOf(QStringLiteral("<!--s-->"));
         if (marker >= 0) {
             add = add.left(marker);
-            const int tableStart = add.lastIndexOf(QStringLiteral("<table"));
-            if (tableStart >= 0) {
-                add = add.left(tableStart);
-            }
+        }
+        const int tableStart = add.lastIndexOf(QStringLiteral("<table"), -1, Qt::CaseInsensitive);
+        if (tableStart >= 0) {
+            add = add.left(tableStart);
         }
         add += QStringLiteral(
             "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"

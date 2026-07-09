@@ -1381,7 +1381,7 @@ void InfantWindow::buildUi() {
     m_protocolsView = new QTextEdit(m_panelProtocols);
     m_protocolsView->setReadOnly(false);
     m_protocolsView->setTextInteractionFlags(Qt::TextEditorInteraction);
-    m_protocolsView->setGeometry(100, 99, 760, 920);
+    m_protocolsView->setGeometry(100, 99, 760, 889);
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);
     m_protocolsView->setAutoFillBackground(true);
@@ -1389,6 +1389,10 @@ void InfantWindow::buildUi() {
     m_protocolsView->setAttribute(Qt::WA_StaticContents, false);
     m_protocolsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_protocolsView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    auto *protocolsCorner = new QWidget(m_protocolsView);
+    protocolsCorner->setAutoFillBackground(true);
+    protocolsCorner->setStyleSheet(QStringLiteral("background-color:#ffffff; background-image:none;"));
+    m_protocolsView->setCornerWidget(protocolsCorner);
     m_protocolsView->setStyleSheet(
         "QTextEdit { background-color: #ffffff; color: #000000; }"
     );
@@ -2728,8 +2732,14 @@ void InfantWindow::styleProtocolsView() {
     }
     if (m_protocolsView->document()) {
         m_protocolsView->document()->setDefaultStyleSheet(
-            QStringLiteral("body { background-color: #ffffff; color: #000000; }")
+            QStringLiteral(
+                "body { background-color: #ffffff; color: #000000; }"
+                "table, td, th { background-color: #ffffff; }")
         );
+    }
+    if (QWidget *corner = m_protocolsView->cornerWidget()) {
+        corner->setAutoFillBackground(true);
+        corner->setStyleSheet(QStringLiteral("background-color:#ffffff; background-image:none;"));
     }
 }
 
@@ -4255,13 +4265,19 @@ void InfantWindow::refreshProtocolsView() {
         const QString html = protocolsDocumentHtml(inner);
         m_protocolsView->setHtml(html);
         if (QTextDocument *doc = m_protocolsView->document()) {
-            doc->setDocumentMargin(0);
+            doc->setDocumentMargin(12);
             doc->setTextWidth(671);
         }
         m_protocolsView->moveCursor(QTextCursor::Start);
     }
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
+        scrollBar->setStyleSheet(QStringLiteral(
+            "QScrollBar:vertical { background-color:#ffffff; background-image:none; border:none; width:14px; }"
+            "QScrollBar::handle:vertical { background-color:#c1c1c1; min-height:20px; border:none; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
+            "  background-color:#ffffff; background-image:none; border:none; }"));
     }
     m_protocolsView->setUpdatesEnabled(true);
     if (m_protocolsView->viewport()) {
