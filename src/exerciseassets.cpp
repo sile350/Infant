@@ -172,10 +172,10 @@ QString ExerciseAssets::prepareOrHtml(
 
     const QString style = QStringLiteral(
         "<style>"
-        "body { background-color:#ffffff; color:#000000; margin:8px; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
+        "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
         "a { color:#000000; text-decoration:none; display:inline; text-align:left; margin:0; padding:0; }"
         "a:hover { text-decoration:underline; }"
-        "div,ul,li,p { margin:0; padding:0; text-align:left; }"
+        "div,ul,li,p,br { margin:0; padding:0; text-align:left; }"
         "</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {

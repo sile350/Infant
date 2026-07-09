@@ -4,6 +4,7 @@
 #include "exerciseprotocol.h"
 
 #include <QList>
+#include <QPixmap>
 #include <QWidget>
 
 class ImageButton;
@@ -50,6 +51,7 @@ private:
     void layoutContent();
     void updateContentHeights();
     void updateChromeLayout();
+    void updatePreviewLayout();
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
@@ -90,6 +92,7 @@ private:
     QList<ExerciseCheckRow> m_activityChecks;
     QList<ExerciseCheckRow> m_helpChecks;
     QLabel *m_previewImage = nullptr;
+    QPixmap m_previewSource;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;
     ImageButton *m_beginButton = nullptr;

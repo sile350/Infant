@@ -35,7 +35,7 @@ namespace {
 constexpr QColor kExerciseBg(0xf8, 0xf8, 0xf8);
 constexpr QColor kDocumentBg(0xff, 0xff, 0xff);
 constexpr int kPanelX = 51;
-constexpr int kPanelY = 4;
+constexpr int kPanelY = 0;
 constexpr int kScrollWidth = 870;
 
 constexpr int kScrollBarGutter = 20;
@@ -168,11 +168,14 @@ void applyCompactLineHeight(QTextDocument *doc) {
     if (!doc) {
         return;
     }
+    doc->setDocumentMargin(0);
     QTextCursor cursor(doc);
     cursor.beginEditBlock();
     for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
         QTextBlockFormat fmt = block.blockFormat();
         fmt.setLineHeight(100, QTextBlockFormat::ProportionalHeight);
+        fmt.setTopMargin(0);
+        fmt.setBottomMargin(0);
         cursor.setPosition(block.position());
         cursor.mergeBlockFormat(fmt);
     }
@@ -214,11 +217,12 @@ public:
         setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         applyWidgetBackground(this, kDocumentBg);
         setStyleSheet(QStringLiteral(
-            "QTextBrowser { background-color:#ffffff; color:#000000; border:none; }"));
+            "QTextBrowser { background-color:#ffffff; color:#000000; border:none; margin:0; padding:0; }"));
         if (viewport()) {
             applyWidgetBackground(viewport(), kDocumentBg);
-            viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff; margin:0; padding:0;"));
         }
+        document()->setDocumentMargin(0);
     }
 };
 
@@ -252,7 +256,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_scrollContent->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
 
     auto *layout = new QVBoxLayout(m_scrollContent);
-    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
     auto *orPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
@@ -399,7 +403,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_rightPanel = new OpaquePanel(kExerciseBg, this);
 
-    m_previewImage = new QLabel(this);
+    m_previewImage = new QLabel(m_rightPanel);
     m_previewImage->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_previewImage->setScaledContents(false);
     m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
@@ -473,7 +477,7 @@ void ExerciseHost::updateChromeLayout() {
         m_leftBackdrop->lower();
     }
     if (m_scrollArea) {
-        m_scrollArea->setGeometry(kPanelX, kPanelY, kScrollWidth, qMax(100, height() - kPanelY - 4));
+        m_scrollArea->setGeometry(kPanelX, kPanelY, kScrollWidth, qMax(100, height() - kPanelY));
         m_scrollArea->raise();
     }
     if (m_rightPanel) {
@@ -485,11 +489,7 @@ void ExerciseHost::updateChromeLayout() {
         m_beginButton->raise();
     }
     if (m_previewImage) {
-        const QPixmap pixmap = m_previewImage->pixmap(Qt::ReturnByValue);
-        const int previewW = pixmap.isNull() ? 494 : pixmap.width();
-        const int previewH = pixmap.isNull() ? 455 : pixmap.height();
-        m_previewImage->setGeometry(1100, 75, previewW, previewH);
-        m_previewImage->raise();
+        updatePreviewLayout();
     }
     if (m_rightCountLabel) {
         m_rightCountLabel->setGeometry(1100, 250, 300, 40);
@@ -564,6 +564,30 @@ void ExerciseHost::openExercise(
     raise();
 }
 
+void ExerciseHost::updatePreviewLayout() {
+    if (!m_previewImage || m_previewSource.isNull()) {
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        return;
+    }
+
+    constexpr int kPreviewAbsLeft = 1100;
+    constexpr int kPreviewAbsTop = 75;
+    const int rightPanelLeft = kPanelX + kScrollWidth;
+    const int localX = kPreviewAbsLeft - rightPanelLeft;
+    const int localY = kPreviewAbsTop;
+    const int maxW = qMax(120, width() - kPreviewAbsLeft - 16);
+    const int maxH = qMax(120, height() - kPreviewAbsTop - 16);
+    const QPixmap scaled = m_previewSource.scaled(
+        maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    m_previewImage->setPixmap(scaled);
+    m_previewImage->setFixedSize(scaled.size());
+    m_previewImage->move(qMax(0, localX), localY);
+    m_previewImage->show();
+    m_previewImage->raise();
+}
+
 void ExerciseHost::loadStaticPictureExercise() {
     m_evaluationPanel->show();
 
@@ -576,13 +600,22 @@ void ExerciseHost::loadStaticPictureExercise() {
     applyCompactLineHeight(m_templateBrowser->document());
 
     const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
+    QPixmap previewPixmap;
     if (!previewPath.isEmpty()) {
-        const QPixmap pixmap(previewPath);
-        m_previewImage->setPixmap(pixmap);
-        m_previewImage->resize(pixmap.size());
-        m_previewImage->show();
+        previewPixmap.load(previewPath);
+    }
+    if (previewPixmap.isNull() || previewPixmap.width() < 32 || previewPixmap.height() < 32) {
+        const QString fallbackPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("p1.png"));
+        if (!fallbackPath.isEmpty()) {
+            previewPixmap.load(fallbackPath);
+        }
+    }
+    if (!previewPixmap.isNull()) {
+        m_previewSource = previewPixmap;
         m_rightPanel->show();
+        updatePreviewLayout();
     } else {
+        m_previewSource = QPixmap();
         m_previewImage->hide();
     }
     layoutContent();
@@ -601,7 +634,7 @@ void ExerciseHost::updateContentHeights() {
 
     if (m_orBrowser) {
         m_orBrowser->document()->setTextWidth(textWidth);
-        const int orHeight = static_cast<int>(qCeil(m_orBrowser->document()->size().height())) + 2;
+        const int orHeight = static_cast<int>(qCeil(m_orBrowser->document()->size().height()));
         m_orBrowser->setMinimumHeight(orHeight);
         m_orBrowser->setMaximumHeight(orHeight);
     }
@@ -659,7 +692,7 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
         m_rightPanel->setVisible(visible);
     }
     if (m_previewImage) {
-        m_previewImage->setVisible(visible && !m_previewImage->pixmap(Qt::ReturnByValue).isNull());
+        m_previewImage->setVisible(visible && !m_previewSource.isNull());
     }
     if (m_rightCountLabel) {
         m_rightCountLabel->setVisible(visible && m_exerciseDone);

@@ -85,6 +85,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvarlengtharray.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvector.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qversiontagging.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtGui/QPixmap \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qbrush.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qcolor.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qcursor.h \
