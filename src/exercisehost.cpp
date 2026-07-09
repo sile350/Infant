@@ -13,13 +13,74 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSet>
+#include <QTextBlock>
+#include <functional>
 #include <QTextBrowser>
+#include <QTextCursor>
 #include <QTimer>
 #include <QVBoxLayout>
 
 namespace {
 
-QString loadExerciseHtml(const QString &exerciseId, const QString &fileName) {
+constexpr auto kWhitePanelStyle = "background-color:#ffffff;";
+constexpr auto kWhiteButtonStyle =
+    "QPushButton {"
+    "background-color:#ffffff;"
+    "color:#000000;"
+    "border:1px solid #000000;"
+    "font-family:'Microsoft Sans Serif',sans-serif;"
+    "font-size:14px;"
+    "font-weight:bold;"
+    "padding:4px 18px;"
+    "}"
+    "QPushButton:hover { background-color:#ffffff; }"
+    "QPushButton:pressed { background-color:#f0f0f0; }";
+
+constexpr auto kWhiteCheckStyle =
+    "QCheckBox {"
+    "background-color:#ffffff;"
+    "color:#000000;"
+    "font-family:'Microsoft Sans Serif',sans-serif;"
+    "font-size:14px;"
+    "spacing:6px;"
+    "}"
+    "QCheckBox::indicator { width:13px; height:13px; }";
+
+constexpr auto kEvalTitleStyle =
+    "QLabel {"
+    "background-color:#ffffff;"
+    "color:#000000;"
+    "font-family:'Microsoft Sans Serif',sans-serif;"
+    "font-size:16px;"
+    "font-weight:bold;"
+    "padding:0;"
+    "margin:0;"
+    "}";
+
+constexpr auto kEvalSubtitleStyle =
+    "QLabel {"
+    "background-color:#ffffff;"
+    "color:#000000;"
+    "font-family:'Microsoft Sans Serif',sans-serif;"
+    "font-size:15px;"
+    "font-weight:bold;"
+    "padding:0;"
+    "margin:0;"
+    "}";
+
+constexpr auto kHelpGroupStyle =
+    "QLabel {"
+    "background-color:#ffffff;"
+    "color:#000000;"
+    "font-family:'Microsoft Sans Serif',sans-serif;"
+    "font-size:14px;"
+    "font-weight:bold;"
+    "padding:8px 0 0 24px;"
+    "margin:0;"
+    "}";
+
+QString loadExerciseHtmlFile(const QString &exerciseId, const QString &fileName) {
     const QString path = ExerciseAssets::exerciseFile(exerciseId, fileName);
     if (path.isEmpty()) {
         return {};
@@ -28,43 +89,163 @@ QString loadExerciseHtml(const QString &exerciseId, const QString &fileName) {
     if (!file.open(QIODevice::ReadOnly)) {
         return {};
     }
-    const QString baseDir = ExerciseAssets::exerciseDir(exerciseId);
-    return ExerciseAssets::prepareExerciseHtml(QString::fromUtf8(file.readAll()), baseDir);
+    return QString::fromUtf8(file.readAll());
+}
+
+void applyCompactLineHeight(QTextDocument *doc) {
+    if (!doc) {
+        return;
+    }
+    QTextCursor cursor(doc);
+    cursor.beginEditBlock();
+    for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
+        QTextBlockFormat fmt = block.blockFormat();
+        fmt.setLineHeight(100, QTextBlockFormat::ProportionalHeight);
+        cursor.setPosition(block.position());
+        cursor.mergeBlockFormat(fmt);
+    }
+    cursor.endEditBlock();
 }
 
 QCheckBox *makeCheck(const QString &text, QWidget *parent) {
     auto *box = new QCheckBox(text, parent);
-    box->setStyleSheet(QStringLiteral("QCheckBox { font-size: 14px; color: #000000; }"));
+    box->setStyleSheet(kWhiteCheckStyle);
+    box->setAttribute(Qt::WA_StyledBackground, true);
+    box->setAutoFillBackground(true);
     return box;
 }
+
+class ExerciseOrBrowser final : public QTextBrowser {
+public:
+    explicit ExerciseOrBrowser(QWidget *parent = nullptr) : QTextBrowser(parent) {
+        setOpenExternalLinks(false);
+        setFrameShape(QFrame::NoFrame);
+        setAutoFillBackground(true);
+        setStyleSheet(QStringLiteral("QTextBrowser { background-color:#ffffff; border:none; color:#000000; }"));
+        if (viewport()) {
+            viewport()->setAutoFillBackground(true);
+            viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+        }
+        connect(this, &QTextBrowser::anchorClicked, this, &ExerciseOrBrowser::handleAnchorClicked);
+    }
+
+    void setBaseHtml(const QString &html) {
+        m_baseHtml = html;
+        m_expandedSections.clear();
+        renderHtml();
+    }
+
+    void setContentChangedHandler(std::function<void()> handler) {
+        m_contentChangedHandler = std::move(handler);
+    }
+
+private:
+    void handleAnchorClicked(const QUrl &url) {
+        const QString section = url.fragment();
+        if (section == QStringLiteral("method")) {
+            toggleSection(QStringLiteral("div1"));
+        } else if (section == QStringLiteral("procedure")) {
+            toggleSection(QStringLiteral("div2"));
+        } else if (section == QStringLiteral("analis")) {
+            toggleSection(QStringLiteral("div3"));
+        }
+    }
+
+    void toggleSection(const QString &divId) {
+        if (m_expandedSections.contains(divId)) {
+            m_expandedSections.remove(divId);
+        } else {
+            m_expandedSections.insert(divId);
+        }
+        renderHtml();
+        if (m_contentChangedHandler) {
+            m_contentChangedHandler();
+        }
+    }
+
+    void renderHtml() {
+        QString html = m_baseHtml;
+        const auto applyState = [&](const QString &divId) {
+            const QString collapsed = QStringLiteral("id='%1' style=\"position:relative;height:1px;overflow:hidden\"").arg(divId);
+            const QString expanded = QStringLiteral("id='%1' style=\"position:relative;height:auto;overflow:visible\"").arg(divId);
+            if (m_expandedSections.contains(divId)) {
+                html.replace(collapsed, expanded);
+            } else {
+                html.replace(expanded, collapsed);
+            }
+        };
+        applyState(QStringLiteral("div1"));
+        applyState(QStringLiteral("div2"));
+        applyState(QStringLiteral("div3"));
+        setHtml(html);
+        applyCompactLineHeight(document());
+    }
+
+    QString m_baseHtml;
+    QSet<QString> m_expandedSections;
+    std::function<void()> m_contentChangedHandler;
+};
 
 } // namespace
 
 ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
-    setStyleSheet(QStringLiteral("background-color: #f8f8f8;"));
+    setAutoFillBackground(true);
+    setStyleSheet(kWhitePanelStyle);
 
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setGeometry(0, 0, 1100, 1000);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_scrollArea->setAttribute(Qt::WA_StyledBackground, true);
+    m_scrollArea->setAutoFillBackground(true);
+    m_scrollArea->setStyleSheet(QStringLiteral("QScrollArea { background-color:#ffffff; border:none; }"));
+    if (m_scrollArea->viewport()) {
+        m_scrollArea->viewport()->setAttribute(Qt::WA_StyledBackground, true);
+        m_scrollArea->viewport()->setAutoFillBackground(true);
+        m_scrollArea->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+    }
 
     m_scrollContent = new QWidget;
+    m_scrollContent->setAttribute(Qt::WA_StyledBackground, true);
+    m_scrollContent->setAutoFillBackground(true);
+    m_scrollContent->setStyleSheet(kWhitePanelStyle);
+
     auto *layout = new QVBoxLayout(m_scrollContent);
-    layout->setContentsMargins(8, 8, 8, 8);
-    layout->setSpacing(12);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(8);
 
-    m_orBrowser = new QTextBrowser(m_scrollContent);
-    m_orBrowser->setOpenExternalLinks(false);
-    m_orBrowser->setFrameShape(QFrame::NoFrame);
-    m_orBrowser->setStyleSheet(QStringLiteral("background-color: #f8f8f8; border: none;"));
-    m_orBrowser->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_orBrowser = new ExerciseOrBrowser(m_scrollContent);
+    if (auto *orBrowser = static_cast<ExerciseOrBrowser *>(m_orBrowser)) {
+        orBrowser->setContentChangedHandler([this]() { layoutContent(); });
+    }
 
-    m_checkboxPanel = new QWidget(m_scrollContent);
+    m_evaluationPanel = new QWidget(m_scrollContent);
+    m_evaluationPanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_evaluationPanel->setAutoFillBackground(true);
+    m_evaluationPanel->setStyleSheet(kWhitePanelStyle);
+    auto *evaluationLayout = new QVBoxLayout(m_evaluationPanel);
+    evaluationLayout->setContentsMargins(0, 8, 0, 0);
+    evaluationLayout->setSpacing(2);
+
+    auto *evalTitle = new QLabel(QStringLiteral("Оценка результатов"), m_evaluationPanel);
+    evalTitle->setAlignment(Qt::AlignCenter);
+    evalTitle->setStyleSheet(kEvalTitleStyle);
+    evaluationLayout->addWidget(evalTitle);
+
+    auto *activityTitle = new QLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
+    activityTitle->setAlignment(Qt::AlignCenter);
+    activityTitle->setStyleSheet(kEvalSubtitleStyle);
+    evaluationLayout->addWidget(activityTitle);
+
+    m_checkboxPanel = new QWidget(m_evaluationPanel);
+    m_checkboxPanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_checkboxPanel->setAutoFillBackground(true);
+    m_checkboxPanel->setStyleSheet(kWhitePanelStyle);
     auto *checkboxLayout = new QVBoxLayout(m_checkboxPanel);
     checkboxLayout->setContentsMargins(24, 0, 8, 0);
-    checkboxLayout->setSpacing(4);
+    checkboxLayout->setSpacing(2);
 
     m_activityChecks << makeCheck(QStringLiteral("Ребенок не понимает инструкцию."), m_checkboxPanel)
                      << makeCheck(QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."), m_checkboxPanel)
@@ -102,32 +283,68 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             }
         });
     }
+
+    auto *helpTitle = new QLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
+    helpTitle->setAlignment(Qt::AlignCenter);
+    helpTitle->setStyleSheet(kEvalSubtitleStyle);
+
+    auto *stimHelpLabel = new QLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
+    stimHelpLabel->setStyleSheet(kHelpGroupStyle);
     checkboxLayout->addSpacing(8);
-    for (QCheckBox *box : m_helpChecks) {
-        checkboxLayout->addWidget(box);
-    }
+    checkboxLayout->addWidget(helpTitle);
+    checkboxLayout->addWidget(stimHelpLabel);
+    checkboxLayout->addWidget(m_helpChecks.at(0));
 
-    m_beginButton = new QPushButton(QStringLiteral("Начать"), m_scrollContent);
+    auto *directHelpLabel = new QLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
+    directHelpLabel->setStyleSheet(kHelpGroupStyle);
+    checkboxLayout->addWidget(directHelpLabel);
+    checkboxLayout->addWidget(m_helpChecks.at(1));
+    checkboxLayout->addWidget(m_helpChecks.at(2));
+
+    auto *teachHelpLabel = new QLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
+    teachHelpLabel->setStyleSheet(kHelpGroupStyle);
+    checkboxLayout->addWidget(teachHelpLabel);
+    checkboxLayout->addWidget(m_helpChecks.at(3));
+    checkboxLayout->addWidget(m_helpChecks.at(4));
+
+    evaluationLayout->addWidget(m_checkboxPanel);
+
+    m_beginButton = new QPushButton(QStringLiteral("Начать"), m_evaluationPanel);
     m_beginButton->setFixedHeight(34);
-    m_beginButton->setStyleSheet(
-        QStringLiteral("QPushButton { font-size: 14px; font-weight: bold; padding: 4px 18px; }"));
+    m_beginButton->setStyleSheet(kWhiteButtonStyle);
+    m_beginButton->setAutoFillBackground(true);
+    evaluationLayout->addSpacing(8);
+    evaluationLayout->addWidget(m_beginButton, 0, Qt::AlignLeft);
 
-    m_templateBrowser = new QTextBrowser(m_scrollContent);
+    m_templatePanel = new QWidget(m_scrollContent);
+    m_templatePanel->setAttribute(Qt::WA_StyledBackground, true);
+    m_templatePanel->setAutoFillBackground(true);
+    m_templatePanel->setStyleSheet(kWhitePanelStyle);
+    auto *templateLayout = new QVBoxLayout(m_templatePanel);
+    templateLayout->setContentsMargins(0, 12, 0, 0);
+    templateLayout->setSpacing(8);
+
+    m_templateBrowser = new QTextBrowser(m_templatePanel);
     m_templateBrowser->setOpenExternalLinks(false);
     m_templateBrowser->setFrameShape(QFrame::NoFrame);
-    m_templateBrowser->setStyleSheet(QStringLiteral("background-color: #f8f8f8; border: none;"));
+    m_templateBrowser->setAutoFillBackground(true);
+    m_templateBrowser->setStyleSheet(QStringLiteral("QTextBrowser { background-color:#ffffff; border:none; }"));
+    if (m_templateBrowser->viewport()) {
+        m_templateBrowser->viewport()->setAutoFillBackground(true);
+        m_templateBrowser->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+    }
     m_templateBrowser->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    templateLayout->addWidget(m_templateBrowser);
 
-    m_formProtocolButton = new QPushButton(QStringLiteral("Сформировать протокол"), m_scrollContent);
+    m_formProtocolButton = new QPushButton(QStringLiteral("Сформировать протокол"), m_templatePanel);
     m_formProtocolButton->setFixedHeight(34);
-    m_formProtocolButton->setStyleSheet(
-        QStringLiteral("QPushButton { font-size: 14px; font-weight: bold; padding: 4px 18px; }"));
+    m_formProtocolButton->setStyleSheet(kWhiteButtonStyle);
+    m_formProtocolButton->setAutoFillBackground(true);
+    templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignLeft);
 
     layout->addWidget(m_orBrowser);
-    layout->addWidget(m_checkboxPanel);
-    layout->addWidget(m_beginButton, 0, Qt::AlignLeft);
-    layout->addWidget(m_templateBrowser);
-    layout->addWidget(m_formProtocolButton, 0, Qt::AlignLeft);
+    layout->addWidget(m_evaluationPanel);
+    layout->addWidget(m_templatePanel);
     layout->addStretch();
     m_scrollArea->setWidget(m_scrollContent);
 
@@ -135,15 +352,17 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_previewImage->setGeometry(1100, 75, 400, 400);
     m_previewImage->setAlignment(Qt::AlignCenter);
     m_previewImage->setScaledContents(true);
+    m_previewImage->setStyleSheet(kWhitePanelStyle);
+    m_previewImage->setAutoFillBackground(true);
 
     m_rightCountLabel = new QLabel(this);
     m_rightCountLabel->setGeometry(1100, 250, 300, 40);
-    m_rightCountLabel->setStyleSheet(QStringLiteral("font: bold 17px Arial; color: #000000;"));
+    m_rightCountLabel->setStyleSheet(QStringLiteral("font: bold 17px Arial; color: #000000; background:#ffffff;"));
     m_rightCountLabel->hide();
 
     m_wrongCountLabel = new QLabel(this);
     m_wrongCountLabel->setGeometry(1100, 350, 300, 40);
-    m_wrongCountLabel->setStyleSheet(QStringLiteral("font: bold 17px Arial; color: #000000;"));
+    m_wrongCountLabel->setStyleSheet(QStringLiteral("font: bold 17px Arial; color: #000000; background:#ffffff;"));
     m_wrongCountLabel->hide();
 
     m_onlyP = new OnlyPExercise(this);
@@ -210,9 +429,17 @@ void ExerciseHost::openExercise(
 }
 
 void ExerciseHost::loadStaticPictureExercise() {
-    m_checkboxPanel->show();
-    m_orBrowser->setHtml(loadExerciseHtml(m_exerciseId, QStringLiteral("or.html")));
-    m_templateBrowser->setHtml(loadExerciseHtml(m_exerciseId, QStringLiteral("template.html")));
+    m_evaluationPanel->show();
+
+    const QString rawOr = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
+    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    if (auto *orBrowser = static_cast<ExerciseOrBrowser *>(m_orBrowser)) {
+        orBrowser->setBaseHtml(ExerciseAssets::prepareOrHtml(rawOr, baseDir));
+    }
+
+    const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
+    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+    applyCompactLineHeight(m_templateBrowser->document());
 
     const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
     if (!previewPath.isEmpty()) {
@@ -323,6 +550,7 @@ void ExerciseHost::formProtocol() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(viewHtml);
+    applyCompactLineHeight(m_templateBrowser->document());
     layoutContent();
 
     m_protocolFormed = true;

@@ -59,8 +59,10 @@ private:
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_scrollContent = nullptr;
     QTextBrowser *m_orBrowser = nullptr;
-    QTextBrowser *m_templateBrowser = nullptr;
+    QWidget *m_evaluationPanel = nullptr;
     QWidget *m_checkboxPanel = nullptr;
+    QWidget *m_templatePanel = nullptr;
+    QTextBrowser *m_templateBrowser = nullptr;
     QList<QCheckBox *> m_activityChecks;
     QList<QCheckBox *> m_helpChecks;
     QLabel *m_previewImage = nullptr;
