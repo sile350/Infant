@@ -1379,8 +1379,8 @@ void InfantWindow::buildUi() {
         "font-size:9pt; background: transparent;"));
 
     m_protocolsView = new QTextEdit(m_panelProtocols);
-    m_protocolsView->setReadOnly(true);
-    m_protocolsView->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    m_protocolsView->setReadOnly(false);
+    m_protocolsView->setTextInteractionFlags(Qt::TextEditorInteraction);
     m_protocolsView->setGeometry(100, 99, 760, 920);
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);

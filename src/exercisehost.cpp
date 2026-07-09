@@ -22,6 +22,7 @@
 #include <QScrollArea>
 #include <QTextBlock>
 #include <QTextBrowser>
+#include <QTextEdit>
 #include <QTextCursor>
 #include <QTimer>
 #include <QHBoxLayout>
@@ -55,21 +56,18 @@ class WhiteLabel final : public QLabel {
 public:
     using QLabel::QLabel;
 
+    explicit WhiteLabel(const QString &text, QWidget *parent = nullptr) : QLabel(text, parent) {
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAutoFillBackground(true);
+        setWordWrap(true);
+        setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    }
+
 protected:
     void paintEvent(QPaintEvent *event) override {
         QPainter painter(this);
         painter.fillRect(rect(), kDocumentBg);
-        QStyleOption opt;
-        opt.initFrom(this);
-        style()->drawItemText(
-            &painter,
-            rect().adjusted(2, 0, -2, 0),
-            alignment(),
-            opt.palette,
-            true,
-            text(),
-            foregroundRole());
-        event->accept();
+        QLabel::paintEvent(event);
     }
 };
 
@@ -160,20 +158,30 @@ void applyWidgetBackground(QWidget *widget, const QColor &color) {
     widget->setPalette(pal);
 }
 
-QTextBrowser *makeHtmlBrowser(QWidget *parent) {
-    auto *browser = new QTextBrowser(parent);
-    browser->setOpenExternalLinks(false);
-    browser->setFrameShape(QFrame::NoFrame);
-    browser->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    browser->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    applyWidgetBackground(browser, kDocumentBg);
-    browser->setStyleSheet(QStringLiteral(
-        "QTextBrowser { background-color:#ffffff; color:#000000; border:none; }"));
-    if (browser->viewport()) {
-        applyWidgetBackground(browser->viewport(), kDocumentBg);
-        browser->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+QTextEdit *makeHtmlEditor(QWidget *parent) {
+    auto *editor = new QTextEdit(parent);
+    editor->setReadOnly(false);
+    editor->setAcceptRichText(true);
+    editor->setFrameShape(QFrame::NoFrame);
+    editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    applyWidgetBackground(editor, kDocumentBg);
+    editor->setStyleSheet(QStringLiteral(
+        "QTextEdit { background-color:#ffffff; color:#000000; border:none; }"));
+    if (editor->viewport()) {
+        applyWidgetBackground(editor->viewport(), kDocumentBg);
+        editor->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
     }
-    return browser;
+    return editor;
+}
+
+void resizeCheckLabel(QLabel *label, int width) {
+    if (!label || width <= 0) {
+        return;
+    }
+    label->setFixedWidth(width);
+    const int height = label->heightForWidth(width);
+    label->setFixedHeight(qMax(20, height));
 }
 
 QString loadExerciseHtmlFile(const QString &exerciseId, const QString &fileName) {
@@ -231,10 +239,9 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     row.box->setFixedSize(18, 18);
 
     row.label = new WhiteLabel(text, wrap);
-    row.label->setWordWrap(true);
-    row.label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    row.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     if (contentWidth > 40) {
-        row.label->setMaximumWidth(contentWidth - 34);
+        resizeCheckLabel(row.label, contentWidth - 34);
     }
     row.label->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
@@ -416,7 +423,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     templateLayout->setContentsMargins(0, 16, 0, 8);
     templateLayout->setSpacing(12);
 
-    m_templateBrowser = makeHtmlBrowser(m_templatePanel);
+    m_templateBrowser = makeHtmlEditor(m_templatePanel);
     templateLayout->addWidget(m_templateBrowser);
 
     m_formProtocolButton = new ImageButton(m_templatePanel);
@@ -695,19 +702,22 @@ void ExerciseHost::updateContentHeights() {
         m_templatePanel->setMaximumWidth(kTemplateTableWidth + 16);
     }
     const int checkWidth = textWidth - 16;
+    const int labelWidth = qMax(120, checkWidth - 34);
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.label) {
-            row.label->setMaximumWidth(qMax(120, checkWidth - 34));
+            resizeCheckLabel(row.label, labelWidth);
             if (row.label->parentWidget()) {
                 row.label->parentWidget()->setMinimumWidth(textWidth);
+                row.label->parentWidget()->adjustSize();
             }
         }
     }
     for (const ExerciseCheckRow &row : m_helpChecks) {
         if (row.label) {
-            row.label->setMaximumWidth(qMax(120, checkWidth - 34));
+            resizeCheckLabel(row.label, labelWidth);
             if (row.label->parentWidget()) {
                 row.label->parentWidget()->setMinimumWidth(textWidth);
+                row.label->parentWidget()->adjustSize();
             }
         }
     }

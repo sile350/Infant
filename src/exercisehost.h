@@ -10,6 +10,7 @@
 class ImageButton;
 class QLabel;
 class QTextBrowser;
+class QTextEdit;
 class QScrollArea;
 class QCheckBox;
 class OnlyPExercise;
@@ -91,7 +92,7 @@ private:
     QWidget *m_evaluationPanel = nullptr;
     QWidget *m_checkboxPanel = nullptr;
     QWidget *m_templatePanel = nullptr;
-    QTextBrowser *m_templateBrowser = nullptr;
+    QTextEdit *m_templateBrowser = nullptr;
     QList<ExerciseCheckRow> m_activityChecks;
     QList<ExerciseCheckRow> m_helpChecks;
     QLabel *m_previewImage = nullptr;

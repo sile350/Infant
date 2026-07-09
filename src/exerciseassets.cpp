@@ -74,6 +74,20 @@ void compactOrSectionSpacing(QString &html) {
     html.replace(QRegularExpression(QStringLiteral("<body[^>]*>"), QRegularExpression::CaseInsensitiveOption), QStringLiteral("<body>"));
 }
 
+QString injectEditableTableCells(QString html) {
+    html.replace(
+        QRegularExpression(
+            QStringLiteral("(<td[^>]*>)\\s*<p[^>]*>\\s*(&nbsp;|&#160;|\\s)*\\s*</p>\\s*</td>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("\\1<div contenteditable=\"true\"></div></td>"));
+    html.replace(
+        QRegularExpression(
+            QStringLiteral("(<td[^>]*>)\\s*(?:<p[^>]*>\\s*<strong>\\s*(&nbsp;|&#160;|\\s)*\\s*</strong>\\s*</p>\\s*)+</td>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("\\1<div contenteditable=\"true\"></div></td>"));
+    return html;
+}
+
 } // namespace
 
 QString ExerciseAssets::exerciseDir(const QString &exerciseId) {
@@ -196,7 +210,7 @@ QString ExerciseAssets::prepareOrHtml(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
         ".or-strip { background-color:#f8f8f8; margin:0; padding:16px 0 4px 0; }"
-        "a { color:#000000; text-decoration:none; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 12px 0; padding:2px 0; line-height:130%; white-space:normal; }"
+        "a { color:#000000; text-decoration:underline; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 12px 0; padding:2px 0; line-height:130%; white-space:normal; }"
         "a:last-of-type { margin-bottom:0; }"
         "a:hover { text-decoration:underline; }"
         "div,ul,li,p,br { margin:0; padding:0; text-align:left; }"
@@ -227,6 +241,7 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; }"
         "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; }"
         "td,th { overflow:hidden; word-wrap:break-word; }"
+        "div[contenteditable='true'] { min-height:1.2em; }"
         "</style>");
 }
 
@@ -250,7 +265,7 @@ QString ExerciseAssets::wrapProtocolDocumentHtml(const QString &html) {
             result.insert(headEnd, protocolTableStyleHtml());
         }
     }
-    return result;
+    return injectEditableTableCells(result);
 }
 
 QString ExerciseAssets::buildProtocolDocumentHtml(const QString &bodyFragment) {
@@ -281,5 +296,5 @@ QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &
             }
         }
     }
-    return result;
+    return injectEditableTableCells(result);
 }
