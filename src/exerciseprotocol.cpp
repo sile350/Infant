@@ -122,7 +122,6 @@ QString ExerciseProtocol::createProtocolHtml(
                        .arg(descriptions[i], answerText(correct));
         }
     }
-    add += QStringLiteral("</table>");
     return add;
 }
 
@@ -131,16 +130,13 @@ QString ExerciseProtocol::protocolViewHtml(
     const QString &protocolBody,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    const QString headerHtml = readHeaderRows(exerciseId);
-    const QString body = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
-    const QString tableClose = protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)
-                                 ? QString()
-                                 : QStringLiteral("</table>");
+    const QString protocolBlock = readHeaderRows(exerciseId) + protocolBody + QStringLiteral("</table>");
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3%4%5")
-        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), headerHtml, body, tableClose);
+               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>"
+               "<table width='670'><tr><td>%3</td></tr></table>")
+        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), protocolBlock);
 }
 
 ExerciseProtocol::CheckboxValues ExerciseProtocol::readCheckboxValues(const QString &orHtml) {

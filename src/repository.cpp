@@ -2,7 +2,6 @@
 
 #include "exerciseassets.h"
 
-#include "exerciseprotocol.h"
 #include "fieldcrypto.h"
 
 #include <QDateTime>
@@ -13,24 +12,26 @@
 #include <QStringList>
 #include <QTimer>
 #include <algorithm>
+#include <functional>
 
 namespace {
 
-QString protocolContinuationHeader(bool previousProtocolClosed) {
-    QString head;
-    if (!previousProtocolClosed) {
-        head += QStringLiteral("</table>");
-    }
-    head += QStringLiteral(
-        "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>"
-        "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' "
-        "width='671'><tr style='visibility:hidden;height:0px'><td width='200'></td>"
-        "<td width='471'></td></tr>");
-    return head;
+QString protocolPageBreakHtml() {
+    return QStringLiteral(
+        "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>");
 }
 
-bool protocolBodyIsClosed(const QString &protocolBody) {
-    return protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive);
+void appendProtocolRecord(
+    QString &body,
+    const QString &uprid,
+    const QString &protocolBody,
+    bool continuation,
+    const std::function<QString(const QString &)> &headerForExercise) {
+    if (continuation) {
+        body += QStringLiteral("</table>");
+        body += protocolPageBreakHtml();
+    }
+    body += headerForExercise(uprid) + protocolBody;
 }
 
 } // namespace
@@ -380,23 +381,22 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
 
     QString body;
     QString lastUprid;
-    bool previousProtocolClosed = false;
     for (const QStringList &row : rows) {
         if (row.size() < 2) {
             continue;
         }
         const QString uprid = row.at(0);
         const QString pr = row.at(1);
-        QString head;
+        const bool continuation = !lastUprid.isEmpty() && uprid == lastUprid;
         if (uprid != lastUprid) {
             lastUprid = uprid;
-            head = exerciseHeaderFragment(uprid);
-            previousProtocolClosed = false;
-        } else {
-            head = protocolContinuationHeader(previousProtocolClosed);
         }
-        body += head + pr;
-        previousProtocolClosed = protocolBodyIsClosed(pr);
+        appendProtocolRecord(
+            body,
+            uprid,
+            pr,
+            continuation,
+            [this](const QString &exerciseId) { return exerciseHeaderFragment(exerciseId); });
     }
 
     const QString zag = QStringLiteral(
@@ -453,20 +453,15 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
 
     QString body;
     QString lastUprid;
-    bool previousProtocolClosed = false;
     for (const QStringList &row : rows) {
         if (row.size() < 2) {
             continue;
         }
         const QString uprid = row.at(0);
         QString pr = row.at(1);
-        QString head;
+        const bool continuation = !lastUprid.isEmpty() && uprid == lastUprid;
         if (uprid != lastUprid) {
             lastUprid = uprid;
-            head = exerciseHeaderFragment(uprid);
-            previousProtocolClosed = false;
-        } else {
-            head = protocolContinuationHeader(previousProtocolClosed);
         }
         pr.replace(QStringLiteral("скачать"), QString());
         if (role != QLatin1String("s")) {
@@ -476,8 +471,12 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
                 pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
             }
         }
-        body += head + pr;
-        previousProtocolClosed = protocolBodyIsClosed(pr);
+        appendProtocolRecord(
+            body,
+            uprid,
+            pr,
+            continuation,
+            [this](const QString &exerciseId) { return exerciseHeaderFragment(exerciseId); });
     }
 
     const QString zag = QStringLiteral(
@@ -682,10 +681,18 @@ QString Repository::loadProtocolViewHtml(
     const QString &protocolId,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    const QString body = m_local.queryScalar(
+    const QString protocolBody = m_local.queryScalar(
         "SELECT pr FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
-    if (body.isEmpty()) {
+    if (protocolBody.isEmpty()) {
         return {};
     }
-    return ExerciseProtocol::protocolViewHtml(exerciseId, body, patientFio, patientBirthDate);
+
+    const QString protocolBlock = exerciseHeaderFragment(exerciseId) + protocolBody
+                                  + QStringLiteral("</table>");
+    return QStringLiteral(
+               "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
+               "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+               "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>"
+               "<table width='670'><tr><td>%3</td></tr></table>")
+        .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), protocolBlock);
 }
