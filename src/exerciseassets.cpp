@@ -43,9 +43,12 @@ QString extractDivInnerHtml(const QString &html, const QString &divId) {
 }
 
 void replaceDivState(QString &html, const QString &divId, bool open, const QString &sourceHtml) {
-    const QString inner = open ? extractDivInnerHtml(sourceHtml, divId) : QString();
-    const QString style = open ? QStringLiteral("position:relative;height:auto;overflow:visible")
-                               : QStringLiteral("position:relative;height:1px;overflow:hidden");
+    QString inner = open ? extractDivInnerHtml(sourceHtml, divId) : QString();
+    if (open && divId == QStringLiteral("div2")) {
+        inner.replace(QRegularExpression(QStringLiteral("^(\\s|&nbsp;)+")), QString());
+    }
+    const QString style = open ? QStringLiteral("display:block;margin:0;padding:0;height:auto;overflow:visible")
+                               : QStringLiteral("display:none;margin:0;padding:0;height:0;overflow:hidden");
     const QRegularExpression divRe(
         QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>.*?</div>")
             .arg(QRegularExpression::escape(divId)),
@@ -53,6 +56,14 @@ void replaceDivState(QString &html, const QString &divId, bool open, const QStri
     html.replace(
         divRe,
         QStringLiteral("<div id='%1' style=\"%2\">%3</div>").arg(divId, style, inner));
+}
+
+void compactOrSectionSpacing(QString &html) {
+    html.replace(QRegularExpression(QStringLiteral("</div>\\s+<a")), QStringLiteral("</div><a"));
+    html.replace(
+        QRegularExpression(QStringLiteral("</div>\\s*<br\\s*/?>\\s*<a")),
+        QStringLiteral("</div><a"));
+    html.replace(QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*){2,}")), QStringLiteral("<br>"));
 }
 
 } // namespace
@@ -140,7 +151,7 @@ QString ExerciseAssets::prepareOrHtml(
         QStringLiteral("id='method' style='font-size:16px;color:#000000' href='#method'"));
     result.replace(
         QStringLiteral("<a id='procedure' style='font-size:16px; color:#000000' href='###'>"),
-        QStringLiteral("<br><a id='procedure' style='font-size:16px; color:#000000' href='#procedure'>"));
+        QStringLiteral("<a id='procedure' style='font-size:16px; color:#000000' href='#procedure'>"));
     result.replace(
         QStringLiteral("id='analis' style='font-size:16px;color:#000000' href='###'"),
         QStringLiteral("id='analis' style='font-size:16px;color:#000000' href='#analis'"));
@@ -157,12 +168,14 @@ QString ExerciseAssets::prepareOrHtml(
     replaceDivState(result, QStringLiteral("div1"), open1, sourceHtml);
     replaceDivState(result, QStringLiteral("div2"), open2, sourceHtml);
     replaceDivState(result, QStringLiteral("div3"), open3, sourceHtml);
+    compactOrSectionSpacing(result);
 
     const QString style = QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:8px; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
-        "a { color:#000000; text-decoration:none; }"
+        "a { color:#000000; text-decoration:none; display:inline; text-align:left; margin:0; padding:0; }"
         "a:hover { text-decoration:underline; }"
+        "div,ul,li,p { margin:0; padding:0; text-align:left; }"
         "</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {

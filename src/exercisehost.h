@@ -15,6 +15,11 @@ class OnlyPExercise;
 class PatientDisplay;
 class Repository;
 
+struct ExerciseCheckRow {
+    QCheckBox *box = nullptr;
+    QLabel *label = nullptr;
+};
+
 class ExerciseHost final : public QWidget {
     Q_OBJECT
 public:
@@ -67,6 +72,8 @@ private:
     QList<bool> m_answers;
     int m_elapsedSeconds = 0;
 
+    QWidget *m_leftBackdrop = nullptr;
+    QWidget *m_rightPanel = nullptr;
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_scrollContent = nullptr;
     QTextBrowser *m_orBrowser = nullptr;
@@ -74,8 +81,8 @@ private:
     QWidget *m_checkboxPanel = nullptr;
     QWidget *m_templatePanel = nullptr;
     QTextBrowser *m_templateBrowser = nullptr;
-    QList<QCheckBox *> m_activityChecks;
-    QList<QCheckBox *> m_helpChecks;
+    QList<ExerciseCheckRow> m_activityChecks;
+    QList<ExerciseCheckRow> m_helpChecks;
     QLabel *m_previewImage = nullptr;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;

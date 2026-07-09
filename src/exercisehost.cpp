@@ -110,14 +110,35 @@ void applyCompactLineHeight(QTextDocument *doc) {
     cursor.endEditBlock();
 }
 
-QCheckBox *makeCheck(const QString &text, QWidget *parent) {
-    auto *box = new QCheckBox(text, parent);
-    applyWidgetBackground(box, kDocumentBg);
-    box->setStyleSheet(QStringLiteral(
-        "QCheckBox { background-color:#ffffff; color:#000000;"
-        "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; spacing:6px; }"
+ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int contentWidth) {
+    ExerciseCheckRow row;
+    auto *wrap = new OpaquePanel(kDocumentBg);
+    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    auto *rowLayout = new QHBoxLayout(wrap);
+    rowLayout->setContentsMargins(0, 2, 0, 2);
+    rowLayout->setSpacing(8);
+
+    row.box = new QCheckBox(wrap);
+    row.box->setFixedSize(18, 18);
+    row.box->setStyleSheet(QStringLiteral(
+        "QCheckBox { background:#ffffff; spacing:0; margin:0; padding:0; }"
         "QCheckBox::indicator { width:13px; height:13px; background:#ffffff; border:1px solid #808080; }"));
-    return box;
+
+    row.label = new QLabel(text, wrap);
+    row.label->setWordWrap(true);
+    row.label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    if (contentWidth > 40) {
+        row.label->setMaximumWidth(contentWidth - 34);
+    }
+    applyWidgetBackground(row.label, kDocumentBg);
+    row.label->setStyleSheet(QStringLiteral(
+        "QLabel { background:#ffffff; color:#000000;"
+        "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"));
+
+    rowLayout->addWidget(row.box, 0, Qt::AlignTop);
+    rowLayout->addWidget(row.label, 1);
+    layout->addWidget(wrap);
+    return row;
 }
 
 class ExerciseOrBrowser final : public QTextBrowser {
@@ -144,6 +165,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAutoFillBackground(true);
     applyWidgetBackground(this, kExerciseBg);
+
+    m_leftBackdrop = new OpaquePanel(kDocumentBg, this);
 
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setWidgetResizable(true);
@@ -205,42 +228,29 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     evaluationLayout->addWidget(activityTitle);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
+    m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     auto *checkboxLayout = new QVBoxLayout(m_checkboxPanel);
-    checkboxLayout->setContentsMargins(16, 0, 8, 0);
-    checkboxLayout->setSpacing(4);
+    checkboxLayout->setContentsMargins(8, 0, 8, 0);
+    checkboxLayout->setSpacing(2);
 
-    m_activityChecks << makeCheck(QStringLiteral("Ребенок не понимает инструкцию."), m_checkboxPanel)
-                     << makeCheck(QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."), m_checkboxPanel)
-                     << makeCheck(QStringLiteral("Целенаправленное выполнение задания."), m_checkboxPanel);
-    m_helpChecks << makeCheck(
-                        QStringLiteral(
-                            "Одобрение или неодобрение действий ребенка, стимуляция с помощью слов "
-                            "«хорошо», «правильно», «неправильно, подумай еще»."),
-                        m_checkboxPanel)
-                 << makeCheck(
-                        QStringLiteral(
-                            "Вопросы к испытуемому о том, почему он сделал то или иное действие, с целью "
-                            "повышения уровня осознания смысла задания и ориентировки в задании."),
-                        m_checkboxPanel)
-                 << makeCheck(QStringLiteral("Подсказка, совет действовать тем или иным образом."), m_checkboxPanel)
-                 << makeCheck(
-                        QStringLiteral("Показ способа выполнения задания с просьбой повторить это действие."),
-                        m_checkboxPanel)
-                 << makeCheck(
-                        QStringLiteral(
-                            "Совместно-раздельная деятельность: специалист начинает выполнять задание, а ребенок "
-                            "продолжает."),
-                        m_checkboxPanel);
-
-    for (QCheckBox *box : m_activityChecks) {
-        checkboxLayout->addWidget(box);
-        connect(box, &QCheckBox::toggled, this, [this, box](bool checked) {
+    const int initialCheckWidth = 760;
+    m_activityChecks << makeCheckRow(QStringLiteral("Ребенок не понимает инструкцию."), checkboxLayout, initialCheckWidth)
+                     << makeCheckRow(
+                            QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."),
+                            checkboxLayout,
+                            initialCheckWidth)
+                     << makeCheckRow(
+                            QStringLiteral("Целенаправленное выполнение задания."),
+                            checkboxLayout,
+                            initialCheckWidth);
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        connect(row.box, &QCheckBox::toggled, this, [this, row](bool checked) {
             if (!checked) {
                 return;
             }
-            for (QCheckBox *other : m_activityChecks) {
-                if (other != box) {
-                    other->setChecked(false);
+            for (const ExerciseCheckRow &other : m_activityChecks) {
+                if (other.box != row.box) {
+                    other.box->setChecked(false);
                 }
             }
         });
@@ -258,21 +268,42 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:14px; font-weight:bold; padding:4px 0 0 16px; }"));
     checkboxLayout->addWidget(stimHelpLabel);
-    checkboxLayout->addWidget(m_helpChecks.at(0));
+    m_helpChecks << makeCheckRow(
+        QStringLiteral(
+            "Одобрение или неодобрение действий ребенка, стимуляция с помощью слов "
+            "«хорошо», «правильно», «неправильно, подумай еще»."),
+        checkboxLayout,
+        initialCheckWidth);
 
     auto *directHelpLabel = new QLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
     applyWidgetBackground(directHelpLabel, kDocumentBg);
     directHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(directHelpLabel);
-    checkboxLayout->addWidget(m_helpChecks.at(1));
-    checkboxLayout->addWidget(m_helpChecks.at(2));
+    m_helpChecks << makeCheckRow(
+        QStringLiteral(
+            "Вопросы к испытуемому о том, почему он сделал то или иное действие, с целью "
+            "повышения уровня осознания смысла задания и ориентировки в задании."),
+        checkboxLayout,
+        initialCheckWidth);
+    m_helpChecks << makeCheckRow(
+        QStringLiteral("Подсказка, совет действовать тем или иным образом."),
+        checkboxLayout,
+        initialCheckWidth);
 
     auto *teachHelpLabel = new QLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
     applyWidgetBackground(teachHelpLabel, kDocumentBg);
     teachHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(teachHelpLabel);
-    checkboxLayout->addWidget(m_helpChecks.at(3));
-    checkboxLayout->addWidget(m_helpChecks.at(4));
+    m_helpChecks << makeCheckRow(
+        QStringLiteral("Показ способа выполнения задания с просьбой повторить это действие."),
+        checkboxLayout,
+        initialCheckWidth);
+    m_helpChecks << makeCheckRow(
+        QStringLiteral(
+            "Совместно-раздельная деятельность: специалист начинает выполнять задание, а ребенок "
+            "продолжает."),
+        checkboxLayout,
+        initialCheckWidth);
 
     evaluationLayout->addWidget(m_checkboxPanel);
 
@@ -303,8 +334,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_beginButton->setImagePath(beginPath);
     }
 
+    m_rightPanel = new OpaquePanel(kExerciseBg, this);
+
     m_previewImage = new QLabel(this);
-    m_previewImage->setAlignment(Qt::AlignCenter);
+    m_previewImage->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    m_previewImage->setScaledContents(false);
     m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
 
     m_rightCountLabel = new QLabel(this);
@@ -355,17 +389,28 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
 }
 
 void ExerciseHost::updateChromeLayout() {
+    if (m_leftBackdrop) {
+        m_leftBackdrop->setGeometry(0, 0, kPanelX + kScrollWidth, height());
+        m_leftBackdrop->lower();
+    }
     if (m_scrollArea) {
         m_scrollArea->setGeometry(kPanelX, kPanelY, kScrollWidth, qMax(100, height() - kPanelY - 4));
+        m_scrollArea->raise();
+    }
+    if (m_rightPanel) {
+        m_rightPanel->setGeometry(kPanelX + kScrollWidth, 0, qMax(0, width() - kPanelX - kScrollWidth), height());
+        m_rightPanel->raise();
     }
     if (m_beginButton) {
         m_beginButton->setGeometry(976, 12, 158, 33);
+        m_beginButton->raise();
     }
     if (m_previewImage) {
         const QPixmap pixmap = m_previewImage->pixmap(Qt::ReturnByValue);
         const int previewW = pixmap.isNull() ? 494 : pixmap.width();
         const int previewH = pixmap.isNull() ? 455 : pixmap.height();
         m_previewImage->setGeometry(1100, 75, previewW, previewH);
+        m_previewImage->raise();
     }
     if (m_rightCountLabel) {
         m_rightCountLabel->setGeometry(1100, 250, 300, 40);
@@ -425,11 +470,11 @@ void ExerciseHost::openExercise(
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
 
-    for (QCheckBox *box : m_activityChecks) {
-        box->setChecked(false);
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        row.box->setChecked(false);
     }
-    for (QCheckBox *box : m_helpChecks) {
-        box->setChecked(false);
+    for (const ExerciseCheckRow &row : m_helpChecks) {
+        row.box->setChecked(false);
     }
 
     if (exerciseId == QStringLiteral("1.2")) {
@@ -456,6 +501,7 @@ void ExerciseHost::loadStaticPictureExercise() {
         m_previewImage->setPixmap(pixmap);
         m_previewImage->resize(pixmap.size());
         m_previewImage->show();
+        m_rightPanel->show();
     } else {
         m_previewImage->hide();
     }
@@ -489,6 +535,17 @@ void ExerciseHost::updateContentHeights() {
         const int templateHeight = static_cast<int>(qCeil(m_templateBrowser->document()->size().height())) + 2;
         m_templateBrowser->setMinimumHeight(templateHeight);
         m_templateBrowser->setMaximumHeight(templateHeight);
+    }
+    const int checkWidth = textWidth - 16;
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        if (row.label) {
+            row.label->setMaximumWidth(qMax(120, checkWidth - 34));
+        }
+    }
+    for (const ExerciseCheckRow &row : m_helpChecks) {
+        if (row.label) {
+            row.label->setMaximumWidth(qMax(120, checkWidth - 34));
+        }
     }
     if (m_scrollContent) {
         m_scrollContent->adjustSize();
@@ -529,16 +586,16 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 
 ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
     ExerciseProtocol::CheckboxValues values;
-    for (QCheckBox *box : m_activityChecks) {
-        if (box->isChecked()) {
-            values.activity = box->text();
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        if (row.box && row.box->isChecked() && row.label) {
+            values.activity = row.label->text();
             break;
         }
     }
     QStringList helpValues;
-    for (QCheckBox *box : m_helpChecks) {
-        if (box->isChecked()) {
-            helpValues << box->text();
+    for (const ExerciseCheckRow &row : m_helpChecks) {
+        if (row.box && row.box->isChecked() && row.label) {
+            helpValues << row.label->text();
         }
     }
     values.help = helpValues.join(QStringLiteral("; "));
