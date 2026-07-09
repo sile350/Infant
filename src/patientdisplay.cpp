@@ -7,7 +7,7 @@
 
 PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::Window) {
     setAttribute(Qt::WA_DeleteOnClose, false);
-    setStyleSheet(QStringLiteral("background-color: #f8f8f8;"));
+    setStyleSheet(QStringLiteral("background-color: #ffffff;"));
     m_mirrorExercise = new OnlyPExercise(this);
     m_mirrorExercise->setMirrorMode(true);
     m_mirrorExercise->setGeometry(0, 0, 1920, 1080);

@@ -4,12 +4,23 @@
 
 #include <QMouseEvent>
 #include <QLabel>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QPixmap>
+#include <QResizeEvent>
 #include <QShowEvent>
 #include <QTimer>
 #include <functional>
 
 namespace {
+
+constexpr int kPictureLeft = 700;
+constexpr int kPictureTop = 240;
+constexpr int kStopLeft = 971;
+constexpr int kStopTop = 72;
+constexpr int kRightLeft = 1225;
+constexpr int kWrongLeft = 1355;
+constexpr int kAnswerTop = 72;
 
 class ClickableLabel final : public QLabel {
 public:
@@ -42,24 +53,24 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAutoFillBackground(true);
-    setStyleSheet(QStringLiteral("background-color: #f8f8f8;"));
+    setStyleSheet(QStringLiteral("background-color: #ffffff;"));
 
     m_picture = new QLabel(this);
-    m_picture->setGeometry(700, 240, 1, 1);
+    m_picture->setGeometry(kPictureLeft, kPictureTop, 1, 1);
     m_picture->setScaledContents(false);
     m_picture->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_picture->setStyleSheet(QStringLiteral("background: transparent;"));
 
     m_stopButton = new ClickableLabel(this);
-    m_stopButton->setGeometry(971, 72, 134, 29);
+    m_stopButton->setGeometry(kStopLeft, kStopTop, 134, 29);
     m_stopButton->setScaledContents(false);
 
     m_rightButton = new ClickableLabel(this);
-    m_rightButton->setGeometry(1225, 72, 134, 29);
+    m_rightButton->setGeometry(kRightLeft, kAnswerTop, 134, 29);
     m_rightButton->setScaledContents(false);
 
     m_wrongButton = new ClickableLabel(this);
-    m_wrongButton->setGeometry(1355, 72, 134, 29);
+    m_wrongButton->setGeometry(kWrongLeft, kAnswerTop, 134, 29);
     m_wrongButton->setScaledContents(false);
 
     m_timer = new QTimer(this);
@@ -77,13 +88,32 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     asClickable(m_wrongButton)->onClick = [this]() { recordAnswer(false); };
 }
 
+void OnlyPExercise::paintEvent(QPaintEvent *event) {
+    QPainter painter(this);
+    painter.fillRect(rect(), Qt::white);
+    QWidget::paintEvent(event);
+}
+
+void OnlyPExercise::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    m_picture->move(kPictureLeft, kPictureTop);
+    m_stopButton->move(kStopLeft, kStopTop);
+    m_rightButton->move(kRightLeft, kAnswerTop);
+    m_wrongButton->move(kWrongLeft, kAnswerTop);
+}
+
 void OnlyPExercise::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
     if (!stopPath.isEmpty()) {
         setAutoSizePixmap(m_stopButton, QPixmap(stopPath));
-        m_stopButton->move(971, 72);
+        m_stopButton->move(kStopLeft, kStopTop);
     }
+    raise();
+    m_stopButton->raise();
+    m_rightButton->raise();
+    m_wrongButton->raise();
+    m_picture->raise();
 }
 
 void OnlyPExercise::start(const QString &exerciseId) {
@@ -100,12 +130,12 @@ void OnlyPExercise::start(const QString &exerciseId) {
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
     if (!rightPath.isEmpty()) {
         setAutoSizePixmap(m_rightButton, QPixmap(rightPath));
-        m_rightButton->move(1225, 72);
+        m_rightButton->move(kRightLeft, kAnswerTop);
         m_rightButton->show();
     }
     if (!wrongPath.isEmpty()) {
         setAutoSizePixmap(m_wrongButton, QPixmap(wrongPath));
-        m_wrongButton->move(1355, 72);
+        m_wrongButton->move(kWrongLeft, kAnswerTop);
         m_wrongButton->show();
     }
 
@@ -122,7 +152,8 @@ void OnlyPExercise::loadPicture(int index) {
     }
     const QPixmap pixmap(path);
     setAutoSizePixmap(m_picture, pixmap);
-    m_picture->move(700, 240);
+    m_picture->move(kPictureLeft, kPictureTop);
+    m_picture->raise();
     emit pictureChanged(index);
 }
 
@@ -145,12 +176,12 @@ void OnlyPExercise::prepareMirrorUi(const QString &exerciseId) {
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
     if (!rightPath.isEmpty()) {
         setAutoSizePixmap(m_rightButton, QPixmap(rightPath));
-        m_rightButton->move(1225, 72);
+        m_rightButton->move(kRightLeft, kAnswerTop);
         m_rightButton->show();
     }
     if (!wrongPath.isEmpty()) {
         setAutoSizePixmap(m_wrongButton, QPixmap(wrongPath));
-        m_wrongButton->move(1355, 72);
+        m_wrongButton->move(kWrongLeft, kAnswerTop);
         m_wrongButton->show();
     }
     show();

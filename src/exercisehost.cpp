@@ -433,6 +433,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_elapsedSeconds = elapsedSeconds;
         m_exerciseDone = true;
         m_protocolFormed = false;
+        restoreExerciseOverlay();
         setExerciseChromeVisible(true);
         updateChromeLayout();
         showResultLabels(answers, elapsedSeconds);
@@ -455,9 +456,18 @@ void ExerciseHost::paintEvent(QPaintEvent *event) {
 void ExerciseHost::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     updateChromeLayout();
+    updateExerciseOverlayGeometry();
 }
 
 void ExerciseHost::updateChromeLayout() {
+    if (m_exerciseRunning) {
+        updateExerciseOverlayGeometry();
+        if (m_onlyP && m_onlyP->isVisible()) {
+            m_onlyP->raise();
+        }
+        return;
+    }
+
     if (m_leftBackdrop) {
         m_leftBackdrop->setGeometry(0, 0, kPanelX + kScrollWidth + kScrollBarGutter, height());
         m_leftBackdrop->lower();
@@ -659,12 +669,47 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
     }
 }
 
+void ExerciseHost::updateExerciseOverlayGeometry() {
+    if (!m_onlyP || !m_exerciseRunning) {
+        return;
+    }
+    QWidget *overlayRoot = m_onlyP->parentWidget();
+    if (!overlayRoot) {
+        return;
+    }
+    m_onlyP->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+}
+
+void ExerciseHost::showExerciseOverlay() {
+    QWidget *overlayRoot = parentWidget();
+    if (!m_onlyP || !overlayRoot) {
+        return;
+    }
+    m_exerciseRunning = true;
+    m_onlyP->setParent(overlayRoot);
+    updateExerciseOverlayGeometry();
+    lower();
+    emit exerciseOverlayChanged(true);
+}
+
+void ExerciseHost::restoreExerciseOverlay() {
+    m_exerciseRunning = false;
+    if (!m_onlyP) {
+        return;
+    }
+    m_onlyP->setParent(this);
+    m_onlyP->setGeometry(0, 0, width(), height());
+    m_onlyP->hide();
+    raise();
+    emit exerciseOverlayChanged(false);
+}
+
 void ExerciseHost::runOnlyPExercise() {
     m_protocolFormed = false;
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     setExerciseChromeVisible(false);
-    m_onlyP->setGeometry(0, 0, width(), height());
+    showExerciseOverlay();
     m_onlyP->start(m_exerciseId);
     m_onlyP->raise();
 

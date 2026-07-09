@@ -37,6 +37,7 @@ public:
 signals:
     void closed();
     void protocolSaved();
+    void exerciseOverlayChanged(bool visible);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -53,6 +54,9 @@ private:
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
     void setExerciseChromeVisible(bool visible);
+    void showExerciseOverlay();
+    void restoreExerciseOverlay();
+    void updateExerciseOverlayGeometry();
     ExerciseProtocol::CheckboxValues checkboxValues() const;
     QString orHtmlSnapshot() const;
 
@@ -67,6 +71,7 @@ private:
     bool m_exerciseDone = false;
     bool m_protocolFormed = true;
     bool m_partly = false;
+    bool m_exerciseRunning = false;
     bool m_orOpen1 = false;
     bool m_orOpen2 = false;
     bool m_orOpen3 = false;

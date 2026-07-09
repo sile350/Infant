@@ -4529,6 +4529,11 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         m_exerciseHost->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
         m_exerciseHost->hide();
         connect(m_exerciseHost, &ExerciseHost::protocolSaved, this, [this]() { refreshProtocolsView(); });
+        connect(m_exerciseHost, &ExerciseHost::exerciseOverlayChanged, this, [this](bool visible) {
+            if (visible) {
+                raiseChromeWidgets();
+            }
+        });
     }
 
     if (m_workStack) {
