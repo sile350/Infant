@@ -1,5 +1,6 @@
 #include "exercisehost.h"
 
+#include "appsettings.h"
 #include "custommessagebox.h"
 #include "exerciseassets.h"
 #include "imagebutton.h"
@@ -781,19 +782,38 @@ void ExerciseHost::restoreExerciseOverlay() {
     emit exerciseOverlayChanged(false);
 }
 
+void ExerciseHost::setDualScreenEnabled(bool enabled) {
+    m_dualScreen = enabled;
+    syncPatientDisplay();
+}
+
+void ExerciseHost::syncPatientDisplay() {
+    if (!m_patientDisplay) {
+        return;
+    }
+    if (!m_dualScreen || !m_exerciseRunning || !m_onlyP) {
+        m_patientDisplay->hideDisplay();
+        return;
+    }
+    m_patientDisplay->attachExercise(m_onlyP);
+    m_patientDisplay->showOnSecondaryScreen();
+}
+
 void ExerciseHost::runOnlyPExercise() {
     m_protocolFormed = false;
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
+    m_dualScreen = AppSettings::dualScreenEnabled();
     setExerciseChromeVisible(false);
     showExerciseOverlay();
-    m_onlyP->start(m_exerciseId);
-    m_onlyP->raise();
 
     if (m_dualScreen && m_patientDisplay) {
         m_patientDisplay->attachExercise(m_onlyP);
-        m_patientDisplay->showOnSecondaryScreen();
     }
+
+    m_onlyP->start(m_exerciseId);
+    m_onlyP->raise();
+    syncPatientDisplay();
 }
 
 void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSeconds) {

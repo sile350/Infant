@@ -35,6 +35,8 @@ public:
         Repository *repository,
         bool dualScreen);
 
+    void setDualScreenEnabled(bool enabled);
+
 signals:
     void closed();
     void protocolSaved();
@@ -59,6 +61,7 @@ private:
     void showExerciseOverlay();
     void restoreExerciseOverlay();
     void updateExerciseOverlayGeometry();
+    void syncPatientDisplay();
     ExerciseProtocol::CheckboxValues checkboxValues() const;
     QString orHtmlSnapshot() const;
 

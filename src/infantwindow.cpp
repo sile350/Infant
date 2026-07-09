@@ -1305,7 +1305,7 @@ void InfantWindow::buildUi() {
     m_userOpenPatients->setGeometry(kAdminFormX + kAdminFormW - kAdminEnterW, kAdminSaveY, kAdminEnterW, 30);
 
     m_dualScreenCheck = new QCheckBox(QStringLiteral("Два экрана"), m_panelAdmin);
-    m_dualScreenCheck->setGeometry(kAdminFormX, kAdminSaveY + 40, kAdminFormW, 24);
+    m_dualScreenCheck->setGeometry(kAdminFormX, kAdminSaveY + 40, kAdminFormW, 30);
     m_dualScreenCheck->setChecked(AppSettings::dualScreenEnabled());
 
     m_panelPatients = new QWidget(m_root);
@@ -2061,8 +2061,11 @@ void InfantWindow::bindSignals() {
         }
         openExercise(exerciseId);
     });
-    connect(m_dualScreenCheck, &QCheckBox::toggled, this, [](bool checked) {
+    connect(m_dualScreenCheck, &QCheckBox::toggled, this, [this](bool checked) {
         AppSettings::setDualScreenEnabled(checked);
+        if (m_exerciseHost) {
+            m_exerciseHost->setDualScreenEnabled(checked);
+        }
     });
 }
 
@@ -2422,7 +2425,8 @@ void InfantWindow::styleAdminScreen() {
     );
     if (m_dualScreenCheck) {
         m_dualScreenCheck->setStyleSheet(
-            "QCheckBox { color: white; font-family: 'Microsoft Sans Serif'; font-size: 10pt; background: transparent; }");
+            "QCheckBox { color: white; font-family: 'Microsoft Sans Serif'; font-size: 12pt; background: transparent; spacing: 8px; }"
+            "QCheckBox::indicator { width: 20px; height: 20px; }");
     }
     m_userRole->setStyleSheet(QString(
         "QComboBox {"

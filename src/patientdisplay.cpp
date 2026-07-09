@@ -4,6 +4,21 @@
 
 #include <QGuiApplication>
 #include <QScreen>
+#include <QWindow>
+
+namespace {
+
+QScreen *secondaryScreen() {
+    QScreen *primary = QGuiApplication::primaryScreen();
+    for (QScreen *screen : QGuiApplication::screens()) {
+        if (screen != primary) {
+            return screen;
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
 
 PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::Window) {
     setAttribute(Qt::WA_DeleteOnClose, false);
@@ -26,22 +41,33 @@ void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
 }
 
 void PatientDisplay::showOnSecondaryScreen() {
-    const QList<QScreen *> screens = QGuiApplication::screens();
-    QScreen *target = screens.size() > 1 ? screens.at(1) : nullptr;
+    QScreen *target = secondaryScreen();
     if (!target) {
         return;
     }
-    setGeometry(target->geometry());
-    m_mirrorExercise->setGeometry(rect());
+
+    if (!isVisible()) {
+        show();
+    }
+    if (QWindow *window = windowHandle()) {
+        window->setScreen(target);
+    }
+
+    const QRect geometry = target->geometry();
+    setGeometry(geometry);
+    if (m_mirrorExercise) {
+        m_mirrorExercise->setGeometry(0, 0, geometry.width(), geometry.height());
+    }
     if (m_exercise) {
         const QString exerciseId = m_exercise->property("exerciseId").toString();
-        if (!exerciseId.isEmpty()) {
+        if (!exerciseId.isEmpty() && m_mirrorExercise) {
             m_mirrorExercise->prepareMirrorUi(exerciseId);
             m_mirrorExercise->showPicture(1);
         }
     }
     showFullScreen();
     raise();
+    activateWindow();
 }
 
 void PatientDisplay::hideDisplay() {

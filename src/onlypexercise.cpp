@@ -226,6 +226,9 @@ void OnlyPExercise::prepareMirrorUi(const QString &exerciseId) {
         m_wrongButton->move(kWrongLeft, kAnswerTop);
         m_wrongButton->show();
     }
+    if (m_stopButton) {
+        m_stopButton->hide();
+    }
     show();
 }
 
