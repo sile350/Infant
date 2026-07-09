@@ -2,6 +2,7 @@
 
 #include "custommessagebox.h"
 #include "exerciseassets.h"
+#include "imagebutton.h"
 #include "onlypexercise.h"
 #include "patientdisplay.h"
 #include "repository.h"
@@ -15,8 +16,6 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPixmap>
-#include <QPushButton>
-#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QTextBlock>
@@ -25,13 +24,14 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-#include <functional>
-
 namespace {
 
-constexpr int kLeftPanelWidth = 1100;
+constexpr QColor kExerciseBg(0xf8, 0xf8, 0xf8);
+constexpr int kPanelX = 51;
+constexpr int kPanelY = 4;
+constexpr int kScrollWidth = 870;
 
-void applyOpaqueWhite(QWidget *widget) {
+void applyExerciseBackground(QWidget *widget) {
     if (!widget) {
         return;
     }
@@ -39,24 +39,23 @@ void applyOpaqueWhite(QWidget *widget) {
     widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
     widget->setAutoFillBackground(true);
     QPalette pal = widget->palette();
-    pal.setColor(QPalette::Window, Qt::white);
-    pal.setColor(QPalette::Base, Qt::white);
-    pal.setColor(QPalette::Button, Qt::white);
+    pal.setColor(QPalette::Window, kExerciseBg);
+    pal.setColor(QPalette::Base, kExerciseBg);
+    pal.setColor(QPalette::Button, kExerciseBg);
     widget->setPalette(pal);
-    widget->setStyleSheet(QStringLiteral("background-color:#ffffff; color:#000000;"));
 }
 
-QTextBrowser *makeWhiteBrowser(QWidget *parent) {
+QTextBrowser *makeHtmlBrowser(QWidget *parent) {
     auto *browser = new QTextBrowser(parent);
     browser->setOpenExternalLinks(false);
     browser->setFrameShape(QFrame::NoFrame);
     browser->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    applyOpaqueWhite(browser);
+    applyExerciseBackground(browser);
     browser->setStyleSheet(QStringLiteral(
-        "QTextBrowser { background-color:#ffffff; color:#000000; border:none; }"));
+        "QTextBrowser { background-color:#f8f8f8; color:#000000; border:none; }"));
     if (browser->viewport()) {
-        applyOpaqueWhite(browser->viewport());
-        browser->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+        applyExerciseBackground(browser->viewport());
+        browser->viewport()->setStyleSheet(QStringLiteral("background-color:#f8f8f8;"));
     }
     return browser;
 }
@@ -71,49 +70,6 @@ QString loadExerciseHtmlFile(const QString &exerciseId, const QString &fileName)
         return {};
     }
     return QString::fromUtf8(file.readAll());
-}
-
-QString extractDivInnerHtml(const QString &html, const QString &divId) {
-    const QRegularExpression openRe(
-        QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>").arg(QRegularExpression::escape(divId)),
-        QRegularExpression::CaseInsensitiveOption);
-    const QRegularExpressionMatch openMatch = openRe.match(html);
-    if (!openMatch.hasMatch()) {
-        return {};
-    }
-    const int contentStart = openMatch.capturedEnd(0);
-    const QRegularExpression closeRe(QStringLiteral("</div>"), QRegularExpression::CaseInsensitiveOption);
-    int depth = 1;
-    int pos = contentStart;
-    while (pos < html.size() && depth > 0) {
-        const QRegularExpressionMatch nextOpen = openRe.match(html, pos);
-        const QRegularExpressionMatch nextClose = closeRe.match(html, pos);
-        if (!nextClose.hasMatch()) {
-            break;
-        }
-        const int openPos = nextOpen.hasMatch() ? nextOpen.capturedStart(0) : -1;
-        const int closePos = nextClose.capturedStart(0);
-        if (openPos >= 0 && openPos < closePos) {
-            ++depth;
-            pos = nextOpen.capturedEnd(0);
-            continue;
-        }
-        --depth;
-        if (depth == 0) {
-            return html.mid(contentStart, closePos - contentStart).trimmed();
-        }
-        pos = nextClose.capturedEnd(0);
-    }
-    return {};
-}
-
-QString wrapSectionHtml(const QString &innerHtml) {
-    return QStringLiteral(
-               "<html><head><meta charset='utf-8'></head>"
-               "<body style='background-color:#ffffff;color:#000000;"
-               "font-family:\"Microsoft Sans Serif\",sans-serif;font-size:14px;margin:0;padding:0;'>"
-               "%1</body></html>")
-        .arg(innerHtml);
 }
 
 void applyCompactLineHeight(QTextDocument *doc) {
@@ -133,74 +89,28 @@ void applyCompactLineHeight(QTextDocument *doc) {
 
 QCheckBox *makeCheck(const QString &text, QWidget *parent) {
     auto *box = new QCheckBox(text, parent);
-    applyOpaqueWhite(box);
+    applyExerciseBackground(box);
     box->setStyleSheet(QStringLiteral(
-        "QCheckBox { background-color:#ffffff; color:#000000;"
+        "QCheckBox { background-color:#f8f8f8; color:#000000;"
         "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; spacing:6px; }"
-        "QCheckBox::indicator { width:13px; height:13px; background:#ffffff; }"));
+        "QCheckBox::indicator { width:13px; height:13px; background:#f8f8f8; }"));
     return box;
 }
 
-class CollapsibleSection final : public QWidget {
+class ExerciseOrBrowser final : public QTextBrowser {
 public:
-    CollapsibleSection(
-        const QString &title,
-        const QString &bodyHtml,
-        const std::function<void()> &onToggled,
-        QWidget *parent = nullptr)
-        : QWidget(parent), m_onToggled(onToggled) {
-        applyOpaqueWhite(this);
-
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(0, 0, 0, 8);
-        layout->setSpacing(4);
-
-        m_header = new QPushButton(title, this);
-        m_header->setFlat(true);
-        m_header->setCursor(Qt::PointingHandCursor);
-        applyOpaqueWhite(m_header);
-        m_header->setStyleSheet(QStringLiteral(
-            "QPushButton {"
-            "text-align:left;"
-            "background-color:#ffffff;"
-            "color:#000000;"
-            "border:none;"
-            "font-family:'Microsoft Sans Serif',sans-serif;"
-            "font-size:16px;"
-            "font-weight:bold;"
-            "padding:0;"
-            "}"
-            "QPushButton:hover { text-decoration:underline; }"));
-
-        m_body = makeWhiteBrowser(this);
-        m_body->setHtml(wrapSectionHtml(bodyHtml));
-        applyCompactLineHeight(m_body->document());
-        m_body->setVisible(false);
-        m_body->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
-        m_body->document()->setTextWidth(1040);
-
-        layout->addWidget(m_header);
-        layout->addWidget(m_body);
-
-        connect(m_header, &QPushButton::clicked, this, [this]() {
-            m_expanded = !m_expanded;
-            m_body->setVisible(m_expanded);
-            if (m_expanded) {
-                const int h = m_body->document()->size().height() + 8;
-                m_body->setMinimumHeight(h);
-                m_body->setMaximumHeight(h);
-            }
-            if (m_onToggled) {
-                m_onToggled();
-            }
-        });
+    explicit ExerciseOrBrowser(QWidget *parent = nullptr) : QTextBrowser(parent) {
+        setOpenExternalLinks(false);
+        setFrameShape(QFrame::NoFrame);
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        applyExerciseBackground(this);
+        setStyleSheet(QStringLiteral(
+            "QTextBrowser { background-color:#f8f8f8; color:#000000; border:none; }"));
+        if (viewport()) {
+            applyExerciseBackground(viewport());
+            viewport()->setStyleSheet(QStringLiteral("background-color:#f8f8f8;"));
+        }
     }
-
-private:
-    QPushButton *m_header = nullptr;
-    QTextBrowser *m_body = nullptr;
-    std::function<void()> m_onToggled;
-    bool m_expanded = false;
 };
 
 } // namespace
@@ -209,43 +119,36 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAutoFillBackground(true);
-    applyOpaqueWhite(this);
-
-    m_opaqueBackground = new QWidget(this);
-    applyOpaqueWhite(m_opaqueBackground);
-    m_opaqueBackground->lower();
-
-    m_rightBackground = new QWidget(this);
-    applyOpaqueWhite(m_rightBackground);
+    applyExerciseBackground(this);
 
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    applyOpaqueWhite(m_scrollArea);
-    m_scrollArea->setStyleSheet(QStringLiteral("QScrollArea { background-color:#ffffff; border:none; }"));
+    applyExerciseBackground(m_scrollArea);
+    m_scrollArea->setStyleSheet(QStringLiteral("QScrollArea { background-color:#f8f8f8; border:none; }"));
     if (m_scrollArea->viewport()) {
-        applyOpaqueWhite(m_scrollArea->viewport());
-        m_scrollArea->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+        applyExerciseBackground(m_scrollArea->viewport());
+        m_scrollArea->viewport()->setStyleSheet(QStringLiteral("background-color:#f8f8f8;"));
     }
 
     m_scrollContent = new QWidget;
-    applyOpaqueWhite(m_scrollContent);
+    applyExerciseBackground(m_scrollContent);
 
     auto *layout = new QVBoxLayout(m_scrollContent);
-    layout->setContentsMargins(16, 16, 16, 16);
-    layout->setSpacing(10);
+    layout->setContentsMargins(40, 3, 16, 16);
+    layout->setSpacing(8);
 
-    m_methodologyPanel = new QWidget(m_scrollContent);
-    applyOpaqueWhite(m_methodologyPanel);
-    auto *methodologyLayout = new QVBoxLayout(m_methodologyPanel);
-    methodologyLayout->setContentsMargins(0, 0, 0, 0);
-    methodologyLayout->setSpacing(0);
+    m_orBrowser = new ExerciseOrBrowser(m_scrollContent);
+    m_orBrowser->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    connect(m_orBrowser, &QTextBrowser::anchorClicked, this, [this](const QUrl &url) {
+        toggleOrSection(url.fragment());
+    });
 
     m_evaluationPanel = new QWidget(m_scrollContent);
-    applyOpaqueWhite(m_evaluationPanel);
+    applyExerciseBackground(m_evaluationPanel);
     auto *evaluationLayout = new QVBoxLayout(m_evaluationPanel);
-    evaluationLayout->setContentsMargins(0, 12, 0, 0);
+    evaluationLayout->setContentsMargins(0, 8, 0, 0);
     evaluationLayout->setSpacing(4);
 
     auto *hrLine = new QFrame(m_evaluationPanel);
@@ -256,22 +159,22 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     auto *evalTitle = new QLabel(QStringLiteral("Оценка результатов"), m_evaluationPanel);
     evalTitle->setAlignment(Qt::AlignCenter);
-    applyOpaqueWhite(evalTitle);
+    applyExerciseBackground(evalTitle);
     evalTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:16px; font-weight:bold; line-height:100%; padding:4px 0; }"));
+        "QLabel { background:#f8f8f8; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:16px; font-weight:bold; padding:4px 0; }"));
     evaluationLayout->addWidget(evalTitle);
 
     auto *activityTitle = new QLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     activityTitle->setAlignment(Qt::AlignCenter);
-    applyOpaqueWhite(activityTitle);
+    applyExerciseBackground(activityTitle);
     activityTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:15px; font-weight:bold; line-height:100%; padding:2px 0; }"));
+        "QLabel { background:#f8f8f8; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:15px; font-weight:bold; padding:2px 0; }"));
     evaluationLayout->addWidget(activityTitle);
 
     m_checkboxPanel = new QWidget(m_evaluationPanel);
-    applyOpaqueWhite(m_checkboxPanel);
+    applyExerciseBackground(m_checkboxPanel);
     auto *checkboxLayout = new QVBoxLayout(m_checkboxPanel);
     checkboxLayout->setContentsMargins(24, 0, 8, 0);
     checkboxLayout->setSpacing(2);
@@ -315,29 +218,27 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     auto *helpTitle = new QLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
     helpTitle->setAlignment(Qt::AlignCenter);
-    applyOpaqueWhite(helpTitle);
-    helpTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:15px; font-weight:bold; line-height:100%; padding:8px 0 2px 0; }"));
+    applyExerciseBackground(helpTitle);
+    helpTitle->setStyleSheet(activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
     auto *stimHelpLabel = new QLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
-    applyOpaqueWhite(stimHelpLabel);
+    applyExerciseBackground(stimHelpLabel);
     stimHelpLabel->setStyleSheet(QStringLiteral(
-        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "QLabel { background:#f8f8f8; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:14px; font-weight:bold; padding:4px 0 0 24px; }"));
     checkboxLayout->addWidget(stimHelpLabel);
     checkboxLayout->addWidget(m_helpChecks.at(0));
 
     auto *directHelpLabel = new QLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
-    applyOpaqueWhite(directHelpLabel);
+    applyExerciseBackground(directHelpLabel);
     directHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(directHelpLabel);
     checkboxLayout->addWidget(m_helpChecks.at(1));
     checkboxLayout->addWidget(m_helpChecks.at(2));
 
     auto *teachHelpLabel = new QLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
-    applyOpaqueWhite(teachHelpLabel);
+    applyExerciseBackground(teachHelpLabel);
     teachHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(teachHelpLabel);
     checkboxLayout->addWidget(m_helpChecks.at(3));
@@ -345,49 +246,47 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     evaluationLayout->addWidget(m_checkboxPanel);
 
-    m_beginButton = new QPushButton(QStringLiteral("Начать"), m_evaluationPanel);
-    m_beginButton->setFixedHeight(34);
-    applyOpaqueWhite(m_beginButton);
-    m_beginButton->setStyleSheet(QStringLiteral(
-        "QPushButton { background:#ffffff; color:#000000; border:1px solid #000000;"
-        "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; font-weight:bold; padding:4px 18px; }"));
-    evaluationLayout->addSpacing(8);
-    evaluationLayout->addWidget(m_beginButton, 0, Qt::AlignLeft);
-
     m_templatePanel = new QWidget(m_scrollContent);
-    applyOpaqueWhite(m_templatePanel);
+    applyExerciseBackground(m_templatePanel);
     auto *templateLayout = new QVBoxLayout(m_templatePanel);
     templateLayout->setContentsMargins(0, 12, 0, 0);
-    templateLayout->setSpacing(8);
+    templateLayout->setSpacing(12);
 
-    m_templateBrowser = makeWhiteBrowser(m_templatePanel);
+    m_templateBrowser = makeHtmlBrowser(m_templatePanel);
     templateLayout->addWidget(m_templateBrowser);
 
-    m_formProtocolButton = new QPushButton(QStringLiteral("Сформировать протокол"), m_templatePanel);
-    m_formProtocolButton->setFixedHeight(34);
-    applyOpaqueWhite(m_formProtocolButton);
-    m_formProtocolButton->setStyleSheet(m_beginButton->styleSheet());
-    templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignLeft);
+    m_formProtocolButton = new ImageButton(m_templatePanel);
+    const QString formpPath = ExerciseAssets::sysImage(QStringLiteral("formp.png"));
+    if (!formpPath.isEmpty()) {
+        m_formProtocolButton->setImagePath(formpPath);
+        m_formProtocolButton->setFixedSize(196, 33);
+    }
+    templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
 
-    layout->addWidget(m_methodologyPanel);
+    layout->addWidget(m_orBrowser);
     layout->addWidget(m_evaluationPanel);
     layout->addWidget(m_templatePanel);
     layout->addStretch();
     m_scrollArea->setWidget(m_scrollContent);
 
+    m_beginButton = new ImageButton(this);
+    const QString beginPath = ExerciseAssets::sysImage(QStringLiteral("beginu.png"));
+    if (!beginPath.isEmpty()) {
+        m_beginButton->setImagePath(beginPath);
+    }
+
     m_previewImage = new QLabel(this);
     m_previewImage->setAlignment(Qt::AlignCenter);
-    m_previewImage->setScaledContents(true);
-    applyOpaqueWhite(m_previewImage);
+    m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
 
     m_rightCountLabel = new QLabel(this);
-    applyOpaqueWhite(m_rightCountLabel);
+    applyExerciseBackground(m_rightCountLabel);
     m_rightCountLabel->setStyleSheet(QStringLiteral(
-        "QLabel { font:bold 17px Arial; color:#000000; background:#ffffff; }"));
+        "QLabel { font:bold 17px Arial; color:#000000; background:#f8f8f8; }"));
     m_rightCountLabel->hide();
 
     m_wrongCountLabel = new QLabel(this);
-    applyOpaqueWhite(m_wrongCountLabel);
+    applyExerciseBackground(m_wrongCountLabel);
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
 
@@ -396,14 +295,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_patientDisplay = new PatientDisplay;
 
-    connect(m_beginButton, &QPushButton::clicked, this, [this]() {
+    connect(m_beginButton, &ImageButton::clicked, this, [this]() {
         if (!m_protocolFormed) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
         runOnlyPExercise();
     });
-    connect(m_formProtocolButton, &QPushButton::clicked, this, [this]() { formProtocol(); });
+    connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
         m_answers = answers;
         m_elapsedSeconds = elapsedSeconds;
@@ -418,75 +317,58 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
 void ExerciseHost::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
-    painter.fillRect(rect(), Qt::white);
+    painter.fillRect(rect(), kExerciseBg);
     QWidget::paintEvent(event);
 }
 
 void ExerciseHost::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    if (m_opaqueBackground) {
-        m_opaqueBackground->setGeometry(rect());
-    }
-    if (m_rightBackground) {
-        m_rightBackground->setGeometry(kLeftPanelWidth, 0, qMax(0, width() - kLeftPanelWidth), height());
-    }
+    updateChromeLayout();
+}
+
+void ExerciseHost::updateChromeLayout() {
     if (m_scrollArea) {
-        m_scrollArea->setGeometry(0, 0, kLeftPanelWidth, height());
+        m_scrollArea->setGeometry(kPanelX, kPanelY, kScrollWidth, qMax(100, height() - kPanelY - 4));
+    }
+    if (m_beginButton) {
+        m_beginButton->setGeometry(976, 12, 158, 33);
     }
     if (m_previewImage) {
-        m_previewImage->setGeometry(kLeftPanelWidth + 20, 75, qMax(200, width() - kLeftPanelWidth - 40), 400);
+        const QPixmap pixmap = m_previewImage->pixmap(Qt::ReturnByValue);
+        const int previewW = pixmap.isNull() ? 494 : pixmap.width();
+        const int previewH = pixmap.isNull() ? 455 : pixmap.height();
+        m_previewImage->setGeometry(1100, 75, previewW, previewH);
     }
     if (m_rightCountLabel) {
-        m_rightCountLabel->setGeometry(kLeftPanelWidth + 20, 250, 300, 40);
+        m_rightCountLabel->setGeometry(1100, 250, 300, 40);
     }
     if (m_wrongCountLabel) {
-        m_wrongCountLabel->setGeometry(kLeftPanelWidth + 20, 350, 300, 40);
+        m_wrongCountLabel->setGeometry(1100, 350, 300, 40);
     }
 }
 
-void ExerciseHost::buildMethodologySections(const QString &orHtml) {
-    if (!m_methodologyPanel) {
+void ExerciseHost::toggleOrSection(const QString &sectionId) {
+    if (sectionId == QStringLiteral("method")) {
+        m_orOpen1 = !m_orOpen1;
+    } else if (sectionId == QStringLiteral("procedure")) {
+        m_orOpen2 = !m_orOpen2;
+    } else if (sectionId == QStringLiteral("analis")) {
+        m_orOpen3 = !m_orOpen3;
+    } else {
         return;
     }
-    QLayoutItem *child = nullptr;
-    while ((child = m_methodologyPanel->layout()->takeAt(0)) != nullptr) {
-        if (child->widget()) {
-            child->widget()->deleteLater();
-        }
-        delete child;
-    }
+    reloadOrBrowser();
+}
 
-    auto *methodologyLayout = qobject_cast<QVBoxLayout *>(m_methodologyPanel->layout());
-    if (!methodologyLayout) {
+void ExerciseHost::reloadOrBrowser() {
+    if (!m_orBrowser || m_rawOrHtml.isEmpty()) {
         return;
     }
-
-    const QString methodBody = extractDivInnerHtml(orHtml, QStringLiteral("div1"));
-    const QString procedureBody = extractDivInnerHtml(orHtml, QStringLiteral("div2"));
-    const QString analisBody = extractDivInnerHtml(orHtml, QStringLiteral("div3"));
-
-    const auto relayout = [this]() { layoutContent(); };
-    auto *methodSection = new CollapsibleSection(
-        QStringLiteral("Методика \"Что на картинке не дорисовано?\" (Забрамная С.Д., Боровик О.В.) описание"),
-        methodBody,
-        relayout,
-        m_methodologyPanel);
-    auto *procedureSection = new CollapsibleSection(
-        QStringLiteral("Процедура проведения."),
-        procedureBody,
-        relayout,
-        m_methodologyPanel);
-    auto *analisSection = new CollapsibleSection(
-        QStringLiteral("Анализируемые показатели и нормативы выполнения."),
-        analisBody,
-        relayout,
-        m_methodologyPanel);
-
-    methodologyLayout->addWidget(methodSection);
-    methodologyLayout->addSpacing(6);
-    methodologyLayout->addWidget(procedureSection);
-    methodologyLayout->addSpacing(6);
-    methodologyLayout->addWidget(analisSection);
+    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    m_orBrowser->setHtml(ExerciseAssets::prepareOrHtml(
+        m_rawOrHtml, baseDir, m_orOpen1, m_orOpen2, m_orOpen3));
+    applyCompactLineHeight(m_orBrowser->document());
+    layoutContent();
 }
 
 void ExerciseHost::openExercise(
@@ -507,6 +389,9 @@ void ExerciseHost::openExercise(
     m_exerciseDone = false;
     m_protocolFormed = true;
     m_partly = false;
+    m_orOpen1 = false;
+    m_orOpen2 = false;
+    m_orOpen3 = false;
     m_answers.clear();
     m_elapsedSeconds = 0;
     m_rightCountLabel->hide();
@@ -529,8 +414,8 @@ void ExerciseHost::openExercise(
 void ExerciseHost::loadStaticPictureExercise() {
     m_evaluationPanel->show();
 
-    const QString rawOr = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
-    buildMethodologySections(rawOr);
+    m_rawOrHtml = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
+    reloadOrBrowser();
 
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
@@ -539,12 +424,15 @@ void ExerciseHost::loadStaticPictureExercise() {
 
     const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
     if (!previewPath.isEmpty()) {
-        m_previewImage->setPixmap(QPixmap(previewPath));
+        const QPixmap pixmap(previewPath);
+        m_previewImage->setPixmap(pixmap);
+        m_previewImage->resize(pixmap.size());
         m_previewImage->show();
     } else {
         m_previewImage->hide();
     }
     layoutContent();
+    updateChromeLayout();
 }
 
 void ExerciseHost::layoutContent() {
@@ -552,13 +440,18 @@ void ExerciseHost::layoutContent() {
 }
 
 void ExerciseHost::updateContentHeights() {
-    if (!m_templateBrowser) {
-        return;
+    if (m_orBrowser) {
+        m_orBrowser->document()->setTextWidth(qMax(200, m_orBrowser->viewport()->width()));
+        const int orHeight = static_cast<int>(m_orBrowser->document()->size().height()) + 8;
+        m_orBrowser->setMinimumHeight(orHeight);
+        m_orBrowser->setMaximumHeight(orHeight);
     }
-    m_templateBrowser->document()->setTextWidth(qMax(200, m_templateBrowser->viewport()->width()));
-    const int templateHeight = static_cast<int>(m_templateBrowser->document()->size().height()) + 12;
-    m_templateBrowser->setMinimumHeight(templateHeight);
-    m_templateBrowser->setMaximumHeight(templateHeight);
+    if (m_templateBrowser) {
+        m_templateBrowser->document()->setTextWidth(qMax(200, m_templateBrowser->viewport()->width()));
+        const int templateHeight = static_cast<int>(m_templateBrowser->document()->size().height()) + 12;
+        m_templateBrowser->setMinimumHeight(templateHeight);
+        m_templateBrowser->setMaximumHeight(templateHeight);
+    }
     if (m_scrollContent) {
         m_scrollContent->adjustSize();
     }
@@ -614,7 +507,7 @@ ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
 }
 
 QString ExerciseHost::orHtmlSnapshot() const {
-    return QString();
+    return m_orBrowser ? m_orBrowser->toHtml() : QString();
 }
 
 void ExerciseHost::formProtocol() {

@@ -6,8 +6,8 @@
 #include <QList>
 #include <QWidget>
 
+class ImageButton;
 class QLabel;
-class QPushButton;
 class QTextBrowser;
 class QScrollArea;
 class QCheckBox;
@@ -39,9 +39,11 @@ protected:
 
 private:
     void loadStaticPictureExercise();
-    void buildMethodologySections(const QString &orHtml);
+    void reloadOrBrowser();
+    void toggleOrSection(const QString &sectionId);
     void layoutContent();
     void updateContentHeights();
+    void updateChromeLayout();
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
@@ -53,19 +55,21 @@ private:
     QString m_specialistFio;
     QString m_patientFio;
     QString m_patientBirthDate;
+    QString m_rawOrHtml;
     Repository *m_repository = nullptr;
     bool m_dualScreen = false;
     bool m_exerciseDone = false;
     bool m_protocolFormed = true;
     bool m_partly = false;
+    bool m_orOpen1 = false;
+    bool m_orOpen2 = false;
+    bool m_orOpen3 = false;
     QList<bool> m_answers;
     int m_elapsedSeconds = 0;
 
-    QWidget *m_opaqueBackground = nullptr;
-    QWidget *m_rightBackground = nullptr;
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_scrollContent = nullptr;
-    QWidget *m_methodologyPanel = nullptr;
+    QTextBrowser *m_orBrowser = nullptr;
     QWidget *m_evaluationPanel = nullptr;
     QWidget *m_checkboxPanel = nullptr;
     QWidget *m_templatePanel = nullptr;
@@ -75,8 +79,8 @@ private:
     QLabel *m_previewImage = nullptr;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;
-    QPushButton *m_beginButton = nullptr;
-    QPushButton *m_formProtocolButton = nullptr;
+    ImageButton *m_beginButton = nullptr;
+    ImageButton *m_formProtocolButton = nullptr;
     OnlyPExercise *m_onlyP = nullptr;
     PatientDisplay *m_patientDisplay = nullptr;
 };

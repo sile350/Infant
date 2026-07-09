@@ -4526,6 +4526,9 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         AppSettings::dualScreenEnabled());
     m_exerciseOpen = true;
     m_exerciseHost->show();
+    if (m_workStack) {
+        m_workStack->lower();
+    }
     m_exerciseHost->raise();
     raiseChromeWidgets();
 }

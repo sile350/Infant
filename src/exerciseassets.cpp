@@ -76,10 +76,13 @@ QString ExerciseAssets::prepareExerciseHtml(const QString &html, const QString &
     return result;
 }
 
-QString ExerciseAssets::prepareOrHtml(const QString &html, const QString &baseDir) {
+QString ExerciseAssets::prepareOrHtml(
+    const QString &html,
+    const QString &baseDir,
+    bool open1,
+    bool open2,
+    bool open3) {
     QString result = html;
-    result.replace(QStringLiteral("bgcolor=\"#f8f8f8\""), QStringLiteral("bgcolor=\"#ffffff\""), Qt::CaseInsensitive);
-    result.replace(QStringLiteral("bgcolor='#f8f8f8'"), QStringLiteral("bgcolor='#ffffff'"), Qt::CaseInsensitive);
 
     result.replace(
         QStringLiteral("id='method' style='font-size:16px;color:#000000' href='###'"),
@@ -99,12 +102,23 @@ QString ExerciseAssets::prepareOrHtml(const QString &html, const QString &baseDi
         }
     }
 
+    const auto applyDivState = [&result](const QString &divId, bool open) {
+        const QString style = open ? QStringLiteral("position:relative;height:auto;overflow:visible")
+                                   : QStringLiteral("position:relative;height:1px;overflow:hidden");
+        const QRegularExpression re(
+            QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>").arg(QRegularExpression::escape(divId)),
+            QRegularExpression::CaseInsensitiveOption);
+        result.replace(re, QStringLiteral("<div id='%1' style=\"%2\">").arg(divId, style));
+    };
+    applyDivState(QStringLiteral("div1"), open1);
+    applyDivState(QStringLiteral("div2"), open2);
+    applyDivState(QStringLiteral("div3"), open3);
+
     const QString style = QStringLiteral(
         "<style>"
-        "body { background-color:#ffffff; color:#000000; margin:8px; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
+        "body { background-color:#f8f8f8; color:#000000; margin:8px; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
         "a { color:#000000; text-decoration:none; }"
         "a:hover { text-decoration:underline; }"
-        "#div1,#div2,#div3 { position:relative; height:1px; overflow:hidden; margin:0; padding:0; }"
         "</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {
@@ -128,10 +142,8 @@ QString ExerciseAssets::prepareOrHtml(const QString &html, const QString &baseDi
 
 QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &baseDir) {
     QString result = html;
-    result.replace(QStringLiteral("bgcolor=\"#f8f8f8\""), QStringLiteral("bgcolor=\"#ffffff\""), Qt::CaseInsensitive);
-    result.replace(QStringLiteral("bgcolor='#f8f8f8'"), QStringLiteral("bgcolor='#ffffff'"), Qt::CaseInsensitive);
     const QString style = QStringLiteral(
-        "<style>body { background-color:#ffffff; color:#000000; }</style>");
+        "<style>body { background-color:#f8f8f8; color:#000000; }</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {
         result.insert(headEnd, style);
