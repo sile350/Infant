@@ -33,8 +33,13 @@ signals:
     void closed();
     void protocolSaved();
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     void loadStaticPictureExercise();
+    void buildMethodologySections(const QString &orHtml);
     void layoutContent();
     void updateContentHeights();
     void runOnlyPExercise();
@@ -56,9 +61,11 @@ private:
     QList<bool> m_answers;
     int m_elapsedSeconds = 0;
 
+    QWidget *m_opaqueBackground = nullptr;
+    QWidget *m_rightBackground = nullptr;
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_scrollContent = nullptr;
-    QTextBrowser *m_orBrowser = nullptr;
+    QWidget *m_methodologyPanel = nullptr;
     QWidget *m_evaluationPanel = nullptr;
     QWidget *m_checkboxPanel = nullptr;
     QWidget *m_templatePanel = nullptr;

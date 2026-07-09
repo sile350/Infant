@@ -130,6 +130,14 @@ QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &
     QString result = html;
     result.replace(QStringLiteral("bgcolor=\"#f8f8f8\""), QStringLiteral("bgcolor=\"#ffffff\""), Qt::CaseInsensitive);
     result.replace(QStringLiteral("bgcolor='#f8f8f8'"), QStringLiteral("bgcolor='#ffffff'"), Qt::CaseInsensitive);
+    const QString style = QStringLiteral(
+        "<style>body { background-color:#ffffff; color:#000000; }</style>");
+    const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
+    if (headEnd >= 0) {
+        result.insert(headEnd, style);
+    } else {
+        result.prepend(style);
+    }
     if (!baseDir.isEmpty()) {
         const QString baseUrl = QUrl::fromLocalFile(baseDir + QLatin1Char('/')).toString();
         if (!result.contains(QStringLiteral("<base"), Qt::CaseInsensitive)) {
