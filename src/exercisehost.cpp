@@ -23,15 +23,37 @@
 #include <QTextCursor>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QtMath>
 
 namespace {
 
 constexpr QColor kExerciseBg(0xf8, 0xf8, 0xf8);
+constexpr QColor kDocumentBg(0xff, 0xff, 0xff);
 constexpr int kPanelX = 51;
 constexpr int kPanelY = 4;
 constexpr int kScrollWidth = 870;
 
-void applyExerciseBackground(QWidget *widget) {
+class OpaquePanel final : public QWidget {
+public:
+    explicit OpaquePanel(const QColor &color, QWidget *parent = nullptr)
+        : QWidget(parent), m_color(color) {
+        setAttribute(Qt::WA_StyledBackground, true);
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAutoFillBackground(true);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), m_color);
+        QWidget::paintEvent(event);
+    }
+
+private:
+    QColor m_color;
+};
+
+void applyWidgetBackground(QWidget *widget, const QColor &color) {
     if (!widget) {
         return;
     }
@@ -39,9 +61,9 @@ void applyExerciseBackground(QWidget *widget) {
     widget->setAttribute(Qt::WA_OpaquePaintEvent, true);
     widget->setAutoFillBackground(true);
     QPalette pal = widget->palette();
-    pal.setColor(QPalette::Window, kExerciseBg);
-    pal.setColor(QPalette::Base, kExerciseBg);
-    pal.setColor(QPalette::Button, kExerciseBg);
+    pal.setColor(QPalette::Window, color);
+    pal.setColor(QPalette::Base, color);
+    pal.setColor(QPalette::Button, color);
     widget->setPalette(pal);
 }
 
@@ -50,12 +72,13 @@ QTextBrowser *makeHtmlBrowser(QWidget *parent) {
     browser->setOpenExternalLinks(false);
     browser->setFrameShape(QFrame::NoFrame);
     browser->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    applyExerciseBackground(browser);
+    browser->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    applyWidgetBackground(browser, kDocumentBg);
     browser->setStyleSheet(QStringLiteral(
-        "QTextBrowser { background-color:#f8f8f8; color:#000000; border:none; }"));
+        "QTextBrowser { background-color:#ffffff; color:#000000; border:none; }"));
     if (browser->viewport()) {
-        applyExerciseBackground(browser->viewport());
-        browser->viewport()->setStyleSheet(QStringLiteral("background-color:#f8f8f8;"));
+        applyWidgetBackground(browser->viewport(), kDocumentBg);
+        browser->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
     }
     return browser;
 }
@@ -89,11 +112,11 @@ void applyCompactLineHeight(QTextDocument *doc) {
 
 QCheckBox *makeCheck(const QString &text, QWidget *parent) {
     auto *box = new QCheckBox(text, parent);
-    applyExerciseBackground(box);
+    applyWidgetBackground(box, kDocumentBg);
     box->setStyleSheet(QStringLiteral(
-        "QCheckBox { background-color:#f8f8f8; color:#000000;"
+        "QCheckBox { background-color:#ffffff; color:#000000;"
         "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; spacing:6px; }"
-        "QCheckBox::indicator { width:13px; height:13px; background:#f8f8f8; }"));
+        "QCheckBox::indicator { width:13px; height:13px; background:#ffffff; border:1px solid #808080; }"));
     return box;
 }
 
@@ -103,12 +126,13 @@ public:
         setOpenExternalLinks(false);
         setFrameShape(QFrame::NoFrame);
         setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        applyExerciseBackground(this);
+        setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        applyWidgetBackground(this, kDocumentBg);
         setStyleSheet(QStringLiteral(
-            "QTextBrowser { background-color:#f8f8f8; color:#000000; border:none; }"));
+            "QTextBrowser { background-color:#ffffff; color:#000000; border:none; }"));
         if (viewport()) {
-            applyExerciseBackground(viewport());
-            viewport()->setStyleSheet(QStringLiteral("background-color:#f8f8f8;"));
+            applyWidgetBackground(viewport(), kDocumentBg);
+            viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
         }
     }
 };
@@ -119,65 +143,71 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_StyledBackground, true);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAutoFillBackground(true);
-    applyExerciseBackground(this);
+    applyWidgetBackground(this, kExerciseBg);
 
     m_scrollArea = new QScrollArea(this);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    applyExerciseBackground(m_scrollArea);
-    m_scrollArea->setStyleSheet(QStringLiteral("QScrollArea { background-color:#f8f8f8; border:none; }"));
+    applyWidgetBackground(m_scrollArea, kDocumentBg);
+    m_scrollArea->setStyleSheet(QStringLiteral("QScrollArea { background-color:#ffffff; border:none; }"));
     if (m_scrollArea->viewport()) {
-        applyExerciseBackground(m_scrollArea->viewport());
-        m_scrollArea->viewport()->setStyleSheet(QStringLiteral("background-color:#f8f8f8;"));
+        applyWidgetBackground(m_scrollArea->viewport(), kDocumentBg);
+        m_scrollArea->viewport()->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
     }
 
-    m_scrollContent = new QWidget;
-    applyExerciseBackground(m_scrollContent);
+    m_scrollContent = new OpaquePanel(kDocumentBg);
+    m_scrollContent->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
 
     auto *layout = new QVBoxLayout(m_scrollContent);
-    layout->setContentsMargins(40, 3, 16, 16);
-    layout->setSpacing(8);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(0);
 
-    m_orBrowser = new ExerciseOrBrowser(m_scrollContent);
+    auto *orPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
+    auto *orLayout = new QVBoxLayout(orPanel);
+    orLayout->setContentsMargins(0, 0, 0, 0);
+    orLayout->setSpacing(0);
+
+    m_orBrowser = new ExerciseOrBrowser(orPanel);
     m_orBrowser->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
     connect(m_orBrowser, &QTextBrowser::anchorClicked, this, [this](const QUrl &url) {
         toggleOrSection(url.fragment());
     });
+    orLayout->addWidget(m_orBrowser);
 
-    m_evaluationPanel = new QWidget(m_scrollContent);
-    applyExerciseBackground(m_evaluationPanel);
+    m_evaluationPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
+    m_evaluationPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     auto *evaluationLayout = new QVBoxLayout(m_evaluationPanel);
-    evaluationLayout->setContentsMargins(0, 8, 0, 0);
-    evaluationLayout->setSpacing(4);
+    evaluationLayout->setContentsMargins(8, 12, 8, 12);
+    evaluationLayout->setSpacing(6);
 
     auto *hrLine = new QFrame(m_evaluationPanel);
     hrLine->setFrameShape(QFrame::HLine);
     hrLine->setFrameShadow(QFrame::Plain);
-    hrLine->setStyleSheet(QStringLiteral("color:#000000; background:#000000; max-height:1px;"));
+    hrLine->setFixedHeight(1);
+    hrLine->setStyleSheet(QStringLiteral("background-color:#000000; border:none;"));
     evaluationLayout->addWidget(hrLine);
 
     auto *evalTitle = new QLabel(QStringLiteral("Оценка результатов"), m_evaluationPanel);
     evalTitle->setAlignment(Qt::AlignCenter);
-    applyExerciseBackground(evalTitle);
+    applyWidgetBackground(evalTitle, kDocumentBg);
     evalTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#f8f8f8; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:16px; font-weight:bold; padding:4px 0; }"));
     evaluationLayout->addWidget(evalTitle);
 
     auto *activityTitle = new QLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     activityTitle->setAlignment(Qt::AlignCenter);
-    applyExerciseBackground(activityTitle);
+    applyWidgetBackground(activityTitle, kDocumentBg);
     activityTitle->setStyleSheet(QStringLiteral(
-        "QLabel { background:#f8f8f8; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:15px; font-weight:bold; padding:2px 0; }"));
     evaluationLayout->addWidget(activityTitle);
 
-    m_checkboxPanel = new QWidget(m_evaluationPanel);
-    applyExerciseBackground(m_checkboxPanel);
+    m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
     auto *checkboxLayout = new QVBoxLayout(m_checkboxPanel);
-    checkboxLayout->setContentsMargins(24, 0, 8, 0);
-    checkboxLayout->setSpacing(2);
+    checkboxLayout->setContentsMargins(16, 0, 8, 0);
+    checkboxLayout->setSpacing(4);
 
     m_activityChecks << makeCheck(QStringLiteral("Ребенок не понимает инструкцию."), m_checkboxPanel)
                      << makeCheck(QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."), m_checkboxPanel)
@@ -218,27 +248,27 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     auto *helpTitle = new QLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
     helpTitle->setAlignment(Qt::AlignCenter);
-    applyExerciseBackground(helpTitle);
+    applyWidgetBackground(helpTitle, kDocumentBg);
     helpTitle->setStyleSheet(activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
     auto *stimHelpLabel = new QLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
-    applyExerciseBackground(stimHelpLabel);
+    applyWidgetBackground(stimHelpLabel, kDocumentBg);
     stimHelpLabel->setStyleSheet(QStringLiteral(
-        "QLabel { background:#f8f8f8; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:14px; font-weight:bold; padding:4px 0 0 24px; }"));
+        "QLabel { background:#ffffff; color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:14px; font-weight:bold; padding:4px 0 0 16px; }"));
     checkboxLayout->addWidget(stimHelpLabel);
     checkboxLayout->addWidget(m_helpChecks.at(0));
 
     auto *directHelpLabel = new QLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
-    applyExerciseBackground(directHelpLabel);
+    applyWidgetBackground(directHelpLabel, kDocumentBg);
     directHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(directHelpLabel);
     checkboxLayout->addWidget(m_helpChecks.at(1));
     checkboxLayout->addWidget(m_helpChecks.at(2));
 
     auto *teachHelpLabel = new QLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
-    applyExerciseBackground(teachHelpLabel);
+    applyWidgetBackground(teachHelpLabel, kDocumentBg);
     teachHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
     checkboxLayout->addWidget(teachHelpLabel);
     checkboxLayout->addWidget(m_helpChecks.at(3));
@@ -246,10 +276,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     evaluationLayout->addWidget(m_checkboxPanel);
 
-    m_templatePanel = new QWidget(m_scrollContent);
-    applyExerciseBackground(m_templatePanel);
+    m_templatePanel = new OpaquePanel(kDocumentBg, m_scrollContent);
     auto *templateLayout = new QVBoxLayout(m_templatePanel);
-    templateLayout->setContentsMargins(0, 12, 0, 0);
+    templateLayout->setContentsMargins(0, 16, 0, 8);
     templateLayout->setSpacing(12);
 
     m_templateBrowser = makeHtmlBrowser(m_templatePanel);
@@ -263,10 +292,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     }
     templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
 
-    layout->addWidget(m_orBrowser);
+    layout->addWidget(orPanel);
     layout->addWidget(m_evaluationPanel);
     layout->addWidget(m_templatePanel);
-    layout->addStretch();
     m_scrollArea->setWidget(m_scrollContent);
 
     m_beginButton = new ImageButton(this);
@@ -280,13 +308,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
 
     m_rightCountLabel = new QLabel(this);
-    applyExerciseBackground(m_rightCountLabel);
+    applyWidgetBackground(m_rightCountLabel, kExerciseBg);
     m_rightCountLabel->setStyleSheet(QStringLiteral(
         "QLabel { font:bold 17px Arial; color:#000000; background:#f8f8f8; }"));
     m_rightCountLabel->hide();
 
     m_wrongCountLabel = new QLabel(this);
-    applyExerciseBackground(m_wrongCountLabel);
+    applyWidgetBackground(m_wrongCountLabel, kExerciseBg);
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
 
@@ -432,6 +460,7 @@ void ExerciseHost::loadStaticPictureExercise() {
         m_previewImage->hide();
     }
     layoutContent();
+    QTimer::singleShot(50, this, [this]() { updateContentHeights(); });
     updateChromeLayout();
 }
 
@@ -440,20 +469,30 @@ void ExerciseHost::layoutContent() {
 }
 
 void ExerciseHost::updateContentHeights() {
+    const int textWidth = m_scrollArea && m_scrollArea->viewport()
+        ? qMax(200, m_scrollArea->viewport()->width() - 24)
+        : 716;
+
     if (m_orBrowser) {
-        m_orBrowser->document()->setTextWidth(qMax(200, m_orBrowser->viewport()->width()));
-        const int orHeight = static_cast<int>(m_orBrowser->document()->size().height()) + 8;
+        m_orBrowser->document()->setTextWidth(textWidth);
+        const int orHeight = static_cast<int>(qCeil(m_orBrowser->document()->size().height())) + 2;
         m_orBrowser->setMinimumHeight(orHeight);
         m_orBrowser->setMaximumHeight(orHeight);
     }
+    if (m_evaluationPanel) {
+        m_evaluationPanel->setMinimumHeight(0);
+        m_evaluationPanel->setMaximumHeight(QWIDGETSIZE_MAX);
+        m_evaluationPanel->adjustSize();
+    }
     if (m_templateBrowser) {
-        m_templateBrowser->document()->setTextWidth(qMax(200, m_templateBrowser->viewport()->width()));
-        const int templateHeight = static_cast<int>(m_templateBrowser->document()->size().height()) + 12;
+        m_templateBrowser->document()->setTextWidth(textWidth);
+        const int templateHeight = static_cast<int>(qCeil(m_templateBrowser->document()->size().height())) + 2;
         m_templateBrowser->setMinimumHeight(templateHeight);
         m_templateBrowser->setMaximumHeight(templateHeight);
     }
     if (m_scrollContent) {
         m_scrollContent->adjustSize();
+        m_scrollContent->updateGeometry();
     }
 }
 

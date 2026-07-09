@@ -6,6 +6,57 @@
 #include <QRegularExpression>
 #include <QUrl>
 
+namespace {
+
+QString extractDivInnerHtml(const QString &html, const QString &divId) {
+    const QRegularExpression openRe(
+        QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>").arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch openMatch = openRe.match(html);
+    if (!openMatch.hasMatch()) {
+        return {};
+    }
+    const int contentStart = openMatch.capturedEnd(0);
+    const QRegularExpression closeRe(QStringLiteral("</div>"), QRegularExpression::CaseInsensitiveOption);
+    int depth = 1;
+    int pos = contentStart;
+    while (pos < html.size() && depth > 0) {
+        const QRegularExpressionMatch nextOpen = openRe.match(html, pos);
+        const QRegularExpressionMatch nextClose = closeRe.match(html, pos);
+        if (!nextClose.hasMatch()) {
+            break;
+        }
+        const int openPos = nextOpen.hasMatch() ? nextOpen.capturedStart(0) : -1;
+        const int closePos = nextClose.capturedStart(0);
+        if (openPos >= 0 && openPos < closePos) {
+            ++depth;
+            pos = nextOpen.capturedEnd(0);
+            continue;
+        }
+        --depth;
+        if (depth == 0) {
+            return html.mid(contentStart, closePos - contentStart).trimmed();
+        }
+        pos = nextClose.capturedEnd(0);
+    }
+    return {};
+}
+
+void replaceDivState(QString &html, const QString &divId, bool open, const QString &sourceHtml) {
+    const QString inner = open ? extractDivInnerHtml(sourceHtml, divId) : QString();
+    const QString style = open ? QStringLiteral("position:relative;height:auto;overflow:visible")
+                               : QStringLiteral("position:relative;height:1px;overflow:hidden");
+    const QRegularExpression divRe(
+        QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>.*?</div>")
+            .arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    html.replace(
+        divRe,
+        QStringLiteral("<div id='%1' style=\"%2\">%3</div>").arg(divId, style, inner));
+}
+
+} // namespace
+
 QString ExerciseAssets::exerciseDir(const QString &exerciseId) {
     if (exerciseId.isEmpty()) {
         return {};
@@ -102,21 +153,14 @@ QString ExerciseAssets::prepareOrHtml(
         }
     }
 
-    const auto applyDivState = [&result](const QString &divId, bool open) {
-        const QString style = open ? QStringLiteral("position:relative;height:auto;overflow:visible")
-                                   : QStringLiteral("position:relative;height:1px;overflow:hidden");
-        const QRegularExpression re(
-            QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>").arg(QRegularExpression::escape(divId)),
-            QRegularExpression::CaseInsensitiveOption);
-        result.replace(re, QStringLiteral("<div id='%1' style=\"%2\">").arg(divId, style));
-    };
-    applyDivState(QStringLiteral("div1"), open1);
-    applyDivState(QStringLiteral("div2"), open2);
-    applyDivState(QStringLiteral("div3"), open3);
+    const QString sourceHtml = result;
+    replaceDivState(result, QStringLiteral("div1"), open1, sourceHtml);
+    replaceDivState(result, QStringLiteral("div2"), open2, sourceHtml);
+    replaceDivState(result, QStringLiteral("div3"), open3, sourceHtml);
 
     const QString style = QStringLiteral(
         "<style>"
-        "body { background-color:#f8f8f8; color:#000000; margin:8px; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
+        "body { background-color:#ffffff; color:#000000; margin:8px; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
         "a { color:#000000; text-decoration:none; }"
         "a:hover { text-decoration:underline; }"
         "</style>");
@@ -143,7 +187,7 @@ QString ExerciseAssets::prepareOrHtml(
 QString ExerciseAssets::prepareTemplateHtml(const QString &html, const QString &baseDir) {
     QString result = html;
     const QString style = QStringLiteral(
-        "<style>body { background-color:#f8f8f8; color:#000000; }</style>");
+        "<style>body { background-color:#ffffff; color:#000000; }</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {
         result.insert(headEnd, style);
