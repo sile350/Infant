@@ -1365,14 +1365,15 @@ void InfantWindow::buildUi() {
     m_panelProtocols->setGeometry(0, 0, 965, 1000);
 
     m_protocolsTitle = new QLabel(m_panelProtocols);
-    m_protocolsTitle->setGeometry(195, 15, 625, 30);
+    m_protocolsTitle->setGeometry(100, 15, 760, 30);
     m_protocolsTitle->setText(QStringLiteral("Индивидуальная карта психологического развития ребенка"));
+    m_protocolsTitle->setWordWrap(true);
     m_protocolsTitle->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:16pt; text-decoration: underline; background: transparent;"));
 
     m_protocolsPatient = new QLabel(m_panelProtocols);
-    m_protocolsPatient->setGeometry(197, 55, 560, 20);
+    m_protocolsPatient->setGeometry(100, 50, 760, 20);
     m_protocolsPatient->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:9pt; background: transparent;"));
@@ -1384,6 +1385,7 @@ void InfantWindow::buildUi() {
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);
     m_protocolsView->setAutoFillBackground(true);
+    m_protocolsView->setAttribute(Qt::WA_OpaquePaintEvent, true);
     m_protocolsView->setAttribute(Qt::WA_StaticContents, false);
     m_protocolsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_protocolsView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -1392,12 +1394,11 @@ void InfantWindow::buildUi() {
     );
     if (m_protocolsView->viewport()) {
         m_protocolsView->viewport()->setAttribute(Qt::WA_StaticContents, false);
-#ifndef Q_OS_WIN
-        m_protocolsView->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, false);
-#else
         m_protocolsView->viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
-#endif
         m_protocolsView->viewport()->setAutoFillBackground(true);
+        m_protocolsView->viewport()->setStyleSheet(
+            QStringLiteral("background-color: #ffffff; background-image: none; color: #000000;")
+        );
     }
 
     m_panelExercises = new WhitePanelWidget(m_workStack);
@@ -4235,7 +4236,17 @@ void InfantWindow::refreshProtocolsView() {
 
     m_protocolsView->setUpdatesEnabled(false);
     if (inner.trimmed().isEmpty()) {
-        m_protocolsView->setPlainText(QStringLiteral("Пока ни одного протокола не сформировано"));
+        const QString emptyHtml = ExerciseAssets::wrapProtocolDocumentHtml(QStringLiteral(
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\">%1</head>"
+            "<body style=\"background-color:#ffffff;color:#000000;margin:0;padding:8px;min-height:900px;\">"
+            "<p>Пока ни одного протокола не сформировано</p></body></html>")
+            .arg(ExerciseAssets::protocolTableStyleHtml()));
+        m_protocolsView->setHtml(emptyHtml);
+        if (QTextDocument *doc = m_protocolsView->document()) {
+            doc->setDocumentMargin(0);
+            doc->setTextWidth(671);
+        }
+        m_protocolsView->moveCursor(QTextCursor::Start);
     } else {
         const QString html = protocolsDocumentHtml(inner);
         m_protocolsView->setHtml(html);
