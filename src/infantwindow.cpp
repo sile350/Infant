@@ -2051,6 +2051,13 @@ void InfantWindow::bindSignals() {
 }
 
 void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
+    if (m_exerciseOpen) {
+        if (m_exerciseHost) {
+            m_exerciseHost->hide();
+        }
+        m_exerciseOpen = false;
+    }
+
     const ScreenMode previousScreen = m_currentScreen;
     m_screenTransitionGuard = true;
     struct ScreenTransitionGuard {
@@ -2227,6 +2234,10 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
 }
 
 void InfantWindow::navigateBack() {
+    if (m_exerciseOpen) {
+        closeExerciseHost();
+        return;
+    }
     if (m_navHistory.size() <= 1) {
         setScreen(ScreenMode::Patients, false);
         return;
@@ -4489,7 +4500,15 @@ void InfantWindow::openExercise(const QString &exerciseId) {
     if (!m_exerciseHost) {
         m_exerciseHost = new ExerciseHost(m_root);
         m_exerciseHost->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
+        m_exerciseHost->hide();
         connect(m_exerciseHost, &ExerciseHost::protocolSaved, this, [this]() { refreshProtocolsView(); });
+    }
+
+    if (m_workStack) {
+        m_workStack->hide();
+    }
+    if (m_authorsFilterHost) {
+        m_authorsFilterHost->hide();
     }
 
     QString patientFio = m_patientTitle ? m_patientTitle->text().trimmed() : QString();
@@ -4505,13 +4524,41 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         currentPatientBirthDate(),
         &m_repository,
         AppSettings::dualScreenEnabled());
+    m_exerciseOpen = true;
     m_exerciseHost->show();
     m_exerciseHost->raise();
+    raiseChromeWidgets();
+}
+
+void InfantWindow::raiseChromeWidgets() {
+    const QWidgetList chromeWidgets = {
+        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
+        m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr, m_patientTitle,
+        m_userOpenPatients, m_authorsFilterHost
+    };
+    for (QWidget *widget : chromeWidgets) {
+        if (widget && widget->isVisible()) {
+            widget->raise();
+        }
+    }
 }
 
 void InfantWindow::closeExerciseHost() {
     if (m_exerciseHost) {
         m_exerciseHost->hide();
+    }
+    m_exerciseOpen = false;
+
+    if (m_currentScreen == ScreenMode::Exercises) {
+        if (m_workStack) {
+            m_workStack->setCurrentWidget(m_panelExercises);
+            m_workStack->show();
+            m_workStack->raise();
+        }
+        if (m_authorsFilterHost) {
+            m_authorsFilterHost->show();
+        }
+        raiseChromeWidgets();
     }
     refreshProtocolsView();
 }

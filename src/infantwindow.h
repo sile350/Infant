@@ -104,6 +104,7 @@ private:
     void showExercisesContextMenu(const QPoint &pos);
     void openExercise(const QString &exerciseId);
     void closeExerciseHost();
+    void raiseChromeWidgets();
     void resetUserCreateForm();
     void loadUserForEdit(const QString &id);
     void deleteUserById(const QString &userId);
@@ -301,6 +302,7 @@ private:
     QString m_currentHelpFilePath;
 
     ExerciseHost *m_exerciseHost = nullptr;
+    bool m_exerciseOpen = false;
 };
 
 #endif
