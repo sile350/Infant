@@ -43,6 +43,7 @@ constexpr int kScrollWidth = 870;
 
 constexpr int kScrollBarGutter = 20;
 constexpr int kTemplateTableWidth = 671;
+constexpr int kTemplateViewportPadding = 4;
 
 const char *kScrollWhiteStyle =
     "QScrollArea { background-color:#ffffff; border:none; }"
@@ -735,14 +736,18 @@ void ExerciseHost::updateContentHeights() {
         m_evaluationPanel->adjustSize();
     }
     if (m_templateBrowser) {
-        m_templateBrowser->document()->setTextWidth(kTemplateTableWidth);
+        if (QTextDocument *doc = m_templateBrowser->document()) {
+            doc->setDocumentMargin(kTemplateViewportPadding / 2);
+            doc->setTextWidth(kTemplateTableWidth);
+        }
         const int templateHeight = static_cast<int>(qCeil(m_templateBrowser->document()->size().height())) + 2;
+        const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
         m_templateBrowser->setMinimumHeight(templateHeight);
         m_templateBrowser->setMaximumHeight(templateHeight);
-        m_templateBrowser->setMinimumWidth(kTemplateTableWidth);
-        m_templateBrowser->setMaximumWidth(kTemplateTableWidth);
-        m_templatePanel->setMinimumWidth(kTemplateTableWidth);
-        m_templatePanel->setMaximumWidth(kTemplateTableWidth + 16);
+        m_templateBrowser->setMinimumWidth(templateViewportWidth);
+        m_templateBrowser->setMaximumWidth(templateViewportWidth);
+        m_templatePanel->setMinimumWidth(templateViewportWidth);
+        m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
     }
     const int checkWidth = textWidth - 16;
     const int labelWidth = qMax(120, checkWidth - 34);
@@ -970,11 +975,13 @@ void ExerciseHost::formProtocol() {
         m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
-    if (m_templateBrowser->document()) {
-        m_templateBrowser->document()->setTextWidth(kTemplateTableWidth);
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
     }
-    m_templateBrowser->setFixedWidth(kTemplateTableWidth);
-    m_templatePanel->setMaximumWidth(kTemplateTableWidth + 16);
+    const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
+    m_templateBrowser->setFixedWidth(templateViewportWidth);
+    m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
     layoutContent();
     QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
 

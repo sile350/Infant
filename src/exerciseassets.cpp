@@ -239,8 +239,10 @@ QString ExerciseAssets::protocolTableStyleHtml() {
     return QStringLiteral(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; }"
-        "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; background-color:#ffffff; }"
-        "td,th { overflow:hidden; word-wrap:break-word; background-color:#ffffff; }"
+        "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; "
+        "border:1px solid #000000; background-color:#ffffff; box-sizing:border-box; }"
+        "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; background-color:#ffffff; "
+        "box-sizing:border-box; }"
         "div[contenteditable='true'] { min-height:1.2em; }"
         "</style>");
 }

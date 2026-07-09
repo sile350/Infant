@@ -51,6 +51,26 @@ QString readHeaderRows(const QString &exerciseId) {
     return html;
 }
 
+QString resultsTableHeaderHtml() {
+    return QStringLiteral(
+        "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr><td width='229' align='center'>Картинка(описание)</td>"
+        "<td width='88' align='center'>Уровень выполнения</td>"
+        "<td align='center' width='160'>Характер деятельности ребенка</td>"
+        "<td align='center' width='194'>Виды помощи</td></tr>");
+}
+
+void closeOpenResultsTable(QString &html) {
+    const int markerPos = html.indexOf(QStringLiteral("<!--s-->"));
+    if (markerPos < 0) {
+        return;
+    }
+    const int closePos = html.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+    if (closePos > markerPos) {
+        html = html.left(closePos).trimmed();
+    }
+}
+
 QString extractCheckedValue(const QString &html, const QString &id) {
     const QRegularExpression checkedRe(
         QStringLiteral("id=['\"]%1['\"][^>]*checked").arg(QRegularExpression::escape(id)),
@@ -89,14 +109,14 @@ QString ExerciseProtocol::createProtocolHtml(
             "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
             "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
             "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
-            "</table><!--s-->"
-            "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-            "<tr><td width='229' align='center'>Картинка(описание)</td>"
-            "<td width='88' align='center'>Уровень выполнения</td>"
-            "<td align='center' width='160'>Характер деятельности ребенка</td>"
-            "<td align='center' width='194'>Виды помощи</td></tr>");
+            "</table><!--s-->")
+               + resultsTableHeaderHtml();
     } else {
         add = existingProtocolHtml.trimmed();
+        if (!add.isEmpty()) {
+            closeOpenResultsTable(add);
+            add += QStringLiteral("</table><!--s-->") + resultsTableHeaderHtml();
+        }
     }
 
     const QString descriptions[] = {
