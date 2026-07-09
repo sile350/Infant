@@ -87,6 +87,18 @@ void setWhiteBackedPixmap(QLabel *label, const QPixmap &pixmap) {
     setAutoSizePixmap(label, flattenPixmapOnWhite(pixmap));
 }
 
+void applyButtonPixmap(QLabel *label, const QPixmap &source, int maxWidth, int maxHeight) {
+    if (source.isNull() || !label) {
+        return;
+    }
+    QPixmap pixmap = source;
+    if (maxWidth > 0 && maxHeight > 0
+        && (pixmap.width() > maxWidth || pixmap.height() > maxHeight)) {
+        pixmap = source.scaled(maxWidth, maxHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    setWhiteBackedPixmap(label, pixmap);
+}
+
 } // namespace
 
 OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
@@ -143,15 +155,17 @@ void OnlyPExercise::setDisplayRole(DisplayRole role) {
 }
 
 void OnlyPExercise::initAnswerButtons(const QString &exerciseId) {
+    const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
     const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
     const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
+    if (!stopPath.isEmpty()) {
+        m_stopSource = QPixmap(stopPath);
+    }
     if (!rightPath.isEmpty()) {
-        setWhiteBackedPixmap(m_rightButton, QPixmap(rightPath));
-        m_rightButton->show();
+        m_rightSource = QPixmap(rightPath);
     }
     if (!wrongPath.isEmpty()) {
-        setWhiteBackedPixmap(m_wrongButton, QPixmap(wrongPath));
-        m_wrongButton->show();
+        m_wrongSource = QPixmap(wrongPath);
     }
 }
 
@@ -169,24 +183,64 @@ void OnlyPExercise::updateWidgetLayout() {
     const bool showButtons =
         m_displayRole == DisplayRole::Primary || m_displayRole == DisplayRole::Specialist;
 
-    if (!m_pictureSource.isNull()) {
-        const int picW = qMax(1, qRound(m_pictureSource.width() * sx));
-        const int picH = qMax(1, qRound(m_pictureSource.height() * sy));
-        const QPixmap scaled = m_pictureSource.scaled(picW, picH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        m_picture->setPixmap(scaled);
-        m_picture->setFixedSize(scaled.size());
-        m_picture->move(qRound(kPictureLeft * sx), qRound(kPictureTop * sy));
-        m_picture->show();
-    }
-
     m_stopButton->setVisible(showButtons);
     m_rightButton->setVisible(showButtons);
     m_wrongButton->setVisible(showButtons);
+
+    int contentTop = 0;
     if (showButtons) {
-        m_stopButton->move(qRound(kStopLeft * sx), qRound(kStopTop * sy));
-        m_rightButton->move(qRound(kRightLeft * sx), qRound(kAnswerTop * sy));
-        m_wrongButton->move(qRound(kWrongLeft * sx), qRound(kAnswerTop * sy));
+        if (m_displayRole == DisplayRole::Specialist) {
+            constexpr int kMargin = 12;
+            constexpr int kGap = 10;
+            const int maxButtonW = qMax(70, (width() - 2 * kMargin - 2 * kGap) / 3);
+            const int maxButtonH = 36;
+            int x = kMargin;
+            const int y = kMargin;
+            const QList<QLabel *> buttons = {m_stopButton, m_rightButton, m_wrongButton};
+            const QList<QPixmap> sources = {m_stopSource, m_rightSource, m_wrongSource};
+            for (int i = 0; i < buttons.size(); ++i) {
+                QLabel *button = buttons.at(i);
+                if (sources.at(i).isNull()) {
+                    button->hide();
+                    continue;
+                }
+                applyButtonPixmap(button, sources.at(i), maxButtonW, maxButtonH);
+                button->move(x, y);
+                button->show();
+                x += button->width() + kGap;
+            }
+            contentTop = kMargin + maxButtonH + kMargin;
+        } else {
+            const int maxButtonW = qMax(80, qRound(134 * sx));
+            const int maxButtonH = qMax(24, qRound(29 * sy));
+            applyButtonPixmap(m_stopButton, m_stopSource, maxButtonW, maxButtonH);
+            applyButtonPixmap(m_rightButton, m_rightSource, maxButtonW, maxButtonH);
+            applyButtonPixmap(m_wrongButton, m_wrongSource, maxButtonW, maxButtonH);
+            m_stopButton->move(qRound(kStopLeft * sx), qRound(kStopTop * sy));
+            m_rightButton->move(qRound(kRightLeft * sx), qRound(kAnswerTop * sy));
+            m_wrongButton->move(qRound(kWrongLeft * sx), qRound(kAnswerTop * sy));
+            contentTop = qRound(kPictureTop * sy);
+        }
     }
+
+    if (!m_pictureSource.isNull()) {
+        const int pictureMargin = 12;
+        const int availableW = qMax(40, width() - 2 * pictureMargin);
+        const int availableH = qMax(40, height() - contentTop - pictureMargin);
+        QPixmap scaled = m_pictureSource.scaled(
+            availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        m_picture->setPixmap(scaled);
+        m_picture->setFixedSize(scaled.size());
+        const int pictureX = pictureMargin + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2);
+        const int pictureY = showButtons ? contentTop : qRound(kPictureTop * sy);
+        m_picture->move(pictureX, pictureY);
+        m_picture->show();
+    }
+
+    m_stopButton->raise();
+    m_rightButton->raise();
+    m_wrongButton->raise();
+    m_picture->raise();
 }
 
 void OnlyPExercise::resizeEvent(QResizeEvent *event) {
@@ -196,16 +250,13 @@ void OnlyPExercise::resizeEvent(QResizeEvent *event) {
 
 void OnlyPExercise::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
-    const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
-    if (!stopPath.isEmpty()) {
-        setWhiteBackedPixmap(m_stopButton, QPixmap(stopPath));
-        m_stopButton->move(kStopLeft, kStopTop);
+    if (m_stopSource.isNull()) {
+        const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
+        if (!stopPath.isEmpty()) {
+            m_stopSource = QPixmap(stopPath);
+        }
     }
-    raise();
-    m_stopButton->raise();
-    m_rightButton->raise();
-    m_wrongButton->raise();
-    m_picture->raise();
+    updateWidgetLayout();
 }
 
 void OnlyPExercise::start(const QString &exerciseId) {
@@ -220,6 +271,7 @@ void OnlyPExercise::start(const QString &exerciseId) {
 
     if (m_displayRole != DisplayRole::Headless) {
         initAnswerButtons(exerciseId);
+        updateWidgetLayout();
     }
 
     loadPicture(1);

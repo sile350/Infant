@@ -32,3 +32,13 @@
 7	95	8053221324874493	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
 96	2113	8053221325768826	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	5c8c0a954535de25
 2113	3639	8053221345932577	infant.exe	a0dd1a086bd846b
+9	352	8053223981514749	infant_autogen/timestamp	928c61d4c371ba7e
+9	352	8053223981514749	infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+9	352	8053223981514749	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	928c61d4c371ba7e
+9	352	8053223981514749	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+354	1756	8053223981887014	CMakeFiles/infant.dir/src/appsettings.cpp.obj	3d27dd404b55b1bb
+355	2293	8053223981906302	CMakeFiles/infant.dir/src/patientdisplay.cpp.obj	d0ce6de94e8a0aaf
+354	2539	8053223981896512	CMakeFiles/infant.dir/src/onlypexercise.cpp.obj	d16a211f62644b57
+353	2795	8053223981876970	CMakeFiles/infant.dir/infant_autogen/mocs_compilation.cpp.obj	6eef372d4a19db75
+356	3147	8053223981916043	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	5c8c0a954535de25
+3148	4746	8053224009828425	infant.exe	a0dd1a086bd846b

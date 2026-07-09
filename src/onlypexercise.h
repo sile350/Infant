@@ -56,6 +56,9 @@ private:
     bool m_mirrorMode = false;
     DisplayRole m_displayRole = DisplayRole::Primary;
     QPixmap m_pictureSource;
+    QPixmap m_stopSource;
+    QPixmap m_rightSource;
+    QPixmap m_wrongSource;
 
     QLabel *m_picture = nullptr;
     QLabel *m_stopButton = nullptr;

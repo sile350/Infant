@@ -3,11 +3,12 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
 
 namespace {
 
-QString settingsFilePath() {
+QString bundledSettingsFilePath() {
     const QStringList roots = {
         QCoreApplication::applicationDirPath() + QStringLiteral("/assets/ex/names"),
         QCoreApplication::applicationDirPath() + QStringLiteral("/../../assets/ex/names"),
@@ -22,15 +23,14 @@ QString settingsFilePath() {
     return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("assets/ex/names/настройки.txt"));
 }
 
-} // namespace
+QString userSettingsFilePath() {
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
+        + QStringLiteral("/DokitLabInfant");
+    QDir().mkpath(dir);
+    return QDir(dir).filePath(QStringLiteral("настройки.txt"));
+}
 
-bool AppSettings::dualScreenEnabled() {
-    const QString path = settingsFilePath();
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return false;
-    }
-    const QString content = QString::fromUtf8(file.readAll());
+bool parseDualScreenValue(const QString &content) {
     for (const QString &line : content.split(QLatin1Char('\n'))) {
         const QString trimmed = line.trimmed();
         if (trimmed.startsWith(QStringLiteral("два_экрана="), Qt::CaseInsensitive)
@@ -42,12 +42,58 @@ bool AppSettings::dualScreenEnabled() {
     return false;
 }
 
+} // namespace
+
+bool AppSettings::dualScreenEnabled() {
+    const QString userPath = userSettingsFilePath();
+    if (QFile::exists(userPath)) {
+        QFile userFile(userPath);
+        if (userFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            return parseDualScreenValue(QString::fromUtf8(userFile.readAll()));
+        }
+    }
+
+    const QString bundledPath = bundledSettingsFilePath();
+    QFile bundledFile(bundledPath);
+    if (!bundledFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    return parseDualScreenValue(QString::fromUtf8(bundledFile.readAll()));
+}
+
 void AppSettings::setDualScreenEnabled(bool enabled) {
-    const QString path = settingsFilePath();
+    const QString path = userSettingsFilePath();
     QDir().mkpath(QFileInfo(path).absolutePath());
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+
+    QStringList lines;
+    if (QFile::exists(path)) {
+        QFile readFile(path);
+        if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            lines = QString::fromUtf8(readFile.readAll()).split(QLatin1Char('\n'));
+        }
+    }
+
+    bool found = false;
+    const QString newLine = QStringLiteral("два_экрана=%1").arg(enabled ? 1 : 0);
+    for (QString &line : lines) {
+        const QString trimmed = line.trimmed();
+        if (trimmed.startsWith(QStringLiteral("два_экрана="), Qt::CaseInsensitive)
+            || trimmed.startsWith(QStringLiteral("dual_screen="), Qt::CaseInsensitive)) {
+            line = newLine;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        lines << newLine;
+    }
+
+    QFile writeFile(path);
+    if (!writeFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
         return;
     }
-    file.write(QStringLiteral("два_экрана=%1\n").arg(enabled ? 1 : 0).toUtf8());
+    writeFile.write(lines.join(QLatin1Char('\n')).toUtf8());
+    if (!lines.isEmpty()) {
+        writeFile.write("\n");
+    }
 }
