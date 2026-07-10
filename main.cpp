@@ -1,6 +1,7 @@
 #include "src/infantwindow.h"
 #include "src/licenseservice.h"
 #include "src/repository.h"
+#include "src/singleinstance.h"
 
 #include <QApplication>
 
@@ -11,6 +12,11 @@ int main(int argc, char *argv[])
     QApplication::setAttribute(Qt::AA_Use96Dpi);
 #endif
     QApplication a(argc, argv);
+
+    const SingleInstance singleInstance;
+    if (!singleInstance.isPrimary()) {
+        return 0;
+    }
 
     ApiClient api;
     Repository repository(&api);

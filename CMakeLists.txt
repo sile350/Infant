@@ -29,6 +29,8 @@ set(PROJECT_SOURCES
         src/fieldcrypto.cpp
         src/licenseservice.h
         src/licenseservice.cpp
+        src/singleinstance.h
+        src/singleinstance.cpp
         src/licenseactivationdialog.h
         src/licenseactivationdialog.cpp
         src/custommessagebox.h

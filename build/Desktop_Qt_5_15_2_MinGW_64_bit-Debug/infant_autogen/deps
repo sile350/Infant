@@ -463,4 +463,6 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/src/patientdisplay.h \
 	D:/projects/DokitLab/infant/src/repository.cpp \
 	D:/projects/DokitLab/infant/src/repository.h \
+	D:/projects/DokitLab/infant/src/singleinstance.cpp \
+	D:/projects/DokitLab/infant/src/singleinstance.h \
 	D:/Qt/Tools/CMake_64/bin/cmake.exe
