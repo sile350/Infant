@@ -984,7 +984,6 @@ void ExerciseHost::saveProtocolEdits() {
 
     QString body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
         storedBody, m_templateBrowser->document(), 0);
-    body = ExerciseProtocol::repairResultsTableBody(body, QList<bool>());
     body = ExerciseProtocol::normalizeStoredProtocolBody(body);
     QString error;
     m_repository->updateProtocolBody(m_currentProtocolId, body, &error);

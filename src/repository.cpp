@@ -701,9 +701,7 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
     }
     if (!m_local.exec(
             "UPDATE protocols SET pr='"
-            + LocalDatabase::escape(
-                  ExerciseProtocol::normalizeStoredProtocolBody(
-                      ExerciseProtocol::repairResultsTableBody(protocolBody)))
+            + LocalDatabase::escape(ExerciseProtocol::normalizeStoredProtocolBody(protocolBody))
             + "' WHERE id='"
             + LocalDatabase::escape(protocolId) + "'")) {
         if (errorText) {
