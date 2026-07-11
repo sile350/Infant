@@ -220,6 +220,61 @@ QString extractAnswerFromRow(const QString &body, const QString &description) {
     return match.hasMatch() ? match.captured(1) : QString();
 }
 
+QString htmlFragmentToPlainText(const QString &html);
+
+bool extractActivityHelpFromStoredBody(const QString &body, QString *activity, QString *help) {
+    if (!activity && !help) {
+        return false;
+    }
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?1\\.\\s*Бабушка[\\s\\S]*?</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
+            "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*</tr>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = rowRe.match(body);
+    if (!match.hasMatch()) {
+        return false;
+    }
+    if (activity) {
+        *activity = htmlFragmentToPlainText(match.captured(1));
+    }
+    if (help) {
+        *help = htmlFragmentToPlainText(match.captured(2));
+    }
+    return true;
+}
+
+QString pictureRowHtml(
+    int index,
+    const QString &verno,
+    const QString &activity = QString(),
+    const QString &help = QString()) {
+    const QStringList descriptions = pictureDescriptions();
+    const QString desc = descriptions.at(index);
+    if (index == 0) {
+        return QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
+                              "<td valign='top'><div contenteditable='true'>%3</div></td>"
+                              "<td valign='top'><div contenteditable='true'>%4</div></td></tr>")
+            .arg(desc, verno, activity.toHtmlEscaped(), help.toHtmlEscaped());
+    }
+    return QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
+                          "<td valign='top'>&nbsp;</td><td valign='top'>&nbsp;</td></tr>")
+        .arg(desc, verno);
+}
+
+QString replacePictureRow(
+    QString body,
+    int index,
+    const QString &verno,
+    const QString &activity = QString(),
+    const QString &help = QString()) {
+    const QString escapedDesc = QRegularExpression::escape(pictureDescriptions().at(index));
+    const QRegularExpression rowRe(
+        QStringLiteral("<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>[\\s\\S]*?</tr>").arg(escapedDesc),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    return body.replace(rowRe, pictureRowHtml(index, verno, activity, help));
+}
+
 QString repairResultsTableBody(QString body, const QList<bool> &answers) {
     body.replace(
         QRegularExpression(QStringLiteral("\\s*rowspan=['\"]\\d+['\"]"), QRegularExpression::CaseInsensitiveOption),
@@ -237,22 +292,12 @@ QString repairResultsTableBody(QString body, const QList<bool> &answers) {
             }
         }
 
-        const QString escapedDesc = QRegularExpression::escape(descriptions.at(i));
-        const QRegularExpression brokenRowRe(
-            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>)\\s*</tr>").arg(escapedDesc),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        if (brokenRowRe.match(body).hasMatch()) {
-            const QString replacement = QStringLiteral("\\1<td valign='top'>%1</td><td>&nbsp;</td><td>&nbsp;</td></tr>")
-                                            .arg(verno);
-            body.replace(brokenRowRe, replacement);
-            continue;
+        QString activity;
+        QString help;
+        if (i == 0) {
+            extractActivityHelpFromStoredBody(body, &activity, &help);
         }
-
-        const QRegularExpression rowRe(
-            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
-                .arg(escapedDesc),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        body.replace(rowRe, QStringLiteral("\\1") + verno + QStringLiteral("\\3"));
+        body = replacePictureRow(body, i, verno, activity, help);
     }
     return body;
 }
@@ -523,21 +568,25 @@ QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedPro
     if (result.contains(QStringLiteral("<!--s-->"))) {
         const QStringList descriptions = pictureDescriptions();
         for (int i = 0; i < descriptions.size(); ++i) {
-            if (!parsed.answersByIndex.contains(i)) {
+            QString verno = parsed.answersByIndex.value(i);
+            if (verno.isEmpty()) {
+                verno = extractAnswerFromRow(result, descriptions.at(i));
+            }
+            if (verno.isEmpty()) {
                 continue;
             }
-            result = replaceAnswerInBody(result, descriptions.at(i), parsed.answersByIndex.value(i));
-        }
 
-        if (parsed.hasActivityHelp) {
-            result = replaceActivityHelpCells(result, parsed.activity, parsed.help);
-        }
-
-        const QList<bool> parsedAnswers = answersListFromParsedFields(parsed);
-        if (!parsedAnswers.isEmpty()) {
-            result = repairResultsTableBody(result, parsedAnswers);
-        } else {
-            result = repairResultsTableBody(result, QList<bool>());
+            QString activity;
+            QString help;
+            if (i == 0) {
+                if (parsed.hasActivityHelp) {
+                    activity = parsed.activity;
+                    help = parsed.help;
+                } else {
+                    extractActivityHelpFromStoredBody(result, &activity, &help);
+                }
+            }
+            result = replacePictureRow(result, i, verno, activity, help);
         }
     }
 
