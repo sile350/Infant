@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QTextDocument>
 #include <QTimer>
 #include <algorithm>
 #include <functional>
@@ -713,12 +714,18 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
     return true;
 }
 
-bool Repository::updateProtocolsFromEditedHtml(
-    const QString &documentHtml,
+bool Repository::updateProtocolsFromEditedDocument(
+    QTextDocument *document,
     const QStringList &recordIdsInOrder,
     QString *errorText) {
     if (recordIdsInOrder.isEmpty()) {
         return true;
+    }
+    if (!document) {
+        if (errorText) {
+            *errorText = QStringLiteral("Пустой документ протокола");
+        }
+        return false;
     }
 
     for (int i = 0; i < recordIdsInOrder.size(); ++i) {
@@ -727,13 +734,26 @@ bool Repository::updateProtocolsFromEditedHtml(
         if (storedBody.trimmed().isEmpty()) {
             continue;
         }
-        const QString mergedBody = ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
-            storedBody, documentHtml, i);
+        const QString mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
+            storedBody, document, i);
         if (!updateProtocolBody(protocolId, mergedBody, errorText)) {
             return false;
         }
     }
     return true;
+}
+
+bool Repository::updateProtocolsFromEditedHtml(
+    const QString &documentHtml,
+    const QStringList &recordIdsInOrder,
+    QString *errorText) {
+    if (recordIdsInOrder.isEmpty()) {
+        return true;
+    }
+
+    QTextDocument document;
+    document.setHtml(documentHtml);
+    return updateProtocolsFromEditedDocument(&document, recordIdsInOrder, errorText);
 }
 
 QString Repository::loadProtocolBodyById(const QString &protocolId) {

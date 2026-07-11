@@ -6,6 +6,8 @@
 #include <QString>
 #include <QStringList>
 
+class QTextDocument;
+
 class ExerciseProtocol {
 public:
     struct CheckboxValues {
@@ -38,6 +40,10 @@ public:
     static QString mergeEditorHtmlIntoStoredBody(
         const QString &storedBody,
         const QString &editorHtml,
+        int protocolIndex = 0);
+    static QString mergeEditorDocumentIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument,
         int protocolIndex = 0);
 
     static CheckboxValues readCheckboxValues(const QString &orHtml);

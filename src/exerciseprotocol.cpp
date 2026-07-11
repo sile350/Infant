@@ -5,7 +5,10 @@
 #include <QDateTime>
 #include <QFile>
 #include <QRegularExpression>
+#include <QTextCursor>
 #include <QTextDocument>
+#include <QTextFrame>
+#include <QTextTable>
 #include <utility>
 
 namespace {
@@ -210,9 +213,9 @@ QStringList pictureDescriptions() {
 
 QString extractAnswerFromRow(const QString &body, const QString &description) {
     const QRegularExpression answerRe(
-        QStringLiteral("<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>\\s*(верно|неверно)")
+        QStringLiteral("<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>\\s*(верно|неверно)")
             .arg(QRegularExpression::escape(description)),
-        QRegularExpression::CaseInsensitiveOption);
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     const QRegularExpressionMatch match = answerRe.match(body);
     return match.hasMatch() ? match.captured(1) : QString();
 }
@@ -236,8 +239,8 @@ QString repairResultsTableBody(QString body, const QList<bool> &answers) {
 
         const QString escapedDesc = QRegularExpression::escape(descriptions.at(i));
         const QRegularExpression brokenRowRe(
-            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>)\\s*</tr>").arg(escapedDesc),
-            QRegularExpression::CaseInsensitiveOption);
+            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>)\\s*</tr>").arg(escapedDesc),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
         if (brokenRowRe.match(body).hasMatch()) {
             const QString replacement = QStringLiteral("\\1<td valign='top'>%1</td><td>&nbsp;</td><td>&nbsp;</td></tr>")
                                             .arg(verno);
@@ -246,9 +249,9 @@ QString repairResultsTableBody(QString body, const QList<bool> &answers) {
         }
 
         const QRegularExpression rowRe(
-            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
+            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
                 .arg(escapedDesc),
-            QRegularExpression::CaseInsensitiveOption);
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
         body.replace(rowRe, QStringLiteral("\\1") + verno + QStringLiteral("\\3"));
     }
     return body;
@@ -261,6 +264,169 @@ QString htmlFragmentToPlainText(const QString &html) {
     QTextDocument document;
     document.setHtml(html);
     return document.toPlainText().trimmed();
+}
+
+QString readTableCellText(QTextTable *table, int row, int column) {
+    if (!table || row < 0 || column < 0 || row >= table->rows() || column >= table->columns()) {
+        return {};
+    }
+    const QTextTableCell cell = table->cellAt(row, column);
+    if (!cell.isValid()) {
+        return {};
+    }
+    QTextCursor cursor = cell.firstCursorPosition();
+    cursor.setPosition(cell.lastCursorPosition().position(), QTextCursor::KeepAnchor);
+    QString text = cursor.selectedText();
+    text.replace(QChar(0x2029), QLatin1Char(' '));
+    text.replace(QChar::ParagraphSeparator, QLatin1Char(' '));
+    return text.trimmed();
+}
+
+void collectTables(QTextFrame *frame, QList<QTextTable *> &tables) {
+    if (!frame) {
+        return;
+    }
+    for (QTextFrame::iterator it = frame->begin(); !it.atEnd(); ++it) {
+        QTextFrame *childFrame = it.currentFrame();
+        if (!childFrame) {
+            continue;
+        }
+        if (auto *table = qobject_cast<QTextTable *>(childFrame)) {
+            tables.append(table);
+            continue;
+        }
+        collectTables(childFrame, tables);
+    }
+}
+
+QString normalizeVernoText(const QString &text) {
+    const QString trimmed = text.trimmed();
+    if (trimmed.contains(QStringLiteral("неверно"), Qt::CaseInsensitive)) {
+        return QStringLiteral("неверно");
+    }
+    if (trimmed.contains(QStringLiteral("верно"), Qt::CaseInsensitive)) {
+        return QStringLiteral("верно");
+    }
+    return trimmed;
+}
+
+bool cellMatchesPictureDescription(const QString &cellText, const QString &description) {
+    const QString normalizedCell = cellText.trimmed();
+    const QString normalizedDescription = description.trimmed();
+    if (normalizedCell.isEmpty() || normalizedDescription.isEmpty()) {
+        return false;
+    }
+    if (normalizedCell.compare(normalizedDescription, Qt::CaseInsensitive) == 0) {
+        return true;
+    }
+    const QString descriptionTail = normalizedDescription.section(QLatin1Char('.'), 1).trimmed();
+    return !descriptionTail.isEmpty() && normalizedCell.contains(descriptionTail, Qt::CaseInsensitive);
+}
+
+struct ParsedProtocolFields {
+    bool hasDateSpecialist = false;
+    QString dateSpecialist;
+    bool hasResult = false;
+    QString resultText;
+    bool hasNote = false;
+    QString noteText;
+    QMap<int, QString> answersByIndex;
+    bool hasActivityHelp = false;
+    QString activity;
+    QString help;
+};
+
+ParsedProtocolFields parseProtocolFieldsFromDocument(QTextDocument *document, int protocolIndex) {
+    ParsedProtocolFields fields;
+    if (!document) {
+        return fields;
+    }
+
+    QList<QTextTable *> tables;
+    collectTables(document->rootFrame(), tables);
+    const QStringList descriptions = pictureDescriptions();
+
+    int currentSection = -1;
+    bool capture = false;
+
+    for (QTextTable *table : tables) {
+        const int rows = table->rows();
+        const int columns = table->columns();
+        for (int row = 0; row < rows; ++row) {
+            if (columns < 2) {
+                continue;
+            }
+            const QString firstCell = readTableCellText(table, row, 0);
+            const QString secondCell = readTableCellText(table, row, 1);
+
+            if (firstCell.contains(QStringLiteral("Дата"), Qt::CaseInsensitive)
+                && firstCell.contains(QStringLiteral("специалист"), Qt::CaseInsensitive)) {
+                ++currentSection;
+                capture = (currentSection == protocolIndex);
+                if (currentSection > protocolIndex) {
+                    return fields;
+                }
+            }
+            if (!capture) {
+                continue;
+            }
+
+            if (firstCell.contains(QStringLiteral("Дата"), Qt::CaseInsensitive)
+                && firstCell.contains(QStringLiteral("специалист"), Qt::CaseInsensitive)) {
+                fields.hasDateSpecialist = true;
+                fields.dateSpecialist = secondCell;
+                continue;
+            }
+            if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive)) {
+                fields.hasResult = true;
+                fields.resultText = secondCell;
+                continue;
+            }
+            if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive)) {
+                fields.hasNote = true;
+                fields.noteText = secondCell;
+                continue;
+            }
+
+            if (columns < 4) {
+                continue;
+            }
+
+            for (int i = 0; i < descriptions.size(); ++i) {
+                if (!cellMatchesPictureDescription(firstCell, descriptions.at(i))) {
+                    continue;
+                }
+                const QString verno = normalizeVernoText(secondCell);
+                if (!verno.isEmpty()) {
+                    fields.answersByIndex.insert(i, verno);
+                }
+                if (i == 0) {
+                    fields.hasActivityHelp = true;
+                    fields.activity = readTableCellText(table, row, 2);
+                    fields.help = readTableCellText(table, row, 3);
+                }
+                break;
+            }
+        }
+    }
+    return fields;
+}
+
+ParsedProtocolFields parseProtocolFieldsFromHtml(const QString &html, int protocolIndex) {
+    QTextDocument document;
+    document.setHtml(html);
+    return parseProtocolFieldsFromDocument(&document, protocolIndex);
+}
+
+QList<bool> answersListFromParsedFields(const ParsedProtocolFields &fields) {
+    QList<bool> answers;
+    for (int i = 0; i < 5; ++i) {
+        if (!fields.answersByIndex.contains(i)) {
+            return {};
+        }
+        answers.append(fields.answersByIndex.value(i).compare(QStringLiteral("верно"), Qt::CaseInsensitive) == 0);
+    }
+    return answers;
 }
 
 std::pair<bool, QString> extractSecondCellPlain(const QString &html, const QString &labelPattern) {
@@ -290,9 +456,9 @@ QString replaceRowSecondCell(QString body, const QString &rowLabel, const QStrin
 QString replaceAnswerInBody(QString body, const QString &description, const QString &verno) {
     const QString escapedDesc = QRegularExpression::escape(description);
     const QRegularExpression rowRe(
-        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
+        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
             .arg(escapedDesc),
-        QRegularExpression::CaseInsensitiveOption);
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     return body.replace(rowRe, QStringLiteral("\\1") + verno + QStringLiteral("\\3"));
 }
 
@@ -330,7 +496,7 @@ bool extractActivityHelpFromSection(const QString &section, QString *activity, Q
 QString replaceActivityHelpCells(QString body, const QString &activity, const QString &help) {
     const QRegularExpression rowRe(
         QStringLiteral(
-            "(<tr[^>]*>\\s*<td[^>]*>\\s*1\\.\\s*Бабушка[^<]*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>)"
+            "(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?1\\.\\s*Бабушка[\\s\\S]*?</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>)"
             "([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     const QString activityCell =
@@ -339,6 +505,43 @@ QString replaceActivityHelpCells(QString body, const QString &activity, const QS
     return body.replace(
         rowRe,
         QStringLiteral("\\1") + activityCell + QStringLiteral("\\3") + helpCell + QStringLiteral("\\5"));
+}
+
+QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedProtocolFields &parsed) {
+    QString result = normalizeStoredProtocolBody(storedBody);
+
+    if (parsed.hasDateSpecialist) {
+        result = replaceRowSecondCell(result, QStringLiteral("Дата/специалист"), parsed.dateSpecialist);
+    }
+    if (parsed.hasResult) {
+        result = replaceRowSecondCell(result, QStringLiteral("Результат: вывод об уровне развития"), parsed.resultText);
+    }
+    if (parsed.hasNote) {
+        result = replaceRowSecondCell(result, QStringLiteral("Примечание"), parsed.noteText);
+    }
+
+    if (result.contains(QStringLiteral("<!--s-->"))) {
+        const QStringList descriptions = pictureDescriptions();
+        for (int i = 0; i < descriptions.size(); ++i) {
+            if (!parsed.answersByIndex.contains(i)) {
+                continue;
+            }
+            result = replaceAnswerInBody(result, descriptions.at(i), parsed.answersByIndex.value(i));
+        }
+
+        if (parsed.hasActivityHelp) {
+            result = replaceActivityHelpCells(result, parsed.activity, parsed.help);
+        }
+
+        const QList<bool> parsedAnswers = answersListFromParsedFields(parsed);
+        if (!parsedAnswers.isEmpty()) {
+            result = repairResultsTableBody(result, parsedAnswers);
+        } else {
+            result = repairResultsTableBody(result, QList<bool>());
+        }
+    }
+
+    return result;
 }
 
 QStringList splitEditorSectionsByTitle(const QString &documentHtml) {
@@ -579,6 +782,21 @@ QString ExerciseProtocol::applyCheckboxValues(const QString &orHtml, const Check
     return orHtml;
 }
 
+QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
+    const QString &storedBody,
+    QTextDocument *editorDocument,
+    int protocolIndex) {
+    if (storedBody.trimmed().isEmpty() || !editorDocument) {
+        return storedBody;
+    }
+
+    ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, protocolIndex);
+    if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
+        parsed = parseProtocolFieldsFromHtml(editorDocument->toHtml(), protocolIndex);
+    }
+    return applyParsedFieldsToStoredBody(storedBody, parsed);
+}
+
 QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
     const QString &storedBody,
     const QString &editorHtml,
@@ -587,50 +805,13 @@ QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
         return storedBody;
     }
 
-    const QString section = extractProtocolSectionFromEditor(editorHtml, protocolIndex);
-    if (section.trimmed().isEmpty()) {
-        return normalizeStoredProtocolBody(storedBody);
-    }
-
-    QString result = normalizeStoredProtocolBody(storedBody);
-
-    const auto dateCell = extractSecondCellPlain(section, QStringLiteral("Дата\\s*/\\s*специалист"));
-    if (dateCell.first) {
-        result = replaceRowSecondCell(result, QStringLiteral("Дата/специалист"), dateCell.second);
-    }
-
-    std::pair<bool, QString> resultCell = extractSecondCellPlain(section, QStringLiteral("Результат:\\s*вывод"));
-    if (!resultCell.first) {
-        resultCell = extractSecondCellPlain(section, QStringLiteral("Результат"));
-    }
-    if (resultCell.first) {
-        result = replaceRowSecondCell(result, QStringLiteral("Результат: вывод об уровне развития"), resultCell.second);
-    }
-
-    const auto noteCell = extractSecondCellPlain(section, QStringLiteral("Примечание"));
-    if (noteCell.first) {
-        result = replaceRowSecondCell(result, QStringLiteral("Примечание"), noteCell.second);
-    }
-
-    if (result.contains(QStringLiteral("<!--s-->"))) {
-        const QStringList descriptions = pictureDescriptions();
-        for (int i = 0; i < descriptions.size(); ++i) {
-            QString verno = extractAnswerFromRow(section, descriptions.at(i));
-            if (verno.isEmpty()) {
-                verno = extractAnswerFromSectionFallback(section, descriptions.at(i));
-            }
-            if (!verno.isEmpty()) {
-                result = replaceAnswerInBody(result, descriptions.at(i), verno);
-            }
+    ParsedProtocolFields parsed = parseProtocolFieldsFromHtml(editorHtml, protocolIndex);
+    if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
+        const QString section = extractProtocolSectionFromEditor(editorHtml, protocolIndex);
+        if (!section.trimmed().isEmpty()) {
+            parsed = parseProtocolFieldsFromHtml(section, 0);
         }
-
-        QString activity;
-        QString help;
-        if (extractActivityHelpFromSection(section, &activity, &help)) {
-            result = replaceActivityHelpCells(result, activity, help);
-        }
-        result = repairResultsTableBody(result);
     }
 
-    return result;
+    return applyParsedFieldsToStoredBody(storedBody, parsed);
 }

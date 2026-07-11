@@ -10,6 +10,8 @@
 #include <QObject>
 #include <optional>
 
+class QTextDocument;
+
 struct SessionUser {
     QString id;
     QString fio;
@@ -66,6 +68,10 @@ public:
     QString loadProtocolBodyById(const QString &protocolId);
     QStringList loadPatientProtocolRecordIds(const QString &patientId);
     bool updateProtocolBody(const QString &protocolId, const QString &protocolBody, QString *errorText = nullptr);
+    bool updateProtocolsFromEditedDocument(
+        QTextDocument *document,
+        const QStringList &recordIdsInOrder,
+        QString *errorText = nullptr);
     bool updateProtocolsFromEditedHtml(
         const QString &documentHtml,
         const QStringList &recordIdsInOrder,

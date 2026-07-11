@@ -1409,7 +1409,7 @@ void InfantWindow::buildUi() {
     m_protocolsSaveTimer = new QTimer(this);
     m_protocolsSaveTimer->setSingleShot(true);
     m_protocolsSaveTimer->setInterval(700);
-    connect(m_protocolsSaveTimer, &QTimer::timeout, this, &InfantWindow::saveProtocolsEdits);
+    connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
     connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
         if (m_currentScreen == ScreenMode::Protocols && !m_protocolViewRecordIds.isEmpty()) {
             m_protocolsViewDirty = true;
@@ -2111,7 +2111,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     }
 
     if (previousScreen == ScreenMode::Protocols && mode != ScreenMode::Protocols) {
-        saveProtocolsEdits();
+        saveProtocolsEdits(true);
     }
 
     if (pushHistory && !m_navigatingBack) {
@@ -4242,21 +4242,23 @@ QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
             .arg(ExerciseAssets::protocolTableStyleHtml(), trimmed));
 }
 
-void InfantWindow::saveProtocolsEdits() {
-    if (!m_protocolsView || m_currentPatientId.isEmpty() || m_protocolViewRecordIds.isEmpty()
-        || !m_protocolsViewDirty) {
+void InfantWindow::saveProtocolsEdits(bool force) {
+    if (!m_protocolsView || m_currentPatientId.isEmpty() || m_protocolViewRecordIds.isEmpty()) {
+        return;
+    }
+    if (!force && !m_protocolsViewDirty) {
         return;
     }
     if (m_protocolsView->hasFocus()) {
         m_protocolsView->clearFocus();
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }
-    const QString html = m_protocolsView->toHtml();
-    if (html.trimmed().isEmpty()) {
+    QTextDocument *document = m_protocolsView->document();
+    if (!document || document->isEmpty()) {
         return;
     }
     QString error;
-    if (m_repository.updateProtocolsFromEditedHtml(html, m_protocolViewRecordIds, &error)) {
+    if (m_repository.updateProtocolsFromEditedDocument(document, m_protocolViewRecordIds, &error)) {
         m_protocolsViewDirty = false;
     }
 }
@@ -4735,7 +4737,7 @@ QString InfantWindow::assembleExportHtml(const ExportSelection &selection) {
             return {};
         }
 
-        saveProtocolsEdits();
+        saveProtocolsEdits(true);
 
         const QString patientData = protocolsExportHeader();
         if (selection.forPatient) {

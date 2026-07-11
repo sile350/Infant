@@ -982,13 +982,9 @@ void ExerciseHost::saveProtocolEdits() {
         return;
     }
 
-    QString body = ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
-        storedBody, m_templateBrowser->toHtml(), 0);
-    if (m_exerciseId == QStringLiteral("1.2") && !m_answers.isEmpty()) {
-        body = ExerciseProtocol::repairResultsTableBody(body, m_answers);
-    } else {
-        body = ExerciseProtocol::repairResultsTableBody(body);
-    }
+    QString body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
+        storedBody, m_templateBrowser->document(), 0);
+    body = ExerciseProtocol::repairResultsTableBody(body, QList<bool>());
     body = ExerciseProtocol::normalizeStoredProtocolBody(body);
     QString error;
     m_repository->updateProtocolBody(m_currentProtocolId, body, &error);
