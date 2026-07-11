@@ -474,15 +474,15 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
 
     m_rightCountLabel = new QLabel(m_rightPanel);
-    applyWidgetBackground(m_rightCountLabel, kExerciseBg);
     m_rightCountLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    m_rightCountLabel->setAutoFillBackground(false);
     m_rightCountLabel->setStyleSheet(QStringLiteral(
-        "QLabel { font:bold 24px Arial; color:#000000; background:#f8f8f8; }"));
+        "QLabel { font: bold 20pt 'Arial'; color: #000000; background: transparent; border: none; padding: 0px; }"));
     m_rightCountLabel->hide();
 
     m_wrongCountLabel = new QLabel(m_rightPanel);
-    applyWidgetBackground(m_wrongCountLabel, kExerciseBg);
     m_wrongCountLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    m_wrongCountLabel->setAutoFillBackground(false);
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
 
@@ -601,9 +601,11 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_rightPanel && m_rightCountLabel && m_wrongCountLabel) {
         const int panelW = qMax(120, m_rightPanel->width());
-        const int labelH = 48;
-        m_rightCountLabel->setGeometry(0, 250, panelW, labelH);
-        m_wrongCountLabel->setGeometry(0, 250 + labelH + 8, panelW, labelH);
+        constexpr int kCounterLabelW = 320;
+        constexpr int kCounterLabelH = 44;
+        const int labelX = qMax(0, (panelW - kCounterLabelW) / 2);
+        m_rightCountLabel->setGeometry(labelX, 250, kCounterLabelW, kCounterLabelH);
+        m_wrongCountLabel->setGeometry(labelX, 250 + kCounterLabelH + 10, kCounterLabelW, kCounterLabelH);
         m_rightCountLabel->raise();
         m_wrongCountLabel->raise();
     }
@@ -951,12 +953,13 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 
 ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
     ExerciseProtocol::CheckboxValues values;
+    QStringList activityValues;
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.box && row.box->isChecked() && row.label) {
-            values.activity = row.label->text();
-            break;
+            activityValues << row.label->text();
         }
     }
+    values.activity = activityValues.join(QStringLiteral("\n"));
     QStringList helpValues;
     for (const ExerciseCheckRow &row : m_helpChecks) {
         if (row.box && row.box->isChecked() && row.label) {

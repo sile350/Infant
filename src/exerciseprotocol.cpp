@@ -248,6 +248,7 @@ QString extractAnswerFromRow(const QString &body, const QString &description) {
 
 QString htmlFragmentToPlainText(const QString &html);
 QString extractAnswerFromSectionFallback(const QString &section, const QString &description);
+bool extractActivityHelpFromSection(const QString &section, QString *activity, QString *help);
 
 struct ParsedProtocolFields {
     bool hasDateSpecialist = false;
@@ -304,7 +305,7 @@ QString canonicalPictureRowHtml(
         return QStringLiteral("<tr><td >%1</td><td valign='top' >%2</td>"
                               "<td valign='top' rowspan='5'><div contenteditable='true'>%3</div></td>"
                               "<td valign='top' rowspan='5'><div contenteditable='true'>%4</div></td></tr>")
-            .arg(desc, verno, activity.toHtmlEscaped(), help.toHtmlEscaped());
+            .arg(desc, verno, formatProtocolCellText(activity), formatProtocolCellText(help));
     }
     if (index == 4) {
         return QStringLiteral("<tr><td>%1</td><td>%2</td></tr>").arg(desc, verno);
@@ -352,7 +353,7 @@ QString rebuildResultsTableSection(
         activity = parsedOverrides->activity;
         help = parsedOverrides->help;
     } else {
-        extractActivityHelpFromStoredBody(body, &activity, &help);
+        extractActivityHelpFromSection(suffix, &activity, &help);
     }
 
     QString newTable = resultsTableHeaderHtml();
@@ -408,7 +409,10 @@ QString replacePictureRow(
 }
 
 QString repairResultsTableBody(QString body, const QList<bool> &answers) {
-    return rebuildResultsTableSection(body, answers, nullptr);
+    while (body.contains(QStringLiteral("<!--s-->"))) {
+        body = rebuildResultsTableSection(body, answers, nullptr);
+    }
+    return body;
 }
 
 QString htmlFragmentToPlainText(const QString &html) {
@@ -637,8 +641,9 @@ QString replaceActivityHelpCells(QString body, const QString &activity, const QS
             "([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     const QString activityCell =
-        QStringLiteral("<div contenteditable='true'>%1</div>").arg(activity.toHtmlEscaped());
-    const QString helpCell = QStringLiteral("<div contenteditable='true'>%1</div>").arg(help.toHtmlEscaped());
+        QStringLiteral("<div contenteditable='true'>%1</div>").arg(formatProtocolCellText(activity));
+    const QString helpCell =
+        QStringLiteral("<div contenteditable='true'>%1</div>").arg(formatProtocolCellText(help));
     return body.replace(
         rowRe,
         QStringLiteral("\\1") + activityCell + QStringLiteral("\\3") + helpCell + QStringLiteral("\\5"));
@@ -944,7 +949,7 @@ ExerciseProtocol::CheckboxValues ExerciseProtocol::readCheckboxValues(const QStr
             helpValues << value;
         }
     }
-    values.help = helpValues.join(QStringLiteral("; "));
+    values.help = helpValues.join(QStringLiteral("\n"));
     return values;
 }
 
