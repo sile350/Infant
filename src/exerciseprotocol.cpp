@@ -240,14 +240,23 @@ bool extractActivityHelpFromStoredBody(const QString &body, QString *activity, Q
     if (!activity && !help) {
         return false;
     }
-    const QRegularExpression rowRe(
+    const QRegularExpression rowspanRe(
         QStringLiteral(
             "<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?1\\.\\s*Бабушка[\\s\\S]*?</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
-            "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*</tr>"),
+            "<td[^>]*rowspan=['\"]5['\"][^>]*>([\\s\\S]*?)</td>\\s*"
+            "<td[^>]*rowspan=['\"]5['\"][^>]*>([\\s\\S]*?)</td>\\s*</tr>"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    const QRegularExpressionMatch match = rowRe.match(body);
+    QRegularExpressionMatch match = rowspanRe.match(body);
     if (!match.hasMatch()) {
-        return false;
+        const QRegularExpression rowRe(
+            QStringLiteral(
+                "<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?1\\.\\s*Бабушка[\\s\\S]*?</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
+                "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*</tr>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        match = rowRe.match(body);
+        if (!match.hasMatch()) {
+            return false;
+        }
     }
     if (activity) {
         *activity = htmlFragmentToPlainText(match.captured(1));
@@ -266,14 +275,15 @@ QString canonicalPictureRowHtml(
     const QStringList descriptions = pictureDescriptions();
     const QString desc = descriptions.at(index);
     if (index == 0) {
-        return QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
-                              "<td valign='top'><div contenteditable='true'>%3</div></td>"
-                              "<td valign='top'><div contenteditable='true'>%4</div></td></tr>")
+        return QStringLiteral("<tr><td >%1</td><td valign='top' >%2</td>"
+                              "<td valign='top' rowspan='5'><div contenteditable='true'>%3</div></td>"
+                              "<td valign='top' rowspan='5'><div contenteditable='true'>%4</div></td></tr>")
             .arg(desc, verno, activity.toHtmlEscaped(), help.toHtmlEscaped());
     }
-    return QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
-                          "<td valign='top'>&nbsp;</td><td valign='top'>&nbsp;</td></tr>")
-        .arg(desc, verno);
+    if (index == 4) {
+        return QStringLiteral("<tr><td>%1</td><td>%2</td></tr>").arg(desc, verno);
+    }
+    return QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td></tr>").arg(desc, verno);
 }
 
 QString extractVernoForPictureRow(const QString &body, int index) {
@@ -710,16 +720,19 @@ QString ExerciseProtocol::createProtocolHtml(
 
     for (int i = 0; i < 5; ++i) {
         const bool correct = i < answers.size() ? answers.at(i) : false;
+        const QString verno = answerText(correct);
         if (i == 0) {
-            add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
-                                "<td valign='top'><div contenteditable='true'>%3</div></td>"
-                                "<td valign='top'><div contenteditable='true'>%4</div></td></tr>")
-                       .arg(descriptions.at(i), answerText(correct),
+            add += QStringLiteral("<tr><td >%1</td><td valign='top' >%2</td>"
+                                "<td valign='top' rowspan='5'><div contenteditable='true'>%3</div></td>"
+                                "<td valign='top' rowspan='5'><div contenteditable='true'>%4</div></td></tr>")
+                       .arg(descriptions.at(i), verno,
                             checkboxes.activity.toHtmlEscaped(), checkboxes.help.toHtmlEscaped());
+        } else if (i == 4) {
+            add += QStringLiteral("<tr><td>%1</td><td>%2</td></tr>")
+                       .arg(descriptions.at(i), verno);
         } else {
-            add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
-                                "<td valign='top'>&nbsp;</td><td valign='top'>&nbsp;</td></tr>")
-                       .arg(descriptions.at(i), answerText(correct));
+            add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td></tr>")
+                       .arg(descriptions.at(i), verno);
         }
     }
     add += QStringLiteral("</table>");
