@@ -18,9 +18,10 @@ namespace {
 constexpr int kPictureLeft = 700;
 constexpr int kPictureTop = 240;
 constexpr int kPictureTopOffset = 50;
+constexpr int kPictureShiftLeft = 150;
 constexpr int kNativePictureW = 847;
 constexpr int kNativePictureH = 550;
-constexpr int kStopLeft = 971;
+constexpr int kStopLeft = 80;
 constexpr int kStopTop = 72;
 constexpr int kRightLeft = 1280;
 constexpr int kWrongLeft = 1420;
@@ -196,21 +197,21 @@ void OnlyPExercise::updateWidgetLayout() {
         if (m_displayRole == DisplayRole::Specialist) {
             constexpr int kMargin = 12;
             constexpr int kGap = 18;
-            const int maxButtonW = qMax(70, (width() - 2 * kMargin - 2 * kGap - kAnswerButtonGap) / 3);
-            const int maxButtonH = 36;
             int x = kMargin;
             const int y = kMargin;
             const QList<QLabel *> buttons = {m_stopButton, m_rightButton, m_wrongButton};
             const QList<QPixmap> sources = {m_stopSource, m_rightSource, m_wrongSource};
+            int maxButtonH = 0;
             for (int i = 0; i < buttons.size(); ++i) {
                 QLabel *button = buttons.at(i);
                 if (sources.at(i).isNull()) {
                     button->hide();
                     continue;
                 }
-                applyButtonPixmap(button, sources.at(i), maxButtonW, maxButtonH);
+                setWhiteBackedPixmap(button, sources.at(i));
                 button->move(x, y);
                 button->show();
+                maxButtonH = qMax(maxButtonH, button->height());
                 if (i == 0) {
                     x += button->width() + kGap + kAnswerButtonGap;
                 } else {
@@ -219,14 +220,21 @@ void OnlyPExercise::updateWidgetLayout() {
             }
             contentTop = kMargin + maxButtonH + kMargin;
         } else {
-            const int maxButtonW = qMax(80, qRound(134 * sx));
-            const int maxButtonH = qMax(24, qRound(29 * sy));
-            applyButtonPixmap(m_stopButton, m_stopSource, maxButtonW, maxButtonH);
-            applyButtonPixmap(m_rightButton, m_rightSource, maxButtonW, maxButtonH);
-            applyButtonPixmap(m_wrongButton, m_wrongSource, maxButtonW, maxButtonH);
-            m_stopButton->move(qRound(kStopLeft * sx), qRound(kStopTop * sy));
-            m_rightButton->move(qRound(kRightLeft * sx), qRound(kAnswerTop * sy));
-            m_wrongButton->move(qRound(kWrongLeft * sx), qRound(kAnswerTop * sy));
+            if (!m_stopSource.isNull()) {
+                setWhiteBackedPixmap(m_stopButton, m_stopSource);
+                m_stopButton->move(qRound(kStopLeft * sx), qRound(kStopTop * sy));
+                m_stopButton->show();
+            }
+            if (!m_rightSource.isNull()) {
+                setWhiteBackedPixmap(m_rightButton, m_rightSource);
+                m_rightButton->move(qRound(kRightLeft * sx), qRound(kAnswerTop * sy));
+                m_rightButton->show();
+            }
+            if (!m_wrongSource.isNull()) {
+                setWhiteBackedPixmap(m_wrongButton, m_wrongSource);
+                m_wrongButton->move(qRound(kWrongLeft * sx), qRound(kAnswerTop * sy));
+                m_wrongButton->show();
+            }
             contentTop = qRound(kPictureTop * sy);
         }
     }
@@ -248,7 +256,8 @@ void OnlyPExercise::updateWidgetLayout() {
             }
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
-            const int pictureX = qMax(pictureMargin, (width() - scaled.width()) / 2);
+            int pictureX = pictureMargin + qMax(0, (width() - scaled.width()) / 2) - kPictureShiftLeft;
+            pictureX = qMax(pictureMargin, pictureX);
             const int pictureY = qMax(pictureMargin, (height() - scaled.height()) / 2);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
@@ -270,15 +279,20 @@ void OnlyPExercise::updateWidgetLayout() {
             }
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
-            int pictureX = pictureMargin;
+            int pictureX = 0;
             if (m_displayRole == DisplayRole::Specialist) {
-                pictureX = pictureMargin + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2);
+                pictureX = pictureMargin
+                    + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2)
+                    - kPictureShiftLeft;
             } else {
-                pictureX = qRound(kPictureLeft * sx);
+                pictureX = qRound(kPictureLeft * sx) - kPictureShiftLeft;
                 if (pictureX + scaled.width() > width() - pictureMargin) {
-                    pictureX = pictureMargin + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2);
+                    pictureX = pictureMargin
+                        + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2)
+                        - kPictureShiftLeft;
                 }
             }
+            pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             const int pictureY = baseTop + qRound(kPictureTopOffset * sy);
             m_picture->move(pictureX, pictureY);

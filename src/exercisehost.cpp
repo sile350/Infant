@@ -303,7 +303,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     }
 
     m_scrollContent = new OpaquePanel(kDocumentBg);
-    m_scrollContent->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    m_scrollContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    m_scrollContent->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
 
     auto *layout = new QVBoxLayout(m_scrollContent);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -456,12 +457,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     layout->addWidget(orPanel);
     layout->addWidget(m_evaluationPanel);
     layout->addWidget(m_templatePanel);
-
-    auto *bottomSpacer = new QWidget(m_scrollContent);
-    bottomSpacer->setFixedHeight(120);
-    bottomSpacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    applyWidgetBackground(bottomSpacer, kDocumentBg);
-    layout->addWidget(bottomSpacer);
+    layout->addSpacing(120);
     m_scrollArea->setWidget(m_scrollContent);
 
     m_beginButton = new ImageButton(this);
@@ -477,13 +473,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_previewImage->setScaledContents(false);
     m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
 
-    m_rightCountLabel = new QLabel(this);
+    m_rightCountLabel = new QLabel(m_rightPanel);
     applyWidgetBackground(m_rightCountLabel, kExerciseBg);
     m_rightCountLabel->setStyleSheet(QStringLiteral(
         "QLabel { font:bold 17px Arial; color:#000000; background:#f8f8f8; }"));
     m_rightCountLabel->hide();
 
-    m_wrongCountLabel = new QLabel(this);
+    m_wrongCountLabel = new QLabel(m_rightPanel);
     applyWidgetBackground(m_wrongCountLabel, kExerciseBg);
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
@@ -581,6 +577,9 @@ void ExerciseHost::updateChromeLayout() {
     if (m_scrollArea) {
         m_scrollArea->setGeometry(kPanelX, kPanelY, kScrollWidth, qMax(100, height() - kPanelY));
         m_scrollArea->raise();
+        if (m_scrollContent && m_scrollArea->viewport()) {
+            m_scrollContent->setMinimumWidth(m_scrollArea->viewport()->width());
+        }
     }
     if (m_rightPanel) {
         m_rightPanel->setGeometry(kPanelX + kScrollWidth, 0, qMax(0, width() - kPanelX - kScrollWidth), height());
@@ -599,12 +598,12 @@ void ExerciseHost::updateChromeLayout() {
         updatePreviewLayout();
     }
     if (m_rightCountLabel) {
-        const int rightAreaLeft = kPanelX + kScrollWidth + 24;
-        m_rightCountLabel->setGeometry(rightAreaLeft, 250, 280, 40);
+        m_rightCountLabel->setGeometry(24, 250, 280, 40);
+        m_rightCountLabel->raise();
     }
     if (m_wrongCountLabel) {
-        const int rightAreaLeft = kPanelX + kScrollWidth + 24;
-        m_wrongCountLabel->setGeometry(rightAreaLeft, 300, 280, 40);
+        m_wrongCountLabel->setGeometry(24, 300, 280, 40);
+        m_wrongCountLabel->raise();
     }
 }
 
@@ -797,6 +796,9 @@ void ExerciseHost::updateContentHeights() {
     if (m_scrollContent) {
         m_scrollContent->adjustSize();
         m_scrollContent->updateGeometry();
+        if (m_scrollArea && m_scrollArea->viewport()) {
+            m_scrollContent->setMinimumWidth(m_scrollArea->viewport()->width());
+        }
     }
 }
 
@@ -941,6 +943,8 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
     m_wrongCountLabel->setText(QStringLiteral("Неверно %1").arg(wrong));
     m_rightCountLabel->show();
     m_wrongCountLabel->show();
+    m_rightCountLabel->raise();
+    m_wrongCountLabel->raise();
 }
 
 ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
