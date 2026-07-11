@@ -1412,6 +1412,7 @@ void InfantWindow::buildUi() {
     connect(m_protocolsSaveTimer, &QTimer::timeout, this, &InfantWindow::saveProtocolsEdits);
     connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
         if (m_currentScreen == ScreenMode::Protocols && !m_protocolViewRecordIds.isEmpty()) {
+            m_protocolsViewDirty = true;
             m_protocolsSaveTimer->start();
         }
     });
@@ -3864,6 +3865,7 @@ void InfantWindow::openPatientFromTable() {
     m_selectedPatientRowId = patientId;
     m_patientTitle->setText(fio);
     clearProtocolsView();
+    m_protocolViewRecordIds = m_repository.loadPatientProtocolRecordIds(patientId);
     applyAnamnesisDocument(m_repository.loadPatientAnamnesis(patientId));
     if (m_fontSlider) {
         changeDocumentFontSize(m_fontSlider->value(), false);
@@ -4241,7 +4243,8 @@ QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
 }
 
 void InfantWindow::saveProtocolsEdits() {
-    if (!m_protocolsView || m_currentPatientId.isEmpty() || m_protocolViewRecordIds.isEmpty()) {
+    if (!m_protocolsView || m_currentPatientId.isEmpty() || m_protocolViewRecordIds.isEmpty()
+        || !m_protocolsViewDirty) {
         return;
     }
     if (m_protocolsView->hasFocus()) {
@@ -4253,7 +4256,9 @@ void InfantWindow::saveProtocolsEdits() {
         return;
     }
     QString error;
-    m_repository.updateProtocolsFromEditedHtml(html, m_protocolViewRecordIds, &error);
+    if (m_repository.updateProtocolsFromEditedHtml(html, m_protocolViewRecordIds, &error)) {
+        m_protocolsViewDirty = false;
+    }
 }
 
 void InfantWindow::clearProtocolsView() {
@@ -4261,6 +4266,7 @@ void InfantWindow::clearProtocolsView() {
         return;
     }
     m_protocolViewRecordIds.clear();
+    m_protocolsViewDirty = false;
     m_protocolsView->clear();
 }
 
@@ -4269,7 +4275,7 @@ void InfantWindow::refreshProtocolsView() {
         return;
     }
 
-    if (!m_currentPatientId.isEmpty()) {
+    if (!m_currentPatientId.isEmpty() && m_protocolsViewDirty) {
         saveProtocolsEdits();
     }
 
@@ -4317,6 +4323,7 @@ void InfantWindow::refreshProtocolsView() {
         }
         m_protocolsView->moveCursor(QTextCursor::Start);
     }
+    m_protocolsViewDirty = false;
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
         scrollBar->setStyleSheet(QStringLiteral(

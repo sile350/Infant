@@ -143,6 +143,36 @@ QString trimProtocolBodyTail(QString body) {
     return body;
 }
 
+int findProtocolChunkEnd(const QString &html, int rowStart, int nextDatePos) {
+    if (nextDatePos > rowStart) {
+        return nextDatePos;
+    }
+    static const QRegularExpression lastResultRowRe(
+        QStringLiteral("5\\.\\s*Ослик без уха[\\s\\S]*?</tr>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch lastRowMatch = lastResultRowRe.match(html, rowStart);
+    if (lastRowMatch.hasMatch()) {
+        int endPos = lastRowMatch.capturedEnd();
+        const int closeTable = html.indexOf(QStringLiteral("</table>"), endPos, Qt::CaseInsensitive);
+        if (closeTable >= 0 && closeTable - endPos < 64) {
+            endPos = closeTable + QStringLiteral("</table>").size();
+        }
+        return endPos;
+    }
+    const int pageBreak = html.indexOf(QStringLiteral("protocol-page-break"), rowStart, Qt::CaseInsensitive);
+    if (pageBreak > rowStart) {
+        return pageBreak;
+    }
+    return html.length();
+}
+
+QString normalizeStoredProtocolBody(QString body) {
+    body.remove(QRegularExpression(
+        QStringLiteral("<span[^>]*dokit-[^>]*>.*?</span>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+    return body.trimmed();
+}
+
 QString extractProtocolBodyFallback(const QString &documentHtml) {
     const int datePos = documentHtml.indexOf(QStringLiteral("Дата/специалист"));
     if (datePos < 0) {
@@ -228,7 +258,12 @@ QString ExerciseProtocol::createProtocolHtml(
                        .arg(descriptions[i], answerText(correct));
         }
     }
+    add += QStringLiteral("</table>");
     return add;
+}
+
+QString ExerciseProtocol::normalizeStoredProtocolBody(const QString &protocolBody) {
+    return ::normalizeStoredProtocolBody(protocolBody);
 }
 
 QString ExerciseProtocol::wrapEditableProtocolBody(const QString &protocolBody) {
@@ -281,8 +316,10 @@ QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &doc
             if (nextRowStart > rowStart) {
                 endPos = nextRowStart;
             }
+        } else {
+            endPos = findProtocolChunkEnd(documentHtml, rowStart, -1);
         }
-        QString chunk = trimProtocolBodyTail(documentHtml.mid(rowStart, endPos - rowStart));
+        QString chunk = normalizeStoredProtocolBody(trimProtocolBodyTail(documentHtml.mid(rowStart, endPos - rowStart)));
         if (!chunk.isEmpty()) {
             bodies.append(chunk);
         }
@@ -320,8 +357,10 @@ QString ExerciseProtocol::protocolViewHtml(
     const QString &protocolBody,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    const QString markedBody = wrapEditableProtocolBody(protocolBody);
-    const QString protocolBlock = readHeaderRows(exerciseId) + markedBody + QStringLiteral("</table>");
+    QString protocolBlock = readHeaderRows(exerciseId) + protocolBody;
+    if (!protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+        protocolBlock += QStringLiteral("</table>");
+    }
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"

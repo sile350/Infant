@@ -977,8 +977,9 @@ void ExerciseHost::saveProtocolEdits() {
         return;
     }
     commitTextEditChanges(m_templateBrowser);
-    const QString body = ExerciseProtocol::extractEditableProtocolBody(m_templateBrowser->toHtml());
-    if (body.isEmpty()) {
+    const QString body = ExerciseProtocol::normalizeStoredProtocolBody(
+        ExerciseProtocol::extractEditableProtocolBody(m_templateBrowser->toHtml()));
+    if (body.isEmpty() || !body.contains(QStringLiteral("специалист"), Qt::CaseInsensitive)) {
         return;
     }
     QString error;

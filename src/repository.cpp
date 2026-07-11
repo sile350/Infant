@@ -22,18 +22,6 @@ QString protocolPageBreakHtml() {
         "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>");
 }
 
-void closeLastOpenResultsTable(QString &body) {
-    const int markerPos = body.lastIndexOf(QStringLiteral("<!--s-->"));
-    if (markerPos >= 0) {
-        const QString afterMarker = body.mid(markerPos + 7);
-        if (!afterMarker.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            body += QStringLiteral("</table>");
-            return;
-        }
-    }
-    body += QStringLiteral("</table>");
-}
-
 void appendProtocolRecord(
     QString &body,
     const QString &uprid,
@@ -41,10 +29,13 @@ void appendProtocolRecord(
     bool continuation,
     const std::function<QString(const QString &)> &headerForExercise) {
     if (continuation) {
-        closeLastOpenResultsTable(body);
         body += protocolPageBreakHtml();
     }
-    body += headerForExercise(uprid) + protocolBody;
+    QString record = headerForExercise(uprid) + protocolBody;
+    if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+        record += QStringLiteral("</table>");
+    }
+    body += record;
 }
 
 } // namespace
@@ -398,7 +389,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         if (row.size() < 3) {
             continue;
         }
-        const QString protocolId = row.at(0);
+        Q_UNUSED(row.at(0));
         const QString uprid = row.at(1);
         QString pr = row.at(2);
         const bool continuation = !lastUprid.isEmpty() && uprid == lastUprid;
@@ -413,7 +404,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
                 pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
             }
         }
-        const QString markedPr = ExerciseProtocol::wrapProtocolRecord(protocolId, pr);
+        const QString markedPr = pr;
         appendProtocolRecord(
             body,
             uprid,
@@ -439,7 +430,7 @@ QString Repository::loadPatientProtocols(const QString &patientId) {
         + ExerciseAssets::protocolTableStyleHtml()
         + QStringLiteral("</head><body>");
     return ExerciseAssets::wrapProtocolDocumentHtml(
-        zag + body + QStringLiteral("</table></body></html>"));
+        zag + body + QStringLiteral("</body></html>"));
 }
 
 QString Repository::exerciseHeaderFragment(const QString &uprid) const {
@@ -493,7 +484,7 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>")
                             .arg(patientDataHeader);
     return ExerciseAssets::wrapProtocolDocumentHtml(
-        zag + piddata + body + QStringLiteral("</table></body></html>"));
+        zag + piddata + body + QStringLiteral("</body></html>"));
 }
 
 bool Repository::verifyLicenseKeyForMachine(const QString &key, const QString &hardware, QString *errorText) {
@@ -686,9 +677,10 @@ QString Repository::loadProtocolViewHtml(
         return {};
     }
 
-    const QString markedBody = ExerciseProtocol::wrapEditableProtocolBody(protocolBody);
-    const QString protocolBlock = exerciseHeaderFragment(exerciseId) + markedBody
-                                  + QStringLiteral("</table>");
+    QString protocolBlock = exerciseHeaderFragment(exerciseId) + protocolBody;
+    if (!protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+        protocolBlock += QStringLiteral("</table>");
+    }
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
@@ -704,7 +696,8 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         return false;
     }
     if (!m_local.exec(
-            "UPDATE protocols SET pr='" + LocalDatabase::escape(protocolBody) + "' WHERE id='"
+            "UPDATE protocols SET pr='" + LocalDatabase::escape(ExerciseProtocol::normalizeStoredProtocolBody(protocolBody))
+            + "' WHERE id='"
             + LocalDatabase::escape(protocolId) + "'")) {
         if (errorText) {
             *errorText = m_local.lastError();
@@ -735,10 +728,11 @@ bool Repository::updateProtocolsFromEditedHtml(
     const QStringList bodies = ExerciseProtocol::extractProtocolBodiesByDateRows(documentHtml);
     const int count = qMin(bodies.size(), recordIdsInOrder.size());
     for (int i = 0; i < count; ++i) {
-        if (bodies.at(i).isEmpty()) {
+        const QString body = ExerciseProtocol::normalizeStoredProtocolBody(bodies.at(i));
+        if (body.isEmpty() || !body.contains(QStringLiteral("специалист"), Qt::CaseInsensitive)) {
             continue;
         }
-        if (!updateProtocolBody(recordIdsInOrder.at(i), bodies.at(i), errorText)) {
+        if (!updateProtocolBody(recordIdsInOrder.at(i), body, errorText)) {
             return false;
         }
     }
