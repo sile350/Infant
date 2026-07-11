@@ -5,6 +5,8 @@
 #include <QDateTime>
 #include <QFile>
 #include <QRegularExpression>
+#include <QTextDocument>
+#include <utility>
 
 namespace {
 
@@ -108,7 +110,7 @@ int findRowStartBefore(const QString &html, int datePos) {
 QList<int> findDateSpecialistPositions(const QString &html) {
     QList<int> positions;
     QRegularExpression dateRe(
-        QStringLiteral("Дата\\s*/\\s*специалист"),
+        QStringLiteral("Дата\\s*(?:/|／)?\\s*специалист"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
     QRegularExpressionMatchIterator it = dateRe.globalMatch(html);
     while (it.hasNext()) {
@@ -196,6 +198,186 @@ QString extractProtocolBodyFallback(const QString &documentHtml) {
     return {};
 }
 
+QStringList pictureDescriptions() {
+    return {
+        QStringLiteral("1. Бабушка на диване без ножки."),
+        QStringLiteral("2. Велосипедист без переднего колеса."),
+        QStringLiteral("3. Девочка с расческой без зубчиков."),
+        QStringLiteral("4. Пальто без рукава."),
+        QStringLiteral("5. Ослик без уха."),
+    };
+}
+
+QString extractAnswerFromRow(const QString &body, const QString &description) {
+    const QRegularExpression answerRe(
+        QStringLiteral("<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>\\s*(верно|неверно)")
+            .arg(QRegularExpression::escape(description)),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = answerRe.match(body);
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
+QString repairResultsTableBody(QString body, const QList<bool> &answers) {
+    body.replace(
+        QRegularExpression(QStringLiteral("\\s*rowspan=['\"]\\d+['\"]"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+
+    const QStringList descriptions = pictureDescriptions();
+    for (int i = 0; i < descriptions.size(); ++i) {
+        QString verno;
+        if (i < answers.size()) {
+            verno = answerText(answers.at(i));
+        } else {
+            verno = extractAnswerFromRow(body, descriptions.at(i));
+            if (verno.isEmpty()) {
+                continue;
+            }
+        }
+
+        const QString escapedDesc = QRegularExpression::escape(descriptions.at(i));
+        const QRegularExpression brokenRowRe(
+            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>)\\s*</tr>").arg(escapedDesc),
+            QRegularExpression::CaseInsensitiveOption);
+        if (brokenRowRe.match(body).hasMatch()) {
+            const QString replacement = QStringLiteral("\\1<td valign='top'>%1</td><td>&nbsp;</td><td>&nbsp;</td></tr>")
+                                            .arg(verno);
+            body.replace(brokenRowRe, replacement);
+            continue;
+        }
+
+        const QRegularExpression rowRe(
+            QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
+                .arg(escapedDesc),
+            QRegularExpression::CaseInsensitiveOption);
+        body.replace(rowRe, QStringLiteral("\\1") + verno + QStringLiteral("\\3"));
+    }
+    return body;
+}
+
+QString htmlFragmentToPlainText(const QString &html) {
+    if (html.trimmed().isEmpty()) {
+        return {};
+    }
+    QTextDocument document;
+    document.setHtml(html);
+    return document.toPlainText().trimmed();
+}
+
+std::pair<bool, QString> extractSecondCellPlain(const QString &html, const QString &labelPattern) {
+    const QRegularExpression rowRe(
+        QStringLiteral("<tr[^>]*>\\s*<td[^>]*>[^<]*(?:%1)[^<]*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*</tr>")
+            .arg(labelPattern),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = rowRe.match(html);
+    if (!match.hasMatch()) {
+        return {false, QString()};
+    }
+    return {true, htmlFragmentToPlainText(match.captured(1))};
+}
+
+QString replaceRowSecondCell(QString body, const QString &rowLabel, const QString &plainText) {
+    const QString escapedLabel = QRegularExpression::escape(rowLabel);
+    const QRegularExpression rowRe(
+        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
+            .arg(escapedLabel),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
+                              ? QStringLiteral("<div contenteditable='true'>%1</div>").arg(plainText.toHtmlEscaped())
+                              : plainText.toHtmlEscaped();
+    return body.replace(rowRe, QStringLiteral("\\1") + inner + QStringLiteral("\\3"));
+}
+
+QString replaceAnswerInBody(QString body, const QString &description, const QString &verno) {
+    const QString escapedDesc = QRegularExpression::escape(description);
+    const QRegularExpression rowRe(
+        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
+            .arg(escapedDesc),
+        QRegularExpression::CaseInsensitiveOption);
+    return body.replace(rowRe, QStringLiteral("\\1") + verno + QStringLiteral("\\3"));
+}
+
+QString extractAnswerFromSectionFallback(const QString &section, const QString &description) {
+    const QRegularExpression answerRe(
+        QStringLiteral("%1[\\s\\S]{0,800}?(верно|неверно)")
+            .arg(QRegularExpression::escape(description)),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = answerRe.match(section);
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
+bool extractActivityHelpFromSection(const QString &section, QString *activity, QString *help) {
+    if (!activity && !help) {
+        return false;
+    }
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "1\\.\\s*Бабушка[^<]*</td>\\s*<td[^>]*>\\s*(?:верно|неверно)\\s*</td>\\s*"
+            "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = rowRe.match(section);
+    if (!match.hasMatch()) {
+        return false;
+    }
+    if (activity) {
+        *activity = htmlFragmentToPlainText(match.captured(1));
+    }
+    if (help) {
+        *help = htmlFragmentToPlainText(match.captured(2));
+    }
+    return true;
+}
+
+QString replaceActivityHelpCells(QString body, const QString &activity, const QString &help) {
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*1\\.\\s*Бабушка[^<]*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>)"
+            "([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QString activityCell =
+        QStringLiteral("<div contenteditable='true'>%1</div>").arg(activity.toHtmlEscaped());
+    const QString helpCell = QStringLiteral("<div contenteditable='true'>%1</div>").arg(help.toHtmlEscaped());
+    return body.replace(
+        rowRe,
+        QStringLiteral("\\1") + activityCell + QStringLiteral("\\3") + helpCell + QStringLiteral("\\5"));
+}
+
+QStringList splitEditorSectionsByTitle(const QString &documentHtml) {
+    QStringList sections;
+    const QRegularExpression titleRe(
+        QStringLiteral("Протокол\\s+фиксации\\s+результатов"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    QList<int> starts;
+    QRegularExpressionMatchIterator it = titleRe.globalMatch(documentHtml);
+    while (it.hasNext()) {
+        starts.append(it.next().capturedStart());
+    }
+    if (starts.isEmpty()) {
+        return sections;
+    }
+    for (int i = 0; i < starts.size(); ++i) {
+        const int end = (i + 1 < starts.size()) ? starts.at(i + 1) : documentHtml.length();
+        const QString chunk = documentHtml.mid(starts.at(i), end - starts.at(i)).trimmed();
+        if (!chunk.isEmpty()) {
+            sections.append(chunk);
+        }
+    }
+    return sections;
+}
+
+QString extractProtocolSectionFromEditor(const QString &documentHtml, int protocolIndex) {
+    QStringList sections = ExerciseProtocol::extractProtocolBodiesByDateRows(documentHtml);
+    if (sections.isEmpty()) {
+        sections = splitEditorSectionsByTitle(documentHtml);
+    }
+    if (protocolIndex >= 0 && protocolIndex < sections.size()) {
+        return sections.at(protocolIndex);
+    }
+    if (protocolIndex == 0) {
+        return ExerciseProtocol::extractEditableProtocolBody(documentHtml);
+    }
+    return {};
+}
+
 QString extractCheckedValue(const QString &html, const QString &id) {
     const QRegularExpression checkedRe(
         QStringLiteral("id=['\"]%1['\"][^>]*checked").arg(QRegularExpression::escape(id)),
@@ -237,33 +419,35 @@ QString ExerciseProtocol::createProtocolHtml(
         "</table><!--s-->")
            + resultsTableHeaderHtml();
 
-    const QString descriptions[] = {
-        QStringLiteral("1. Бабушка на диване без ножки."),
-        QStringLiteral("2. Велосипедист без переднего колеса."),
-        QStringLiteral("3. Девочка с расческой без зубчиков."),
-        QStringLiteral("4. Пальто без рукава."),
-        QStringLiteral("5. Ослик без уха."),
-    };
+    const QStringList descriptions = pictureDescriptions();
 
     for (int i = 0; i < 5; ++i) {
         const bool correct = i < answers.size() ? answers.at(i) : false;
         if (i == 0) {
             add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
-                                "<td valign='top' rowspan='5'><div contenteditable='true'>%3</div></td>"
-                                "<td valign='top' rowspan='5'><div contenteditable='true'>%4</div></td></tr>")
-                       .arg(descriptions[i], answerText(correct),
+                                "<td valign='top'><div contenteditable='true'>%3</div></td>"
+                                "<td valign='top'><div contenteditable='true'>%4</div></td></tr>")
+                       .arg(descriptions.at(i), answerText(correct),
                             checkboxes.activity.toHtmlEscaped(), checkboxes.help.toHtmlEscaped());
         } else {
-            add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td></tr>")
-                       .arg(descriptions[i], answerText(correct));
+            add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td>"
+                                "<td valign='top'>&nbsp;</td><td valign='top'>&nbsp;</td></tr>")
+                       .arg(descriptions.at(i), answerText(correct));
         }
     }
     add += QStringLiteral("</table>");
-    return add;
+    return repairResultsTableBody(add, answers);
 }
 
 QString ExerciseProtocol::normalizeStoredProtocolBody(const QString &protocolBody) {
     return ::normalizeStoredProtocolBody(protocolBody);
+}
+
+QString ExerciseProtocol::repairResultsTableBody(const QString &protocolBody, const QList<bool> &answers) {
+    if (!protocolBody.contains(QStringLiteral("<!--s-->"))) {
+        return protocolBody;
+    }
+    return ::repairResultsTableBody(protocolBody, answers);
 }
 
 QString ExerciseProtocol::wrapEditableProtocolBody(const QString &protocolBody) {
@@ -393,4 +577,60 @@ ExerciseProtocol::CheckboxValues ExerciseProtocol::readCheckboxValues(const QStr
 QString ExerciseProtocol::applyCheckboxValues(const QString &orHtml, const CheckboxValues &values) {
     Q_UNUSED(values);
     return orHtml;
+}
+
+QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
+    const QString &storedBody,
+    const QString &editorHtml,
+    int protocolIndex) {
+    if (storedBody.trimmed().isEmpty()) {
+        return storedBody;
+    }
+
+    const QString section = extractProtocolSectionFromEditor(editorHtml, protocolIndex);
+    if (section.trimmed().isEmpty()) {
+        return normalizeStoredProtocolBody(storedBody);
+    }
+
+    QString result = normalizeStoredProtocolBody(storedBody);
+
+    const auto dateCell = extractSecondCellPlain(section, QStringLiteral("Дата\\s*/\\s*специалист"));
+    if (dateCell.first) {
+        result = replaceRowSecondCell(result, QStringLiteral("Дата/специалист"), dateCell.second);
+    }
+
+    std::pair<bool, QString> resultCell = extractSecondCellPlain(section, QStringLiteral("Результат:\\s*вывод"));
+    if (!resultCell.first) {
+        resultCell = extractSecondCellPlain(section, QStringLiteral("Результат"));
+    }
+    if (resultCell.first) {
+        result = replaceRowSecondCell(result, QStringLiteral("Результат: вывод об уровне развития"), resultCell.second);
+    }
+
+    const auto noteCell = extractSecondCellPlain(section, QStringLiteral("Примечание"));
+    if (noteCell.first) {
+        result = replaceRowSecondCell(result, QStringLiteral("Примечание"), noteCell.second);
+    }
+
+    if (result.contains(QStringLiteral("<!--s-->"))) {
+        const QStringList descriptions = pictureDescriptions();
+        for (int i = 0; i < descriptions.size(); ++i) {
+            QString verno = extractAnswerFromRow(section, descriptions.at(i));
+            if (verno.isEmpty()) {
+                verno = extractAnswerFromSectionFallback(section, descriptions.at(i));
+            }
+            if (!verno.isEmpty()) {
+                result = replaceAnswerInBody(result, descriptions.at(i), verno);
+            }
+        }
+
+        QString activity;
+        QString help;
+        if (extractActivityHelpFromSection(section, &activity, &help)) {
+            result = replaceActivityHelpCells(result, activity, help);
+        }
+        result = repairResultsTableBody(result);
+    }
+
+    return result;
 }

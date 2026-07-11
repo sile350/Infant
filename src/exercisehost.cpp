@@ -977,11 +977,19 @@ void ExerciseHost::saveProtocolEdits() {
         return;
     }
     commitTextEditChanges(m_templateBrowser);
-    const QString body = ExerciseProtocol::normalizeStoredProtocolBody(
-        ExerciseProtocol::extractEditableProtocolBody(m_templateBrowser->toHtml()));
-    if (body.isEmpty() || !body.contains(QStringLiteral("специалист"), Qt::CaseInsensitive)) {
+    const QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
         return;
     }
+
+    QString body = ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
+        storedBody, m_templateBrowser->toHtml(), 0);
+    if (m_exerciseId == QStringLiteral("1.2") && !m_answers.isEmpty()) {
+        body = ExerciseProtocol::repairResultsTableBody(body, m_answers);
+    } else {
+        body = ExerciseProtocol::repairResultsTableBody(body);
+    }
+    body = ExerciseProtocol::normalizeStoredProtocolBody(body);
     QString error;
     m_repository->updateProtocolBody(m_currentProtocolId, body, &error);
 }

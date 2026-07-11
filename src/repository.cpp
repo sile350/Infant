@@ -397,6 +397,9 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
             lastUprid = uprid;
         }
         pr.replace(QStringLiteral("скачать"), QString());
+        if (uprid == QStringLiteral("1.2")) {
+            pr = ExerciseProtocol::repairResultsTableBody(pr);
+        }
         if (role != QLatin1String("s")) {
             const int marker = pr.indexOf(QStringLiteral("<!--s-->"));
             if (marker >= 0) {
@@ -696,7 +699,10 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         return false;
     }
     if (!m_local.exec(
-            "UPDATE protocols SET pr='" + LocalDatabase::escape(ExerciseProtocol::normalizeStoredProtocolBody(protocolBody))
+            "UPDATE protocols SET pr='"
+            + LocalDatabase::escape(
+                  ExerciseProtocol::normalizeStoredProtocolBody(
+                      ExerciseProtocol::repairResultsTableBody(protocolBody)))
             + "' WHERE id='"
             + LocalDatabase::escape(protocolId) + "'")) {
         if (errorText) {
@@ -715,28 +721,27 @@ bool Repository::updateProtocolsFromEditedHtml(
         return true;
     }
 
-    const QMap<QString, QString> bodiesById = ExerciseProtocol::extractProtocolBodiesById(documentHtml);
-    if (!bodiesById.isEmpty()) {
-        for (auto it = bodiesById.cbegin(); it != bodiesById.cend(); ++it) {
-            if (!updateProtocolBody(it.key(), it.value(), errorText)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    const QStringList bodies = ExerciseProtocol::extractProtocolBodiesByDateRows(documentHtml);
-    const int count = qMin(bodies.size(), recordIdsInOrder.size());
-    for (int i = 0; i < count; ++i) {
-        const QString body = ExerciseProtocol::normalizeStoredProtocolBody(bodies.at(i));
-        if (body.isEmpty() || !body.contains(QStringLiteral("специалист"), Qt::CaseInsensitive)) {
+    for (int i = 0; i < recordIdsInOrder.size(); ++i) {
+        const QString protocolId = recordIdsInOrder.at(i);
+        const QString storedBody = loadProtocolBodyById(protocolId);
+        if (storedBody.trimmed().isEmpty()) {
             continue;
         }
-        if (!updateProtocolBody(recordIdsInOrder.at(i), body, errorText)) {
+        const QString mergedBody = ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
+            storedBody, documentHtml, i);
+        if (!updateProtocolBody(protocolId, mergedBody, errorText)) {
             return false;
         }
     }
     return true;
+}
+
+QString Repository::loadProtocolBodyById(const QString &protocolId) {
+    if (protocolId.trimmed().isEmpty()) {
+        return {};
+    }
+    return m_local.queryScalar(
+        "SELECT pr FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
 }
 
 QStringList Repository::loadPatientProtocolRecordIds(const QString &patientId) {

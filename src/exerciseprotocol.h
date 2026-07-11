@@ -31,9 +31,14 @@ public:
     static QString wrapEditableProtocolBody(const QString &protocolBody);
     static QString wrapProtocolRecord(const QString &protocolId, const QString &protocolBody);
     static QString normalizeStoredProtocolBody(const QString &protocolBody);
+    static QString repairResultsTableBody(const QString &protocolBody, const QList<bool> &answers = {});
     static QString extractEditableProtocolBody(const QString &documentHtml);
     static QStringList extractProtocolBodiesByDateRows(const QString &documentHtml);
     static QMap<QString, QString> extractProtocolBodiesById(const QString &documentHtml);
+    static QString mergeEditorHtmlIntoStoredBody(
+        const QString &storedBody,
+        const QString &editorHtml,
+        int protocolIndex = 0);
 
     static CheckboxValues readCheckboxValues(const QString &orHtml);
     static QString applyCheckboxValues(const QString &orHtml, const CheckboxValues &values);
