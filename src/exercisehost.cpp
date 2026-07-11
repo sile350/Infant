@@ -440,6 +440,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     }
     templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
     templateLayout->addSpacing(12);
+    templateLayout->addSpacing(12);
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
     templateLayout->addWidget(m_templateBrowser);

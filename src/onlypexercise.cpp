@@ -19,6 +19,7 @@ constexpr int kPictureLeft = 700;
 constexpr int kPictureTop = 240;
 constexpr int kPictureTopOffset = 50;
 constexpr int kPictureShiftLeft = 150;
+constexpr int kPatientPictureShiftRight = 100;
 constexpr int kNativePictureW = 847;
 constexpr int kNativePictureH = 550;
 constexpr int kStopLeft = 80;
@@ -243,22 +244,30 @@ void OnlyPExercise::updateWidgetLayout() {
         const int pictureMargin = 12;
         QPixmap scaled = m_pictureSource;
         if (m_displayRole == DisplayRole::Patient) {
-            const int targetW = kNativePictureW;
-            const int targetH = kNativePictureH;
-            if (width() >= targetW + 2 * pictureMargin && height() >= targetH + 2 * pictureMargin) {
-                scaled = m_pictureSource.scaled(
-                    targetW, targetH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            } else {
-                const int availableW = qMax(40, width() - 2 * pictureMargin);
-                const int availableH = qMax(40, height() - 2 * pictureMargin);
-                scaled = m_pictureSource.scaled(
-                    availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            }
+            scaled = m_pictureSource.scaled(
+                kNativePictureW, kNativePictureH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
-            int pictureX = pictureMargin + qMax(0, (width() - scaled.width()) / 2) - kPictureShiftLeft;
-            pictureX = qMax(pictureMargin, pictureX);
+            int pictureX = pictureMargin + qMax(0, (width() - scaled.width()) / 2) + kPatientPictureShiftRight;
+            if (pictureX + scaled.width() > width() - pictureMargin) {
+                pictureX = qMax(pictureMargin, width() - pictureMargin - scaled.width());
+            }
             const int pictureY = qMax(pictureMargin, (height() - scaled.height()) / 2);
+            m_picture->move(pictureX, pictureY);
+            m_picture->show();
+        } else if (m_displayRole == DisplayRole::Specialist) {
+            scaled = m_pictureSource.scaled(
+                kNativePictureW, kNativePictureH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            m_picture->setPixmap(scaled);
+            m_picture->setFixedSize(scaled.size());
+            int pictureX = pictureMargin
+                + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2)
+                - kPictureShiftLeft;
+            pictureX = qMax(pictureMargin, pictureX);
+            if (pictureX + scaled.width() > width() - pictureMargin) {
+                pictureX = qMax(pictureMargin, width() - pictureMargin - scaled.width());
+            }
+            const int pictureY = contentTop + kPictureTopOffset;
             m_picture->move(pictureX, pictureY);
             m_picture->show();
         } else {
@@ -266,11 +275,7 @@ void OnlyPExercise::updateWidgetLayout() {
             int targetH = kNativePictureH;
             const int availableW = qMax(40, width() - 2 * pictureMargin);
             const int availableH = qMax(40, height() - contentTop - pictureMargin);
-            if (m_displayRole == DisplayRole::Specialist
-                && (targetW > availableW || targetH > availableH)) {
-                scaled = m_pictureSource.scaled(
-                    availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            } else if (targetW > availableW || targetH > availableH) {
+            if (targetW > availableW || targetH > availableH) {
                 scaled = m_pictureSource.scaled(
                     availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
             } else {
@@ -279,18 +284,11 @@ void OnlyPExercise::updateWidgetLayout() {
             }
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
-            int pictureX = 0;
-            if (m_displayRole == DisplayRole::Specialist) {
+            int pictureX = qRound(kPictureLeft * sx) - kPictureShiftLeft;
+            if (pictureX + scaled.width() > width() - pictureMargin) {
                 pictureX = pictureMargin
                     + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2)
                     - kPictureShiftLeft;
-            } else {
-                pictureX = qRound(kPictureLeft * sx) - kPictureShiftLeft;
-                if (pictureX + scaled.width() > width() - pictureMargin) {
-                    pictureX = pictureMargin
-                        + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2)
-                        - kPictureShiftLeft;
-                }
             }
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
