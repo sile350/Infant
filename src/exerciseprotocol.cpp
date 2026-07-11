@@ -60,6 +60,60 @@ QString resultsTableHeaderHtml() {
         "<td align='center' width='194'>Виды помощи</td></tr>");
 }
 
+QString protocolBodyStartMarker() {
+    return QStringLiteral(
+        "<span id=\"dokit-protocol-body-start\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>");
+}
+
+QString protocolBodyEndMarker() {
+    return QStringLiteral(
+        "<span id=\"dokit-protocol-body-end\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>");
+}
+
+QString protocolRecordStartMarker(const QString &protocolId) {
+    return QStringLiteral("<span id=\"dokit-pid-%1-start\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
+        .arg(protocolId);
+}
+
+QString protocolRecordEndMarker(const QString &protocolId) {
+    return QStringLiteral("<span id=\"dokit-pid-%1-end\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
+        .arg(protocolId);
+}
+
+QString extractBetweenMarkers(
+    const QString &documentHtml,
+    const QString &startPattern,
+    const QString &endPattern) {
+    const QRegularExpression re(
+        startPattern + QStringLiteral("([\\s\\S]*?)") + endPattern,
+        QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = re.match(documentHtml);
+    return match.hasMatch() ? match.captured(1).trimmed() : QString();
+}
+
+QString extractProtocolBodyFallback(const QString &documentHtml) {
+    const int datePos = documentHtml.indexOf(QStringLiteral("Дата/специалист"));
+    if (datePos < 0) {
+        return {};
+    }
+    const int rowStart = documentHtml.lastIndexOf(QStringLiteral("<tr"), datePos);
+    if (rowStart < 0) {
+        return {};
+    }
+    const int endMarkerPos = documentHtml.indexOf(QStringLiteral("dokit-protocol-body-end"), datePos);
+    if (endMarkerPos > rowStart) {
+        const int endSpanStart = documentHtml.lastIndexOf(QStringLiteral("<span"), endMarkerPos);
+        if (endSpanStart > rowStart) {
+            return documentHtml.mid(rowStart, endSpanStart - rowStart).trimmed();
+        }
+    }
+    const int endBodyPos = documentHtml.indexOf(QStringLiteral("<!--ebody-->"), datePos);
+    if (endBodyPos > rowStart) {
+        return documentHtml.mid(rowStart, endBodyPos - rowStart).trimmed();
+    }
+    return {};
+}
+
 QString extractCheckedValue(const QString &html, const QString &id) {
     const QRegularExpression checkedRe(
         QStringLiteral("id=['\"]%1['\"][^>]*checked").arg(QRegularExpression::escape(id)),
@@ -125,29 +179,57 @@ QString ExerciseProtocol::createProtocolHtml(
     return add;
 }
 
+QString ExerciseProtocol::wrapEditableProtocolBody(const QString &protocolBody) {
+    return protocolBodyStartMarker() + protocolBody + protocolBodyEndMarker();
+}
+
+QString ExerciseProtocol::wrapProtocolRecord(const QString &protocolId, const QString &protocolBody) {
+    return protocolRecordStartMarker(protocolId) + protocolBody + protocolRecordEndMarker(protocolId);
+}
+
 QString ExerciseProtocol::extractEditableProtocolBody(const QString &documentHtml) {
+    QString body = extractBetweenMarkers(
+        documentHtml,
+        QStringLiteral("id=[\"']dokit-protocol-body-start[\"'][^>]*>.*?</span>"),
+        QStringLiteral("<span[^>]*id=[\"']dokit-protocol-body-end[\"']"));
+    if (!body.isEmpty()) {
+        return body;
+    }
+
     const QString startMarker = QStringLiteral("<!--body-->");
     const QString endMarker = QStringLiteral("<!--ebody-->");
     const int start = documentHtml.indexOf(startMarker);
-    if (start < 0) {
-        return {};
+    if (start >= 0) {
+        const int contentStart = start + startMarker.size();
+        const int end = documentHtml.indexOf(endMarker, contentStart);
+        if (end > contentStart) {
+            return documentHtml.mid(contentStart, end - contentStart).trimmed();
+        }
     }
-    const int contentStart = start + startMarker.size();
-    const int end = documentHtml.indexOf(endMarker, contentStart);
-    if (end < 0) {
-        return {};
-    }
-    return documentHtml.mid(contentStart, end - contentStart).trimmed();
+
+    return extractProtocolBodyFallback(documentHtml);
 }
 
 QMap<QString, QString> ExerciseProtocol::extractProtocolBodiesById(const QString &documentHtml) {
     QMap<QString, QString> bodies;
-    const QRegularExpression recordRe(
+    const QRegularExpression spanRe(
+        QStringLiteral("id=[\"']dokit-pid-(\\d+)-start[\"'][^>]*>.*?</span>([\\s\\S]*?)<span[^>]*id=[\"']dokit-pid-\\1-end[\"']"),
+        QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatchIterator spanIt = spanRe.globalMatch(documentHtml);
+    while (spanIt.hasNext()) {
+        const QRegularExpressionMatch match = spanIt.next();
+        bodies.insert(match.captured(1), match.captured(2).trimmed());
+    }
+    if (!bodies.isEmpty()) {
+        return bodies;
+    }
+
+    const QRegularExpression commentRe(
         QStringLiteral("<!--protocol-id:(\\d+)-->([\\s\\S]*?)<!--/protocol-id:\\1-->"),
         QRegularExpression::DotMatchesEverythingOption);
-    QRegularExpressionMatchIterator it = recordRe.globalMatch(documentHtml);
-    while (it.hasNext()) {
-        const QRegularExpressionMatch match = it.next();
+    QRegularExpressionMatchIterator commentIt = commentRe.globalMatch(documentHtml);
+    while (commentIt.hasNext()) {
+        const QRegularExpressionMatch match = commentIt.next();
         bodies.insert(match.captured(1), match.captured(2).trimmed());
     }
     return bodies;
@@ -158,7 +240,7 @@ QString ExerciseProtocol::protocolViewHtml(
     const QString &protocolBody,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    const QString markedBody = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
+    const QString markedBody = wrapEditableProtocolBody(protocolBody);
     const QString protocolBlock = readHeaderRows(exerciseId) + markedBody + QStringLiteral("</table>");
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"

@@ -413,8 +413,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
                 pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
             }
         }
-        const QString markedPr = QStringLiteral("<!--protocol-id:%1-->").arg(protocolId) + pr
-                                 + QStringLiteral("<!--/protocol-id:%1-->").arg(protocolId);
+        const QString markedPr = ExerciseProtocol::wrapProtocolRecord(protocolId, pr);
         appendProtocolRecord(
             body,
             uprid,
@@ -687,7 +686,7 @@ QString Repository::loadProtocolViewHtml(
         return {};
     }
 
-    const QString markedBody = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
+    const QString markedBody = ExerciseProtocol::wrapEditableProtocolBody(protocolBody);
     const QString protocolBlock = exerciseHeaderFragment(exerciseId) + markedBody
                                   + QStringLiteral("</table>");
     return QStringLiteral(

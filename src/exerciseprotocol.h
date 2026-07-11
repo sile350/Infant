@@ -27,6 +27,8 @@ public:
         const QString &patientFio,
         const QString &patientBirthDate);
 
+    static QString wrapEditableProtocolBody(const QString &protocolBody);
+    static QString wrapProtocolRecord(const QString &protocolId, const QString &protocolBody);
     static QString extractEditableProtocolBody(const QString &documentHtml);
     static QMap<QString, QString> extractProtocolBodiesById(const QString &documentHtml);
 

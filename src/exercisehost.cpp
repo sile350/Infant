@@ -11,6 +11,8 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAbstractScrollArea>
 #include <QCheckBox>
+#include <QCoreApplication>
+#include <QEventLoop>
 #include <QFile>
 #include <QFrame>
 #include <QLabel>
@@ -22,6 +24,7 @@
 #include <QScrollArea>
 #include <QTextBlock>
 #include <QTextBrowser>
+#include <QTextCursor>
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QTimer>
@@ -945,10 +948,23 @@ QString ExerciseHost::orHtmlSnapshot() const {
     return m_orBrowser ? m_orBrowser->toHtml() : QString();
 }
 
+void commitTextEditChanges(QTextEdit *editor) {
+    if (!editor) {
+        return;
+    }
+    const QTextCursor cursor = editor->textCursor();
+    editor->setTextCursor(cursor);
+    if (editor->hasFocus()) {
+        editor->clearFocus();
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+}
+
 void ExerciseHost::saveProtocolEdits() {
     if (!m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
         return;
     }
+    commitTextEditChanges(m_templateBrowser);
     const QString body = ExerciseProtocol::extractEditableProtocolBody(m_templateBrowser->toHtml());
     if (body.isEmpty()) {
         return;

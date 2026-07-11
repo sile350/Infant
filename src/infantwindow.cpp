@@ -8,6 +8,7 @@
 #include <QTextCursor>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QEventLoop>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -3852,6 +3853,7 @@ void InfantWindow::openPatientFromTable() {
     m_currentPatientId = patientId;
     m_selectedPatientRowId = patientId;
     m_patientTitle->setText(fio);
+    clearProtocolsView();
     applyAnamnesisDocument(m_repository.loadPatientAnamnesis(patientId));
     if (m_fontSlider) {
         changeDocumentFontSize(m_fontSlider->value(), false);
@@ -4232,12 +4234,23 @@ void InfantWindow::saveProtocolsEdits() {
     if (!m_protocolsView || m_currentPatientId.isEmpty()) {
         return;
     }
+    if (m_protocolsView->hasFocus()) {
+        m_protocolsView->clearFocus();
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
     const QString html = m_protocolsView->toHtml();
-    if (html.trimmed().isEmpty()) {
+    if (html.trimmed().isEmpty() || !html.contains(QStringLiteral("dokit-pid-"))) {
         return;
     }
     QString error;
     m_repository.updateProtocolsFromEditedHtml(html, &error);
+}
+
+void InfantWindow::clearProtocolsView() {
+    if (!m_protocolsView) {
+        return;
+    }
+    m_protocolsView->clear();
 }
 
 void InfantWindow::refreshProtocolsView() {

@@ -105,6 +105,7 @@ private:
     void openExercise(const QString &exerciseId);
     void closeExerciseHost();
     void saveProtocolsEdits();
+    void clearProtocolsView();
     void raiseChromeWidgets();
     void resetUserCreateForm();
     void loadUserForEdit(const QString &id);
