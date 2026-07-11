@@ -1,6 +1,7 @@
 D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/UVLADIE3JM/moc_exercisehost.cpp: D:/projects/DokitLab/infant/src/exercisehost.h \
   D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/moc_predefs.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QList \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/QMap \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QString \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qalgorithms.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qarraydata.h \
@@ -26,6 +27,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qline.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qlist.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qlogging.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/qmap.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qmargins.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qmetatype.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qnamespace.h \

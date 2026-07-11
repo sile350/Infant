@@ -37,6 +37,7 @@ public:
         bool dualScreen);
 
     void setDualScreenEnabled(bool enabled);
+    void saveProtocolEdits();
 
 signals:
     void closed();
@@ -77,6 +78,7 @@ private:
     bool m_exerciseDone = false;
     bool m_protocolFormed = true;
     bool m_partly = false;
+    QString m_currentProtocolId;
     bool m_exerciseRunning = false;
     bool m_orOpen1 = false;
     bool m_orOpen2 = false;

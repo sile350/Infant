@@ -125,12 +125,41 @@ QString ExerciseProtocol::createProtocolHtml(
     return add;
 }
 
+QString ExerciseProtocol::extractEditableProtocolBody(const QString &documentHtml) {
+    const QString startMarker = QStringLiteral("<!--body-->");
+    const QString endMarker = QStringLiteral("<!--ebody-->");
+    const int start = documentHtml.indexOf(startMarker);
+    if (start < 0) {
+        return {};
+    }
+    const int contentStart = start + startMarker.size();
+    const int end = documentHtml.indexOf(endMarker, contentStart);
+    if (end < 0) {
+        return {};
+    }
+    return documentHtml.mid(contentStart, end - contentStart).trimmed();
+}
+
+QMap<QString, QString> ExerciseProtocol::extractProtocolBodiesById(const QString &documentHtml) {
+    QMap<QString, QString> bodies;
+    const QRegularExpression recordRe(
+        QStringLiteral("<!--protocol-id:(\\d+)-->([\\s\\S]*?)<!--/protocol-id:\\1-->"),
+        QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatchIterator it = recordRe.globalMatch(documentHtml);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        bodies.insert(match.captured(1), match.captured(2).trimmed());
+    }
+    return bodies;
+}
+
 QString ExerciseProtocol::protocolViewHtml(
     const QString &exerciseId,
     const QString &protocolBody,
     const QString &patientFio,
     const QString &patientBirthDate) {
-    const QString protocolBlock = readHeaderRows(exerciseId) + protocolBody + QStringLiteral("</table>");
+    const QString markedBody = QStringLiteral("<!--body-->") + protocolBody + QStringLiteral("<!--ebody-->");
+    const QString protocolBlock = readHeaderRows(exerciseId) + markedBody + QStringLiteral("</table>");
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"

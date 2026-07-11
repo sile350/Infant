@@ -1,6 +1,7 @@
 #ifndef EXERCISEPROTOCOL_H
 #define EXERCISEPROTOCOL_H
 
+#include <QMap>
 #include <QList>
 #include <QString>
 
@@ -25,6 +26,9 @@ public:
         const QString &protocolBody,
         const QString &patientFio,
         const QString &patientBirthDate);
+
+    static QString extractEditableProtocolBody(const QString &documentHtml);
+    static QMap<QString, QString> extractProtocolBodiesById(const QString &documentHtml);
 
     static CheckboxValues readCheckboxValues(const QString &orHtml);
     static QString applyCheckboxValues(const QString &orHtml, const CheckboxValues &values);

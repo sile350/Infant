@@ -104,6 +104,7 @@ private:
     void showExercisesContextMenu(const QPoint &pos);
     void openExercise(const QString &exerciseId);
     void closeExerciseHost();
+    void saveProtocolsEdits();
     void raiseChromeWidgets();
     void resetUserCreateForm();
     void loadUserForEdit(const QString &id);

@@ -624,6 +624,7 @@ void ExerciseHost::openExercise(
     m_exerciseDone = false;
     m_protocolFormed = true;
     m_partly = false;
+    m_currentProtocolId.clear();
     m_orOpen1 = false;
     m_orOpen2 = false;
     m_orOpen3 = false;
@@ -944,6 +945,18 @@ QString ExerciseHost::orHtmlSnapshot() const {
     return m_orBrowser ? m_orBrowser->toHtml() : QString();
 }
 
+void ExerciseHost::saveProtocolEdits() {
+    if (!m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
+        return;
+    }
+    const QString body = ExerciseProtocol::extractEditableProtocolBody(m_templateBrowser->toHtml());
+    if (body.isEmpty()) {
+        return;
+    }
+    QString error;
+    m_repository->updateProtocolBody(m_currentProtocolId, body, &error);
+}
+
 void ExerciseHost::formProtocol() {
     if (!m_repository) {
         return;
@@ -953,6 +966,8 @@ void ExerciseHost::formProtocol() {
             this, QStringLiteral("Формирование протокола невозможно без выполнения упражнения"));
         return;
     }
+
+    saveProtocolEdits();
 
     const bool separateProtocolRecords = (m_exerciseId == QStringLiteral("1.2"));
     const bool partlySave = m_partly && !separateProtocolRecords;
@@ -973,6 +988,7 @@ void ExerciseHost::formProtocol() {
         CustomMessageBox::showError(this, error);
         return;
     }
+    m_currentProtocolId = protocolId;
 
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);

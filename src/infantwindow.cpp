@@ -2076,6 +2076,7 @@ void InfantWindow::bindSignals() {
 void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     if (m_exerciseOpen) {
         if (m_exerciseHost) {
+            m_exerciseHost->saveProtocolEdits();
             m_exerciseHost->hide();
         }
         m_exerciseOpen = false;
@@ -2095,6 +2096,10 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     if (previousScreen == ScreenMode::Anamnesis && mode != ScreenMode::Anamnesis) {
         tryAutoSaveAnamnesis(true);
         refreshPatients();
+    }
+
+    if (previousScreen == ScreenMode::Protocols && mode != ScreenMode::Protocols) {
+        saveProtocolsEdits();
     }
 
     if (pushHistory && !m_navigatingBack) {
@@ -4223,9 +4228,25 @@ QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
             .arg(ExerciseAssets::protocolTableStyleHtml(), trimmed));
 }
 
+void InfantWindow::saveProtocolsEdits() {
+    if (!m_protocolsView || m_currentPatientId.isEmpty()) {
+        return;
+    }
+    const QString html = m_protocolsView->toHtml();
+    if (html.trimmed().isEmpty()) {
+        return;
+    }
+    QString error;
+    m_repository.updateProtocolsFromEditedHtml(html, &error);
+}
+
 void InfantWindow::refreshProtocolsView() {
     if (!m_protocolsView || m_currentScreen != ScreenMode::Protocols) {
         return;
+    }
+
+    if (!m_currentPatientId.isEmpty()) {
+        saveProtocolsEdits();
     }
 
     const QString fio = m_patientTitle ? m_patientTitle->text().trimmed() : QString();
@@ -4617,6 +4638,7 @@ void InfantWindow::raiseChromeWidgets() {
 
 void InfantWindow::closeExerciseHost() {
     if (m_exerciseHost) {
+        m_exerciseHost->saveProtocolEdits();
         m_exerciseHost->hide();
     }
     m_exerciseOpen = false;
@@ -4679,6 +4701,8 @@ QString InfantWindow::assembleExportHtml(const ExportSelection &selection) {
         if (!selection.forPatient && !selection.forSpecialist) {
             return {};
         }
+
+        saveProtocolsEdits();
 
         const QString patientData = protocolsExportHeader();
         if (selection.forPatient) {
