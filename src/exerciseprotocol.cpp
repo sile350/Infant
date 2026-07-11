@@ -409,10 +409,7 @@ QString replacePictureRow(
 }
 
 QString repairResultsTableBody(QString body, const QList<bool> &answers) {
-    while (body.contains(QStringLiteral("<!--s-->"))) {
-        body = rebuildResultsTableSection(body, answers, nullptr);
-    }
-    return body;
+    return rebuildResultsTableSection(body, answers, nullptr);
 }
 
 QString htmlFragmentToPlainText(const QString &html) {
