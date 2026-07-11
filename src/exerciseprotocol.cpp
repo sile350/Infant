@@ -221,6 +221,20 @@ QString extractAnswerFromRow(const QString &body, const QString &description) {
 }
 
 QString htmlFragmentToPlainText(const QString &html);
+QString extractAnswerFromSectionFallback(const QString &section, const QString &description);
+
+struct ParsedProtocolFields {
+    bool hasDateSpecialist = false;
+    QString dateSpecialist;
+    bool hasResult = false;
+    QString resultText;
+    bool hasNote = false;
+    QString noteText;
+    QMap<int, QString> answersByIndex;
+    bool hasActivityHelp = false;
+    QString activity;
+    QString help;
+};
 
 bool extractActivityHelpFromStoredBody(const QString &body, QString *activity, QString *help) {
     if (!activity && !help) {
@@ -262,6 +276,79 @@ QString canonicalPictureRowHtml(
         .arg(desc, verno);
 }
 
+QString extractVernoForPictureRow(const QString &body, int index) {
+    const QStringList descriptions = pictureDescriptions();
+    if (index < 0 || index >= descriptions.size()) {
+        return {};
+    }
+    QString verno = extractAnswerFromRow(body, descriptions.at(index));
+    if (verno.isEmpty()) {
+        verno = extractAnswerFromSectionFallback(body, descriptions.at(index));
+    }
+    return verno;
+}
+
+QString rebuildResultsTableSection(
+    QString body,
+    const QList<bool> &answers = {},
+    const ParsedProtocolFields *parsedOverrides = nullptr) {
+    const int markerPos = body.indexOf(QStringLiteral("<!--s-->"));
+    if (markerPos < 0) {
+        return body;
+    }
+
+    const QString prefix = body.left(markerPos);
+    QString suffix = body.mid(markerPos + QStringLiteral("<!--s-->").size());
+
+    const int tableStart = suffix.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+    if (tableStart < 0) {
+        return body;
+    }
+    const int tableEnd = suffix.indexOf(QStringLiteral("</table>"), tableStart, Qt::CaseInsensitive);
+    if (tableEnd < 0) {
+        return body;
+    }
+    const QString afterResultsTable = suffix.mid(tableEnd + QStringLiteral("</table>").size());
+
+    QString activity;
+    QString help;
+    if (parsedOverrides && parsedOverrides->hasActivityHelp) {
+        activity = parsedOverrides->activity;
+        help = parsedOverrides->help;
+    } else {
+        extractActivityHelpFromStoredBody(body, &activity, &help);
+    }
+
+    QString newTable = resultsTableHeaderHtml();
+    const QStringList descriptions = pictureDescriptions();
+    for (int i = 0; i < descriptions.size(); ++i) {
+        QString verno;
+        if (parsedOverrides && parsedOverrides->answersByIndex.contains(i)) {
+            const QString overrideVerno = parsedOverrides->answersByIndex.value(i);
+            if (!overrideVerno.isEmpty()) {
+                verno = overrideVerno;
+            }
+        }
+        if (verno.isEmpty() && i < answers.size()) {
+            verno = answerText(answers.at(i));
+        }
+        if (verno.isEmpty()) {
+            verno = extractVernoForPictureRow(body, i);
+        }
+        if (verno.isEmpty()) {
+            verno = QStringLiteral("неверно");
+        }
+        newTable += canonicalPictureRowHtml(
+            i,
+            verno,
+            i == 0 ? activity : QString(),
+            i == 0 ? help : QString());
+    }
+    newTable += QStringLiteral("</table>");
+
+    return prefix + QStringLiteral("<!--s-->") + newTable + afterResultsTable;
+}
+
 QString replacePictureRow(
     QString body,
     int index,
@@ -285,30 +372,7 @@ QString replacePictureRow(
 }
 
 QString repairResultsTableBody(QString body, const QList<bool> &answers) {
-    body.replace(
-        QRegularExpression(QStringLiteral("\\s*rowspan=['\"]\\d+['\"]"), QRegularExpression::CaseInsensitiveOption),
-        QString());
-
-    const QStringList descriptions = pictureDescriptions();
-    for (int i = 0; i < descriptions.size(); ++i) {
-        QString verno;
-        if (i < answers.size()) {
-            verno = answerText(answers.at(i));
-        } else {
-            verno = extractAnswerFromRow(body, descriptions.at(i));
-            if (verno.isEmpty()) {
-                continue;
-            }
-        }
-
-        QString activity;
-        QString help;
-        if (i == 0) {
-            extractActivityHelpFromStoredBody(body, &activity, &help);
-        }
-        body = replacePictureRow(body, i, verno, activity, help);
-    }
-    return body;
+    return rebuildResultsTableSection(body, answers, nullptr);
 }
 
 QString htmlFragmentToPlainText(const QString &html) {
@@ -376,19 +440,6 @@ bool cellMatchesPictureDescription(const QString &cellText, const QString &descr
     const QString descriptionTail = normalizedDescription.section(QLatin1Char('.'), 1).trimmed();
     return !descriptionTail.isEmpty() && normalizedCell.contains(descriptionTail, Qt::CaseInsensitive);
 }
-
-struct ParsedProtocolFields {
-    bool hasDateSpecialist = false;
-    QString dateSpecialist;
-    bool hasResult = false;
-    QString resultText;
-    bool hasNote = false;
-    QString noteText;
-    QMap<int, QString> answersByIndex;
-    bool hasActivityHelp = false;
-    QString activity;
-    QString help;
-};
 
 ParsedProtocolFields parseProtocolFieldsFromDocument(QTextDocument *document, int protocolIndex) {
     ParsedProtocolFields fields;
@@ -571,19 +622,7 @@ QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedPro
     }
 
     if (result.contains(QStringLiteral("<!--s-->"))) {
-        const QStringList descriptions = pictureDescriptions();
-        for (int i = 0; i < descriptions.size(); ++i) {
-            if (!parsed.answersByIndex.contains(i)) {
-                continue;
-            }
-            result = replaceAnswerInBody(result, descriptions.at(i), parsed.answersByIndex.value(i));
-        }
-
-        if (parsed.hasActivityHelp) {
-            result = replaceActivityHelpCells(result, parsed.activity, parsed.help);
-        }
-
-        result = repairResultsTableBody(result, QList<bool>());
+        result = rebuildResultsTableSection(result, QList<bool>(), &parsed);
     }
 
     return result;
