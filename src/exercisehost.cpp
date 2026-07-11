@@ -475,12 +475,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_rightCountLabel = new QLabel(m_rightPanel);
     applyWidgetBackground(m_rightCountLabel, kExerciseBg);
+    m_rightCountLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
     m_rightCountLabel->setStyleSheet(QStringLiteral(
-        "QLabel { font:bold 17px Arial; color:#000000; background:#f8f8f8; }"));
+        "QLabel { font:bold 24px Arial; color:#000000; background:#f8f8f8; }"));
     m_rightCountLabel->hide();
 
     m_wrongCountLabel = new QLabel(m_rightPanel);
     applyWidgetBackground(m_wrongCountLabel, kExerciseBg);
+    m_wrongCountLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
 
@@ -597,12 +599,12 @@ void ExerciseHost::updateChromeLayout() {
     if (m_previewImage) {
         updatePreviewLayout();
     }
-    if (m_rightCountLabel) {
-        m_rightCountLabel->setGeometry(24, 250, 280, 40);
+    if (m_rightPanel && m_rightCountLabel && m_wrongCountLabel) {
+        const int panelW = qMax(120, m_rightPanel->width());
+        const int labelH = 48;
+        m_rightCountLabel->setGeometry(0, 250, panelW, labelH);
+        m_wrongCountLabel->setGeometry(0, 250 + labelH + 8, panelW, labelH);
         m_rightCountLabel->raise();
-    }
-    if (m_wrongCountLabel) {
-        m_wrongCountLabel->setGeometry(24, 300, 280, 40);
         m_wrongCountLabel->raise();
     }
 }

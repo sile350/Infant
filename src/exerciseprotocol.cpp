@@ -71,6 +71,17 @@ QString formatProtocolCellText(const QString &text) {
     return parts.join(QStringLiteral("<br>"));
 }
 
+QString protocolSummaryTableOpenHtml() {
+    return QStringLiteral(
+        "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+        "<colgroup><col width='165'><col width='506'></colgroup>");
+}
+
+QString summaryRowHtml(const QString &label, const QString &valueHtml) {
+    return QStringLiteral("<tr><td width='165' valign='top'>%1</td><td width='506' valign='top'>%2</td></tr>")
+        .arg(label, valueHtml);
+}
+
 QString resultsTableHeaderHtml() {
     return QStringLiteral(
         "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
@@ -704,7 +715,47 @@ QString extractCheckedValue(const QString &html, const QString &id) {
     return match.hasMatch() ? match.captured(1) : QString();
 }
 
+QString stripSpecialistSections(QString body) {
+    while (true) {
+        const int marker = body.indexOf(QStringLiteral("<!--s-->"));
+        if (marker < 0) {
+            break;
+        }
+        const int tableEnd = body.indexOf(QStringLiteral("</table>"), marker, Qt::CaseInsensitive);
+        if (tableEnd < 0) {
+            body = body.left(marker);
+            break;
+        }
+        body = body.left(marker) + body.mid(tableEnd + QStringLiteral("</table>").size());
+    }
+    body.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
+    return body;
+}
+
+QString ensureProtocol12SummaryTableOpens(QString body) {
+    const QString tableOpen = protocolSummaryTableOpenHtml();
+    const QRegularExpression orphanRowRe(
+        QStringLiteral("</table>\\s*(<tr[^>]*>\\s*<td[^>]*>\\s*Дата/специалист)"),
+        QRegularExpression::CaseInsensitiveOption);
+    body.replace(orphanRowRe, QStringLiteral("</table>") + tableOpen + QStringLiteral("\\1"));
+    return body;
+}
+
 } // namespace
+
+QString ExerciseProtocol::patientProtocolBody(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    return ensureProtocol12SummaryTableOpens(stripSpecialistSections(protocolBody));
+}
+
+QString ExerciseProtocol::normalizeProtocol12Layout(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    return ensureProtocol12SummaryTableOpens(protocolBody);
+}
 
 QString ExerciseProtocol::createProtocolHtml(
     const QString &exerciseId,
@@ -720,14 +771,19 @@ QString ExerciseProtocol::createProtocolHtml(
     }
 
     const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
-    QString sessionPart = QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
-                              .arg(now, userFio.toHtmlEscaped());
+    QString sessionPart = summaryRowHtml(
+        QStringLiteral("Дата/специалист"),
+        QStringLiteral("%1   %2").arg(now, userFio.toHtmlEscaped()));
+    sessionPart += summaryRowHtml(
+        QStringLiteral("Результат: вывод об уровне развития"),
+        QStringLiteral("<div contenteditable='true'></div>"));
+    sessionPart += summaryRowHtml(
+        QStringLiteral("Примечание"),
+        QStringLiteral("<div contenteditable='true'></div>"));
     sessionPart += QStringLiteral(
-        "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
-        "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
-        "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
+        "<tr><td align='center' colspan='2' valign='top'>Процесс выполнения диагностической методики</td></tr>"
         "</table><!--s-->")
-                   + resultsTableHeaderHtml();
+               + resultsTableHeaderHtml();
 
     const QString activityHtml = formatProtocolCellText(checkboxes.activity);
     const QString helpHtml = formatProtocolCellText(checkboxes.help);
@@ -752,7 +808,7 @@ QString ExerciseProtocol::createProtocolHtml(
     sessionPart += QStringLiteral("</table>");
 
     if (partly && !existingProtocolHtml.trimmed().isEmpty()) {
-        return existingProtocolHtml + sessionPart;
+        return ensureProtocol12SummaryTableOpens(existingProtocolHtml) + protocolSummaryTableOpenHtml() + sessionPart;
     }
     return sessionPart;
 }

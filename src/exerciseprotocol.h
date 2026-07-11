@@ -33,6 +33,8 @@ public:
     static QString wrapEditableProtocolBody(const QString &protocolBody);
     static QString wrapProtocolRecord(const QString &protocolId, const QString &protocolBody);
     static QString normalizeStoredProtocolBody(const QString &protocolBody);
+    static QString normalizeProtocol12Layout(const QString &protocolBody);
+    static QString patientProtocolBody(const QString &protocolBody);
     static QString repairResultsTableBody(const QString &protocolBody, const QList<bool> &answers = {});
     static QString extractEditableProtocolBody(const QString &documentHtml);
     static QStringList extractProtocolBodiesByDateRows(const QString &documentHtml);

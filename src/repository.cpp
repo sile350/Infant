@@ -35,7 +35,8 @@ void appendProtocolRecord(
     QString record;
     if (continuation) {
         record = QStringLiteral(
-                      "<table border='1' cellspacing='0' style='table-layout:fixed' cellpadding='0' width='671'>")
+                      "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+                      "<colgroup><col width='165'><col width='506'></colgroup>")
                   + protocolBody;
     } else {
         record = headerForExercise(uprid) + protocolBody;
@@ -406,9 +407,13 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         }
         pr.replace(QStringLiteral("скачать"), QString());
         if (uprid == QStringLiteral("1.2")) {
-            pr = ExerciseProtocol::repairResultsTableBody(pr);
-        }
-        if (role != QLatin1String("s")) {
+            pr = ExerciseProtocol::normalizeProtocol12Layout(pr);
+            if (role == QLatin1String("s")) {
+                pr = ExerciseProtocol::repairResultsTableBody(pr);
+            } else {
+                pr = ExerciseProtocol::patientProtocolBody(pr);
+            }
+        } else if (role != QLatin1String("s")) {
             const int marker = pr.indexOf(QStringLiteral("<!--s-->"));
             if (marker >= 0) {
                 pr = pr.left(marker);
@@ -688,7 +693,13 @@ QString Repository::loadProtocolViewHtml(
         return {};
     }
 
-    QString protocolBlock = exerciseHeaderFragment(exerciseId) + protocolBody;
+    QString body = protocolBody;
+    if (exerciseId == QStringLiteral("1.2")) {
+        body = ExerciseProtocol::normalizeProtocol12Layout(body);
+        body = ExerciseProtocol::repairResultsTableBody(body);
+    }
+
+    QString protocolBlock = exerciseHeaderFragment(exerciseId) + body;
     if (!protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
         protocolBlock += QStringLiteral("</table>");
     }
