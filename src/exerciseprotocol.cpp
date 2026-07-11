@@ -91,6 +91,58 @@ QString extractBetweenMarkers(
     return match.hasMatch() ? match.captured(1).trimmed() : QString();
 }
 
+int findRowStartBefore(const QString &html, int datePos) {
+    if (datePos <= 0) {
+        return -1;
+    }
+    const QString before = html.left(datePos);
+    QRegularExpression rowRe(QStringLiteral("<tr\\b"), QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator it = rowRe.globalMatch(before);
+    int last = -1;
+    while (it.hasNext()) {
+        last = it.next().capturedStart();
+    }
+    return last;
+}
+
+QList<int> findDateSpecialistPositions(const QString &html) {
+    QList<int> positions;
+    QRegularExpression dateRe(
+        QStringLiteral("Дата\\s*/\\s*специалист"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    QRegularExpressionMatchIterator it = dateRe.globalMatch(html);
+    while (it.hasNext()) {
+        positions.append(it.next().capturedStart());
+    }
+    return positions;
+}
+
+QString trimProtocolBodyTail(QString body) {
+    const int pageBreak = body.indexOf(QStringLiteral("protocol-page-break"), 0, Qt::CaseInsensitive);
+    if (pageBreak > 0) {
+        body = body.left(pageBreak);
+    }
+    body = body.trimmed();
+    static const QStringList trailers = {
+        QStringLiteral("</body></html>"),
+        QStringLiteral("</body>"),
+        QStringLiteral("</html>"),
+    };
+    bool trimmed = true;
+    while (trimmed) {
+        trimmed = false;
+        for (const QString &trailer : trailers) {
+            if (body.endsWith(trailer, Qt::CaseInsensitive)) {
+                body.chop(trailer.size());
+                body = body.trimmed();
+                trimmed = true;
+                break;
+            }
+        }
+    }
+    return body;
+}
+
 QString extractProtocolBodyFallback(const QString &documentHtml) {
     const int datePos = documentHtml.indexOf(QStringLiteral("Дата/специалист"));
     if (datePos < 0) {
@@ -207,7 +259,35 @@ QString ExerciseProtocol::extractEditableProtocolBody(const QString &documentHtm
         }
     }
 
+    const QStringList bodies = extractProtocolBodiesByDateRows(documentHtml);
+    if (!bodies.isEmpty()) {
+        return bodies.last();
+    }
+
     return extractProtocolBodyFallback(documentHtml);
+}
+
+QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &documentHtml) {
+    QStringList bodies;
+    const QList<int> datePositions = findDateSpecialistPositions(documentHtml);
+    for (int i = 0; i < datePositions.size(); ++i) {
+        const int rowStart = findRowStartBefore(documentHtml, datePositions.at(i));
+        if (rowStart < 0) {
+            continue;
+        }
+        int endPos = documentHtml.length();
+        if (i + 1 < datePositions.size()) {
+            const int nextRowStart = findRowStartBefore(documentHtml, datePositions.at(i + 1));
+            if (nextRowStart > rowStart) {
+                endPos = nextRowStart;
+            }
+        }
+        QString chunk = trimProtocolBodyTail(documentHtml.mid(rowStart, endPos - rowStart));
+        if (!chunk.isEmpty()) {
+            bodies.append(chunk);
+        }
+    }
+    return bodies;
 }
 
 QMap<QString, QString> ExerciseProtocol::extractProtocolBodiesById(const QString &documentHtml) {

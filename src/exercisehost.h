@@ -5,6 +5,7 @@
 
 #include <QList>
 #include <QPixmap>
+#include <QTimer>
 #include <QWidget>
 
 class ImageButton;
@@ -103,6 +104,7 @@ private:
     QLabel *m_wrongCountLabel = nullptr;
     ImageButton *m_beginButton = nullptr;
     ImageButton *m_formProtocolButton = nullptr;
+    QTimer *m_protocolSaveTimer = nullptr;
     OnlyPExercise *m_onlyP = nullptr;
     OnlyPExercise *m_specialistExercise = nullptr;
     PatientDisplay *m_patientDisplay = nullptr;

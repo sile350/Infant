@@ -25,7 +25,9 @@
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
+#include <QTextDocument>
 #include <QTextEdit>
+#include <QTimer>
 #include <QTextCursor>
 #include <QTimer>
 #include <QHBoxLayout>
@@ -429,6 +431,16 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
     templateLayout->addWidget(m_templateBrowser);
+
+    m_protocolSaveTimer = new QTimer(this);
+    m_protocolSaveTimer->setSingleShot(true);
+    m_protocolSaveTimer->setInterval(700);
+    connect(m_protocolSaveTimer, &QTimer::timeout, this, &ExerciseHost::saveProtocolEdits);
+    connect(m_templateBrowser->document(), &QTextDocument::contentsChanged, this, [this]() {
+        if (!m_currentProtocolId.isEmpty()) {
+            m_protocolSaveTimer->start();
+        }
+    });
 
     m_formProtocolButton = new ImageButton(m_templatePanel);
     const QString formpPath = ExerciseAssets::sysImage(QStringLiteral("formp.png"));

@@ -252,6 +252,8 @@ private:
     QStackedWidget *m_workStack = nullptr;
     QTextEdit *m_anamnesisEdit = nullptr;
     QTextEdit *m_protocolsView = nullptr;
+    QStringList m_protocolViewRecordIds;
+    QTimer *m_protocolsSaveTimer = nullptr;
     QLabel *m_protocolsTitle = nullptr;
     QLabel *m_protocolsPatient = nullptr;
     QTreeWidget *m_exercisesTree = nullptr;

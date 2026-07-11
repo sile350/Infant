@@ -63,8 +63,12 @@ public:
         const QString &patientFio,
         const QString &patientBirthDate);
     QString loadLastExerciseProtocolBody(const QString &patientId, const QString &exerciseId);
+    QStringList loadPatientProtocolRecordIds(const QString &patientId);
     bool updateProtocolBody(const QString &protocolId, const QString &protocolBody, QString *errorText = nullptr);
-    bool updateProtocolsFromEditedHtml(const QString &documentHtml, QString *errorText = nullptr);
+    bool updateProtocolsFromEditedHtml(
+        const QString &documentHtml,
+        const QStringList &recordIdsInOrder,
+        QString *errorText = nullptr);
 
     QString lastError() const;
 

@@ -1406,6 +1406,16 @@ void InfantWindow::buildUi() {
         );
     }
 
+    m_protocolsSaveTimer = new QTimer(this);
+    m_protocolsSaveTimer->setSingleShot(true);
+    m_protocolsSaveTimer->setInterval(700);
+    connect(m_protocolsSaveTimer, &QTimer::timeout, this, &InfantWindow::saveProtocolsEdits);
+    connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
+        if (m_currentScreen == ScreenMode::Protocols && !m_protocolViewRecordIds.isEmpty()) {
+            m_protocolsSaveTimer->start();
+        }
+    });
+
     m_panelExercises = new WhitePanelWidget(m_workStack);
     m_panelExercises->setObjectName(QStringLiteral("exercisesPanel"));
     m_panelExercises->setGeometry(0, 0, 965, 1000);
@@ -4231,7 +4241,7 @@ QString InfantWindow::protocolsDocumentHtml(const QString &innerContent) const {
 }
 
 void InfantWindow::saveProtocolsEdits() {
-    if (!m_protocolsView || m_currentPatientId.isEmpty()) {
+    if (!m_protocolsView || m_currentPatientId.isEmpty() || m_protocolViewRecordIds.isEmpty()) {
         return;
     }
     if (m_protocolsView->hasFocus()) {
@@ -4239,17 +4249,18 @@ void InfantWindow::saveProtocolsEdits() {
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }
     const QString html = m_protocolsView->toHtml();
-    if (html.trimmed().isEmpty() || !html.contains(QStringLiteral("dokit-pid-"))) {
+    if (html.trimmed().isEmpty()) {
         return;
     }
     QString error;
-    m_repository.updateProtocolsFromEditedHtml(html, &error);
+    m_repository.updateProtocolsFromEditedHtml(html, m_protocolViewRecordIds, &error);
 }
 
 void InfantWindow::clearProtocolsView() {
     if (!m_protocolsView) {
         return;
     }
+    m_protocolViewRecordIds.clear();
     m_protocolsView->clear();
 }
 
@@ -4278,7 +4289,9 @@ void InfantWindow::refreshProtocolsView() {
     QString inner;
     if (m_currentPatientId.isEmpty()) {
         inner.clear();
+        m_protocolViewRecordIds.clear();
     } else {
+        m_protocolViewRecordIds = m_repository.loadPatientProtocolRecordIds(m_currentPatientId);
         inner = m_repository.loadPatientProtocols(m_currentPatientId);
     }
 

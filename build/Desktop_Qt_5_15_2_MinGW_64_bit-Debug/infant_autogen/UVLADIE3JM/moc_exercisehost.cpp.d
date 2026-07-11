@@ -3,11 +3,14 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QList \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QMap \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QString \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/QStringList \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/QTimer \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qalgorithms.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qarraydata.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qatomic.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qatomic_cxx11.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qbasicatomic.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/qbasictimer.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qbytearray.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qbytearraylist.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qchar.h \
@@ -56,6 +59,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qsysinfo.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qsystemdetection.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtcore-config.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/qtimer.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtypeinfo.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvarlengtharray.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvector.h \
