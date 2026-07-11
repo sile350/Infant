@@ -1284,6 +1284,7 @@ D:/projects/DokitLab/infant/src/infantwindow.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLabel
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLineEdit
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QMainWindow
+ mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QRadioButton
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSlider
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QStackedWidget
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QStyledItemDelegate
@@ -1306,6 +1307,7 @@ D:/projects/DokitLab/infant/src/infantwindow.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlabel.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlineedit.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qmainwindow.h
+ mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qradiobutton.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qrubberband.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qsizepolicy.h
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qslider.h

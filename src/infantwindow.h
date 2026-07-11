@@ -7,6 +7,7 @@
 #include "repository.h"
 
 #include <QCheckBox>
+#include <QRadioButton>
 #include <QComboBox>
 #include <QDateEdit>
 #include <QLabel>
@@ -106,6 +107,7 @@ private:
     void closeExerciseHost();
     void saveProtocolsEdits(bool force = false);
     void clearProtocolsView();
+    void setWorkChromeVisible(bool visible);
     void raiseChromeWidgets();
     void resetUserCreateForm();
     void loadUserForEdit(const QString &id);
@@ -227,6 +229,7 @@ private:
     ImageButton *m_userSaveButton = nullptr;
     ImageButton *m_userOpenPatients = nullptr;
     QCheckBox *m_dualScreenCheck = nullptr;
+    QLabel *m_screenSettingsTitle = nullptr;
     QString m_editUserId;
     bool m_userSaveInProgress = false;
     bool m_anamnesisSaveInProgress = false;
@@ -279,15 +282,15 @@ private:
     QWidget *m_settingsPanel = nullptr;
     QWidget *m_savePanel = nullptr;
     QWidget *m_printPanel = nullptr;
-    QCheckBox *m_saveAnamnesisCb = nullptr;
-    QCheckBox *m_saveProtocolsCb = nullptr;
-    QCheckBox *m_saveForPatientCb = nullptr;
-    QCheckBox *m_saveForSpecialistCb = nullptr;
+    QRadioButton *m_saveAnamnesisCb = nullptr;
+    QRadioButton *m_saveProtocolsCb = nullptr;
+    QRadioButton *m_saveForPatientCb = nullptr;
+    QRadioButton *m_saveForSpecialistCb = nullptr;
     QWidget *m_saveProtocolsSubPanel = nullptr;
-    QCheckBox *m_printAnamnesisCb = nullptr;
-    QCheckBox *m_printProtocolsCb = nullptr;
-    QCheckBox *m_printForPatientCb = nullptr;
-    QCheckBox *m_printForSpecialistCb = nullptr;
+    QRadioButton *m_printAnamnesisCb = nullptr;
+    QRadioButton *m_printProtocolsCb = nullptr;
+    QRadioButton *m_printForPatientCb = nullptr;
+    QRadioButton *m_printForSpecialistCb = nullptr;
     QWidget *m_printProtocolsSubPanel = nullptr;
     QByteArray m_lastAnamnesisRtf;
 

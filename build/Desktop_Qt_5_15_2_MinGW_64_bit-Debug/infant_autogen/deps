@@ -136,6 +136,7 @@ infant_autogen/timestamp: \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLabel \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLineEdit \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QMainWindow \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QRadioButton \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSlider \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSpinBox \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QStackedWidget \
@@ -160,6 +161,7 @@ infant_autogen/timestamp: \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlabel.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlineedit.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qmainwindow.h \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qradiobutton.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qrubberband.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qsizepolicy.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qslider.h \

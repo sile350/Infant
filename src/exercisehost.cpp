@@ -340,6 +340,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:16px; font-weight:bold; padding:0;"));
     evaluationLayout->addWidget(evalTitle);
+    evaluationLayout->addSpacing(12);
 
     auto *activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     activityTitle->setAlignment(Qt::AlignCenter);
@@ -376,6 +377,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             }
         });
     }
+    checkboxLayout->addSpacing(12);
 
     auto *helpTitle = new WhiteLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
     helpTitle->setAlignment(Qt::AlignCenter);
@@ -426,8 +428,17 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_templatePanel = new OpaquePanel(kDocumentBg, m_scrollContent);
     auto *templateLayout = new QVBoxLayout(m_templatePanel);
-    templateLayout->setContentsMargins(0, 16, 0, 8);
-    templateLayout->setSpacing(12);
+    templateLayout->setContentsMargins(0, 24, 0, 8);
+    templateLayout->setSpacing(0);
+
+    m_formProtocolButton = new ImageButton(m_templatePanel);
+    const QString formpPath = ExerciseAssets::sysImage(QStringLiteral("formp.png"));
+    if (!formpPath.isEmpty()) {
+        m_formProtocolButton->setImagePath(formpPath);
+        m_formProtocolButton->setFixedSize(196, 33);
+    }
+    templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
+    templateLayout->addSpacing(12);
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
     templateLayout->addWidget(m_templateBrowser);
@@ -442,17 +453,15 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         }
     });
 
-    m_formProtocolButton = new ImageButton(m_templatePanel);
-    const QString formpPath = ExerciseAssets::sysImage(QStringLiteral("formp.png"));
-    if (!formpPath.isEmpty()) {
-        m_formProtocolButton->setImagePath(formpPath);
-        m_formProtocolButton->setFixedSize(196, 33);
-    }
-    templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
-
     layout->addWidget(orPanel);
     layout->addWidget(m_evaluationPanel);
     layout->addWidget(m_templatePanel);
+
+    auto *bottomSpacer = new QWidget(m_scrollContent);
+    bottomSpacer->setFixedHeight(120);
+    bottomSpacer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    applyWidgetBackground(bottomSpacer, kDocumentBg);
+    layout->addWidget(bottomSpacer);
     m_scrollArea->setWidget(m_scrollContent);
 
     m_beginButton = new ImageButton(this);
@@ -524,9 +533,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
                 m_onlyP->hide();
             }
-            if (m_previewImage && !m_previewSource.isNull()) {
-                m_previewImage->show();
-                updatePreviewLayout();
+            if (m_previewImage) {
+                m_previewImage->hide();
             }
         } else {
             restoreExerciseOverlay();
@@ -534,6 +542,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         setExerciseChromeVisible(true);
         updateChromeLayout();
         showResultLabels(answers, elapsedSeconds);
+        emit exerciseOverlayChanged(false);
         if (m_patientDisplay) {
             m_patientDisplay->hideDisplay();
         }
@@ -590,10 +599,12 @@ void ExerciseHost::updateChromeLayout() {
         updatePreviewLayout();
     }
     if (m_rightCountLabel) {
-        m_rightCountLabel->setGeometry(1100, 250, 300, 40);
+        const int rightAreaLeft = kPanelX + kScrollWidth + 24;
+        m_rightCountLabel->setGeometry(rightAreaLeft, 250, 280, 40);
     }
     if (m_wrongCountLabel) {
-        m_wrongCountLabel->setGeometry(1100, 350, 300, 40);
+        const int rightAreaLeft = kPanelX + kScrollWidth + 24;
+        m_wrongCountLabel->setGeometry(rightAreaLeft, 300, 280, 40);
     }
 }
 
@@ -638,7 +649,14 @@ void ExerciseHost::openExercise(
     m_dualScreen = dualScreen;
     m_exerciseDone = false;
     m_protocolFormed = true;
+    m_protocolSavedThisSession = false;
     m_partly = false;
+    if (repository) {
+        const QString existingBody = repository->loadLastExerciseProtocolBody(patientId, exerciseId);
+        if (!existingBody.trimmed().isEmpty()) {
+            m_partly = true;
+        }
+    }
     m_currentProtocolId.clear();
     m_orOpen1 = false;
     m_orOpen2 = false;
@@ -703,23 +721,8 @@ void ExerciseHost::loadStaticPictureExercise() {
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
     applyCompactLineHeight(m_templateBrowser->document());
 
-    const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
-    QPixmap previewPixmap;
-    if (!previewPath.isEmpty()) {
-        previewPixmap.load(previewPath);
-    }
-    if (previewPixmap.isNull() || previewPixmap.width() < 32 || previewPixmap.height() < 32) {
-        const QString fallbackPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("p1.png"));
-        if (!fallbackPath.isEmpty()) {
-            previewPixmap.load(fallbackPath);
-        }
-    }
-    if (!previewPixmap.isNull()) {
-        m_previewSource = previewPixmap;
-        m_rightPanel->show();
-        updatePreviewLayout();
-    } else {
-        m_previewSource = QPixmap();
+    m_previewSource = QPixmap();
+    if (m_previewImage) {
         m_previewImage->hide();
     }
     layoutContent();
@@ -881,6 +884,7 @@ void ExerciseHost::syncPatientDisplay() {
 
 void ExerciseHost::runOnlyPExercise() {
     m_protocolFormed = false;
+    m_protocolSavedThisSession = false;
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     m_dualScreen = AppSettings::dualScreenEnabled();
@@ -888,6 +892,7 @@ void ExerciseHost::runOnlyPExercise() {
     if (m_beginButton) {
         m_beginButton->hide();
     }
+    emit exerciseOverlayChanged(true);
 
     if (m_dualScreen) {
         if (m_previewImage) {
@@ -932,8 +937,8 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
             ++wrong;
         }
     }
-    m_rightCountLabel->setText(QStringLiteral("Верно: %1").arg(right));
-    m_wrongCountLabel->setText(QStringLiteral("Не верно: %1").arg(wrong));
+    m_rightCountLabel->setText(QStringLiteral("Верно %1").arg(right));
+    m_wrongCountLabel->setText(QStringLiteral("Неверно %1").arg(wrong));
     m_rightCountLabel->show();
     m_wrongCountLabel->show();
 }
@@ -952,7 +957,7 @@ ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
             helpValues << row.label->text();
         }
     }
-    values.help = helpValues.join(QStringLiteral("; "));
+    values.help = helpValues.join(QStringLiteral("\n"));
     return values;
 }
 
@@ -998,19 +1003,25 @@ void ExerciseHost::formProtocol() {
             this, QStringLiteral("Формирование протокола невозможно без выполнения упражнения"));
         return;
     }
+    if (m_protocolSavedThisSession) {
+        CustomMessageBox::showError(
+            this, QStringLiteral("Формирование протокола невозможно без выполнения упражнения"));
+        return;
+    }
 
     saveProtocolEdits();
 
-    const bool separateProtocolRecords = (m_exerciseId == QStringLiteral("1.2"));
-    const bool partlySave = m_partly && !separateProtocolRecords;
+    const bool partlySave = m_partly;
+    const QString existingBody = partlySave
+        ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
+        : QString();
 
     const QString protocolBody = ExerciseProtocol::createProtocolHtml(
         m_exerciseId,
         m_specialistFio,
         m_elapsedSeconds,
         partlySave,
-        partlySave ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
-                   : QString(),
+        existingBody,
         m_answers,
         checkboxValues());
 
@@ -1036,9 +1047,19 @@ void ExerciseHost::formProtocol() {
     layoutContent();
     QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
 
-    m_protocolFormed = true;
-    if (!separateProtocolRecords) {
-        m_partly = true;
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        if (row.box) {
+            row.box->setChecked(false);
+        }
     }
+    for (const ExerciseCheckRow &row : m_helpChecks) {
+        if (row.box) {
+            row.box->setChecked(false);
+        }
+    }
+
+    m_protocolFormed = true;
+    m_protocolSavedThisSession = true;
+    m_partly = true;
     emit protocolSaved();
 }

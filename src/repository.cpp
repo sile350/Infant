@@ -32,7 +32,14 @@ void appendProtocolRecord(
     if (continuation) {
         body += protocolPageBreakHtml();
     }
-    QString record = headerForExercise(uprid) + protocolBody;
+    QString record;
+    if (continuation) {
+        record = QStringLiteral(
+                      "<table border='1' cellspacing='0' style='table-layout:fixed' cellpadding='0' width='671'>")
+                  + protocolBody;
+    } else {
+        record = headerForExercise(uprid) + protocolBody;
+    }
     if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
         record += QStringLiteral("</table>");
     }

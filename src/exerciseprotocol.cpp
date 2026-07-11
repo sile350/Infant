@@ -56,6 +56,21 @@ QString readHeaderRows(const QString &exerciseId) {
     return html;
 }
 
+QString formatProtocolCellText(const QString &text) {
+    if (text.trimmed().isEmpty()) {
+        return {};
+    }
+    const QStringList lines = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
+    QStringList parts;
+    for (const QString &line : lines) {
+        const QString trimmed = line.trimmed();
+        if (!trimmed.isEmpty()) {
+            parts << QStringLiteral("&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+        }
+    }
+    return parts.join(QStringLiteral("<br>"));
+}
+
 QString resultsTableHeaderHtml() {
     return QStringLiteral(
         "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
@@ -700,43 +715,46 @@ QString ExerciseProtocol::createProtocolHtml(
     const QList<bool> &answers,
     const CheckboxValues &checkboxes) {
     Q_UNUSED(elapsedSeconds);
-    Q_UNUSED(partly);
-    Q_UNUSED(existingProtocolHtml);
     if (exerciseId != QStringLiteral("1.2")) {
         return existingProtocolHtml;
     }
 
     const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
-    QString add = QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
-                      .arg(now, userFio.toHtmlEscaped());
-    add += QStringLiteral(
+    QString sessionPart = QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
+                              .arg(now, userFio.toHtmlEscaped());
+    sessionPart += QStringLiteral(
         "<tr><td>Результат: вывод об уровне развития</td><td><div contenteditable='true'></div></td></tr>"
         "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>"
         "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
         "</table><!--s-->")
-           + resultsTableHeaderHtml();
+                   + resultsTableHeaderHtml();
 
+    const QString activityHtml = formatProtocolCellText(checkboxes.activity);
+    const QString helpHtml = formatProtocolCellText(checkboxes.help);
     const QStringList descriptions = pictureDescriptions();
 
     for (int i = 0; i < 5; ++i) {
         const bool correct = i < answers.size() ? answers.at(i) : false;
         const QString verno = answerText(correct);
         if (i == 0) {
-            add += QStringLiteral("<tr><td >%1</td><td valign='top' >%2</td>"
+            sessionPart += QStringLiteral("<tr><td >%1</td><td valign='top' >%2</td>"
                                 "<td valign='top' rowspan='5'><div contenteditable='true'>%3</div></td>"
                                 "<td valign='top' rowspan='5'><div contenteditable='true'>%4</div></td></tr>")
-                       .arg(descriptions.at(i), verno,
-                            checkboxes.activity.toHtmlEscaped(), checkboxes.help.toHtmlEscaped());
+                       .arg(descriptions.at(i), verno, activityHtml, helpHtml);
         } else if (i == 4) {
-            add += QStringLiteral("<tr><td>%1</td><td>%2</td></tr>")
+            sessionPart += QStringLiteral("<tr><td>%1</td><td>%2</td></tr>")
                        .arg(descriptions.at(i), verno);
         } else {
-            add += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td></tr>")
+            sessionPart += QStringLiteral("<tr><td>%1</td><td valign='top'>%2</td></tr>")
                        .arg(descriptions.at(i), verno);
         }
     }
-    add += QStringLiteral("</table>");
-    return add;
+    sessionPart += QStringLiteral("</table>");
+
+    if (partly && !existingProtocolHtml.trimmed().isEmpty()) {
+        return existingProtocolHtml + sessionPart;
+    }
+    return sessionPart;
 }
 
 QString ExerciseProtocol::normalizeStoredProtocolBody(const QString &protocolBody) {

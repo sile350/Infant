@@ -12,6 +12,9 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QRadioButton>
+#include <QButtonGroup>
+#include <QStandardPaths>
 #include <QFileDialog>
 #include <QFrame>
 #include <QFont>
@@ -208,14 +211,14 @@ QString checkBoxIndicatorCss() {
 
 QString panelCheckBoxStyleSheet() {
     return QStringLiteral(
-        "QCheckBox {"
+        "QCheckBox, QRadioButton {"
         "  background: transparent;"
         "  color: #000000;"
         "  font-family: 'Microsoft Sans Serif';"
         "  font-size: 8.25pt;"
         "  spacing: 4px;"
         "}"
-        "QCheckBox:disabled { color: rgba(0, 0, 0, 128); }"
+        "QCheckBox:disabled, QRadioButton:disabled { color: rgba(0, 0, 0, 128); }"
     ) + checkBoxIndicatorCss();
 }
 
@@ -1306,8 +1309,11 @@ void InfantWindow::buildUi() {
     m_userOpenPatients->setGeometry(kAdminFormX + kAdminFormW - kAdminEnterW, kAdminSaveY, kAdminEnterW, 30);
 
     m_dualScreenCheck = new QCheckBox(QStringLiteral("Два экрана"), m_panelAdmin);
-    m_dualScreenCheck->setGeometry(kAdminFormX, kAdminSaveY + 40, kAdminFormW, 30);
+    m_dualScreenCheck->setGeometry(80, 78, 220, 28);
     m_dualScreenCheck->setChecked(AppSettings::dualScreenEnabled());
+    m_screenSettingsTitle = new QLabel(QStringLiteral("Настройка экранов"), m_panelAdmin);
+    m_screenSettingsTitle->setGeometry(80, 48, 220, 24);
+    m_screenSettingsTitle->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
     m_panelPatients = new QWidget(m_root);
     m_panelPatients->setGeometry((1920 - 749) / 2, 80, 749, 950);
@@ -1380,8 +1386,9 @@ void InfantWindow::buildUi() {
         "font-size:9pt; background: transparent;"));
 
     m_protocolsView = new QTextEdit(m_panelProtocols);
-    m_protocolsView->setReadOnly(false);
-    m_protocolsView->setTextInteractionFlags(Qt::TextEditorInteraction);
+    m_protocolsView->setReadOnly(true);
+    m_protocolsView->setTextInteractionFlags(Qt::NoTextInteraction);
+    m_protocolsView->setFocusPolicy(Qt::NoFocus);
     m_protocolsView->setGeometry(100, 99, 760, 889);
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);
@@ -1410,12 +1417,6 @@ void InfantWindow::buildUi() {
     m_protocolsSaveTimer->setSingleShot(true);
     m_protocolsSaveTimer->setInterval(700);
     connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
-    connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
-        if (m_currentScreen == ScreenMode::Protocols && !m_protocolViewRecordIds.isEmpty()) {
-            m_protocolsViewDirty = true;
-            m_protocolsSaveTimer->start();
-        }
-    });
 
     m_panelExercises = new WhitePanelWidget(m_workStack);
     m_panelExercises->setObjectName(QStringLiteral("exercisesPanel"));
@@ -1608,24 +1609,31 @@ void InfantWindow::buildSlidePanels() {
     auto *saveMainPanel = new QWidget(m_savePanel);
     saveMainPanel->setGeometry(12, 25, 102, 53);
     saveMainPanel->setStyleSheet(transparentPanelStyle);
-    m_saveAnamnesisCb = new QCheckBox(QStringLiteral("Анамнез"), saveMainPanel);
+    m_saveAnamnesisCb = new QRadioButton(QStringLiteral("Анамнез"), saveMainPanel);
     m_saveAnamnesisCb->setGeometry(10, 10, 90, 20);
     m_saveAnamnesisCb->setChecked(true);
     m_saveAnamnesisCb->setStyleSheet(panelCheckBoxStyle);
-    m_saveProtocolsCb = new QCheckBox(QStringLiteral("Протоколы"), saveMainPanel);
+    m_saveProtocolsCb = new QRadioButton(QStringLiteral("Протоколы"), saveMainPanel);
     m_saveProtocolsCb->setGeometry(10, 33, 90, 20);
     m_saveProtocolsCb->setStyleSheet(panelCheckBoxStyle);
+    auto *saveMainGroup = new QButtonGroup(saveMainPanel);
+    saveMainGroup->addButton(m_saveAnamnesisCb);
+    saveMainGroup->addButton(m_saveProtocolsCb);
     m_saveProtocolsSubPanel = new QWidget(m_savePanel);
     m_saveProtocolsSubPanel->setGeometry(25, 79, 123, 60);
     m_saveProtocolsSubPanel->setStyleSheet(transparentPanelStyle);
     m_saveProtocolsSubPanel->setEnabled(false);
     setPanelChildOpacity(m_saveProtocolsSubPanel, false);
-    m_saveForPatientCb = new QCheckBox(QStringLiteral("Для пациента"), m_saveProtocolsSubPanel);
+    m_saveForPatientCb = new QRadioButton(QStringLiteral("Для пациента"), m_saveProtocolsSubPanel);
     m_saveForPatientCb->setGeometry(10, 10, 110, 20);
+    m_saveForPatientCb->setChecked(true);
     m_saveForPatientCb->setStyleSheet(panelCheckBoxStyle);
-    m_saveForSpecialistCb = new QCheckBox(QStringLiteral("Для специалиста"), m_saveProtocolsSubPanel);
+    m_saveForSpecialistCb = new QRadioButton(QStringLiteral("Для специалиста"), m_saveProtocolsSubPanel);
     m_saveForSpecialistCb->setGeometry(10, 33, 120, 20);
     m_saveForSpecialistCb->setStyleSheet(panelCheckBoxStyle);
+    auto *saveProtocolsGroup = new QButtonGroup(m_saveProtocolsSubPanel);
+    saveProtocolsGroup->addButton(m_saveForPatientCb);
+    saveProtocolsGroup->addButton(m_saveForSpecialistCb);
     auto *saveAsBtn = new ImageButton(m_savePanel);
     saveAsBtn->setGeometry(22, 145, 109, 33);
     setImage(saveAsBtn, "saveas.png");
@@ -1641,24 +1649,31 @@ void InfantWindow::buildSlidePanels() {
     auto *printMainPanel = new QWidget(m_printPanel);
     printMainPanel->setGeometry(21, 37, 102, 53);
     printMainPanel->setStyleSheet(transparentPanelStyle);
-    m_printAnamnesisCb = new QCheckBox(QStringLiteral("Анамнез"), printMainPanel);
+    m_printAnamnesisCb = new QRadioButton(QStringLiteral("Анамнез"), printMainPanel);
     m_printAnamnesisCb->setGeometry(10, 10, 90, 20);
     m_printAnamnesisCb->setChecked(true);
     m_printAnamnesisCb->setStyleSheet(panelCheckBoxStyle);
-    m_printProtocolsCb = new QCheckBox(QStringLiteral("Протоколы"), printMainPanel);
+    m_printProtocolsCb = new QRadioButton(QStringLiteral("Протоколы"), printMainPanel);
     m_printProtocolsCb->setGeometry(10, 33, 90, 20);
     m_printProtocolsCb->setStyleSheet(panelCheckBoxStyle);
+    auto *printMainGroup = new QButtonGroup(printMainPanel);
+    printMainGroup->addButton(m_printAnamnesisCb);
+    printMainGroup->addButton(m_printProtocolsCb);
     m_printProtocolsSubPanel = new QWidget(m_printPanel);
     m_printProtocolsSubPanel->setGeometry(42, 93, 123, 60);
     m_printProtocolsSubPanel->setStyleSheet(transparentPanelStyle);
     m_printProtocolsSubPanel->setEnabled(false);
     setPanelChildOpacity(m_printProtocolsSubPanel, false);
-    m_printForPatientCb = new QCheckBox(QStringLiteral("Для пациента"), m_printProtocolsSubPanel);
+    m_printForPatientCb = new QRadioButton(QStringLiteral("Для пациента"), m_printProtocolsSubPanel);
     m_printForPatientCb->setGeometry(10, 10, 110, 20);
+    m_printForPatientCb->setChecked(true);
     m_printForPatientCb->setStyleSheet(panelCheckBoxStyle);
-    m_printForSpecialistCb = new QCheckBox(QStringLiteral("Для специалиста"), m_printProtocolsSubPanel);
+    m_printForSpecialistCb = new QRadioButton(QStringLiteral("Для специалиста"), m_printProtocolsSubPanel);
     m_printForSpecialistCb->setGeometry(10, 33, 120, 20);
     m_printForSpecialistCb->setStyleSheet(panelCheckBoxStyle);
+    auto *printProtocolsGroup = new QButtonGroup(m_printProtocolsSubPanel);
+    printProtocolsGroup->addButton(m_printForPatientCb);
+    printProtocolsGroup->addButton(m_printForSpecialistCb);
     auto *printBtn = new ImageButton(m_printPanel);
     printBtn->setGeometry(42, 159, 81, 34);
     {
@@ -1722,20 +1737,18 @@ void InfantWindow::buildSlidePanels() {
         showSettingsSaveTemplateView(false);
     });
     connect(cancelTemplateBtn, &ImageButton::clicked, this, [this]() { showSettingsSaveTemplateView(false); });
-    connect(m_saveProtocolsCb, &QCheckBox::toggled, this, [this](bool checked) {
+    connect(m_saveProtocolsCb, &QRadioButton::toggled, this, [this](bool checked) {
         m_saveProtocolsSubPanel->setEnabled(checked);
         setPanelChildOpacity(m_saveProtocolsSubPanel, checked);
-        if (!checked) {
-            m_saveForPatientCb->setChecked(false);
-            m_saveForSpecialistCb->setChecked(false);
+        if (checked && m_saveForPatientCb && !m_saveForPatientCb->isChecked() && !m_saveForSpecialistCb->isChecked()) {
+            m_saveForPatientCb->setChecked(true);
         }
     });
-    connect(m_printProtocolsCb, &QCheckBox::toggled, this, [this](bool checked) {
+    connect(m_printProtocolsCb, &QRadioButton::toggled, this, [this](bool checked) {
         m_printProtocolsSubPanel->setEnabled(checked);
         setPanelChildOpacity(m_printProtocolsSubPanel, checked);
-        if (!checked) {
-            m_printForPatientCb->setChecked(false);
-            m_printForSpecialistCb->setChecked(false);
+        if (checked && m_printForPatientCb && !m_printForPatientCb->isChecked() && !m_printForSpecialistCb->isChecked()) {
+            m_printForPatientCb->setChecked(true);
         }
     });
     connect(saveAsBtn, &ImageButton::clicked, this, [this]() { exportDocument(); });
@@ -2447,7 +2460,11 @@ void InfantWindow::styleAdminScreen() {
     if (m_dualScreenCheck) {
         m_dualScreenCheck->setStyleSheet(
             "QCheckBox { color: white; font-family: 'Microsoft Sans Serif'; font-size: 12pt; background: transparent; spacing: 8px; }"
-            "QCheckBox::indicator { width: 20px; height: 20px; }");
+            + checkBoxIndicatorCss());
+    }
+    if (m_screenSettingsTitle) {
+        m_screenSettingsTitle->setStyleSheet(
+            "color: white; font-family: 'Microsoft Sans Serif'; font-size: 12pt; font-weight: bold; background: transparent;");
     }
     m_userRole->setStyleSheet(QString(
         "QComboBox {"
@@ -4622,10 +4639,8 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         m_exerciseHost->setGeometry(0, kTitleBarHeight, kDesignWidth, kDesignHeight - kTitleBarHeight);
         m_exerciseHost->hide();
         connect(m_exerciseHost, &ExerciseHost::protocolSaved, this, [this]() { refreshProtocolsView(); });
-        connect(m_exerciseHost, &ExerciseHost::exerciseOverlayChanged, this, [this](bool visible) {
-            if (visible) {
-                raiseChromeWidgets();
-            }
+        connect(m_exerciseHost, &ExerciseHost::exerciseOverlayChanged, this, [this](bool overlayActive) {
+            setWorkChromeVisible(!overlayActive);
         });
     }
 
@@ -4641,6 +4656,7 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         patientFio.clear();
     }
     const QString specialistFio = m_session ? m_session->fio : QString();
+    m_helpIndex = exerciseId + QStringLiteral(".html");
     m_exerciseHost->openExercise(
         exerciseId,
         m_currentPatientId,
@@ -4656,6 +4672,21 @@ void InfantWindow::openExercise(const QString &exerciseId) {
     }
     m_exerciseHost->raise();
     raiseChromeWidgets();
+}
+
+void InfantWindow::setWorkChromeVisible(bool visible) {
+    const QWidgetList chromeWidgets = {
+        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
+        m_pAna, m_pProto, m_pUpr, m_patientTitle, m_userOpenPatients, m_authorsFilterHost
+    };
+    for (QWidget *widget : chromeWidgets) {
+        if (widget) {
+            widget->setVisible(visible);
+        }
+    }
+    if (visible) {
+        raiseChromeWidgets();
+    }
 }
 
 void InfantWindow::raiseChromeWidgets() {
@@ -4845,10 +4876,13 @@ void InfantWindow::exportDocument() {
         suggested = QStringLiteral("Документ");
     }
 
+    const QString homeDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    const QString suggestedPath = QDir(homeDir).filePath(suggested + QStringLiteral(".pdf"));
+
     const QString path = QFileDialog::getSaveFileName(
         this,
         QStringLiteral("Сохранить как"),
-        suggested,
+        suggestedPath,
         QStringLiteral("PDF (*.pdf);;Word (*.doc)")
     );
     if (path.isEmpty()) {

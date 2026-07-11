@@ -17,11 +17,15 @@ namespace {
 
 constexpr int kPictureLeft = 700;
 constexpr int kPictureTop = 240;
+constexpr int kPictureTopOffset = 50;
+constexpr int kNativePictureW = 847;
+constexpr int kNativePictureH = 550;
 constexpr int kStopLeft = 971;
 constexpr int kStopTop = 72;
-constexpr int kRightLeft = 1225;
-constexpr int kWrongLeft = 1355;
+constexpr int kRightLeft = 1280;
+constexpr int kWrongLeft = 1420;
 constexpr int kAnswerTop = 72;
+constexpr int kAnswerButtonGap = 75;
 
 QPixmap flattenPixmapOnWhite(const QPixmap &source) {
     if (source.isNull()) {
@@ -191,8 +195,8 @@ void OnlyPExercise::updateWidgetLayout() {
     if (showButtons) {
         if (m_displayRole == DisplayRole::Specialist) {
             constexpr int kMargin = 12;
-            constexpr int kGap = 10;
-            const int maxButtonW = qMax(70, (width() - 2 * kMargin - 2 * kGap) / 3);
+            constexpr int kGap = 18;
+            const int maxButtonW = qMax(70, (width() - 2 * kMargin - 2 * kGap - kAnswerButtonGap) / 3);
             const int maxButtonH = 36;
             int x = kMargin;
             const int y = kMargin;
@@ -207,7 +211,11 @@ void OnlyPExercise::updateWidgetLayout() {
                 applyButtonPixmap(button, sources.at(i), maxButtonW, maxButtonH);
                 button->move(x, y);
                 button->show();
-                x += button->width() + kGap;
+                if (i == 0) {
+                    x += button->width() + kGap + kAnswerButtonGap;
+                } else {
+                    x += button->width() + kGap;
+                }
             }
             contentTop = kMargin + maxButtonH + kMargin;
         } else {
@@ -225,16 +233,57 @@ void OnlyPExercise::updateWidgetLayout() {
 
     if (!m_pictureSource.isNull()) {
         const int pictureMargin = 12;
-        const int availableW = qMax(40, width() - 2 * pictureMargin);
-        const int availableH = qMax(40, height() - contentTop - pictureMargin);
-        QPixmap scaled = m_pictureSource.scaled(
-            availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        m_picture->setPixmap(scaled);
-        m_picture->setFixedSize(scaled.size());
-        const int pictureX = pictureMargin + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2);
-        const int pictureY = showButtons ? contentTop : qRound(kPictureTop * sy);
-        m_picture->move(pictureX, pictureY);
-        m_picture->show();
+        QPixmap scaled = m_pictureSource;
+        if (m_displayRole == DisplayRole::Patient) {
+            const int targetW = kNativePictureW;
+            const int targetH = kNativePictureH;
+            if (width() >= targetW + 2 * pictureMargin && height() >= targetH + 2 * pictureMargin) {
+                scaled = m_pictureSource.scaled(
+                    targetW, targetH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            } else {
+                const int availableW = qMax(40, width() - 2 * pictureMargin);
+                const int availableH = qMax(40, height() - 2 * pictureMargin);
+                scaled = m_pictureSource.scaled(
+                    availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            }
+            m_picture->setPixmap(scaled);
+            m_picture->setFixedSize(scaled.size());
+            const int pictureX = qMax(pictureMargin, (width() - scaled.width()) / 2);
+            const int pictureY = qMax(pictureMargin, (height() - scaled.height()) / 2);
+            m_picture->move(pictureX, pictureY);
+            m_picture->show();
+        } else {
+            int targetW = kNativePictureW;
+            int targetH = kNativePictureH;
+            const int availableW = qMax(40, width() - 2 * pictureMargin);
+            const int availableH = qMax(40, height() - contentTop - pictureMargin);
+            if (m_displayRole == DisplayRole::Specialist
+                && (targetW > availableW || targetH > availableH)) {
+                scaled = m_pictureSource.scaled(
+                    availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            } else if (targetW > availableW || targetH > availableH) {
+                scaled = m_pictureSource.scaled(
+                    availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            } else {
+                scaled = m_pictureSource.scaled(
+                    targetW, targetH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            }
+            m_picture->setPixmap(scaled);
+            m_picture->setFixedSize(scaled.size());
+            int pictureX = pictureMargin;
+            if (m_displayRole == DisplayRole::Specialist) {
+                pictureX = pictureMargin + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2);
+            } else {
+                pictureX = qRound(kPictureLeft * sx);
+                if (pictureX + scaled.width() > width() - pictureMargin) {
+                    pictureX = pictureMargin + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2);
+                }
+            }
+            const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
+            const int pictureY = baseTop + qRound(kPictureTopOffset * sy);
+            m_picture->move(pictureX, pictureY);
+            m_picture->show();
+        }
     }
 
     m_stopButton->raise();

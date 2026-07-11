@@ -78,6 +78,7 @@ private:
     bool m_dualScreen = false;
     bool m_exerciseDone = false;
     bool m_protocolFormed = true;
+    bool m_protocolSavedThisSession = false;
     bool m_partly = false;
     QString m_currentProtocolId;
     bool m_exerciseRunning = false;
