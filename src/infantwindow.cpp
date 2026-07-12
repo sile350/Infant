@@ -4865,31 +4865,19 @@ void InfantWindow::renderExportToPrinter(
         return;
     }
 
-    QString html = assembledHtml;
+    QTextDocument doc;
+    doc.setHtml(assembledHtml);
+    doc.setDocumentMargin(0);
+
     if (selection.protocols) {
-        const QString exportStyle = QStringLiteral(
-            "<style>"
-            "body { margin:0; padding:0; }"
-            "table { width:100% !important; max-width:100% !important; }"
-            "</style>");
-        const int headEnd = html.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
-        if (headEnd >= 0) {
-            html.insert(headEnd, exportStyle);
-        } else {
-            html.prepend(exportStyle);
+        printer.setResolution(96);
+        const QRectF pageRect = printer.pageRect(QPrinter::DevicePixel);
+        if (!pageRect.isEmpty()) {
+            doc.setPageSize(pageRect.size());
+            doc.setTextWidth(pageRect.width());
         }
     }
 
-    QTextDocument doc;
-    doc.setHtml(html);
-    doc.setDocumentMargin(0);
-    const QRectF pageRect = printer.pageRect(QPrinter::Point);
-    if (selection.protocols && !pageRect.isEmpty()) {
-        doc.setPageSize(pageRect.size());
-        doc.setTextWidth(pageRect.width());
-    } else if (selection.protocols) {
-        doc.setTextWidth(671);
-    }
     doc.print(&printer);
 }
 
