@@ -504,7 +504,7 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         + ExerciseAssets::protocolTableStyleHtml()
         + QStringLiteral("</head><body>");
     const QString piddata = QStringLiteral(
-        "<div align='center' style='font-size:20px'>"
+        "<div align='center' style='font-size:24pt; line-height:1.35; font-family:\"Times New Roman\",serif'>"
         "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>")
                             .arg(patientDataHeader);
     return ExerciseAssets::wrapProtocolDocumentHtml(
