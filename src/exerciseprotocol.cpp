@@ -117,6 +117,18 @@ QString protocolRecordEndMarker(const QString &protocolId) {
     return QStringLiteral("<!--/protocol-id:%1-->").arg(protocolId);
 }
 
+QString protocolRecordStartSpan(const QString &protocolId) {
+    return QStringLiteral(
+               "<span id=\"dokit-pid-%1-start\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
+        .arg(protocolId);
+}
+
+QString protocolRecordEndSpan(const QString &protocolId) {
+    return QStringLiteral(
+               "<span id=\"dokit-pid-%1-end\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
+        .arg(protocolId);
+}
+
 QString extractBetweenMarkers(
     const QString &documentHtml,
     const QString &startPattern,
@@ -178,6 +190,96 @@ QString trimProtocolBodyTail(QString body) {
         }
     }
     return body;
+}
+
+QStringList pictureDescriptions();
+int findProtocolChunkEnd(const QString &html, int rowStart, int nextDatePos);
+QString normalizeStoredProtocolBody(QString body);
+
+int findProtocol12ResultsEnd(const QString &html, int markerPos) {
+    const int tableStart = html.indexOf(QStringLiteral("<table"), markerPos, Qt::CaseInsensitive);
+    if (tableStart < 0) {
+        return -1;
+    }
+    const QString lastDesc = pictureDescriptions().at(4);
+    const QRegularExpression lastPicRe(
+        QStringLiteral("<tr\\b[^>]*>[\\s\\S]*?%1[\\s\\S]*?</tr>")
+            .arg(QRegularExpression::escape(lastDesc)),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = lastPicRe.match(html, tableStart);
+    if (!match.hasMatch()) {
+        return -1;
+    }
+    const int closeTable = html.indexOf(
+        QStringLiteral("</table>"), match.capturedEnd(), Qt::CaseInsensitive);
+    if (closeTable < 0) {
+        return -1;
+    }
+    return closeTable + QStringLiteral("</table>").size();
+}
+
+bool looksLikeProtocol12Body(const QString &body) {
+    return body.contains(QStringLiteral("<!--s-->"))
+        || body.contains(QStringLiteral("Процесс выполнения диагностической методики"));
+}
+
+QStringList extractProtocol12Sessions(const QString &body) {
+    const QList<int> datePositions = findDateSpecialistPositions(body);
+    if (datePositions.isEmpty()) {
+        return {};
+    }
+
+    QList<int> markers;
+    int searchFrom = 0;
+    while (true) {
+        const int markerPos = body.indexOf(QStringLiteral("<!--s-->"), searchFrom);
+        if (markerPos < 0) {
+            break;
+        }
+        markers.append(markerPos);
+        searchFrom = markerPos + QStringLiteral("<!--s-->").size();
+    }
+
+    QStringList sessions;
+    for (int i = 0; i < datePositions.size(); ++i) {
+        const int rowStart = findRowStartBefore(body, datePositions.at(i));
+        if (rowStart < 0) {
+            continue;
+        }
+
+        int markerPos = -1;
+        for (int markerIndex = i; markerIndex < markers.size(); ++markerIndex) {
+            if (markers.at(markerIndex) >= rowStart) {
+                markerPos = markers.at(markerIndex);
+                break;
+            }
+        }
+
+        int endPos = -1;
+        if (markerPos >= rowStart) {
+            endPos = findProtocol12ResultsEnd(body, markerPos);
+        }
+        if (endPos < 0) {
+            if (i + 1 < datePositions.size()) {
+                const int nextRowStart = findRowStartBefore(body, datePositions.at(i + 1));
+                if (nextRowStart > rowStart) {
+                    endPos = nextRowStart;
+                }
+            } else {
+                endPos = findProtocolChunkEnd(body, rowStart, -1);
+            }
+        }
+        if (endPos <= rowStart) {
+            continue;
+        }
+
+        const QString chunk = normalizeStoredProtocolBody(
+            trimProtocolBodyTail(body.mid(rowStart, endPos - rowStart)));
+        if (!chunk.isEmpty()) {
+            sessions.append(chunk);
+        }
+    }
+    return sessions;
 }
 
 int findProtocolChunkEnd(const QString &html, int rowStart, int nextDatePos) {
@@ -894,11 +996,68 @@ QString ExerciseProtocol::formatProtocol12BodyForHeaderView(const QString &proto
     if (protocolBody.trimmed().isEmpty()) {
         return {};
     }
-    const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
+    QStringList sessions = extractProtocol12Sessions(protocolBody);
+    if (sessions.isEmpty()) {
+        sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
+    }
     if (sessions.isEmpty()) {
         return stripLeadingSummaryTableWrapper(protocolBody);
     }
     return rebuildProtocol12SessionList(sessions);
+}
+
+QString ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
+    const QString &headerFragment,
+    const QString &storedBody) {
+    if (storedBody.trimmed().isEmpty()) {
+        return headerFragment;
+    }
+
+    const QString canonicalBody = canonicalizeProtocol12StoredBody(storedBody);
+    QStringList sessions = extractProtocol12Sessions(canonicalBody);
+    if (sessions.isEmpty()) {
+        sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(canonicalBody);
+    }
+    if (sessions.isEmpty()) {
+        QString fallback = headerFragment + stripLeadingSummaryTableWrapper(canonicalBody);
+        if (!canonicalBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            fallback += QStringLiteral("</table>");
+        }
+        return fallback;
+    }
+
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = sessions.at(i);
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryRows = marker >= 0 ? session.left(marker) : session;
+        QString resultsBlock = marker >= 0 ? session.mid(marker + QStringLiteral("<!--s-->").size()) : QString();
+
+        summaryRows = stripLeadingSummaryTableWrapper(summaryRows);
+        summaryRows.replace(
+            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        summaryRows = summaryRows.trimmed();
+        resultsBlock = resultsBlock.trimmed();
+
+        if (i == 0) {
+            result += headerFragment;
+            if (!summaryRows.isEmpty()) {
+                result += summaryRows;
+            }
+            result += QStringLiteral("</table>");
+        } else {
+            result += protocolSummaryTableOpenHtml();
+            if (!summaryRows.isEmpty()) {
+                result += summaryRows;
+            }
+            result += QStringLiteral("</table>");
+        }
+        if (!resultsBlock.isEmpty()) {
+            result += resultsBlock;
+        }
+    }
+    return result;
 }
 
 QString ExerciseProtocol::canonicalizeProtocol12StoredBody(const QString &protocolBody) {
@@ -1040,7 +1199,11 @@ QString ExerciseProtocol::wrapEditableProtocolBody(const QString &protocolBody) 
 }
 
 QString ExerciseProtocol::wrapProtocolRecord(const QString &protocolId, const QString &protocolBody) {
-    return protocolRecordStartMarker(protocolId) + protocolBody + protocolRecordEndMarker(protocolId);
+    return protocolRecordStartSpan(protocolId)
+        + protocolRecordStartMarker(protocolId)
+        + protocolBody
+        + protocolRecordEndMarker(protocolId)
+        + protocolRecordEndSpan(protocolId);
 }
 
 QString ExerciseProtocol::extractEditableProtocolBody(const QString &documentHtml) {
@@ -1072,6 +1235,13 @@ QString ExerciseProtocol::extractEditableProtocolBody(const QString &documentHtm
 }
 
 QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &documentHtml) {
+    if (looksLikeProtocol12Body(documentHtml)) {
+        const QStringList sessions = extractProtocol12Sessions(documentHtml);
+        if (!sessions.isEmpty()) {
+            return sessions;
+        }
+    }
+
     QStringList bodies;
     const QList<int> datePositions = findDateSpecialistPositions(documentHtml);
     for (int i = 0; i < datePositions.size(); ++i) {

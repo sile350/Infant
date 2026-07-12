@@ -1421,7 +1421,9 @@ void InfantWindow::buildUi() {
     ProtocolEditGuard::install(m_protocolsView);
     connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
     connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
-        if (m_currentScreen != ScreenMode::Protocols || m_currentPatientId.isEmpty()) {
+        if (m_protocolsSuppressDirty
+            || m_currentScreen != ScreenMode::Protocols
+            || m_currentPatientId.isEmpty()) {
             return;
         }
         m_protocolsViewDirty = true;
@@ -4332,6 +4334,10 @@ void InfantWindow::refreshProtocolsView() {
         inner = m_repository.loadPatientProtocols(m_currentPatientId);
     }
 
+    if (m_protocolsSaveTimer) {
+        m_protocolsSaveTimer->stop();
+    }
+    m_protocolsSuppressDirty = true;
     m_protocolsView->setUpdatesEnabled(false);
     if (inner.trimmed().isEmpty()) {
         const QString emptyHtml = ExerciseAssets::wrapProtocolDocumentHtml(QStringLiteral(
@@ -4354,6 +4360,7 @@ void InfantWindow::refreshProtocolsView() {
         }
         m_protocolsView->moveCursor(QTextCursor::Start);
     }
+    m_protocolsSuppressDirty = false;
     m_protocolsViewDirty = false;
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
