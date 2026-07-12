@@ -37,7 +37,7 @@ void appendProtocolRecord(
     QString record;
     if (uprid == QStringLiteral("1.2")) {
         record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
-            headerForExercise(uprid), protocolBody);
+            continuation ? QString() : headerForExercise(uprid), protocolBody);
     } else if (continuation) {
         record = QStringLiteral(
                       "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
@@ -504,7 +504,7 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         + ExerciseAssets::protocolTableStyleHtml()
         + QStringLiteral("</head><body>");
     const QString piddata = QStringLiteral(
-        "<div align='center' style='font-size:24pt; line-height:1.35; font-family:\"Times New Roman\",serif'>"
+        "<div align='center' style='font-size:16pt; line-height:1.35; font-family:\"Times New Roman\",serif'>"
         "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>")
                             .arg(patientDataHeader);
     return ExerciseAssets::wrapProtocolDocumentHtml(

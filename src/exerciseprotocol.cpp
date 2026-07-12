@@ -1056,7 +1056,11 @@ QString ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
         resultsBlock = resultsBlock.trimmed();
 
         if (i == 0) {
-            result += headerFragment;
+            if (!headerFragment.trimmed().isEmpty()) {
+                result += headerFragment;
+            } else {
+                result += protocolSummaryTableOpenHtml();
+            }
             if (!summaryRows.isEmpty()) {
                 result += summaryRows;
             }

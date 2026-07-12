@@ -657,6 +657,12 @@ void ExerciseHost::openExercise(
     m_protocolFormed = true;
     m_protocolSavedThisSession = false;
     m_partly = false;
+    if (m_repository && !patientId.trimmed().isEmpty()) {
+        const QString existingBody = m_repository->loadLastExerciseProtocolBody(patientId, exerciseId);
+        if (!existingBody.trimmed().isEmpty()) {
+            m_partly = true;
+        }
+    }
     m_currentProtocolId.clear();
     m_orOpen1 = false;
     m_orOpen2 = false;
