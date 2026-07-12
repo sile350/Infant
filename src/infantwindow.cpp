@@ -4868,10 +4868,8 @@ void InfantWindow::renderExportToPrinter(
     QTextDocument doc;
     doc.setHtml(assembledHtml);
     doc.setDocumentMargin(0);
-    const QRectF pageRect = printer.pageRect(QPrinter::Point);
-    if (!pageRect.isEmpty()) {
-        doc.setPageSize(pageRect.size());
-        doc.setTextWidth(pageRect.width());
+    if (selection.protocols) {
+        doc.setTextWidth(671);
     }
     doc.print(&printer);
 }
