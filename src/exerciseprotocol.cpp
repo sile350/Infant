@@ -110,13 +110,11 @@ QString protocolBodyEndMarker() {
 }
 
 QString protocolRecordStartMarker(const QString &protocolId) {
-    return QStringLiteral("<span id=\"dokit-pid-%1-start\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
-        .arg(protocolId);
+    return QStringLiteral("<!--protocol-id:%1-->").arg(protocolId);
 }
 
 QString protocolRecordEndMarker(const QString &protocolId) {
-    return QStringLiteral("<span id=\"dokit-pid-%1-end\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
-        .arg(protocolId);
+    return QStringLiteral("<!--/protocol-id:%1-->").arg(protocolId);
 }
 
 QString extractBetweenMarkers(
@@ -870,11 +868,67 @@ QString ExerciseProtocol::extractLastSessionStoredBody(const QString &protocolBo
     }
     const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
     if (sessions.size() <= 1) {
-        return protocolBody;
+        return stripLeadingSummaryTableWrapper(protocolBody);
     }
     // Для отображения на странице упражнения шапка (header.html) уже открывает <table>.
     // Последняя сессия должна продолжаться строками <tr>, без нового <table> внутри.
     return stripLeadingSummaryTableWrapper(sessions.last());
+}
+
+QString ExerciseProtocol::formatProtocol12BodyForHeaderView(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
+    if (sessions.isEmpty()) {
+        return stripLeadingSummaryTableWrapper(protocolBody);
+    }
+
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = stripLeadingSummaryTableWrapper(sessions.at(i));
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryPart = marker >= 0 ? session.left(marker) : session;
+        const QString resultsPart = marker >= 0 ? session.mid(marker) : QString();
+
+        summaryPart.replace(
+            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        summaryPart = summaryPart.trimmed();
+
+        if (i > 0) {
+            result += protocolSummaryTableOpenHtml();
+        }
+        if (!summaryPart.isEmpty()) {
+            result += summaryPart;
+        }
+        result += QStringLiteral("</table>");
+        result += resultsPart;
+    }
+    return result;
+}
+
+QString ExerciseProtocol::stripProtocolRecordHeader(
+    const QString &recordHtml,
+    const QString &headerFragment) {
+    QString body = recordHtml.trimmed();
+    if (body.isEmpty()) {
+        return body;
+    }
+    if (!headerFragment.trimmed().isEmpty() && body.startsWith(headerFragment)) {
+        body = body.mid(headerFragment.size());
+    }
+    return normalizeStoredProtocolBody(body);
+}
+
+QString ExerciseProtocol::stripMethodologyFillForDocExport(const QString &protocolHtml) {
+    QString html = protocolHtml;
+    html.replace(
+        QRegularExpression(
+            QStringLiteral(" bgcolor=[\"']#a3f3d5[\"']"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    return html;
 }
 
 QString ExerciseProtocol::restrictExercisePageEditing(const QString &protocolHtml) {

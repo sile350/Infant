@@ -29,6 +29,7 @@ void appendProtocolRecord(
     const QString &uprid,
     const QString &protocolBody,
     bool continuation,
+    const QString &protocolId,
     const std::function<QString(const QString &)> &headerForExercise) {
     if (continuation) {
         body += protocolPageBreakHtml();
@@ -44,6 +45,9 @@ void appendProtocolRecord(
     }
     if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
         record += QStringLiteral("</table>");
+    }
+    if (!protocolId.isEmpty()) {
+        record = ExerciseProtocol::wrapProtocolRecord(protocolId, record);
     }
     body += record;
 }
@@ -408,8 +412,8 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         }
         pr.replace(QStringLiteral("скачать"), QString());
         if (uprid == QStringLiteral("1.2")) {
-            pr = ExerciseProtocol::normalizeProtocol12Layout(pr);
             if (role == QLatin1String("s")) {
+                pr = ExerciseProtocol::formatProtocol12BodyForHeaderView(pr);
                 pr = ExerciseProtocol::repairResultsTableBody(pr);
             } else {
                 pr = ExerciseProtocol::patientProtocolBody(pr);
@@ -421,12 +425,12 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
                 pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
             }
         }
-        const QString markedPr = ExerciseProtocol::wrapProtocolRecord(protocolId, pr);
         appendProtocolRecord(
             body,
             uprid,
-            markedPr,
+            pr,
             continuation,
+            protocolId,
             [this](const QString &exerciseId) { return exerciseHeaderFragment(exerciseId); });
     }
     return body;
@@ -740,8 +744,13 @@ bool Repository::updateProtocolsFromEditedDocument(
 
         QString mergedBody;
         if (bodiesById.contains(protocolId)) {
+            const QString uprid = m_local.queryScalar(
+                "SELECT uprid FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
+            const QString sectionBody = ExerciseProtocol::stripProtocolRecordHeader(
+                bodiesById.value(protocolId), exerciseHeaderFragment(uprid));
             QTextDocument sectionDocument;
-            sectionDocument.setHtml(bodiesById.value(protocolId));
+            sectionDocument.setHtml(
+                ExerciseAssets::buildProtocolDocumentHtml(sectionBody));
             mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
                 storedBody, &sectionDocument, 0);
         } else {

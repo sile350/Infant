@@ -3,6 +3,7 @@
 #include "custommessagebox.h"
 #include "exerciseassets.h"
 #include "protocoleditguard.h"
+#include "exerciseprotocol.h"
 
 #include <QClipboard>
 #include <QMimeData>
@@ -4956,7 +4957,11 @@ void InfantWindow::exportDocument() {
         file.write(m_lastAnamnesisRtf);
         return;
     }
-    file.write(content.toUtf8());
+    QString exportContent = content;
+    if (path.endsWith(QStringLiteral(".doc"), Qt::CaseInsensitive)) {
+        exportContent = ExerciseProtocol::stripMethodologyFillForDocExport(exportContent);
+    }
+    file.write(exportContent.toUtf8());
 }
 
 void InfantWindow::printSelectedContent() {
