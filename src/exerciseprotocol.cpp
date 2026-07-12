@@ -646,8 +646,8 @@ QString replaceActivityHelpCells(QString body, const QString &activity, const QS
         QStringLiteral("\\1") + activityCell + QStringLiteral("\\3") + helpCell + QStringLiteral("\\5"));
 }
 
-QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedProtocolFields &parsed) {
-    QString result = normalizeStoredProtocolBody(storedBody);
+QString applyParsedFieldsToSessionChunk(const QString &sessionChunk, const ParsedProtocolFields &parsed) {
+    QString result = sessionChunk;
 
     if (parsed.hasDateSpecialist) {
         result = replaceRowSecondCell(result, QStringLiteral("Дата/специалист"), parsed.dateSpecialist);
@@ -664,6 +664,56 @@ QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedPro
     }
 
     return result;
+}
+
+QString reassembleProtocolSessions(const QString &originalBody, const QStringList &sessions) {
+    if (sessions.isEmpty()) {
+        return originalBody;
+    }
+    const QList<int> datePositions = findDateSpecialistPositions(originalBody);
+    if (datePositions.isEmpty()) {
+        return sessions.join(QString());
+    }
+    const int firstRowStart = findRowStartBefore(originalBody, datePositions.first());
+    QString result = firstRowStart > 0 ? originalBody.left(firstRowStart) : QString();
+    for (int i = 0; i < sessions.size(); ++i) {
+        if (i > 0) {
+            result += protocolSummaryTableOpenHtml();
+        }
+        result += sessions.at(i);
+    }
+    return result;
+}
+
+QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedProtocolFields &parsed) {
+    const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(storedBody);
+    if (sessions.isEmpty()) {
+        return applyParsedFieldsToSessionChunk(normalizeStoredProtocolBody(storedBody), parsed);
+    }
+    QStringList updated = sessions;
+    const int targetIndex = updated.size() - 1;
+    updated[targetIndex] = applyParsedFieldsToSessionChunk(updated.at(targetIndex), parsed);
+    return reassembleProtocolSessions(storedBody, updated);
+}
+
+QString keepOnlyLastSessionSummaryRows(QString body) {
+    const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(body);
+    if (sessions.size() <= 1) {
+        return body;
+    }
+    QString last = sessions.last();
+    const int marker = last.indexOf(QStringLiteral("<!--s-->"));
+    if (marker >= 0) {
+        last = last.left(marker);
+    }
+    last.replace(
+        QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+
+    const QList<int> datePositions = findDateSpecialistPositions(body);
+    const int firstRowStart = findRowStartBefore(body, datePositions.first());
+    const QString prefix = firstRowStart > 0 ? body.left(firstRowStart) : QString();
+    return prefix + protocolSummaryTableOpenHtml() + last + QStringLiteral("</table>");
 }
 
 QStringList splitEditorSectionsByTitle(const QString &documentHtml) {
@@ -749,7 +799,55 @@ QString ExerciseProtocol::patientProtocolBody(const QString &protocolBody) {
     if (protocolBody.trimmed().isEmpty()) {
         return {};
     }
-    return ensureProtocol12SummaryTableOpens(stripSpecialistSections(protocolBody));
+    QString body = stripSpecialistSections(protocolBody);
+    body = keepOnlyLastSessionSummaryRows(body);
+    return ensureProtocol12SummaryTableOpens(body);
+}
+
+QString ExerciseProtocol::extractLastSessionStoredBody(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
+    if (sessions.size() <= 1) {
+        return protocolBody;
+    }
+    const QList<int> datePositions = findDateSpecialistPositions(protocolBody);
+    const int firstRowStart = findRowStartBefore(protocolBody, datePositions.first());
+    const QString prefix = firstRowStart > 0 ? protocolBody.left(firstRowStart) : QString();
+    return prefix + protocolSummaryTableOpenHtml() + sessions.last();
+}
+
+QString ExerciseProtocol::restrictExercisePageEditing(const QString &protocolHtml) {
+    QString html = protocolHtml;
+    html.replace(
+        QRegularExpression(
+            QStringLiteral(" contenteditable=['\"]true['\"]"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+
+    const QRegularExpression resultRe(
+        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[^<]*Результат[^<]*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    html.replace(
+        resultRe,
+        QStringLiteral("\\1<div contenteditable='true'>\\2</div>\\3"));
+
+    const QRegularExpression noteRe(
+        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>[^<]*Примечание[^<]*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    html.replace(
+        noteRe,
+        QStringLiteral("\\1<div contenteditable='true'>\\2</div>\\3"));
+
+    const QRegularExpression rowspanRe(
+        QStringLiteral("(<td[^>]*rowspan=['\"]5['\"][^>]*>)([\\s\\S]*?)(</td>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    html.replace(
+        rowspanRe,
+        QStringLiteral("\\1<div contenteditable='true'>\\2</div>\\3"));
+
+    return html;
 }
 
 QString ExerciseProtocol::normalizeProtocol12Layout(const QString &protocolBody) {
@@ -963,11 +1061,46 @@ QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
         return storedBody;
     }
 
-    ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, protocolIndex);
-    if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
-        parsed = parseProtocolFieldsFromHtml(editorDocument->toHtml(), protocolIndex);
+    const QString editorHtml = editorDocument->toHtml();
+    QStringList editorSessions = ExerciseProtocol::extractProtocolBodiesByDateRows(editorHtml);
+    if (editorSessions.isEmpty()) {
+        ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, protocolIndex);
+        if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
+            parsed = parseProtocolFieldsFromHtml(editorHtml, protocolIndex);
+        }
+        if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
+            return storedBody;
+        }
+        return applyParsedFieldsToStoredBody(storedBody, parsed);
     }
-    return applyParsedFieldsToStoredBody(storedBody, parsed);
+
+    const QStringList storedSessions = ExerciseProtocol::extractProtocolBodiesByDateRows(storedBody);
+    if (storedSessions.isEmpty()) {
+        ParsedProtocolFields parsed = parseProtocolFieldsFromHtml(editorSessions.first(), 0);
+        return applyParsedFieldsToStoredBody(storedBody, parsed);
+    }
+
+    if (editorSessions.size() == 1 && storedSessions.size() > 1) {
+        ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, 0);
+        if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
+            parsed = parseProtocolFieldsFromHtml(editorSessions.first(), 0);
+        }
+        QStringList updated = storedSessions;
+        const int targetIndex = updated.size() - 1;
+        updated[targetIndex] = applyParsedFieldsToSessionChunk(updated.at(targetIndex), parsed);
+        return reassembleProtocolSessions(storedBody, updated);
+    }
+
+    QStringList updated = storedSessions;
+    const int count = qMin(editorSessions.size(), storedSessions.size());
+    for (int i = 0; i < count; ++i) {
+        ParsedProtocolFields parsed = parseProtocolFieldsFromHtml(editorSessions.at(i), 0);
+        if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
+            parsed = parseProtocolFieldsFromDocument(editorDocument, i);
+        }
+        updated[i] = applyParsedFieldsToSessionChunk(storedSessions.at(i), parsed);
+    }
+    return reassembleProtocolSessions(storedBody, updated);
 }
 
 QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(

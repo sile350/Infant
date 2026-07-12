@@ -1386,9 +1386,9 @@ void InfantWindow::buildUi() {
         "font-size:9pt; background: transparent;"));
 
     m_protocolsView = new QTextEdit(m_panelProtocols);
-    m_protocolsView->setReadOnly(true);
-    m_protocolsView->setTextInteractionFlags(Qt::NoTextInteraction);
-    m_protocolsView->setFocusPolicy(Qt::NoFocus);
+    m_protocolsView->setReadOnly(false);
+    m_protocolsView->setTextInteractionFlags(Qt::TextEditorInteraction);
+    m_protocolsView->setFocusPolicy(Qt::StrongFocus);
     m_protocolsView->setGeometry(100, 99, 760, 889);
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);
@@ -1417,6 +1417,15 @@ void InfantWindow::buildUi() {
     m_protocolsSaveTimer->setSingleShot(true);
     m_protocolsSaveTimer->setInterval(700);
     connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
+    connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
+        if (m_currentScreen != ScreenMode::Protocols || m_currentPatientId.isEmpty()) {
+            return;
+        }
+        m_protocolsViewDirty = true;
+        if (m_protocolsSaveTimer) {
+            m_protocolsSaveTimer->start();
+        }
+    });
 
     m_panelExercises = new WhitePanelWidget(m_workStack);
     m_panelExercises->setObjectName(QStringLiteral("exercisesPanel"));
@@ -2173,10 +2182,10 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
         m_workStack->update();
     }
     if (m_authorsFilterHost) {
-        m_authorsFilterHost->setVisible(exercises);
+        m_authorsFilterHost->setVisible(exercises && !m_exerciseOpen);
     }
     if (m_authorsFilter) {
-        m_authorsFilter->setVisible(exercises);
+        m_authorsFilter->setVisible(exercises && !m_exerciseOpen);
     }
     m_adminTitle->setVisible(admin);
     m_userOpenPatients->setVisible(admin);
@@ -2205,7 +2214,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
         if (m_workStack) {
             m_workStack->raise();
         }
-        if (exercises && m_authorsFilterHost) {
+        if (exercises && m_authorsFilterHost && !m_exerciseOpen) {
             m_authorsFilterHost->raise();
         }
         m_patientTitle->raise();
@@ -4266,7 +4275,7 @@ void InfantWindow::saveProtocolsEdits(bool force) {
     if (!force && !m_protocolsViewDirty) {
         return;
     }
-    if (m_protocolsView->hasFocus()) {
+    if (force && m_protocolsView->hasFocus()) {
         m_protocolsView->clearFocus();
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }
@@ -4675,14 +4684,30 @@ void InfantWindow::openExercise(const QString &exerciseId) {
 }
 
 void InfantWindow::setWorkChromeVisible(bool visible) {
+    const bool exercisesList = m_currentScreen == ScreenMode::Exercises && !m_exerciseOpen;
     const QWidgetList chromeWidgets = {
         m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
-        m_pAna, m_pProto, m_pUpr, m_patientTitle, m_userOpenPatients, m_authorsFilterHost
+        m_pAna, m_pProto, m_pUpr, m_patientTitle, m_userOpenPatients
     };
     for (QWidget *widget : chromeWidgets) {
         if (widget) {
             widget->setVisible(visible);
         }
+    }
+    if (m_authorsFilterHost) {
+        m_authorsFilterHost->setVisible(visible && exercisesList);
+    }
+    if (m_authorsFilter) {
+        m_authorsFilter->setVisible(visible && exercisesList);
+    }
+    if (m_bClose) {
+        m_bClose->setVisible(visible);
+    }
+    if (m_bLine) {
+        m_bLine->setVisible(visible);
+    }
+    if (m_bUp) {
+        m_bUp->setVisible(visible);
     }
     if (visible) {
         raiseChromeWidgets();
@@ -4693,12 +4718,15 @@ void InfantWindow::raiseChromeWidgets() {
     const QWidgetList chromeWidgets = {
         m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
         m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr, m_patientTitle,
-        m_userOpenPatients, m_authorsFilterHost
+        m_userOpenPatients
     };
     for (QWidget *widget : chromeWidgets) {
         if (widget && widget->isVisible()) {
             widget->raise();
         }
+    }
+    if (m_authorsFilterHost && m_authorsFilterHost->isVisible()) {
+        m_authorsFilterHost->raise();
     }
 }
 

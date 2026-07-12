@@ -19,6 +19,7 @@ constexpr int kPictureLeft = 700;
 constexpr int kPictureTop = 240;
 constexpr int kPictureTopOffset = 50;
 constexpr int kPictureShiftLeft = 150;
+constexpr int kSpecialistPictureShiftRight = 35;
 constexpr int kPatientPictureShiftRight = 50;
 constexpr int kNativePictureW = 847;
 constexpr int kNativePictureH = 550;
@@ -260,14 +261,16 @@ void OnlyPExercise::updateWidgetLayout() {
                 kNativePictureW, kNativePictureH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
-            int pictureX = pictureMargin
-                + qMax(0, (width() - 2 * pictureMargin - scaled.width()) / 2)
-                - kPictureShiftLeft;
-            pictureX = qMax(pictureMargin, pictureX);
+            const int rightHalfStart = width() / 2;
+            const int rightHalfWidth = qMax(40, width() - rightHalfStart - pictureMargin);
+            int pictureX = rightHalfStart
+                + qMax(0, (rightHalfWidth - scaled.width()) / 2)
+                + kSpecialistPictureShiftRight;
             if (pictureX + scaled.width() > width() - pictureMargin) {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - scaled.width());
             }
-            const int pictureY = contentTop + kPictureTopOffset;
+            pictureX = qMax(pictureMargin, pictureX);
+            const int pictureY = qMax(pictureMargin, (height() - scaled.height()) / 2);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
         } else {

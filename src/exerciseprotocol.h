@@ -35,6 +35,8 @@ public:
     static QString normalizeStoredProtocolBody(const QString &protocolBody);
     static QString normalizeProtocol12Layout(const QString &protocolBody);
     static QString patientProtocolBody(const QString &protocolBody);
+    static QString extractLastSessionStoredBody(const QString &protocolBody);
+    static QString restrictExercisePageEditing(const QString &protocolHtml);
     static QString repairResultsTableBody(const QString &protocolBody, const QList<bool> &answers = {});
     static QString extractEditableProtocolBody(const QString &documentHtml);
     static QStringList extractProtocolBodiesByDateRows(const QString &documentHtml);

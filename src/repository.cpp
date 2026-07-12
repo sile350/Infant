@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QMap>
 #include <QRegularExpression>
 #include <QStringList>
 #include <QTextDocument>
@@ -398,7 +399,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         if (row.size() < 3) {
             continue;
         }
-        Q_UNUSED(row.at(0));
+        const QString protocolId = row.at(0);
         const QString uprid = row.at(1);
         QString pr = row.at(2);
         const bool continuation = !lastUprid.isEmpty() && uprid == lastUprid;
@@ -420,7 +421,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
                 pr.replace(QStringLiteral("Процесс выполнения диагностической методики"), QString());
             }
         }
-        const QString markedPr = pr;
+        const QString markedPr = ExerciseProtocol::wrapProtocolRecord(protocolId, pr);
         appendProtocolRecord(
             body,
             uprid,
@@ -471,9 +472,9 @@ QString Repository::exerciseHeaderFragment(const QString &uprid) const {
         const QString content = QString::fromUtf8(file.readAll());
         const int bodyPos = content.indexOf(QStringLiteral("<body"), 0, Qt::CaseInsensitive);
         if (bodyPos >= 0) {
-            const int start = bodyPos + 25;
-            if (start < content.size()) {
-                return content.mid(start);
+            const int tagEnd = content.indexOf(QLatin1Char('>'), bodyPos);
+            if (tagEnd >= 0 && tagEnd + 1 < content.size()) {
+                return content.mid(tagEnd + 1).trimmed();
             }
         }
         return content;
@@ -496,8 +497,9 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         + ExerciseAssets::protocolTableStyleHtml()
         + QStringLiteral("</head><body>");
     const QString piddata = QStringLiteral(
-        "<div align='center' style='font-size:20px'>"
-        "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>")
+        "<div align='center' style='font-size:28px'>"
+        "Индивидуальная карта психологического развития ребенка<br><br>"
+        "<span style='font-size:24px'>%1</span></div><br>")
                             .arg(patientDataHeader);
     return ExerciseAssets::wrapProtocolDocumentHtml(
         zag + piddata + body + QStringLiteral("</body></html>"));
@@ -695,8 +697,10 @@ QString Repository::loadProtocolViewHtml(
 
     QString body = protocolBody;
     if (exerciseId == QStringLiteral("1.2")) {
+        body = ExerciseProtocol::extractLastSessionStoredBody(body);
         body = ExerciseProtocol::normalizeProtocol12Layout(body);
         body = ExerciseProtocol::repairResultsTableBody(body);
+        body = ExerciseProtocol::restrictExercisePageEditing(body);
     }
 
     QString protocolBlock = exerciseHeaderFragment(exerciseId) + body;
@@ -708,6 +712,47 @@ QString Repository::loadProtocolViewHtml(
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
                "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3")
         .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), protocolBlock);
+}
+
+bool Repository::updateProtocolsFromEditedDocument(
+    QTextDocument *document,
+    const QStringList &recordIdsInOrder,
+    QString *errorText) {
+    if (recordIdsInOrder.isEmpty()) {
+        return true;
+    }
+    if (!document) {
+        if (errorText) {
+            *errorText = QStringLiteral("Пустой документ протокола");
+        }
+        return false;
+    }
+
+    const QMap<QString, QString> bodiesById =
+        ExerciseProtocol::extractProtocolBodiesById(document->toHtml());
+
+    for (int i = 0; i < recordIdsInOrder.size(); ++i) {
+        const QString protocolId = recordIdsInOrder.at(i);
+        const QString storedBody = loadProtocolBodyById(protocolId);
+        if (storedBody.trimmed().isEmpty()) {
+            continue;
+        }
+
+        QString mergedBody;
+        if (bodiesById.contains(protocolId)) {
+            QTextDocument sectionDocument;
+            sectionDocument.setHtml(bodiesById.value(protocolId));
+            mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
+                storedBody, &sectionDocument, 0);
+        } else {
+            mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
+                storedBody, document, i);
+        }
+        if (!updateProtocolBody(protocolId, mergedBody, errorText)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool Repository::updateProtocolBody(const QString &protocolId, const QString &protocolBody, QString *errorText) {
@@ -726,35 +771,6 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
             *errorText = m_local.lastError();
         }
         return false;
-    }
-    return true;
-}
-
-bool Repository::updateProtocolsFromEditedDocument(
-    QTextDocument *document,
-    const QStringList &recordIdsInOrder,
-    QString *errorText) {
-    if (recordIdsInOrder.isEmpty()) {
-        return true;
-    }
-    if (!document) {
-        if (errorText) {
-            *errorText = QStringLiteral("Пустой документ протокола");
-        }
-        return false;
-    }
-
-    for (int i = 0; i < recordIdsInOrder.size(); ++i) {
-        const QString protocolId = recordIdsInOrder.at(i);
-        const QString storedBody = loadProtocolBodyById(protocolId);
-        if (storedBody.trimmed().isEmpty()) {
-            continue;
-        }
-        const QString mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
-            storedBody, document, i);
-        if (!updateProtocolBody(protocolId, mergedBody, errorText)) {
-            return false;
-        }
     }
     return true;
 }
