@@ -991,7 +991,6 @@ QString ExerciseProtocol::patientProtocolBody(const QString &protocolBody) {
         return {};
     }
     QString body = stripSpecialistSections(protocolBody);
-    body = keepOnlyLastSessionSummaryRows(body);
     return ensureProtocol12SummaryTableOpens(body);
 }
 

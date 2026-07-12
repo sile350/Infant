@@ -4806,7 +4806,9 @@ QString InfantWindow::assembleExportHtml(const ExportSelection &selection) {
             return {};
         }
 
-        saveProtocolsEdits(true);
+        if (m_protocolsViewDirty) {
+            saveProtocolsEdits(true);
+        }
 
         const QString patientData = protocolsExportHeader();
         if (selection.forPatient) {
