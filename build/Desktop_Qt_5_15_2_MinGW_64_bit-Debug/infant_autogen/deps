@@ -463,6 +463,8 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/src/onlypexercise.h \
 	D:/projects/DokitLab/infant/src/patientdisplay.cpp \
 	D:/projects/DokitLab/infant/src/patientdisplay.h \
+	D:/projects/DokitLab/infant/src/protocoleditguard.cpp \
+	D:/projects/DokitLab/infant/src/protocoleditguard.h \
 	D:/projects/DokitLab/infant/src/repository.cpp \
 	D:/projects/DokitLab/infant/src/repository.h \
 	D:/projects/DokitLab/infant/src/singleinstance.cpp \

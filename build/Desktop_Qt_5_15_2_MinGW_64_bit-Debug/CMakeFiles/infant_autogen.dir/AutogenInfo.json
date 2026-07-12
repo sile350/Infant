@@ -198,6 +198,12 @@
 			null
 		],
 		[
+			"D:/projects/DokitLab/infant/src/protocoleditguard.h",
+			"MU",
+			"UVLADIE3JM/moc_protocoleditguard.cpp",
+			null
+		],
+		[
 			"D:/projects/DokitLab/infant/src/repository.h",
 			"MU",
 			"UVLADIE3JM/moc_repository.cpp",
@@ -294,6 +300,7 @@
 		[ "D:/projects/DokitLab/infant/src/localdatabase.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/onlypexercise.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/patientdisplay.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/protocoleditguard.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/repository.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/singleinstance.cpp", "MU", null ]
 	],

@@ -77,6 +77,14 @@ QString protocolSummaryTableOpenHtml() {
         "<colgroup><col width='165'><col width='506'></colgroup>");
 }
 
+QString stripLeadingSummaryTableWrapper(QString chunk) {
+    QString trimmed = chunk.trimmed();
+    const QRegularExpression wrapRe(
+        QStringLiteral("^<table\\b[^>]*>\\s*<colgroup>[\\s\\S]*?</colgroup>\\s*"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    return trimmed.replace(wrapRe, QString());
+}
+
 QString summaryRowHtml(const QString &label, const QString &valueHtml) {
     return QStringLiteral("<tr><td width='165' valign='top'>%1</td><td width='506' valign='top'>%2</td></tr>")
         .arg(label, valueHtml);
@@ -409,7 +417,59 @@ QString replacePictureRow(
 }
 
 QString repairResultsTableBody(QString body, const QList<bool> &answers) {
-    return rebuildResultsTableSection(body, answers, nullptr);
+    int markerPos = -1;
+    int searchFrom = 0;
+    while (true) {
+        const int next = body.indexOf(QStringLiteral("<!--s-->"), searchFrom);
+        if (next < 0) {
+            break;
+        }
+        markerPos = next;
+        searchFrom = next + QStringLiteral("<!--s-->").size();
+    }
+    if (markerPos < 0) {
+        return body;
+    }
+
+    const QString prefix = body.left(markerPos);
+    QString suffix = body.mid(markerPos + QStringLiteral("<!--s-->").size());
+
+    const int tableStart = suffix.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+    if (tableStart < 0) {
+        return body;
+    }
+    const int tableEnd = suffix.indexOf(QStringLiteral("</table>"), tableStart, Qt::CaseInsensitive);
+    if (tableEnd < 0) {
+        return body;
+    }
+    const QString afterResultsTable = suffix.mid(tableEnd + QStringLiteral("</table>").size());
+
+    QString activity;
+    QString help;
+    extractActivityHelpFromSection(suffix, &activity, &help);
+
+    QString newTable = resultsTableHeaderHtml();
+    const QStringList descriptions = pictureDescriptions();
+    for (int i = 0; i < descriptions.size(); ++i) {
+        QString verno;
+        if (i < answers.size()) {
+            verno = answerText(answers.at(i));
+        }
+        if (verno.isEmpty()) {
+            verno = extractVernoForPictureRow(body, i);
+        }
+        if (verno.isEmpty()) {
+            verno = QStringLiteral("неверно");
+        }
+        newTable += canonicalPictureRowHtml(
+            i,
+            verno,
+            i == 0 ? activity : QString(),
+            i == 0 ? help : QString());
+    }
+    newTable += QStringLiteral("</table>");
+
+    return prefix + QStringLiteral("<!--s-->") + newTable + afterResultsTable;
 }
 
 QString htmlFragmentToPlainText(const QString &html) {
@@ -701,7 +761,7 @@ QString keepOnlyLastSessionSummaryRows(QString body) {
     if (sessions.size() <= 1) {
         return body;
     }
-    QString last = sessions.last();
+    QString last = stripLeadingSummaryTableWrapper(sessions.last());
     const int marker = last.indexOf(QStringLiteral("<!--s-->"));
     if (marker >= 0) {
         last = last.left(marker);
@@ -713,7 +773,7 @@ QString keepOnlyLastSessionSummaryRows(QString body) {
     const QList<int> datePositions = findDateSpecialistPositions(body);
     const int firstRowStart = findRowStartBefore(body, datePositions.first());
     const QString prefix = firstRowStart > 0 ? body.left(firstRowStart) : QString();
-    return prefix + protocolSummaryTableOpenHtml() + last + QStringLiteral("</table>");
+    return prefix + last;
 }
 
 QStringList splitEditorSectionsByTitle(const QString &documentHtml) {
@@ -812,10 +872,9 @@ QString ExerciseProtocol::extractLastSessionStoredBody(const QString &protocolBo
     if (sessions.size() <= 1) {
         return protocolBody;
     }
-    const QList<int> datePositions = findDateSpecialistPositions(protocolBody);
-    const int firstRowStart = findRowStartBefore(protocolBody, datePositions.first());
-    const QString prefix = firstRowStart > 0 ? protocolBody.left(firstRowStart) : QString();
-    return prefix + protocolSummaryTableOpenHtml() + sessions.last();
+    // Для отображения на странице упражнения шапка (header.html) уже открывает <table>.
+    // Последняя сессия должна продолжаться строками <tr>, без нового <table> внутри.
+    return stripLeadingSummaryTableWrapper(sessions.last());
 }
 
 QString ExerciseProtocol::restrictExercisePageEditing(const QString &protocolHtml) {

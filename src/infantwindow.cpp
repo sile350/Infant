@@ -2,6 +2,7 @@
 #include "appsettings.h"
 #include "custommessagebox.h"
 #include "exerciseassets.h"
+#include "protocoleditguard.h"
 
 #include <QClipboard>
 #include <QMimeData>
@@ -1416,6 +1417,7 @@ void InfantWindow::buildUi() {
     m_protocolsSaveTimer = new QTimer(this);
     m_protocolsSaveTimer->setSingleShot(true);
     m_protocolsSaveTimer->setInterval(700);
+    ProtocolEditGuard::install(m_protocolsView);
     connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
     connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
         if (m_currentScreen != ScreenMode::Protocols || m_currentPatientId.isEmpty()) {

@@ -6,6 +6,7 @@
 #include "imagebutton.h"
 #include "onlypexercise.h"
 #include "patientdisplay.h"
+#include "protocoleditguard.h"
 #include "repository.h"
 
 #include <QAbstractTextDocumentLayout>
@@ -27,12 +28,10 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
-#include <QTextTable>
 #include <QTimer>
 #include <QTextCursor>
 #include <QTimer>
 #include <QHBoxLayout>
-#include <QMouseEvent>
 #include <QScrollBar>
 #include <QSizePolicy>
 #include <QStyleOption>
@@ -182,93 +181,6 @@ QTextEdit *makeHtmlEditor(QWidget *parent) {
     }
     return editor;
 }
-
-QString readProtocolTableCellText(QTextTable *table, int row, int column) {
-    if (!table || row < 0 || column < 0 || row >= table->rows() || column >= table->columns()) {
-        return {};
-    }
-    const QTextTableCell cell = table->cellAt(row, column);
-    if (!cell.isValid()) {
-        return {};
-    }
-    QTextCursor cursor = cell.firstCursorPosition();
-    cursor.setPosition(cell.lastCursorPosition().position(), QTextCursor::KeepAnchor);
-    QString text = cursor.selectedText();
-    text.replace(QChar(0x2029), QLatin1Char(' '));
-    text.replace(QChar::ParagraphSeparator, QLatin1Char(' '));
-    return text.trimmed();
-}
-
-bool tableHasActivityHelpHeader(QTextTable *table) {
-    if (!table) {
-        return false;
-    }
-    const int rows = qMin(3, table->rows());
-    const int columns = table->columns();
-    for (int row = 0; row < rows; ++row) {
-        for (int col = 0; col < columns; ++col) {
-            const QString text = readProtocolTableCellText(table, row, col);
-            if (text.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool isEditableProtocolCursor(const QTextCursor &cursor) {
-    QTextTable *table = cursor.currentTable();
-    if (!table) {
-        return false;
-    }
-    const QTextTableCell cell = table->cellAt(cursor.position());
-    if (!cell.isValid()) {
-        return false;
-    }
-    const int row = cell.row();
-    const int col = cell.column();
-    const QString firstCell = readProtocolTableCellText(table, row, 0);
-    if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive) && col == 1) {
-        return true;
-    }
-    if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
-        return true;
-    }
-    if ((col == 2 || col == 3) && tableHasActivityHelpHeader(table)) {
-        return true;
-    }
-    return false;
-}
-
-class ProtocolTableEditFilter final : public QObject {
-public:
-    using QObject::QObject;
-
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override {
-        auto *editor = qobject_cast<QTextEdit *>(watched);
-        if (!editor) {
-            return QObject::eventFilter(watched, event);
-        }
-        if (event->type() == QEvent::KeyPress) {
-            if (!isEditableProtocolCursor(editor->textCursor())) {
-                return true;
-            }
-        }
-        if (event->type() == QEvent::MouseButtonPress) {
-            auto *mouseEvent = static_cast<QMouseEvent *>(event);
-            const int position = editor->document()->documentLayout()->hitTest(mouseEvent->pos(), Qt::FuzzyHit);
-            if (position >= 0) {
-                QTextCursor probe(editor->document());
-                probe.setPosition(position);
-                if (!isEditableProtocolCursor(probe)) {
-                    return true;
-                }
-            }
-        }
-        return QObject::eventFilter(watched, event);
-    }
-};
 
 void resizeCheckLabel(QLabel *label, int width) {
     if (!label || width <= 0) {
@@ -532,7 +444,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     templateLayout->addSpacing(12);
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
-    m_templateBrowser->installEventFilter(new ProtocolTableEditFilter(m_templateBrowser));
+    ProtocolEditGuard::install(m_templateBrowser);
     templateLayout->addWidget(m_templateBrowser);
 
     m_protocolSaveTimer = new QTimer(this);

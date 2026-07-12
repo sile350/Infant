@@ -704,7 +704,7 @@ QString Repository::loadProtocolViewHtml(
     }
 
     QString protocolBlock = exerciseHeaderFragment(exerciseId) + body;
-    if (!protocolBody.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+    if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
         protocolBlock += QStringLiteral("</table>");
     }
     return QStringLiteral(

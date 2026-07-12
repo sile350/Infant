@@ -2590,3 +2590,5 @@ D:/projects/DokitLab/infant/src/exerciseassets.cpp
 D:/projects/DokitLab/infant/src/exerciseprotocol.cpp
 D:/projects/DokitLab/infant/src/onlypexercise.cpp
 D:/projects/DokitLab/infant/src/patientdisplay.cpp
+D:/projects/DokitLab/infant/src/protocoleditguard.h
+D:/projects/DokitLab/infant/src/protocoleditguard.cpp

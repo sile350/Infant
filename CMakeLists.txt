@@ -49,6 +49,8 @@ set(PROJECT_SOURCES
         src/patientdisplay.cpp
         src/exercisehost.h
         src/exercisehost.cpp
+        src/protocoleditguard.h
+        src/protocoleditguard.cpp
 )
 
 if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
