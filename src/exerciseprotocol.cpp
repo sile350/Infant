@@ -724,23 +724,38 @@ QString applyParsedFieldsToSessionChunk(const QString &sessionChunk, const Parse
     return result;
 }
 
-QString reassembleProtocolSessions(const QString &originalBody, const QStringList &sessions) {
+QString rebuildProtocol12SessionList(const QStringList &sessions) {
     if (sessions.isEmpty()) {
-        return originalBody;
+        return {};
     }
-    const QList<int> datePositions = findDateSpecialistPositions(originalBody);
-    if (datePositions.isEmpty()) {
-        return sessions.join(QString());
-    }
-    const int firstRowStart = findRowStartBefore(originalBody, datePositions.first());
-    QString result = firstRowStart > 0 ? originalBody.left(firstRowStart) : QString();
+
+    QString result;
     for (int i = 0; i < sessions.size(); ++i) {
+        QString session = stripLeadingSummaryTableWrapper(sessions.at(i));
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryPart = marker >= 0 ? session.left(marker) : session;
+        const QString resultsPart = marker >= 0 ? session.mid(marker) : QString();
+
+        summaryPart.replace(
+            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        summaryPart = summaryPart.trimmed();
+
         if (i > 0) {
             result += protocolSummaryTableOpenHtml();
         }
-        result += sessions.at(i);
+        if (!summaryPart.isEmpty()) {
+            result += summaryPart;
+        }
+        result += QStringLiteral("</table>");
+        result += resultsPart;
     }
     return result;
+}
+
+QString reassembleProtocolSessions(const QString &originalBody, const QStringList &sessions) {
+    Q_UNUSED(originalBody);
+    return rebuildProtocol12SessionList(sessions);
 }
 
 QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedProtocolFields &parsed) {
@@ -883,29 +898,11 @@ QString ExerciseProtocol::formatProtocol12BodyForHeaderView(const QString &proto
     if (sessions.isEmpty()) {
         return stripLeadingSummaryTableWrapper(protocolBody);
     }
+    return rebuildProtocol12SessionList(sessions);
+}
 
-    QString result;
-    for (int i = 0; i < sessions.size(); ++i) {
-        QString session = stripLeadingSummaryTableWrapper(sessions.at(i));
-        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
-        QString summaryPart = marker >= 0 ? session.left(marker) : session;
-        const QString resultsPart = marker >= 0 ? session.mid(marker) : QString();
-
-        summaryPart.replace(
-            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
-            QString());
-        summaryPart = summaryPart.trimmed();
-
-        if (i > 0) {
-            result += protocolSummaryTableOpenHtml();
-        }
-        if (!summaryPart.isEmpty()) {
-            result += summaryPart;
-        }
-        result += QStringLiteral("</table>");
-        result += resultsPart;
-    }
-    return result;
+QString ExerciseProtocol::canonicalizeProtocol12StoredBody(const QString &protocolBody) {
+    return formatProtocol12BodyForHeaderView(protocolBody);
 }
 
 QString ExerciseProtocol::stripProtocolRecordHeader(
@@ -1021,7 +1018,8 @@ QString ExerciseProtocol::createProtocolHtml(
     sessionPart += QStringLiteral("</table>");
 
     if (partly && !existingProtocolHtml.trimmed().isEmpty()) {
-        return ensureProtocol12SummaryTableOpens(existingProtocolHtml) + protocolSummaryTableOpenHtml() + sessionPart;
+        const QString base = ExerciseProtocol::canonicalizeProtocol12StoredBody(existingProtocolHtml);
+        return base + protocolSummaryTableOpenHtml() + sessionPart;
     }
     return sessionPart;
 }

@@ -37,6 +37,7 @@ public:
     static QString patientProtocolBody(const QString &protocolBody);
     static QString extractLastSessionStoredBody(const QString &protocolBody);
     static QString formatProtocol12BodyForHeaderView(const QString &protocolBody);
+    static QString canonicalizeProtocol12StoredBody(const QString &protocolBody);
     static QString restrictExercisePageEditing(const QString &protocolHtml);
     static QString stripMethodologyFillForDocExport(const QString &protocolHtml);
     static QString stripProtocolRecordHeader(const QString &recordHtml, const QString &headerFragment);

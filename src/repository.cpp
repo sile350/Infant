@@ -413,7 +413,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         pr.replace(QStringLiteral("скачать"), QString());
         if (uprid == QStringLiteral("1.2")) {
             if (role == QLatin1String("s")) {
-                pr = ExerciseProtocol::formatProtocol12BodyForHeaderView(pr);
+                pr = ExerciseProtocol::canonicalizeProtocol12StoredBody(pr);
                 pr = ExerciseProtocol::repairResultsTableBody(pr);
             } else {
                 pr = ExerciseProtocol::patientProtocolBody(pr);
@@ -639,7 +639,10 @@ bool Repository::saveExerciseProtocol(
         }
         return false;
     }
-    const QString escapedHtml = LocalDatabase::escape(protocolHtml);
+    const QString escapedHtml = LocalDatabase::escape(
+        exerciseId == QStringLiteral("1.2")
+            ? ExerciseProtocol::canonicalizeProtocol12StoredBody(protocolHtml)
+            : protocolHtml);
     if (partly) {
         const QString lastId = m_local.queryScalar(
             "SELECT id FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
@@ -771,9 +774,15 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         }
         return false;
     }
+    QString normalizedBody = ExerciseProtocol::normalizeStoredProtocolBody(protocolBody);
+    const QString uprid = m_local.queryScalar(
+        "SELECT uprid FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
+    if (uprid == QStringLiteral("1.2")) {
+        normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
+    }
     if (!m_local.exec(
             "UPDATE protocols SET pr='"
-            + LocalDatabase::escape(ExerciseProtocol::normalizeStoredProtocolBody(protocolBody))
+            + LocalDatabase::escape(normalizedBody)
             + "' WHERE id='"
             + LocalDatabase::escape(protocolId) + "'")) {
         if (errorText) {
