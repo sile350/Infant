@@ -20,7 +20,7 @@ constexpr int kPictureTop = 240;
 constexpr int kPictureTopOffset = 50;
 constexpr int kPictureShiftLeft = 150;
 constexpr int kPatientPictureShiftRight = 50;
-constexpr int kMirrorPictureShiftLeft = 35;
+constexpr int kPatientSecondScreenShiftLeft = 50;
 constexpr int kNativePictureW = 847;
 constexpr int kNativePictureH = 550;
 constexpr int kStopLeft = 80;
@@ -250,7 +250,7 @@ void OnlyPExercise::updateWidgetLayout() {
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
             int pictureX = pictureMargin + qMax(0, (width() - scaled.width()) / 2) + kPatientPictureShiftRight
-                - kMirrorPictureShiftLeft;
+                - kPatientSecondScreenShiftLeft;
             if (pictureX + scaled.width() > width() - pictureMargin) {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - scaled.width());
             }
@@ -262,11 +262,7 @@ void OnlyPExercise::updateWidgetLayout() {
                 kNativePictureW, kNativePictureH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             m_picture->setPixmap(scaled);
             m_picture->setFixedSize(scaled.size());
-            const int rightHalfStart = width() / 2;
-            const int rightHalfWidth = qMax(40, width() - rightHalfStart - pictureMargin);
-            int pictureX = rightHalfStart
-                + qMax(0, (rightHalfWidth - scaled.width()) / 2)
-                - kMirrorPictureShiftLeft;
+            int pictureX = pictureMargin + qMax(0, (width() - scaled.width()) / 2);
             if (pictureX + scaled.width() > width() - pictureMargin) {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - scaled.width());
             }

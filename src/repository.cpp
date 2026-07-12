@@ -504,11 +504,14 @@ QString Repository::loadPatientProtocolsForExport(const QString &patientId, cons
         + ExerciseAssets::protocolTableStyleHtml()
         + QStringLiteral("</head><body>");
     const QString piddata = QStringLiteral(
-        "<div align='center' style='font-size:20pt; line-height:1.35;'>"
-        "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>")
-                            .arg(patientDataHeader);
+        "<table width='670' cellspacing='0' cellpadding='0' style='table-layout:fixed;border:none;'>"
+        "<tr><td>"
+        "<div align='center' style='font-size:16px;line-height:1.3;'>"
+        "Индивидуальная карта психологического развития ребенка<br><br>%1</div><br>%2"
+        "</td></tr></table>")
+                            .arg(patientDataHeader, body);
     return ExerciseAssets::wrapProtocolDocumentHtml(
-        zag + piddata + body + QStringLiteral("</body></html>"));
+        zag + piddata + QStringLiteral("</body></html>"));
 }
 
 bool Repository::verifyLicenseKeyForMachine(const QString &key, const QString &hardware, QString *errorText) {

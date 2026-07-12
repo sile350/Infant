@@ -244,7 +244,7 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; "
         "font-family:'Times New Roman',serif; font-size:11pt; }"
         ".protocol-export-header { font-size:18pt; line-height:1.35; text-align:center; }"
-        "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; "
+        "table { table-layout:fixed; width:100%; max-width:670px; border-collapse:collapse; "
         "border:1px solid #000000; background-color:#ffffff; box-sizing:border-box; }"
         "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; background-color:#ffffff; "
         "box-sizing:border-box; }"
