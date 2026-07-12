@@ -37,6 +37,8 @@
 #include <QPolygonF>
 #include <QPrinter>
 #include <QPrintDialog>
+#include <QPageSize>
+#include <QPageLayout>
 #include <QToolTip>
 #include <QStandardPaths>
 #include <QSignalBlocker>
@@ -4866,8 +4868,14 @@ void InfantWindow::renderExportToPrinter(
     QTextDocument doc;
     doc.setHtml(assembledHtml);
     doc.setDocumentMargin(0);
+    constexpr qreal kProtocolDocWidth = 671.0;
+    const QRectF pageRect = printer.pageRect(QPrinter::Point);
     if (selection.protocols) {
-        doc.setTextWidth(671);
+        doc.setTextWidth(kProtocolDocWidth);
+        doc.setPageSize(QSizeF(kProtocolDocWidth, qMax(pageRect.height(), 1.0)));
+    } else if (!pageRect.isEmpty()) {
+        doc.setPageSize(pageRect.size());
+        doc.setTextWidth(pageRect.width());
     }
     doc.print(&printer);
 }
@@ -4950,9 +4958,12 @@ void InfantWindow::exportDocument() {
     const bool onlyAnamnesis = selection.anamnesis && !selection.protocols;
 
     if (path.endsWith(".pdf", Qt::CaseInsensitive)) {
-        QPrinter printer(QPrinter::HighResolution);
+        QPrinter printer(QPrinter::ScreenResolution);
         printer.setOutputFormat(QPrinter::PdfFormat);
         printer.setOutputFileName(path);
+        printer.setPageSize(QPageSize(QPageSize::A4));
+        printer.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout::Millimeter);
+        printer.setResolution(96);
         renderExportToPrinter(printer, selection, content);
         return;
     }
