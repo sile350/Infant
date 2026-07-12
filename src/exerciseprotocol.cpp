@@ -7,6 +7,7 @@
 #include <QRegularExpression>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
 #include <QTextFrame>
 #include <QTextTable>
 #include <utility>
@@ -65,7 +66,7 @@ QString formatProtocolCellText(const QString &text) {
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
         if (!trimmed.isEmpty()) {
-            parts << QStringLiteral("&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+            parts << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
         }
     }
     return parts.join(QStringLiteral("<br>"));
@@ -578,10 +579,13 @@ QString htmlFragmentToPlainText(const QString &html) {
     }
     QTextDocument document;
     document.setHtml(html);
-    return document.toPlainText().trimmed();
+    QString plain = document.toPlainText();
+    plain.replace(QChar(0x2029), QLatin1Char('\n'));
+    plain.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+    return plain.trimmed();
 }
 
-QString readTableCellText(QTextTable *table, int row, int column) {
+QString readTableCellMultilineText(QTextTable *table, int row, int column) {
     if (!table || row < 0 || column < 0 || row >= table->rows() || column >= table->columns()) {
         return {};
     }
@@ -591,10 +595,22 @@ QString readTableCellText(QTextTable *table, int row, int column) {
     }
     QTextCursor cursor = cell.firstCursorPosition();
     cursor.setPosition(cell.lastCursorPosition().position(), QTextCursor::KeepAnchor);
+    const QString html = QTextDocumentFragment(cursor).toHtml();
+    if (html.contains(QStringLiteral("<br"), Qt::CaseInsensitive)
+        || html.contains(QStringLiteral("</p>"), Qt::CaseInsensitive)) {
+        const QString fromHtml = htmlFragmentToPlainText(html);
+        if (!fromHtml.trimmed().isEmpty()) {
+            return fromHtml;
+        }
+    }
     QString text = cursor.selectedText();
-    text.replace(QChar(0x2029), QLatin1Char(' '));
-    text.replace(QChar::ParagraphSeparator, QLatin1Char(' '));
+    text.replace(QChar(0x2029), QLatin1Char('\n'));
+    text.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
     return text.trimmed();
+}
+
+QString readTableCellText(QTextTable *table, int row, int column) {
+    return readTableCellMultilineText(table, row, column).replace(QLatin1Char('\n'), QLatin1Char(' ')).trimmed();
 }
 
 void collectTables(QTextFrame *frame, QList<QTextTable *> &tables) {
@@ -700,8 +716,8 @@ ParsedProtocolFields parseProtocolFieldsFromDocument(QTextDocument *document, in
                 }
                 if (i == 0 && columns >= 4) {
                     fields.hasActivityHelp = true;
-                    fields.activity = readTableCellText(table, row, 2);
-                    fields.help = readTableCellText(table, row, 3);
+                    fields.activity = readTableCellMultilineText(table, row, 2);
+                    fields.help = readTableCellMultilineText(table, row, 3);
                 }
                 break;
             }
