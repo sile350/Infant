@@ -1,0 +1,22 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "t6Б.png",
+      "x": 700,
+      "y": 190
+    },
+    {
+      "file": "et6Б.png",
+      "x": 700,
+      "y": 190
+    }
+  ],
+  "template": {
+    "file": "t6Б.png",
+    "x": 700,
+    "y": 190
+  }
+}

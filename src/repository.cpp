@@ -9,11 +9,13 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QMap>
 #include <QRegularExpression>
 #include <QStringList>
 #include <QTextDocument>
 #include <QTimer>
+#include <QUrl>
 #include <algorithm>
 #include <functional>
 
@@ -22,6 +24,48 @@ namespace {
 QString protocolPageBreakHtml() {
     return QStringLiteral(
         "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>");
+}
+
+QString scanHrefForProtocol(const QString &protocolId, int slot) {
+    const QDir scans(QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans"));
+    if (scans.exists()) {
+        const QString suffix = slot > 0
+            ? QStringLiteral("-%1.png").arg(slot)
+            : QStringLiteral(".png");
+        const QStringList files = scans.entryList(
+            QStringList() << QStringLiteral("*") + protocolId + QStringLiteral("*") + suffix,
+            QDir::Files,
+            QDir::Time);
+        if (!files.isEmpty()) {
+            return QUrl::fromLocalFile(scans.absoluteFilePath(files.first())).toString();
+        }
+        const QStringList any = scans.entryList(QDir::Files, QDir::Time);
+        if (!any.isEmpty() && slot <= 1) {
+            return QUrl::fromLocalFile(scans.absoluteFilePath(any.first())).toString();
+        }
+    }
+    return QUrl::fromLocalFile(QCoreApplication::applicationDirPath() + QStringLiteral("/empty.png"))
+        .toString();
+}
+
+QString scanAnchorHtml(const QString &protocolId, int slot, const QString &label) {
+    const QString id = slot > 0
+        ? QStringLiteral("id%1-%2").arg(protocolId, QString::number(slot))
+        : QStringLiteral("id%1").arg(protocolId);
+    return QStringLiteral("<a href='%1' id='%2'>%3</a>")
+        .arg(scanHrefForProtocol(protocolId, slot), id, label);
+}
+
+void applyProtocolScanPlaceholders(QString *html, const QString &protocolId) {
+    if (!html || html->isEmpty()) {
+        return;
+    }
+    html->replace(QStringLiteral("скачать1"), scanAnchorHtml(protocolId, 1, QStringLiteral("Показать изображение1")));
+    html->replace(QStringLiteral("скачать2"), scanAnchorHtml(protocolId, 2, QStringLiteral("Показать изображение2")));
+    html->replace(QStringLiteral("скачать3"), scanAnchorHtml(protocolId, 3, QStringLiteral("Показать изображение3")));
+    html->replace(
+        QRegularExpression(QStringLiteral("скачать(?!\\d)")),
+        scanAnchorHtml(protocolId, 0, QStringLiteral("Показать изображение")));
 }
 
 void appendProtocolRecord(
@@ -414,7 +458,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         if (uprid != lastUprid) {
             lastUprid = uprid;
         }
-        pr.replace(QStringLiteral("скачать"), QString());
+        applyProtocolScanPlaceholders(&pr, protocolId);
         if (uprid == QStringLiteral("1.2")) {
             if (role == QLatin1String("s")) {
                 pr = ExerciseProtocol::repairResultsTableBody(pr);
@@ -705,11 +749,13 @@ QString Repository::loadProtocolViewHtml(
     }
 
     QString body = protocolBody;
-    if (exerciseId == QStringLiteral("1.2")) {
+    if (body.contains(QStringLiteral("<!--s-->"))) {
         body = ExerciseProtocol::extractLastSessionStoredBody(body);
-        body = ExerciseProtocol::normalizeProtocol12Layout(body);
-        body = ExerciseProtocol::repairResultsTableBody(body);
-        body = ExerciseProtocol::restrictExercisePageEditing(body);
+        if (exerciseId == QStringLiteral("1.2")) {
+            body = ExerciseProtocol::normalizeProtocol12Layout(body);
+            body = ExerciseProtocol::repairResultsTableBody(body);
+            body = ExerciseProtocol::restrictExercisePageEditing(body);
+        }
     }
 
     QString protocolBlock = exerciseHeaderFragment(exerciseId) + body;

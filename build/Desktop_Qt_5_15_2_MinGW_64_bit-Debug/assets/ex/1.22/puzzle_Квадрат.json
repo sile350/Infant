@@ -1,0 +1,17 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "tквадрат.png",
+      "x": 800,
+      "y": 150
+    }
+  ],
+  "template": {
+    "file": "tквадрат.png",
+    "x": 800,
+    "y": 150
+  }
+}

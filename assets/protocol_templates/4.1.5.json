@@ -1,0 +1,8 @@
+{
+  "id": "4.1.5",
+  "kind": "additional_time",
+  "scoreKind": "none",
+  "dateRow": "<tr><td >Дата/специалист</td><td c >{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td >Результат: вывод<br> об уровне развития</td><td colspan='3'><div contenteditable='true' ></div> </td></tr><tr><td  >Примечание </td><td      ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table border='1' style='table-layout:fixed' width cellspacing='0' cellpadding='0' width='671'  ><tr>    <td   width='139'     >Факт выполнения / время</td><td   width='265'  align='center'   > Характер деятельности ребенка </td><td  width='265'    align='center'   >Виды помощи</td>  </tr>",
+  "rowTemplate": "<tr><td align='left'>{{ADDITIONAL}}/{{TIME}}</td><td valign='top'><div contenteditable='true' >{{OR}}</div></td><td><div contenteditable='true'>{{HLP}}</div></td></tr>"
+}

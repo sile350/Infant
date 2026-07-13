@@ -3,15 +3,21 @@
 #include "appsettings.h"
 #include "custommessagebox.h"
 #include "exerciseassets.h"
+#include "exerciseconfig.h"
+#include "exerciseprotocolcreate.h"
+#include "exerciserunnerwidget.h"
+#include "exercisesession.h"
 #include "imagebutton.h"
 #include "onlypexercise.h"
 #include "patientdisplay.h"
 #include "protocoleditguard.h"
+#include "puzzlelayout.h"
 #include "repository.h"
 
 #include <QAbstractTextDocumentLayout>
 #include <QAbstractScrollArea>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFile>
@@ -31,7 +37,10 @@
 #include <QTimer>
 #include <QTextCursor>
 #include <QTimer>
+#include <QGroupBox>
 #include <QHBoxLayout>
+#include <QPushButton>
+#include <QRadioButton>
 #include <QScrollBar>
 #include <QSizePolicy>
 #include <QStyleOption>
@@ -489,6 +498,91 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
 
+    m_stepCombo = new QComboBox(m_rightPanel);
+    m_stepCombo->setStyleSheet(
+        "QComboBox { background:#ffffff; color:#000000; border:1px solid #000000; "
+        "font-family:'Microsoft Sans Serif'; font-size:14px; padding:2px 8px; }");
+    m_stepCombo->hide();
+
+    m_exerciseOptionsPanel = new QWidget(m_rightPanel);
+    auto *optionsLayout = new QVBoxLayout(m_exerciseOptionsPanel);
+    optionsLayout->setContentsMargins(0, 0, 0, 0);
+    optionsLayout->setSpacing(6);
+
+    m_shardButton = new QPushButton(QStringLiteral("Режим"), m_exerciseOptionsPanel);
+    m_shardButton->hide();
+    optionsLayout->addWidget(m_shardButton);
+
+    m_e15ModeGroup = new QGroupBox(QStringLiteral("Режим выбора"), m_exerciseOptionsPanel);
+    auto *e15Layout = new QVBoxLayout(m_e15ModeGroup);
+    m_e15HighlightRadio = new QRadioButton(
+        QStringLiteral("Выделение \"подсвечивание\" фрагментов при выборе"), m_e15ModeGroup);
+    m_e15SelectRadio = new QRadioButton(QStringLiteral("Только выбор фрагментов"), m_e15ModeGroup);
+    m_e15HighlightRadio->setChecked(true);
+    e15Layout->addWidget(m_e15HighlightRadio);
+    e15Layout->addWidget(m_e15SelectRadio);
+    m_e15ModeGroup->hide();
+    optionsLayout->addWidget(m_e15ModeGroup);
+
+    m_showHintCheck = new QCheckBox(QStringLiteral("Показать пример (showp)"), m_exerciseOptionsPanel);
+    m_showTemplateCheck = new QCheckBox(QStringLiteral("Показать трафарет (showt)"), m_exerciseOptionsPanel);
+    m_rotateEnableCheck = new QCheckBox(QStringLiteral("Поворот фрагментов"), m_exerciseOptionsPanel);
+    m_showHintCheck->setChecked(true);
+    m_showTemplateCheck->setChecked(true);
+    m_rotateEnableCheck->setChecked(true);
+    m_showHintCheck->hide();
+    m_showTemplateCheck->hide();
+    m_rotateEnableCheck->hide();
+    optionsLayout->addWidget(m_showHintCheck);
+    optionsLayout->addWidget(m_showTemplateCheck);
+    optionsLayout->addWidget(m_rotateEnableCheck);
+
+    auto *rotateRow = new QHBoxLayout();
+    m_rotateWCombo = new QComboBox(m_exerciseOptionsPanel);
+    m_rotateCWCombo = new QComboBox(m_exerciseOptionsPanel);
+    rotateRow->addWidget(new QLabel(QStringLiteral("По ширине:"), m_exerciseOptionsPanel));
+    rotateRow->addWidget(m_rotateWCombo);
+    rotateRow->addWidget(new QLabel(QStringLiteral("По часовой:"), m_exerciseOptionsPanel));
+    rotateRow->addWidget(m_rotateCWCombo);
+    optionsLayout->addLayout(rotateRow);
+    m_rotateWCombo->hide();
+    m_rotateCWCombo->hide();
+    m_exerciseOptionsPanel->hide();
+
+    connect(m_shardButton, &QPushButton::clicked, this, [this]() {
+        m_shardPanelVisible = !m_shardPanelVisible;
+        if (m_e15ModeGroup) {
+            m_e15ModeGroup->setVisible(m_shardPanelVisible);
+        }
+    });
+    connect(m_stepCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        refreshRotateCombos();
+    });
+    connect(m_rotateWCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        if (!m_rotateWCombo || !m_rotateCWCombo) {
+            return;
+        }
+        const int fragmentCount = puzzleFragmentCount();
+        const int w = m_rotateWCombo->currentText().toInt();
+        m_rotateCWCombo->blockSignals(true);
+        m_rotateCWCombo->clear();
+        for (int i = 0; i <= qMax(0, fragmentCount - w); ++i) {
+            m_rotateCWCombo->addItem(QString::number(i));
+        }
+        if (m_rotateCWCombo->count() > 0) {
+            m_rotateCWCombo->setCurrentIndex(0);
+        }
+        m_rotateCWCombo->blockSignals(false);
+    });
+    connect(m_rotateEnableCheck, &QCheckBox::toggled, this, [this](bool enabled) {
+        if (m_rotateWCombo) {
+            m_rotateWCombo->setEnabled(enabled);
+        }
+        if (m_rotateCWCombo) {
+            m_rotateCWCombo->setEnabled(enabled);
+        }
+    });
+
     m_onlyP = new OnlyPExercise(this);
     m_onlyP->hide();
 
@@ -517,7 +611,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        runOnlyPExercise();
+        runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
@@ -599,6 +693,14 @@ void ExerciseHost::updateChromeLayout() {
         m_beginButton->setVisible(!m_exerciseRunning);
         m_beginButton->raise();
     }
+    if (m_stepCombo) {
+        m_stepCombo->setGeometry(760, 12, 200, 33);
+        m_stepCombo->raise();
+    }
+    if (m_exerciseOptionsPanel) {
+        m_exerciseOptionsPanel->setGeometry(12, 52, qMax(120, m_rightPanel->width() - 24), 220);
+        m_exerciseOptionsPanel->raise();
+    }
     if (m_previewImage) {
         updatePreviewLayout();
     }
@@ -663,6 +765,8 @@ void ExerciseHost::openExercise(
             m_partly = true;
         }
     }
+    m_sessionAdditional.clear();
+    m_picturesShown = 0;
     m_currentProtocolId.clear();
     m_orOpen1 = false;
     m_orOpen2 = false;
@@ -680,8 +784,10 @@ void ExerciseHost::openExercise(
         row.box->setChecked(false);
     }
 
-    if (exerciseId == QStringLiteral("1.2")) {
-        loadStaticPictureExercise();
+    if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
+        if (definition->runner != ExerciseRunnerKind::NotImplemented) {
+            loadExercise();
+        }
     }
     show();
     raise();
@@ -716,7 +822,7 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->raise();
 }
 
-void ExerciseHost::loadStaticPictureExercise() {
+void ExerciseHost::loadExercise() {
     m_evaluationPanel->show();
 
     m_rawOrHtml = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
@@ -728,9 +834,31 @@ void ExerciseHost::loadStaticPictureExercise() {
     applyCompactLineHeight(m_templateBrowser->document());
 
     m_previewSource = QPixmap();
-    if (m_previewImage) {
-        m_previewImage->hide();
+    const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
+    if (!previewPath.isEmpty()) {
+        m_previewSource.load(previewPath);
     }
+    if (m_previewImage) {
+        if (m_previewSource.isNull()) {
+            m_previewImage->hide();
+        }
+    }
+
+    if (m_stepCombo) {
+        m_stepCombo->clear();
+        if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
+            if (!definition->onlyPicture.stepIds.isEmpty()) {
+                m_stepCombo->addItems(definition->onlyPicture.stepIds);
+                m_stepCombo->show();
+            } else {
+                m_stepCombo->hide();
+            }
+        } else {
+            m_stepCombo->hide();
+        }
+    }
+
+    updateExerciseOptionsPanel();
     layoutContent();
     QTimer::singleShot(50, this, [this]() { updateContentHeights(); });
     updateChromeLayout();
@@ -834,6 +962,13 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
 }
 
 void ExerciseHost::updateExerciseOverlayGeometry() {
+    if (m_sessionRunner && m_exerciseRunning) {
+        QWidget *overlayRoot = m_sessionRunner->parentWidget();
+        if (overlayRoot) {
+            m_sessionRunner->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+        }
+        return;
+    }
     if (!m_onlyP || !m_exerciseRunning) {
         return;
     }
@@ -846,11 +981,20 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
 
 void ExerciseHost::showExerciseOverlay() {
     QWidget *overlayRoot = parentWidget();
-    if (!m_onlyP || !overlayRoot) {
+    if (!overlayRoot) {
         return;
     }
     m_exerciseRunning = true;
-    m_onlyP->setParent(overlayRoot);
+    QWidget *overlayWidget = nullptr;
+    if (m_sessionRunner && m_sessionRunner->isVisible()) {
+        overlayWidget = m_sessionRunner;
+    } else if (m_onlyP) {
+        overlayWidget = m_onlyP;
+    }
+    if (!overlayWidget) {
+        return;
+    }
+    overlayWidget->setParent(overlayRoot);
     updateExerciseOverlayGeometry();
     lower();
     emit exerciseOverlayChanged(true);
@@ -858,7 +1002,14 @@ void ExerciseHost::showExerciseOverlay() {
 
 void ExerciseHost::restoreExerciseOverlay() {
     m_exerciseRunning = false;
+    if (m_sessionRunner) {
+        m_sessionRunner->hide();
+        m_sessionRunner->setParent(this);
+        m_sessionRunner->setGeometry(0, 0, width(), height());
+    }
     if (!m_onlyP) {
+        raise();
+        emit exerciseOverlayChanged(false);
         return;
     }
     m_onlyP->setParent(this);
@@ -883,12 +1034,84 @@ void ExerciseHost::syncPatientDisplay() {
     if (!m_patientDisplay) {
         return;
     }
-    if (!m_dualScreen || !m_exerciseRunning || !m_onlyP) {
+    if (!m_dualScreen || !m_exerciseRunning) {
         m_patientDisplay->hideDisplay();
         return;
     }
-    m_patientDisplay->attachExercise(m_onlyP);
-    m_patientDisplay->showOnSecondaryScreen();
+    if (m_onlyP && m_onlyP->isVisible()) {
+        m_patientDisplay->attachExercise(m_onlyP);
+        m_patientDisplay->showOnSecondaryScreen();
+        return;
+    }
+    if (m_sessionRunner && m_sessionRunner->isVisible()) {
+        m_patientDisplay->attachMirrorWidget(m_sessionRunner);
+        m_patientDisplay->showOnSecondaryScreen();
+    }
+}
+
+void ExerciseHost::runExerciseSession() {
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (!definition) {
+        return;
+    }
+    if (definition->runner == ExerciseRunnerKind::OnlyPicture) {
+        runOnlyPExercise();
+        return;
+    }
+
+    m_protocolFormed = false;
+    m_protocolSavedThisSession = false;
+    m_rightCountLabel->hide();
+    m_wrongCountLabel->hide();
+    m_exerciseRunning = true;
+    if (m_beginButton) {
+        m_beginButton->hide();
+    }
+    emit exerciseOverlayChanged(true);
+
+    if (!m_sessionRunner || m_sessionRunnerKind != definition->runner) {
+        delete m_sessionRunner;
+        m_sessionRunner = nullptr;
+        m_sessionRunner = createExerciseRunner(definition->runner, this);
+        m_sessionRunnerKind = definition->runner;
+        connect(m_sessionRunner, &ExerciseRunnerWidget::sessionFinished, this,
+            [this](const ExerciseSessionResult &result) {
+                m_answers = result.answers;
+                m_elapsedSeconds = result.elapsedSeconds;
+                m_sessionAdditional = result.additional;
+                m_picturesShown = result.picturesShown;
+                m_capturedImagePath = result.capturedImagePath;
+                m_exerciseDone = true;
+                m_protocolFormed = false;
+                m_exerciseRunning = false;
+                if (m_patientDisplay) {
+                    m_patientDisplay->hideDisplay();
+                }
+                restoreExerciseOverlay();
+                setExerciseChromeVisible(true);
+                updateChromeLayout();
+                m_rightCountLabel->hide();
+                m_wrongCountLabel->hide();
+                emit exerciseOverlayChanged(false);
+            });
+    } else if (m_sessionRunner->parent() != this) {
+        m_sessionRunner->setParent(this);
+    }
+
+    setExerciseChromeVisible(false);
+    QWidget *overlayRoot = parentWidget();
+    if (!overlayRoot) {
+        return;
+    }
+    m_sessionRunner->setParent(overlayRoot);
+    m_sessionRunner->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+    lower();
+    m_sessionRunner->setSessionOptions(buildSessionOptions());
+    m_dualScreen = AppSettings::dualScreenEnabled();
+    m_sessionRunner->startSession(m_exerciseId, *definition, currentStepId());
+    m_sessionRunner->show();
+    m_sessionRunner->raise();
+    syncPatientDisplay();
 }
 
 void ExerciseHost::runOnlyPExercise() {
@@ -903,12 +1126,17 @@ void ExerciseHost::runOnlyPExercise() {
     }
     emit exerciseOverlayChanged(true);
 
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    const OnlyPictureSettings settings =
+        definition ? definition->onlyPicture : OnlyPictureSettings();
+    const QString stepId = currentStepId();
+
     if (m_dualScreen) {
         if (m_previewImage) {
             m_previewImage->hide();
         }
         m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Headless);
-        m_onlyP->start(m_exerciseId);
+        m_onlyP->start(m_exerciseId, settings, stepId);
 
         if (m_specialistExercise && m_rightPanel) {
             m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
@@ -931,12 +1159,18 @@ void ExerciseHost::runOnlyPExercise() {
     setExerciseChromeVisible(false);
     showExerciseOverlay();
     m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
-    m_onlyP->start(m_exerciseId);
+    m_onlyP->start(m_exerciseId, settings, stepId);
     m_onlyP->raise();
 }
 
 void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSeconds) {
     Q_UNUSED(elapsedSeconds);
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (!definition || !definition->onlyPicture.answerButtons) {
+        m_rightCountLabel->hide();
+        m_wrongCountLabel->hide();
+        return;
+    }
     int right = 0;
     int wrong = 0;
     for (bool answer : answers) {
@@ -971,6 +1205,39 @@ ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
     }
     values.help = helpValues.join(QStringLiteral("\n"));
     return values;
+}
+
+QString ExerciseHost::currentStepId() const {
+    if (m_stepCombo && m_stepCombo->isVisible()) {
+        return m_stepCombo->currentText();
+    }
+    return QString();
+}
+
+ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
+    ProtocolSessionInput session;
+    session.doneState = readDoneStateFromOrHtml(orHtmlSnapshot());
+    session.stepId = currentStepId();
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (m_exerciseId == QStringLiteral("1.4")) {
+        session.picturesShown = m_picturesShown > 0 ? m_picturesShown - 1 : 0;
+    } else {
+        session.picturesShown = m_picturesShown;
+    }
+    if (!m_sessionAdditional.isEmpty()) {
+        session.additional = m_sessionAdditional;
+    } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
+        session.additional = session.stepId + QLatin1Char(';') + session.doneState;
+    } else if (m_exerciseId == QStringLiteral("1.2")) {
+        QStringList parts;
+        for (bool answer : m_answers) {
+            parts << (answer ? QStringLiteral("True") : QStringLiteral("False"));
+        }
+        session.additional = parts.join(QLatin1Char(';'));
+    }
+    session.capturedImagePath = m_capturedImagePath;
+    session.orHtml = orHtmlSnapshot();
+    return session;
 }
 
 QString ExerciseHost::orHtmlSnapshot() const {
@@ -1035,7 +1302,8 @@ void ExerciseHost::formProtocol() {
         partlySave,
         existingBody,
         m_answers,
-        checkboxValues());
+        checkboxValues(),
+        buildProtocolSession());
 
     QString error;
     QString protocolId;
@@ -1074,4 +1342,134 @@ void ExerciseHost::formProtocol() {
     m_protocolSavedThisSession = true;
     m_partly = true;
     emit protocolSaved();
+}
+
+int ExerciseHost::puzzleFragmentCount() const {
+    const QString step = currentStepId();
+    if (m_exerciseId == QStringLiteral("1.19")) {
+        if (step == QStringLiteral("Матрешка 2")) {
+            return 2;
+        }
+        if (step == QStringLiteral("Леопард 3")) {
+            return 3;
+        }
+        if (step == QStringLiteral("Мишка 4") || step == QStringLiteral("Дом 4")) {
+            return 4;
+        }
+    }
+    if (m_exerciseId == QStringLiteral("1.20")) {
+        if (step == QStringLiteral("Мяч 2")) {
+            return 2;
+        }
+        if (step == QStringLiteral("Дом 3")) {
+            return 3;
+        }
+        if (step == QStringLiteral("Мишка 4")) {
+            return 4;
+        }
+        if (step == QStringLiteral("Машинка 5")) {
+            return 5;
+        }
+        if (step == QStringLiteral("Чайник 6")) {
+            return 6;
+        }
+    }
+    if (m_exerciseId == QStringLiteral("1.21")) {
+        if (step.endsWith(QStringLiteral("А")) || step.endsWith(QStringLiteral("Б"))) {
+            const QChar digit = step.at(0);
+            if (digit.isDigit()) {
+                return digit.digitValue();
+            }
+        }
+    }
+    PuzzleLayout layout;
+    if (loadPuzzleLayout(m_exerciseId, step, &layout) && !layout.sprites.isEmpty()) {
+        return layout.sprites.size();
+    }
+    return 4;
+}
+
+void ExerciseHost::refreshRotateCombos() {
+    if (!m_rotateWCombo || !m_rotateCWCombo) {
+        return;
+    }
+    const int fragmentCount = puzzleFragmentCount();
+    m_rotateWCombo->blockSignals(true);
+    m_rotateWCombo->clear();
+    for (int i = 0; i <= fragmentCount; ++i) {
+        m_rotateWCombo->addItem(QString::number(i));
+    }
+    m_rotateWCombo->setCurrentIndex(0);
+    m_rotateWCombo->blockSignals(false);
+
+    m_rotateCWCombo->blockSignals(true);
+    m_rotateCWCombo->clear();
+    for (int i = 0; i <= fragmentCount; ++i) {
+        m_rotateCWCombo->addItem(QString::number(i));
+    }
+    m_rotateCWCombo->setCurrentIndex(0);
+    m_rotateCWCombo->blockSignals(false);
+}
+
+void ExerciseHost::updateExerciseOptionsPanel() {
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+    const bool isPuzzleRotate = m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
+        || m_exerciseId == QStringLiteral("1.21");
+    const bool showPanel = isE15 || isPuzzleRotate;
+
+    if (m_exerciseOptionsPanel) {
+        m_exerciseOptionsPanel->setVisible(showPanel);
+    }
+    if (m_shardButton) {
+        m_shardButton->setVisible(isE15);
+    }
+    if (m_e15ModeGroup) {
+        m_e15ModeGroup->setVisible(isE15 && m_shardPanelVisible);
+    }
+    if (m_showHintCheck) {
+        m_showHintCheck->setVisible(isPuzzleRotate);
+        m_showHintCheck->setChecked(true);
+    }
+    if (m_showTemplateCheck) {
+        m_showTemplateCheck->setVisible(isPuzzleRotate);
+        m_showTemplateCheck->setChecked(true);
+    }
+    if (m_rotateEnableCheck) {
+        m_rotateEnableCheck->setVisible(isPuzzleRotate);
+        m_rotateEnableCheck->setChecked(true);
+    }
+    if (m_rotateWCombo) {
+        m_rotateWCombo->setVisible(isPuzzleRotate);
+    }
+    if (m_rotateCWCombo) {
+        m_rotateCWCombo->setVisible(isPuzzleRotate);
+    }
+    if (isPuzzleRotate) {
+        refreshRotateCombos();
+    }
+    Q_UNUSED(definition);
+}
+
+ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
+    ExerciseSessionOptions options;
+    if (m_e15SelectRadio && m_e15SelectRadio->isChecked()) {
+        options.e15SelectMode = true;
+    }
+    if (m_showHintCheck && m_showHintCheck->isVisible()) {
+        options.showHint = m_showHintCheck->isChecked();
+    }
+    if (m_showTemplateCheck && m_showTemplateCheck->isVisible()) {
+        options.showTemplate = m_showTemplateCheck->isChecked();
+    }
+    if (m_rotateEnableCheck && m_rotateEnableCheck->isVisible()) {
+        options.rotateEnabled = m_rotateEnableCheck->isChecked();
+        if (m_rotateWCombo) {
+            options.rotateW = m_rotateWCombo->currentText().toInt();
+        }
+        if (m_rotateCWCombo) {
+            options.rotateCW = m_rotateCWCombo->currentText().toInt();
+        }
+    }
+    return options;
 }

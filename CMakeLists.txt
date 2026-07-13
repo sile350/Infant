@@ -43,6 +43,27 @@ set(PROJECT_SOURCES
         src/exerciseassets.cpp
         src/exerciseprotocol.h
         src/exerciseprotocol.cpp
+        src/exerciseprotocolcreate.cpp
+        src/exerciseprotocoltemplates.cpp
+        src/exerciseprotocoltemplates.h
+        src/exerciseconfig.cpp
+        src/exerciserunners.cpp
+        src/puzzlecanvas.cpp
+        src/puzzleslayout.cpp
+        src/e15canvas.cpp
+        src/e15canvas.h
+        src/remembercanvas.cpp
+        src/remembercanvas.h
+        src/e126canvas.cpp
+        src/e126canvas.h
+        src/wolfrunner.cpp
+        src/wolfrunner.h
+        src/puzzlelayout.h
+        src/puzzlecanvas.h
+        src/exerciserunnerwidget.h
+        src/exercisesession.h
+        src/exerciseconfig.h
+        src/exerciseprotocolcreate.h
         src/onlypexercise.h
         src/onlypexercise.cpp
         src/patientdisplay.h

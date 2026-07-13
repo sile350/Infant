@@ -1,0 +1,8 @@
+{
+  "id": "4.1.2",
+  "kind": "or_hlp_balls",
+  "scoreKind": "timed11_result",
+  "dateRow": "<tr><td >Дата/специалист</td><td  >{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td>Результат:баллы (макс.) /<br>вывод об уровне развития</ td><td  ><div contenteditable='true' >{{SCORE}}(10)/{{LEVEL}}</div></td></tr><tr><td  >Примечание </td><td     ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'  ><tr> <td   width='299'  align='center'    > Характер деятельности ребенка </td><td  width='300'   align='center'    >Виды помощи</td><td    width='70'  align='center'   > Баллы</td> </tr>",
+  "rowTemplate": "<td  valign='top'   ><div contenteditable='true' >{{OR}}</div></td><td  valign='top'  ><div contenteditable='true' >{{HLP}}</div></td><td align='center' ><div contenteditable='true' >{{SCORE}}</div></td>  </tr>"
+}

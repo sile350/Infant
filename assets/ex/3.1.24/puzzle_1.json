@@ -1,0 +1,37 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "fone1.png",
+      "x": 500,
+      "y": 250
+    },
+    {
+      "file": "11.png",
+      "x": 500,
+      "y": 700
+    },
+    {
+      "file": "12.png",
+      "x": 720,
+      "y": 700
+    },
+    {
+      "file": "13.png",
+      "x": 920,
+      "y": 700
+    },
+    {
+      "file": "14.png",
+      "x": 1120,
+      "y": 700
+    }
+  ],
+  "template": {
+    "file": "fone1.png",
+    "x": 500,
+    "y": 250
+  }
+}

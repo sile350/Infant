@@ -1,6 +1,8 @@
 D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/UVLADIE3JM/moc_onlypexercise.cpp: D:/projects/DokitLab/infant/src/onlypexercise.h \
   D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/moc_predefs.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/QList \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/QString \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/QStringList \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qalgorithms.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qarraydata.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qatomic.h \
@@ -257,4 +259,5 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/sys/types.h \
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/vadefs.h \
   D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wchar.h \
-  D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wctype.h
+  D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wctype.h \
+  D:/projects/DokitLab/infant/src/exerciseconfig.h

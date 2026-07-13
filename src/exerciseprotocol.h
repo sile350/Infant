@@ -8,6 +8,15 @@
 
 class QTextDocument;
 
+struct ProtocolSessionInput {
+    QString additional;
+    QString doneState;
+    QString stepId;
+    int picturesShown = 0;
+    QString capturedImagePath;
+    QString orHtml;
+};
+
 class ExerciseProtocol {
 public:
     struct CheckboxValues {
@@ -22,7 +31,8 @@ public:
         bool partly,
         const QString &existingProtocolHtml,
         const QList<bool> &answers,
-        const CheckboxValues &checkboxes);
+        const CheckboxValues &checkboxes,
+        const ProtocolSessionInput &session = ProtocolSessionInput());
 
     static QString protocolViewHtml(
         const QString &exerciseId,

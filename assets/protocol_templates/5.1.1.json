@@ -1,0 +1,8 @@
+{
+  "id": "5.1.1",
+  "kind": "or_hlp_balls",
+  "scoreKind": "balls_manual",
+  "dateRow": "",
+  "initialBlock": "<tr><td>Результат: баллы (макс.) /<br>вывод об уровне развития</ td><td colspan='2' ><div contenteditable='true' >(10)</div></td></tr><tr><td  >Примечание </td><td   colspan='3'  ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='4'>Процесс выполнения диагностической методики</td></tr><tr> <td valign='top'   ><b>Группы</b></td><td colspan='3'><b>Названные ребенком слова</b></td></tr><tr> <td valign='top'   >Животные</td><td colspan='3'>{{STEP}}</td></tr><tr> <td valign='top'   >Растения</td><td colspan='3'>{{DONE}}</td></tr><tr> <td valign='top'   >Цвета предметов</td><td colspan='3'>{{TMP2}}</td></tr><tr> <td valign='top'   >Формы предметов</td><td colspan='3'>{{TMP3}}</td></tr><tr> <td valign='top'   >Другие признаки предметов, кроме формы и цвета.</td><td colspan='3'>{{TMP4}}</td></tr><tr> <td valign='top'   >Действия человека.</td><td colspan='3'>{{TMP5}}</td></tr><tr> <td valign='top'   >Способы выполнения человеком действий.</td><td colspan='3'>{{TMP6}}</td></tr><tr> <td valign='top'   >Качества выполняемых человеком действий.</td><td colspan='3'>{{TMP7}}</td></tr></table><!--s--><table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'><tr>  <td width='300'   align='center'   > Характер деятельности ребенка</td><td  width='300'    align='center'  > Виды   помощи </td><td  width='69'    align='center'  >Баллы </td> </tr>",
+  "rowTemplate": "<tr> <td valign='top'   ><div contenteditable='true' >{{OR}}</div></td><td   valign='top'   ><div contenteditable='true' >{{HLP}}</div></td><td  align='center'  ><div contenteditable='true' >\"  + \"</div></td> </tr>"
+}

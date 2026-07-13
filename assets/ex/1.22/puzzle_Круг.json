@@ -1,0 +1,17 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "tкруг.png",
+      "x": 800,
+      "y": 150
+    }
+  ],
+  "template": {
+    "file": "tкруг.png",
+    "x": 800,
+    "y": 150
+  }
+}

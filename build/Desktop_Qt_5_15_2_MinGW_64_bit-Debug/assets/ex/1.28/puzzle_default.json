@@ -1,0 +1,67 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "traf1.png",
+      "x": 500,
+      "y": 20
+    },
+    {
+      "file": "traf22.png",
+      "x": 900,
+      "y": 20
+    },
+    {
+      "file": "traf2.png",
+      "x": 400,
+      "y": 20
+    },
+    {
+      "file": "21.png",
+      "x": 945,
+      "y": 72
+    },
+    {
+      "file": "22.png",
+      "x": 1097,
+      "y": 61
+    },
+    {
+      "file": "23.png",
+      "x": 909,
+      "y": 258
+    },
+    {
+      "file": "24.png",
+      "x": 1119,
+      "y": 346
+    },
+    {
+      "file": "25.png",
+      "x": 903,
+      "y": 572
+    },
+    {
+      "file": "26.png",
+      "x": 1089,
+      "y": 503
+    },
+    {
+      "file": "27.png",
+      "x": 937,
+      "y": 796
+    },
+    {
+      "file": "28.png",
+      "x": 1124,
+      "y": 813
+    }
+  ],
+  "template": {
+    "file": "traf1.png",
+    "x": 500,
+    "y": 20
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "ex.png",
+      "x": 500,
+      "y": 150
+    },
+    {
+      "file": "ex1.png",
+      "x": 500,
+      "y": 700
+    },
+    {
+      "file": "ex2.png",
+      "x": 720,
+      "y": 700
+    },
+    {
+      "file": "ex3.png",
+      "x": 920,
+      "y": 700
+    },
+    {
+      "file": "ex4.png",
+      "x": 1120,
+      "y": 700
+    }
+  ],
+  "template": {
+    "file": "ex.png",
+    "x": 500,
+    "y": 150
+  }
+}

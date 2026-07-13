@@ -1,0 +1,32 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "tмяч2.png",
+      "x": 700,
+      "y": 100
+    },
+    {
+      "file": "etмяч2.png",
+      "x": 700,
+      "y": 100
+    },
+    {
+      "file": "мяч21.png",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "file": "мяч22.png",
+      "x": 130,
+      "y": 130
+    }
+  ],
+  "template": {
+    "file": "tмяч2.png",
+    "x": 700,
+    "y": 100
+  }
+}

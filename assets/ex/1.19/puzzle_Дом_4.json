@@ -1,0 +1,42 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "tдом4.png",
+      "x": 550,
+      "y": 0
+    },
+    {
+      "file": "etдом4.png",
+      "x": 550,
+      "y": 0
+    },
+    {
+      "file": "дом41.png",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "file": "дом42.png",
+      "x": 130,
+      "y": 130
+    },
+    {
+      "file": "дом43.png",
+      "x": 130,
+      "y": 170
+    },
+    {
+      "file": "дом44.png",
+      "x": 150,
+      "y": 170
+    }
+  ],
+  "template": {
+    "file": "tдом4.png",
+    "x": 550,
+    "y": 0
+  }
+}

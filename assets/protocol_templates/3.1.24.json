@@ -1,0 +1,8 @@
+{
+  "id": "3.1.24",
+  "kind": "numbered",
+  "scoreKind": "none",
+  "dateRow": "<tr><td >Дата/специалист</td><td colspan='3'>{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td >Результат: вывод об уровне развития</td><td  ><div contenteditable='true' ></div> </td></tr><tr><td  >Примечание </td><td     ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table  style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'  ><tr>  <td   width='43'  align='center'    >№</td>  <td   width='133'    >Факт выполнения / время</td><td   width='246' align='center'    > Характер деятельности ребенка </td><td  width='245'   align='center'     >Виды помощи</td>  </tr>",
+  "rowTemplate": "<tr><td align='center'>{{STEP}}</td> <td>{{DONE}}/{{TIME}}</td><td valign='top'><div contenteditable='true' >{{OR}}</div></td><td valign='top'><div contenteditable='true'>{{HLP}}</div></td></tr>"
+}

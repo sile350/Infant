@@ -1,0 +1,8 @@
+{
+  "id": "2.11",
+  "kind": "or_hlp_balls",
+  "scoreKind": "none",
+  "dateRow": "<tr><td >Дата/специалист</td><td  >{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td >Результат: баллы (макс.) / вывод об уровне развития</td><td  ><div id='idvivod' contenteditable='true' > </div> </td></tr><tr><td  >Примечание </td><td     ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table style='table-layout:fixed'  border='1' cellspacing='0' cellpadding='0'  width='671' ><tr> <td   width='40'  align='center'   > № </td>  <td   width='283' align='center'    > Характер деятельности ребенка </td><td  width='283'  align='center'     >Виды помощи</td> <td  width='61'  align='center'     >Баллы</td> </tr>",
+  "rowTemplate": "<tr><td align='center' width='40'>{{ADDITIONAL}}</td><td width='280' valign='top' ><div contenteditable='true' >{{OR}}</div></td><td width='280'  valign='top'><div contenteditable='true' >{{HLP}}</div></td><td width='61' align='center'  ><div  id='ids{{ADDITIONAL}}' contenteditable='true' >{{SCORE}}</div></td></tr><tr><td colspan='3'>Итоговая оценка</td><td align='center'><div id='idsum' contenteditable='true' ></div> </td>   </tr>"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "2.1",
+  "kind": "done_time_scan",
+  "scoreKind": "balls_manual",
+  "dateRow": "<tr><td align='left' >Дата/специалист</td><td >{{DATE}} {{USER}} </td></tr>",
+  "initialBlock": "<tr><td >Результат: баллы (макс.)/вывод об уровне развития</td><td  ><div contenteditable='true' >  (10)</div>     скачать{{ADDITIONAL}}</td></tr><tr><td  >Примечание </td><td     ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'  ><tr>  <td   width='51'   align='center'   >№</td><td   width='200'  align='center'    > Характер деятельности ребенка </td><td  width='200'   align='center'     >Виды помощи</td><td  width='107'  align='center'      >Баллы продуктивн.</ td><td  width='107'  align='center'     >Баллы устойчивость внимания</ td>   </tr>",
+  "rowTemplate": "<tr><td align='center'>{{ADDITIONAL}}</td><td valign='top'><div contenteditable='true' >{{OR}}</div></td><td  valign='top'><div contenteditable='true' >{{HLP}}</div></td><td align='center'><div id='idprod' contenteditable='true' ></div></td><td align='center'><div contenteditable='true' ></div></td></tr>"
+}

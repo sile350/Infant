@@ -1,0 +1,72 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": false,
+  "sprites": [
+    {
+      "file": "11.png",
+      "x": 397,
+      "y": 111
+    },
+    {
+      "file": "12.png",
+      "x": 687,
+      "y": 111
+    },
+    {
+      "file": "13.png",
+      "x": 979,
+      "y": 111
+    },
+    {
+      "file": "14.png",
+      "x": 1269,
+      "y": 111
+    },
+    {
+      "file": "close.png",
+      "x": 500,
+      "y": 600
+    },
+    {
+      "file": "close.png",
+      "x": 800,
+      "y": 600
+    },
+    {
+      "file": "21.png",
+      "x": 227,
+      "y": 111
+    },
+    {
+      "file": "22.png",
+      "x": 517,
+      "y": 111
+    },
+    {
+      "file": "23.png",
+      "x": 809,
+      "y": 111
+    },
+    {
+      "file": "24.png",
+      "x": 1099,
+      "y": 111
+    },
+    {
+      "file": "25.png",
+      "x": 1389,
+      "y": 111
+    },
+    {
+      "file": "close.png",
+      "x": 500,
+      "y": 600
+    },
+    {
+      "file": "close.png",
+      "x": 800,
+      "y": 600
+    }
+  ]
+}

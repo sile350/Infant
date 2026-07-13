@@ -1,6 +1,7 @@
 #include "onlypexercise.h"
 
 #include "exerciseassets.h"
+#include "exerciseconfig.h"
 
 #include <QMouseEvent>
 #include <QLabel>
@@ -164,16 +165,29 @@ void OnlyPExercise::setDisplayRole(DisplayRole role) {
 
 void OnlyPExercise::initAnswerButtons(const QString &exerciseId) {
     const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
-    const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("right.png"));
-    const QString wrongPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("notright.png"));
+    const QString rightPath = ExerciseAssets::exerciseFile(
+        exerciseId, QStringLiteral("right.png"));
+    const QString wrongPath = ExerciseAssets::exerciseFile(
+        exerciseId, QStringLiteral("notright.png"));
+    const QString fallbackId = QStringLiteral("1.2");
     if (!stopPath.isEmpty()) {
         m_stopSource = QPixmap(stopPath);
     }
     if (!rightPath.isEmpty()) {
         m_rightSource = QPixmap(rightPath);
+    } else {
+        const QString fallback = ExerciseAssets::exerciseFile(fallbackId, QStringLiteral("right.png"));
+        if (!fallback.isEmpty()) {
+            m_rightSource = QPixmap(fallback);
+        }
     }
     if (!wrongPath.isEmpty()) {
         m_wrongSource = QPixmap(wrongPath);
+    } else {
+        const QString fallback = ExerciseAssets::exerciseFile(fallbackId, QStringLiteral("notright.png"));
+        if (!fallback.isEmpty()) {
+            m_wrongSource = QPixmap(fallback);
+        }
     }
 }
 
@@ -190,10 +204,11 @@ void OnlyPExercise::updateWidgetLayout() {
 
     const bool showButtons =
         m_displayRole == DisplayRole::Primary || m_displayRole == DisplayRole::Specialist;
+    const bool showAnswerButtons = showButtons && m_settings.answerButtons;
 
     m_stopButton->setVisible(showButtons);
-    m_rightButton->setVisible(showButtons);
-    m_wrongButton->setVisible(showButtons);
+    m_rightButton->setVisible(showAnswerButtons);
+    m_wrongButton->setVisible(showAnswerButtons);
 
     int contentTop = 0;
     if (showButtons) {
@@ -207,6 +222,10 @@ void OnlyPExercise::updateWidgetLayout() {
             int maxButtonH = 0;
             for (int i = 0; i < buttons.size(); ++i) {
                 QLabel *button = buttons.at(i);
+                if (i > 0 && !showAnswerButtons) {
+                    button->hide();
+                    continue;
+                }
                 if (sources.at(i).isNull()) {
                     button->hide();
                     continue;
@@ -231,12 +250,20 @@ void OnlyPExercise::updateWidgetLayout() {
             if (!m_rightSource.isNull()) {
                 setWhiteBackedPixmap(m_rightButton, m_rightSource);
                 m_rightButton->move(qRound(kRightLeft * sx), qRound(kAnswerTop * sy));
-                m_rightButton->show();
+                if (showAnswerButtons) {
+                    m_rightButton->show();
+                } else {
+                    m_rightButton->hide();
+                }
             }
             if (!m_wrongSource.isNull()) {
                 setWhiteBackedPixmap(m_wrongButton, m_wrongSource);
                 m_wrongButton->move(qRound(kWrongLeft * sx), qRound(kAnswerTop * sy));
-                m_wrongButton->show();
+                if (showAnswerButtons) {
+                    m_wrongButton->show();
+                } else {
+                    m_wrongButton->hide();
+                }
             }
             contentTop = qRound(kPictureTop * sy);
         }
@@ -322,14 +349,24 @@ void OnlyPExercise::showEvent(QShowEvent *event) {
     updateWidgetLayout();
 }
 
-void OnlyPExercise::start(const QString &exerciseId) {
+void OnlyPExercise::start(
+    const QString &exerciseId,
+    const OnlyPictureSettings &settings,
+    const QString &stepId) {
     m_exerciseId = exerciseId;
+    m_settings = settings;
+    m_stepId = stepId;
+    if (m_stepId.isEmpty() && !m_settings.stepIds.isEmpty()) {
+        m_stepId = m_settings.stepIds.first();
+    }
     setProperty("exerciseId", exerciseId);
     m_answers.clear();
-    for (int i = 0; i < 5; ++i) {
+    const int answerCount = qMax(1, m_settings.pictureCount);
+    for (int i = 0; i < answerCount; ++i) {
         m_answers.append(false);
     }
     m_index = 0;
+    m_picturesShown = 0;
     m_elapsedSeconds = 0;
 
     if (m_displayRole != DisplayRole::Headless) {
@@ -345,12 +382,26 @@ void OnlyPExercise::start(const QString &exerciseId) {
     }
 }
 
+QString OnlyPExercise::imageFileName(int index) const {
+    OnlyPictureSettings settings = m_settings;
+    if (settings.imagePattern.isEmpty()) {
+        if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
+            settings = definition->onlyPicture;
+        }
+    }
+    if (!m_stepId.isEmpty()) {
+        return settings.imagePattern.arg(m_stepId);
+    }
+    return settings.imagePattern.arg(index);
+}
+
 void OnlyPExercise::loadPicture(int index) {
-    const QString path = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("p%1.png").arg(index));
+    const QString path = ExerciseAssets::exerciseFile(m_exerciseId, imageFileName(index));
     if (path.isEmpty()) {
         return;
     }
     m_pictureSource.load(path);
+    m_picturesShown = qMax(m_picturesShown, index);
     updateWidgetLayout();
     m_picture->raise();
     emit pictureChanged(index);
@@ -404,6 +455,9 @@ void OnlyPExercise::recordAnswer(bool correct) {
 
 void OnlyPExercise::finishExercise() {
     m_timer->stop();
+    if (!m_settings.answerButtons) {
+        m_picturesShown = qMax(m_picturesShown, 1);
+    }
     hide();
     emit finished(m_answers, m_elapsedSeconds);
 }

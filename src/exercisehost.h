@@ -1,7 +1,9 @@
 #ifndef EXERCISEHOST_H
 #define EXERCISEHOST_H
 
+#include "exerciseconfig.h"
 #include "exerciseprotocol.h"
+#include "exercisesession.h"
 
 #include <QList>
 #include <QPixmap>
@@ -14,7 +16,12 @@ class QTextBrowser;
 class QTextEdit;
 class QScrollArea;
 class QCheckBox;
+class QComboBox;
+class QGroupBox;
+class QPushButton;
+class QRadioButton;
 class OnlyPExercise;
+class ExerciseRunnerWidget;
 class PatientDisplay;
 class Repository;
 
@@ -50,13 +57,14 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    void loadStaticPictureExercise();
+    void loadExercise();
     void reloadOrBrowser();
     void toggleOrSection(const QString &sectionId);
     void layoutContent();
     void updateContentHeights();
     void updateChromeLayout();
     void updatePreviewLayout();
+    void runExerciseSession();
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
@@ -65,8 +73,14 @@ private:
     void restoreExerciseOverlay();
     void updateExerciseOverlayGeometry();
     void syncPatientDisplay();
+    void updateExerciseOptionsPanel();
+    void refreshRotateCombos();
+    ExerciseSessionOptions buildSessionOptions() const;
+    int puzzleFragmentCount() const;
     ExerciseProtocol::CheckboxValues checkboxValues() const;
     QString orHtmlSnapshot() const;
+    ProtocolSessionInput buildProtocolSession() const;
+    QString currentStepId() const;
 
     QString m_exerciseId;
     QString m_patientId;
@@ -87,6 +101,10 @@ private:
     bool m_orOpen3 = false;
     QList<bool> m_answers;
     int m_elapsedSeconds = 0;
+    QString m_sessionAdditional;
+    int m_picturesShown = 0;
+    QString m_capturedImagePath;
+    bool m_shardPanelVisible = false;
 
     QWidget *m_leftBackdrop = nullptr;
     QWidget *m_rightPanel = nullptr;
@@ -105,8 +123,21 @@ private:
     QLabel *m_wrongCountLabel = nullptr;
     ImageButton *m_beginButton = nullptr;
     ImageButton *m_formProtocolButton = nullptr;
+    QComboBox *m_stepCombo = nullptr;
+    QWidget *m_exerciseOptionsPanel = nullptr;
+    QCheckBox *m_showHintCheck = nullptr;
+    QCheckBox *m_showTemplateCheck = nullptr;
+    QCheckBox *m_rotateEnableCheck = nullptr;
+    QComboBox *m_rotateWCombo = nullptr;
+    QComboBox *m_rotateCWCombo = nullptr;
+    QGroupBox *m_e15ModeGroup = nullptr;
+    QRadioButton *m_e15HighlightRadio = nullptr;
+    QRadioButton *m_e15SelectRadio = nullptr;
+    QPushButton *m_shardButton = nullptr;
     QTimer *m_protocolSaveTimer = nullptr;
     OnlyPExercise *m_onlyP = nullptr;
+    ExerciseRunnerWidget *m_sessionRunner = nullptr;
+    ExerciseRunnerKind m_sessionRunnerKind = ExerciseRunnerKind::NotImplemented;
     OnlyPExercise *m_specialistExercise = nullptr;
     PatientDisplay *m_patientDisplay = nullptr;
 };

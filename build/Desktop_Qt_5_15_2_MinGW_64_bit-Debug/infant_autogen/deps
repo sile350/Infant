@@ -133,9 +133,11 @@ infant_autogen/timestamp: \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QComboBox \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QDateEdit \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QDialog \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QGroupBox \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLabel \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLineEdit \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QMainWindow \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QPushButton \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QRadioButton \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSlider \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QSpinBox \
@@ -158,9 +160,11 @@ infant_autogen/timestamp: \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qdatetimeedit.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qdialog.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qframe.h \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qgroupbox.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlabel.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlineedit.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qmainwindow.h \
+	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qpushbutton.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qradiobutton.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qrubberband.h \
 	D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qsizepolicy.h \
@@ -440,12 +444,25 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/src/appsettings.h \
 	D:/projects/DokitLab/infant/src/custommessagebox.cpp \
 	D:/projects/DokitLab/infant/src/custommessagebox.h \
+	D:/projects/DokitLab/infant/src/e126canvas.cpp \
+	D:/projects/DokitLab/infant/src/e126canvas.h \
+	D:/projects/DokitLab/infant/src/e15canvas.cpp \
+	D:/projects/DokitLab/infant/src/e15canvas.h \
 	D:/projects/DokitLab/infant/src/exerciseassets.cpp \
 	D:/projects/DokitLab/infant/src/exerciseassets.h \
+	D:/projects/DokitLab/infant/src/exerciseconfig.cpp \
+	D:/projects/DokitLab/infant/src/exerciseconfig.h \
 	D:/projects/DokitLab/infant/src/exercisehost.cpp \
 	D:/projects/DokitLab/infant/src/exercisehost.h \
 	D:/projects/DokitLab/infant/src/exerciseprotocol.cpp \
 	D:/projects/DokitLab/infant/src/exerciseprotocol.h \
+	D:/projects/DokitLab/infant/src/exerciseprotocolcreate.cpp \
+	D:/projects/DokitLab/infant/src/exerciseprotocolcreate.h \
+	D:/projects/DokitLab/infant/src/exerciseprotocoltemplates.cpp \
+	D:/projects/DokitLab/infant/src/exerciseprotocoltemplates.h \
+	D:/projects/DokitLab/infant/src/exerciserunners.cpp \
+	D:/projects/DokitLab/infant/src/exerciserunnerwidget.h \
+	D:/projects/DokitLab/infant/src/exercisesession.h \
 	D:/projects/DokitLab/infant/src/fieldcrypto.cpp \
 	D:/projects/DokitLab/infant/src/fieldcrypto.h \
 	D:/projects/DokitLab/infant/src/imagebutton.cpp \
@@ -465,8 +482,16 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/src/patientdisplay.h \
 	D:/projects/DokitLab/infant/src/protocoleditguard.cpp \
 	D:/projects/DokitLab/infant/src/protocoleditguard.h \
+	D:/projects/DokitLab/infant/src/puzzlecanvas.cpp \
+	D:/projects/DokitLab/infant/src/puzzlecanvas.h \
+	D:/projects/DokitLab/infant/src/puzzlelayout.h \
+	D:/projects/DokitLab/infant/src/puzzleslayout.cpp \
+	D:/projects/DokitLab/infant/src/remembercanvas.cpp \
+	D:/projects/DokitLab/infant/src/remembercanvas.h \
 	D:/projects/DokitLab/infant/src/repository.cpp \
 	D:/projects/DokitLab/infant/src/repository.h \
 	D:/projects/DokitLab/infant/src/singleinstance.cpp \
 	D:/projects/DokitLab/infant/src/singleinstance.h \
+	D:/projects/DokitLab/infant/src/wolfrunner.cpp \
+	D:/projects/DokitLab/infant/src/wolfrunner.h \
 	D:/Qt/Tools/CMake_64/bin/cmake.exe

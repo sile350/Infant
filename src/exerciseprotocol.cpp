@@ -1,6 +1,7 @@
-#include "exerciseprotocol.h"
+#include "exerciseprotocolcreate.h"
 
 #include "exerciseassets.h"
+#include "exerciseconfig.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -1152,8 +1153,20 @@ QString ExerciseProtocol::createProtocolHtml(
     bool partly,
     const QString &existingProtocolHtml,
     const QList<bool> &answers,
-    const CheckboxValues &checkboxes) {
-    Q_UNUSED(elapsedSeconds);
+    const CheckboxValues &checkboxes,
+    const ProtocolSessionInput &session) {
+    const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId);
+    if (definition && definition->protocol != ExerciseProtocolKind::PictureAnswers) {
+        return createExerciseProtocolBody(
+            *definition,
+            userFio,
+            elapsedSeconds,
+            partly,
+            existingProtocolHtml,
+            answers,
+            checkboxes,
+            session);
+    }
     if (exerciseId != QStringLiteral("1.2")) {
         return existingProtocolHtml;
     }

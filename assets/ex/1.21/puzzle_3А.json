@@ -1,0 +1,22 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "t3А.png",
+      "x": 700,
+      "y": 190
+    },
+    {
+      "file": "et3А.png",
+      "x": 700,
+      "y": 190
+    }
+  ],
+  "template": {
+    "file": "t3А.png",
+    "x": 700,
+    "y": 190
+  }
+}

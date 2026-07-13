@@ -1,6 +1,8 @@
 #ifndef ONLYPEXERCISE_H
 #define ONLYPEXERCISE_H
 
+#include "exerciseconfig.h"
+
 #include <QList>
 #include <QPixmap>
 #include <QWidget>
@@ -20,7 +22,8 @@ public:
 
     explicit OnlyPExercise(QWidget *parent = nullptr);
 
-    void start(const QString &exerciseId);
+    void start(const QString &exerciseId, const OnlyPictureSettings &settings = OnlyPictureSettings(),
+               const QString &stepId = QString());
     void showPicture(int index);
     void submitAnswer(bool correct);
     void setMirrorMode(bool enabled);
@@ -29,6 +32,8 @@ public:
     void stopExercise();
     QList<bool> answers() const { return m_answers; }
     int elapsedSeconds() const { return m_elapsedSeconds; }
+
+    int picturesShown() const { return m_picturesShown; }
 
 signals:
     void finished(const QList<bool> &answers, int elapsedSeconds);
@@ -44,14 +49,18 @@ protected:
 
 private:
     void loadPicture(int index);
+    QString imageFileName(int index) const;
     void recordAnswer(bool correct);
     void finishExercise();
     void initAnswerButtons(const QString &exerciseId);
     void updateWidgetLayout();
 
     QString m_exerciseId;
+    QString m_stepId;
+    OnlyPictureSettings m_settings;
     QList<bool> m_answers;
     int m_index = 0;
+    int m_picturesShown = 0;
     int m_elapsedSeconds = 0;
     bool m_mirrorMode = false;
     DisplayRole m_displayRole = DisplayRole::Primary;

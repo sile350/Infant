@@ -1,0 +1,8 @@
+{
+  "id": "3.1.21",
+  "kind": "or_hlp_balls",
+  "scoreKind": "none",
+  "dateRow": "",
+  "initialBlock": "<tr><td >Результат:баллы (макс.) /<br> вывод об уровне развития</td><td  ><div id='idvivod' contenteditable='true' ></div> </td></tr><tr><td  >Примечание </td><td      ><div contenteditable='true' ></div> </td> </tr></table><!--s--><table  width='676' border='1' cellspacing='0' cellpadding='0'   ><tr  ><td   align='center' colspan='6'>Процесс выполнения диагностической методики</td></tr><tr><td width = '41' rowspan = '2' valign = 'top'><p align = 'center'>№ <strong></ strong ></p></td><td width = '318' colspan = '3' valign = 'top' ><p align = 'center' > Ответы ребенка </p></td><td width = '250' rowspan = '2' valign = 'top'><p align = 'center'> Виды помощи </ p ></td><td width = '69' rowspan = '2' valign = 'top' ><p align = 'center'>Баллы</p></td></tr>",
+  "rowTemplate": ""
+}

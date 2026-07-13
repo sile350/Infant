@@ -1,6 +1,7 @@
 #include "infantwindow.h"
 #include "appsettings.h"
 #include "custommessagebox.h"
+#include "exerciseconfig.h"
 #include "exerciseassets.h"
 #include "protocoleditguard.h"
 #include "exerciseprotocol.h"
@@ -4646,10 +4647,8 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         CustomMessageBox::showWarning(this, QStringLiteral("Сначала выберите пациента в списке."));
         return;
     }
-    if (exerciseId != QStringLiteral("1.2")) {
-        CustomMessageBox::showInfo(
-            this,
-            QStringLiteral("Упражнение «%1» будет доступно в следующей версии.").arg(exerciseId));
+    if (!ExerciseConfig::isRunnable(exerciseId)) {
+        CustomMessageBox::showInfo(this, ExerciseConfig::unsupportedMessage(exerciseId));
         return;
     }
 

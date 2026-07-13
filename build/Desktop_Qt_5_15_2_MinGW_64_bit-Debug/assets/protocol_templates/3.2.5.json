@@ -1,0 +1,8 @@
+{
+  "id": "3.2.5",
+  "kind": "done_time",
+  "scoreKind": "none",
+  "dateRow": "<tr><td >Дата/специалист</td><td >{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td >Результат: вывод об уровне развития</td><td colspan='3'><div contenteditable='true' ></div> </td></tr><tr><td  >Примечание </td><td   colspan='2'  ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='4'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0'  width='671' ><tr>    <td   width='145'      >Факт выполнения<br>/ время</td><td   width='262'    align='center'  > Характер деятельности ребенка </td><td  width='262'   align='center'    >Виды помощи</td>  </tr>",
+  "rowTemplate": "<tr><td>{{ADDITIONAL}}/{{TIME}}</td><td valign='top'><div contenteditable='true' >{{OR}}</div></td><td valign='top'><div contenteditable='true' >{{HLP}}</div></td></tr>"
+}

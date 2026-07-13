@@ -126,9 +126,27 @@
 			null
 		],
 		[
+			"D:/projects/DokitLab/infant/src/e126canvas.h",
+			"MU",
+			"UVLADIE3JM/moc_e126canvas.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/e15canvas.h",
+			"MU",
+			"UVLADIE3JM/moc_e15canvas.cpp",
+			null
+		],
+		[
 			"D:/projects/DokitLab/infant/src/exerciseassets.h",
 			"MU",
 			"UVLADIE3JM/moc_exerciseassets.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseconfig.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseconfig.cpp",
 			null
 		],
 		[
@@ -141,6 +159,30 @@
 			"D:/projects/DokitLab/infant/src/exerciseprotocol.h",
 			"MU",
 			"UVLADIE3JM/moc_exerciseprotocol.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocolcreate.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseprotocolcreate.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocoltemplates.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseprotocoltemplates.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciserunnerwidget.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciserunnerwidget.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exercisesession.h",
+			"MU",
+			"UVLADIE3JM/moc_exercisesession.cpp",
 			null
 		],
 		[
@@ -204,6 +246,24 @@
 			null
 		],
 		[
+			"D:/projects/DokitLab/infant/src/puzzlecanvas.h",
+			"MU",
+			"UVLADIE3JM/moc_puzzlecanvas.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/puzzlelayout.h",
+			"MU",
+			"UVLADIE3JM/moc_puzzlelayout.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/remembercanvas.h",
+			"MU",
+			"UVLADIE3JM/moc_remembercanvas.cpp",
+			null
+		],
+		[
 			"D:/projects/DokitLab/infant/src/repository.h",
 			"MU",
 			"UVLADIE3JM/moc_repository.cpp",
@@ -213,6 +273,12 @@
 			"D:/projects/DokitLab/infant/src/singleinstance.h",
 			"MU",
 			"UVLADIE3JM/moc_singleinstance.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/wolfrunner.h",
+			"MU",
+			"UVLADIE3JM/moc_wolfrunner.cpp",
 			null
 		]
 	],
@@ -285,9 +351,23 @@
 		[ "D:/projects/DokitLab/infant/src/apiclient.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/appsettings.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/custommessagebox.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/e126canvas.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/e15canvas.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/exerciseassets.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exerciseconfig.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/exercisehost.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/exerciseprotocol.cpp", "MU", null ],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocolcreate.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocoltemplates.cpp",
+			"MU",
+			null
+		],
+		[ "D:/projects/DokitLab/infant/src/exerciserunners.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/fieldcrypto.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/imagebutton.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/infantwindow.cpp", "MU", null ],
@@ -301,8 +381,12 @@
 		[ "D:/projects/DokitLab/infant/src/onlypexercise.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/patientdisplay.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/protocoleditguard.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/puzzlecanvas.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/puzzleslayout.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/remembercanvas.cpp", "MU", null ],
 		[ "D:/projects/DokitLab/infant/src/repository.cpp", "MU", null ],
-		[ "D:/projects/DokitLab/infant/src/singleinstance.cpp", "MU", null ]
+		[ "D:/projects/DokitLab/infant/src/singleinstance.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/wolfrunner.cpp", "MU", null ]
 	],
 	"UIC_OPTIONS" : [],
 	"UIC_SEARCH_PATHS" : [],

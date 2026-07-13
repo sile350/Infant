@@ -1,0 +1,47 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "traf.png",
+      "x": 800,
+      "y": 40
+    },
+    {
+      "file": "6.png",
+      "x": 802,
+      "y": 524
+    },
+    {
+      "file": "3.png",
+      "x": 1065,
+      "y": 522
+    },
+    {
+      "file": "4.png",
+      "x": 1303,
+      "y": 526
+    },
+    {
+      "file": "5.png",
+      "x": 801,
+      "y": 638
+    },
+    {
+      "file": "2.png",
+      "x": 820,
+      "y": 758
+    },
+    {
+      "file": "1.png",
+      "x": 1062,
+      "y": 763
+    }
+  ],
+  "template": {
+    "file": "traf.png",
+    "x": 800,
+    "y": 40
+  }
+}
