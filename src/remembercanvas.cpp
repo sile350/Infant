@@ -27,7 +27,7 @@ RememberCanvas::RememberCanvas(QWidget *parent) : QWidget(parent) {
 double RememberCanvas::scaleFactor() const {
     const double sx = width() > 0 ? static_cast<double>(width()) / kDesignWidth : 1.0;
     const double sy = height() > 0 ? static_cast<double>(height()) / kDesignHeight : 1.0;
-    return qMin(sx, sy);
+    return qMin(1.0, qMin(sx, sy));
 }
 
 QPoint RememberCanvas::mapFromDesign(int x, int y) const {

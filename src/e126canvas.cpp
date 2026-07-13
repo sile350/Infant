@@ -301,7 +301,9 @@ void E126Canvas::showDemoImage() {
     const QString path = ExerciseAssets::exerciseFile(
         m_exerciseId, m_genderPrefix + QString::number(m_count) + QStringLiteral(".png"));
     if (!path.isEmpty()) {
-        m_imageLabel->setPixmap(QPixmap(path).scaled(900, 500, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        const QPixmap pixmap(path);
+        m_imageLabel->setPixmap(pixmap);
+        m_imageLabel->setFixedSize(pixmap.size());
     }
 }
 
@@ -312,7 +314,9 @@ void E126Canvas::showStoryImage() {
     const QString path = ExerciseAssets::exerciseFile(
         m_exerciseId, QString::number(m_count) + QStringLiteral(".png"));
     if (!path.isEmpty()) {
-        m_imageLabel->setPixmap(QPixmap(path).scaled(700, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        const QPixmap pixmap(path);
+        m_imageLabel->setPixmap(pixmap);
+        m_imageLabel->setFixedSize(pixmap.size());
     }
     if (m_questionLabel && m_count - 1 < m_questions.size()) {
         m_questionLabel->setText(m_questions.at(m_count - 1));

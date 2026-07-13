@@ -92,7 +92,7 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     const QSize design = designSize();
     const double scaleX = width() > 0 ? static_cast<double>(width()) / design.width() : 1.0;
     const double scaleY = height() > 0 ? static_cast<double>(height()) / design.height() : 1.0;
-    m_scale = qMin(scaleX, scaleY);
+    m_scale = qMin(1.0, qMin(scaleX, scaleY));
     const int contentW = qRound(design.width() * m_scale);
     const int contentH = qRound(design.height() * m_scale);
     m_offset = QPoint((width() - contentW) / 2, (height() - contentH) / 2);
@@ -370,7 +370,7 @@ void PuzzleCanvas::resizeEvent(QResizeEvent *event) {
     const QSize design = designSize();
     const double scaleX = width() > 0 ? static_cast<double>(width()) / design.width() : 1.0;
     const double scaleY = height() > 0 ? static_cast<double>(height()) / design.height() : 1.0;
-    m_scale = qMin(scaleX, scaleY);
+    m_scale = qMin(1.0, qMin(scaleX, scaleY));
     const int contentW = qRound(design.width() * m_scale);
     const int contentH = qRound(design.height() * m_scale);
     m_offset = QPoint((width() - contentW) / 2, (height() - contentH) / 2);

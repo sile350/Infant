@@ -99,7 +99,7 @@ E15Canvas::E15Canvas(QWidget *parent) : QWidget(parent) {
 double E15Canvas::scaleFactor() const {
     const double sx = width() > 0 ? static_cast<double>(width()) / kDesignWidth : 1.0;
     const double sy = height() > 0 ? static_cast<double>(height()) / kDesignHeight : 1.0;
-    return qMin(sx, sy);
+    return qMin(1.0, qMin(sx, sy));
 }
 
 QPoint E15Canvas::mapFromDesign(int x, int y) const {

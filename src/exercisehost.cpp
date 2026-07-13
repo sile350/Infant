@@ -813,10 +813,11 @@ void ExerciseHost::updatePreviewLayout() {
     const int localY = kPreviewAbsTop;
     const int maxW = qMax(120, width() - kPreviewAbsLeft - 16);
     const int maxH = qMax(120, height() - kPreviewAbsTop - 16);
-    const QPixmap scaled = m_previewSource.scaled(
-        maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    m_previewImage->setPixmap(scaled);
-    m_previewImage->setFixedSize(scaled.size());
+    const QPixmap display = m_previewSource.width() <= maxW && m_previewSource.height() <= maxH
+        ? m_previewSource
+        : m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    m_previewImage->setPixmap(display);
+    m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
     m_previewImage->raise();
@@ -1081,6 +1082,10 @@ void ExerciseHost::runExerciseSession() {
                 m_sessionAdditional = result.additional;
                 m_picturesShown = result.picturesShown;
                 m_capturedImagePath = result.capturedImagePath;
+                if (!result.capturedImagePath.isEmpty()) {
+                    m_previewSource.load(result.capturedImagePath);
+                    updatePreviewLayout();
+                }
                 m_exerciseDone = true;
                 m_protocolFormed = false;
                 m_exerciseRunning = false;

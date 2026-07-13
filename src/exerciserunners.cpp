@@ -11,6 +11,7 @@
 
 #include "imagebutton.h"
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -57,6 +58,138 @@ QString scansDirectory() {
     const QString dir = QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans");
     QDir().mkpath(dir);
     return dir;
+}
+
+QPixmap pixmapNativeOrDownscale(const QPixmap &source, int maxW, int maxH) {
+    if (source.isNull()) {
+        return source;
+    }
+    if (source.width() <= maxW && source.height() <= maxH) {
+        return source;
+    }
+    return source.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
+struct CanvasLayout {
+    QSize size = QSize(1856, 961);
+    QPoint pos = QPoint(0, 140);
+    QPoint trafPos;
+    QString trafFile;
+    QPoint traf2Pos;
+    QString traf2File;
+};
+
+CanvasLayout paintCanvasLayout(const QString &exerciseId, const QString &stepId) {
+    CanvasLayout layout;
+    if (exerciseId == QStringLiteral("3.3.1")) {
+        layout.size = QSize(1450, 770);
+        layout.pos = QPoint(300, 200);
+        layout.trafPos = QPoint(810, 0);
+        layout.trafFile = QStringLiteral("traf1.png");
+        layout.traf2Pos = QPoint(10, 0);
+        layout.traf2File = QStringLiteral("traf2.png");
+        return layout;
+    }
+    if (exerciseId == QStringLiteral("3.3.2")) {
+        layout.size = QSize(1000, 620);
+        layout.pos = QPoint(450, 200);
+        layout.trafPos = QPoint(10, 10);
+        layout.trafFile = QStringLiteral("traf1.png");
+        return layout;
+    }
+    if (exerciseId == QStringLiteral("3.3.3")) {
+        layout.size = QSize(1000, 620);
+        layout.pos = QPoint(0, 140);
+        layout.trafPos = QPoint(1100, 50);
+        layout.trafFile = QStringLiteral("traf1.png");
+        return layout;
+    }
+    if (exerciseId == QStringLiteral("1.7")) {
+        layout.size = stepId == QStringLiteral("3") ? QSize(650, 800) : QSize(600, 800);
+        layout.pos = QPoint(600, 150);
+        layout.trafPos = QPoint(0, 0);
+        if (!stepId.isEmpty()) {
+            layout.trafFile = stepId + QStringLiteral(".png");
+        }
+        return layout;
+    }
+    if (exerciseId == QStringLiteral("1.12")) {
+        layout.size = QSize(1900, 961);
+        layout.pos = QPoint(0, 0);
+        layout.trafPos = QPoint(1000, 50);
+        layout.trafFile = QStringLiteral("traf.png");
+        layout.traf2Pos = QPoint(200, 50);
+        layout.traf2File = QStringLiteral("exampleno.png");
+        return layout;
+    }
+    layout.trafFile = QStringLiteral("traf1.png");
+    layout.trafPos = QPoint(0, 0);
+    return layout;
+}
+
+CanvasLayout findMarkCanvasLayout(const QString &exerciseId, const QString &stepId) {
+    CanvasLayout layout;
+    layout.trafPos = QPoint(0, 0);
+    if (exerciseId == QStringLiteral("2.3")) {
+        layout.size = QSize(430, 344);
+        layout.pos = QPoint(1000, 330);
+        layout.trafFile = QStringLiteral("11.png");
+        layout.traf2Pos = QPoint(220, 3);
+        layout.traf2File = QStringLiteral("void.png");
+        return layout;
+    }
+    if (exerciseId == QStringLiteral("2.2")) {
+        layout.size = QSize(674, 799);
+        layout.pos = QPoint(1000, 125);
+        layout.trafFile = QStringLiteral("traf1.png");
+        return layout;
+    }
+    if (exerciseId == QStringLiteral("2.1")) {
+        if (stepId == QStringLiteral("3")) {
+            layout.size = QSize(1290, 764);
+            layout.pos = QPoint(300, 150);
+            layout.trafFile = QStringLiteral("traf3.png");
+        } else if (stepId == QStringLiteral("2")) {
+            layout.size = QSize(641, 894);
+            layout.pos = QPoint(1000, 130);
+            layout.trafFile = QStringLiteral("traf2.png");
+        } else {
+            layout.size = QSize(641, 894);
+            layout.pos = QPoint(1000, 130);
+            layout.trafFile = QStringLiteral("traf1.png");
+        }
+        return layout;
+    }
+    layout.size = QSize(641, 894);
+    layout.pos = QPoint(1000, 130);
+    layout.trafFile = QStringLiteral("traf1.png");
+    return layout;
+}
+
+int findMarkRedIntervalMs(const QString &exerciseId, const QString &stepId) {
+    if (exerciseId == QStringLiteral("2.2")) {
+        return 120000;
+    }
+    if (exerciseId == QStringLiteral("2.1")) {
+        return stepId == QStringLiteral("1") ? 30000 : 60000;
+    }
+    return 30000;
+}
+
+void drawPixmapOnImage(QImage *image, const QString &exerciseId, const QString &file, const QPoint &pos) {
+    if (!image || file.isEmpty()) {
+        return;
+    }
+    const QString path = ExerciseAssets::exerciseFile(exerciseId, file);
+    if (path.isEmpty()) {
+        return;
+    }
+    QPixmap pixmap(path);
+    if (pixmap.isNull()) {
+        return;
+    }
+    QPainter painter(image);
+    painter.drawPixmap(pos, pixmap);
 }
 
 class ClickableLabel final : public QLabel {
@@ -139,7 +272,7 @@ protected:
         emitFinished(result);
     }
 
-    void layoutUi() {
+    virtual void layoutUi() {
         m_stop->move(80, 72);
         m_stop->raise();
         const int top = 140;
@@ -147,10 +280,10 @@ protected:
         const int maxW = qMax(100, width() - 2 * margin);
         const int maxH = qMax(100, height() - top - margin);
         if (!m_pixmap.isNull()) {
-            const QPixmap scaled = m_pixmap.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            m_picture->setPixmap(scaled);
-            m_picture->setFixedSize(scaled.size());
-            m_picture->move((width() - scaled.width()) / 2, top);
+            const QPixmap display = pixmapNativeOrDownscale(m_pixmap, maxW, maxH);
+            m_picture->setPixmap(display);
+            m_picture->setFixedSize(display.size());
+            m_picture->move((width() - display.width()) / 2, top);
         }
         m_picture->raise();
     }
@@ -205,38 +338,68 @@ public:
         const QString &exerciseId,
         const ExerciseDefinition &definition,
         const QString &stepId) override {
-        TimedSessionRunner::startSession(exerciseId, definition, stepId);
-        m_canvas = QImage(qMax(800, width()), qMax(600, height()), QImage::Format_RGB32);
+        Q_UNUSED(definition);
+        m_exerciseId = exerciseId;
+        m_stepId = stepId;
+        m_elapsed = 0;
+        m_capturePath.clear();
+        m_pixmap = QPixmap();
+        m_layout = paintCanvasLayout(exerciseId, stepId);
+        m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
         m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
-        const QString trafPath = ExerciseAssets::exerciseFile(
-            exerciseId,
-            exerciseId == QStringLiteral("1.12") ? QStringLiteral("traf.png")
-                                                   : QStringLiteral("traf1.png"));
-        if (!trafPath.isEmpty()) {
-            QPixmap traf(trafPath);
-            QPainter painter(&m_canvas);
-            painter.drawPixmap(0, 0, traf);
-        } else if (!m_pixmap.isNull()) {
-            QPainter painter(&m_canvas);
-            painter.drawPixmap(0, 0, m_pixmap);
-        }
-        m_picture->setPixmap(QPixmap::fromImage(m_canvas));
+        drawPixmapOnImage(&m_canvas, exerciseId, m_layout.trafFile, m_layout.trafPos);
+        drawPixmapOnImage(&m_canvas, exerciseId, m_layout.traf2File, m_layout.traf2Pos);
         m_drawing = true;
+        m_timer->start();
+        show();
+        raise();
+        updateCanvasDisplay();
     }
 
 protected:
+    void layoutUi() override {
+        if (exerciseId() == QStringLiteral("3.3.1") || exerciseId() == QStringLiteral("3.3.2")
+            || exerciseId() == QStringLiteral("3.3.3")) {
+            m_stop->move(970, 70);
+        } else {
+            m_stop->move(80, 72);
+        }
+        m_stop->raise();
+        updateCanvasDisplay();
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_drawing = true;
+            m_hasLast = false;
+        }
+        QWidget::mousePressEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_drawing = false;
+            m_hasLast = false;
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+
     void mouseMoveEvent(QMouseEvent *event) override {
         if (!m_drawing || !event->buttons().testFlag(Qt::LeftButton)) {
+            return;
+        }
+        const QPoint canvasPt = mapToCanvas(event->pos());
+        if (canvasPt.x() < 0) {
             return;
         }
         QPainter painter(&m_canvas);
         painter.setPen(QPen(Qt::blue, 20, Qt::SolidLine, Qt::RoundCap));
         if (m_hasLast) {
-            painter.drawLine(m_lastPoint, event->pos());
+            painter.drawLine(m_lastPoint, canvasPt);
         }
-        m_lastPoint = event->pos();
+        m_lastPoint = canvasPt;
         m_hasLast = true;
-        m_picture->setPixmap(QPixmap::fromImage(m_canvas));
+        updateCanvasDisplay();
     }
 
     void finish() override {
@@ -247,7 +410,38 @@ protected:
         TimedSessionRunner::finish();
     }
 
+    QString exerciseId() const { return m_exerciseId; }
+
+    QPoint mapToCanvas(const QPoint &widgetPos) const {
+        if (!m_picture) {
+            return QPoint(-1, -1);
+        }
+        const QPoint local = widgetPos - m_picture->pos();
+        if (local.x() < 0 || local.y() < 0 || local.x() >= m_picture->width()
+            || local.y() >= m_picture->height()) {
+            return QPoint(-1, -1);
+        }
+        const double sx = m_canvas.width() > 0
+            ? static_cast<double>(m_canvas.width()) / m_picture->width()
+            : 1.0;
+        const double sy = m_canvas.height() > 0
+            ? static_cast<double>(m_canvas.height()) / m_picture->height()
+            : 1.0;
+        return QPoint(qRound(local.x() * sx), qRound(local.y() * sy));
+    }
+
+    void updateCanvasDisplay() {
+        if (m_canvas.isNull() || !m_picture) {
+            return;
+        }
+        m_picture->setPixmap(QPixmap::fromImage(m_canvas));
+        m_picture->setFixedSize(m_canvas.size());
+        m_picture->move(m_layout.pos);
+        m_picture->raise();
+    }
+
     QImage m_canvas;
+    CanvasLayout m_layout;
     bool m_drawing = false;
     bool m_hasLast = false;
     QPoint m_lastPoint;
@@ -255,36 +449,190 @@ protected:
 
 class FindMarkRunner final : public PaintRunner {
 public:
-    using PaintRunner::PaintRunner;
+    explicit FindMarkRunner(QWidget *parent = nullptr) : PaintRunner(parent) {
+        m_slideshowTimer = new QTimer(this);
+        m_slideshowTimer->setInterval(1000);
+        connect(m_slideshowTimer, &QTimer::timeout, this, [this]() {
+            if (m_dotime == 0) {
+                redrawTemplate();
+            }
+            ++m_dotime;
+        });
+
+        m_redTimer = new QTimer(this);
+        connect(m_redTimer, &QTimer::timeout, this, [this]() {
+            if (m_redOverlay) {
+                m_redOverlay->setGeometry(m_picture->geometry());
+                m_redOverlay->show();
+                m_redOverlay->raise();
+            }
+            m_redTimer->stop();
+        });
+
+        m_redOverlay = new ClickableLabel(this);
+        m_redOverlay->hide();
+        m_redOverlay->onClick = [this]() {
+            if (m_exerciseId != QStringLiteral("2.1")) {
+                return;
+            }
+            m_redOverlay->hide();
+            if (m_continueButton) {
+                m_continueButton->show();
+                m_continueButton->raise();
+            }
+        };
+
+        m_continueButton = new ClickableLabel(this);
+        m_continueButton->hide();
+        m_continueButton->onClick = [this]() {
+            ++m_cycles;
+            if (m_cycles >= 5) {
+                finish();
+                return;
+            }
+            m_redOverlay->hide();
+            if (m_continueButton) {
+                m_continueButton->hide();
+            }
+            m_brushColor = QColor(QStringLiteral("#ef47e3"));
+            m_redTimer->start();
+        };
+    }
 
     void startSession(
         const QString &exerciseId,
         const ExerciseDefinition &definition,
         const QString &stepId) override {
-        PaintRunner::startSession(exerciseId, definition, stepId);
+        Q_UNUSED(definition);
+        m_exerciseId = exerciseId;
+        m_stepId = stepId;
+        m_elapsed = 0;
+        m_capturePath.clear();
+        m_dotime = 0;
+        m_cycles = 0;
+        m_drawing = false;
+        m_hasLast = false;
+
+        m_layout = findMarkCanvasLayout(exerciseId, stepId);
+        m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
+        m_canvas.fill(Qt::white);
+
         m_brushColor = QColor(QStringLiteral("#ef47e3"));
         if (exerciseId == QStringLiteral("2.3")) {
             m_brushColor = QColor(QStringLiteral("#0000ff"));
         }
+
+        const QString redPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("red1.png"));
+        if (!redPath.isEmpty() && m_redOverlay) {
+            m_redOverlay->setPixmap(QPixmap(redPath));
+            m_redOverlay->setScaledContents(true);
+        }
+        const QString continuePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("continue.png"));
+        if (!continuePath.isEmpty() && m_continueButton) {
+            const QPixmap continuePixmap(continuePath);
+            m_continueButton->setPixmap(continuePixmap);
+            m_continueButton->setFixedSize(continuePixmap.size());
+        }
+
+        if (exerciseId == QStringLiteral("3.3.1") || exerciseId == QStringLiteral("3.3.2")
+            || exerciseId == QStringLiteral("3.3.3")) {
+            m_stop->move(970, 70);
+        } else {
+            m_stop->move(970, 70);
+        }
+
+        m_timer->start();
+        m_slideshowTimer->start();
+        if (exerciseId != QStringLiteral("2.3")) {
+            m_redTimer->setInterval(findMarkRedIntervalMs(exerciseId, stepId));
+            m_redTimer->start();
+        }
+        updateCanvasDisplay();
+        show();
+        raise();
+        layoutUi();
     }
 
 protected:
+    void layoutUi() override {
+        m_stop->raise();
+        updateCanvasDisplay();
+        if (m_continueButton && !m_continueButton->pixmap(Qt::ReturnByValue).isNull()) {
+            m_continueButton->move(m_stop->x() + m_stop->width() + 24, m_stop->y());
+        }
+    }
+
+    void redrawTemplate() {
+        m_canvas.fill(Qt::white);
+        drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.trafFile, m_layout.trafPos);
+        drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.traf2File, m_layout.traf2Pos);
+        updateCanvasDisplay();
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_drawing = true;
+            m_hasLast = false;
+            if (m_exerciseId == QStringLiteral("2.3")) {
+                const QPoint canvasPt = mapToCanvas(event->pos());
+                if (canvasPt.x() >= 0) {
+                    QPainter painter(&m_canvas);
+                    painter.setPen(QPen(m_brushColor, 20, Qt::SolidLine, Qt::RoundCap));
+                    painter.drawPoint(canvasPt);
+                    updateCanvasDisplay();
+                }
+            }
+        }
+        PaintRunner::mousePressEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && m_exerciseId != QStringLiteral("2.3")) {
+            m_drawing = false;
+            m_hasLast = false;
+        }
+        if (event->button() == Qt::RightButton && m_exerciseId == QStringLiteral("2.3")) {
+            const QPoint canvasPt = mapToCanvas(event->pos());
+            if (canvasPt.x() >= 0) {
+                QPainter painter(&m_canvas);
+                painter.setPen(QPen(QColor(QStringLiteral("#f8f8f8")), 23, Qt::SolidLine, Qt::RoundCap));
+                painter.drawPoint(canvasPt);
+                updateCanvasDisplay();
+            }
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+
     void mouseMoveEvent(QMouseEvent *event) override {
-        if (!m_drawing || !event->buttons().testFlag(Qt::LeftButton)) {
+        if (!m_drawing || !event->buttons().testFlag(Qt::LeftButton) || m_exerciseId == QStringLiteral("2.3")) {
+            return;
+        }
+        const QPoint canvasPt = mapToCanvas(event->pos());
+        if (canvasPt.x() < 0) {
             return;
         }
         QPainter painter(&m_canvas);
-        painter.setPen(QPen(m_brushColor, m_exerciseId == QStringLiteral("2.3") ? 20 : 6,
-                            Qt::SolidLine, Qt::RoundCap));
+        painter.setPen(QPen(m_brushColor, 6, Qt::SolidLine, Qt::RoundCap));
         if (m_hasLast) {
-            painter.drawLine(m_lastPoint, event->pos());
+            painter.drawLine(m_lastPoint, canvasPt);
         }
-        m_lastPoint = event->pos();
+        m_lastPoint = canvasPt;
         m_hasLast = true;
-        m_picture->setPixmap(QPixmap::fromImage(m_canvas));
+        updateCanvasDisplay();
     }
 
-    QString exerciseId() const { return m_exerciseId; }
+    void finish() override {
+        m_slideshowTimer->stop();
+        m_redTimer->stop();
+        PaintRunner::finish();
+    }
+
+    QTimer *m_slideshowTimer = nullptr;
+    QTimer *m_redTimer = nullptr;
+    ClickableLabel *m_redOverlay = nullptr;
+    ClickableLabel *m_continueButton = nullptr;
+    int m_dotime = 0;
+    int m_cycles = 0;
     QColor m_brushColor = Qt::magenta;
 };
 
@@ -367,7 +715,9 @@ public:
         m_task = new QLabel(this);
         const QString refPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("1.png"));
         if (!refPath.isEmpty()) {
-            m_reference->setPixmap(QPixmap(refPath).scaled(300, 300, Qt::KeepAspectRatio));
+            const QPixmap refPixmap(refPath);
+            m_reference->setPixmap(refPixmap);
+            m_reference->setFixedSize(refPixmap.size());
         }
         m_next = new ClickableLabel(this);
         const QString nextPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("next.png"));
@@ -377,7 +727,9 @@ public:
         m_next->onClick = [this, exerciseId]() {
             const QString taskPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("2.png"));
             if (!taskPath.isEmpty()) {
-                m_task->setPixmap(QPixmap(taskPath).scaled(500, 500, Qt::KeepAspectRatio));
+                const QPixmap taskPixmap(taskPath);
+                m_task->setPixmap(taskPixmap);
+                m_task->setFixedSize(taskPixmap.size());
             }
             m_reference->hide();
             m_next->hide();
@@ -661,8 +1013,9 @@ protected:
         QPainter painter(this);
         painter.fillRect(rect(), Qt::white);
         const double scale = qMin(
-            width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
-            height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0);
+            1.0,
+            qMin(width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
+                 height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0));
         const int offsetX = (width() - qRound(1920 * scale)) / 2;
         const int offsetY = (height() - qRound(1080 * scale)) / 2;
         for (const Card &card : m_cards) {
@@ -684,8 +1037,9 @@ protected:
             return;
         }
         const double scale = qMin(
-            width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
-            height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0);
+            1.0,
+            qMin(width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
+                 height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0));
         const int offsetX = (width() - qRound(1920 * scale)) / 2;
         const int offsetY = (height() - qRound(1080 * scale)) / 2;
         const int designX = qRound((event->x() - offsetX) / scale);
