@@ -785,7 +785,8 @@ void ExerciseHost::openExercise(
     }
 
     if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
-        if (definition->runner != ExerciseRunnerKind::NotImplemented) {
+        if (definition->availableInVersion
+            && definition->runner != ExerciseRunnerKind::NotImplemented) {
             loadExercise();
         }
     }

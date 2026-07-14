@@ -51,6 +51,8 @@ struct ExerciseDefinition {
     ExerciseProtocolKind protocol = ExerciseProtocolKind::DoneTimeOrHlp;
     OnlyPictureSettings onlyPicture;
     bool usesMultiSessionDateBlocks = false;
+    // Упражнение доступно в текущей поставке (whitelist из списка методик версии).
+    bool availableInVersion = true;
 };
 
 class ExerciseConfig {
