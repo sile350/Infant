@@ -527,16 +527,17 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_formProtocolButton->setFixedSize(196, 33);
     }
     templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
-    m_sumButton = new QPushButton(QStringLiteral("Сумма"), m_templatePanel);
-    m_sumButton->setFixedSize(120, 32);
-    m_sumButton->setStyleSheet(QStringLiteral(
-        "QPushButton {"
-        "  font: 12pt 'Microsoft Sans Serif';"
-        "  background:#f0f0f0; color:#000000;"
-        "  border:1px solid #808080;"
-        "}"
-        "QPushButton:hover { background:#e6e6e6; }"
-        "QPushButton:pressed { background:#d0d0d0; }"));
+    // Оригинал: PictureBox bsum = Resources.im1 («Подвести итог»), 135×30.
+    m_sumButton = new ImageButton(m_templatePanel);
+    const QString sumPath = ExerciseAssets::sysImage(QStringLiteral("im1.png"));
+    if (!sumPath.isEmpty()) {
+        m_sumButton->setImagePath(sumPath);
+        m_sumButton->setFixedSize(135, 30);
+    } else {
+        m_sumButton->setText(QStringLiteral("Подвести итог"));
+        m_sumButton->setFixedSize(135, 30);
+    }
+    m_sumButton->setToolTip(QStringLiteral("Подвести итог"));
     m_sumButton->hide();
     templateLayout->addSpacing(8);
     templateLayout->addWidget(m_sumButton, 0, Qt::AlignHCenter);
@@ -741,12 +742,25 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // Перед новой попыткой — снова «пустой» шаблон, как при первом входе.
-        resetProtocolToInitialTemplate();
+        // 1.26: не трогаем уже сохранённый протокол в БД перед заданием 2 —
+        // иначе merge из редактора может повредить блок задания 1.
+        if (m_exerciseId == QStringLiteral("1.26")) {
+            const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
+            const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+            if (m_templateBrowser) {
+                m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+                applyCompactLineHeight(m_templateBrowser->document());
+            }
+            m_currentProtocolId.clear();
+            m_protocolSavedThisSession = false;
+            updateProtocolEditMode();
+        } else {
+            resetProtocolToInitialTemplate();
+        }
         runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
-    connect(m_sumButton, &QPushButton::clicked, this, [this]() { sumProtocol126(); });
+    connect(m_sumButton, &ImageButton::clicked, this, [this]() { sumProtocol126(); });
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
         m_answers = answers;
         m_elapsedSeconds = elapsedSeconds;
@@ -947,6 +961,7 @@ void ExerciseHost::openExercise(
         }
     }
     m_sessionAdditional.clear();
+    m_additionalByStep.clear();
     m_sessionStepId.clear();
     m_picturesShown = 0;
     m_currentProtocolId.clear();
@@ -1356,6 +1371,13 @@ void ExerciseHost::runExerciseSession() {
                     m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
                 }
                 m_sessionAdditional = result.additional;
+                if (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")) {
+                    const QStringList parts = result.additional.split(QLatin1Char(';'));
+                    const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
+                        ? QStringLiteral("1")
+                        : parts.at(0).trimmed();
+                    m_additionalByStep.insert(stepKey, result.additional);
+                }
                 m_picturesShown = result.picturesShown;
                 m_capturedImagePath = result.capturedImagePath;
                 if (!result.capturedImagePath.isEmpty()) {
@@ -1781,25 +1803,95 @@ void ExerciseHost::formProtocol() {
     saveProtocolEdits();
 
     const bool partlySave = m_partly;
-    const QString existingBody = partlySave
+    QString existingBody = partlySave
         ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
         : QString();
 
-    const QString protocolBody = ExerciseProtocol::createProtocolHtml(
-        m_exerciseId,
-        m_specialistFio,
-        m_elapsedSeconds,
-        partlySave,
-        existingBody,
-        m_answers,
-        checkboxValues(),
-        buildProtocolSession());
+    ProtocolSessionInput session = buildProtocolSession();
+    if (m_exerciseId == QStringLiteral("1.26") && !session.additional.trimmed().isEmpty()) {
+        const QStringList parts = session.additional.split(QLatin1Char(';'));
+        const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : parts.at(0).trimmed();
+        m_additionalByStep.insert(stepKey, session.additional);
+    }
+
+    QString protocolBody;
+    bool reconstructed126 = false;
+    if (m_exerciseId == QStringLiteral("1.26")) {
+        const QStringList parts = session.additional.split(QLatin1Char(';'));
+        const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : parts.at(0).trimmed();
+
+        // Если формируем задание 2, а в сохранённом протоколе нет задания 1 —
+        // сначала восстанавливаем блок 1 из ответов этой сессии.
+        if (stepKey == QStringLiteral("2")
+            && !existingBody.contains(QStringLiteral("Задание 1"))
+            && m_additionalByStep.contains(QStringLiteral("1"))) {
+            ProtocolSessionInput session1 = session;
+            session1.additional = m_additionalByStep.value(QStringLiteral("1"));
+            const QString body1 = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                false,
+                QString(),
+                m_answers,
+                checkboxValues(),
+                session1);
+            protocolBody = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                true,
+                body1,
+                m_answers,
+                checkboxValues(),
+                session);
+            reconstructed126 = true;
+        } else {
+            protocolBody = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                partlySave && !existingBody.trimmed().isEmpty(),
+                existingBody,
+                m_answers,
+                checkboxValues(),
+                session);
+        }
+    } else {
+        protocolBody = ExerciseProtocol::createProtocolHtml(
+            m_exerciseId,
+            m_specialistFio,
+            m_elapsedSeconds,
+            partlySave,
+            existingBody,
+            m_answers,
+            checkboxValues(),
+            session);
+    }
 
     QString error;
     QString protocolId;
-    if (!m_repository->saveExerciseProtocol(m_patientId, m_exerciseId, protocolBody, partlySave, &error, &protocolId)) {
-        CustomMessageBox::showError(this, error);
-        return;
+    const bool hasExistingProtocol =
+        !m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId).isEmpty();
+    bool saveAsPartly = (partlySave || reconstructed126) && hasExistingProtocol;
+
+    if (!m_repository->saveExerciseProtocol(
+            m_patientId, m_exerciseId, protocolBody, saveAsPartly, &error, &protocolId)) {
+        if (saveAsPartly) {
+            error.clear();
+            if (!m_repository->saveExerciseProtocol(
+                    m_patientId, m_exerciseId, protocolBody, false, &error, &protocolId)) {
+                CustomMessageBox::showError(this, error);
+                return;
+            }
+        } else {
+            CustomMessageBox::showError(this, error);
+            return;
+        }
     }
     m_currentProtocolId = protocolId;
 

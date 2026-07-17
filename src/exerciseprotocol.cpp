@@ -1656,6 +1656,48 @@ QString replaceScoreCellByRowLabel(QString html, const QString &rowLabel, const 
     return html.replace(re, QStringLiteral("\\1") + newInner + QStringLiteral("\\3"));
 }
 
+QString replaceNthLabeledScoreCell(
+    QString html,
+    const QString &rowLabel,
+    int occurrence,
+    const QString &scorePlain) {
+    const QString escaped = QRegularExpression::escape(rowLabel);
+    const QRegularExpression re(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
+            .arg(escaped),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    int found = 0;
+    int offset = 0;
+    while (true) {
+        const QRegularExpressionMatch match = re.match(html, offset);
+        if (!match.hasMatch()) {
+            break;
+        }
+        if (found == occurrence) {
+            QString oldInner = match.captured(2);
+            QString newInner;
+            const QRegularExpression idRe(
+                QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"][^'\"]+['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+                QRegularExpression::CaseInsensitiveOption);
+            if (idRe.match(oldInner).hasMatch()) {
+                newInner = oldInner;
+                newInner.replace(
+                    idRe, QStringLiteral("\\1") + scorePlain.toHtmlEscaped() + QStringLiteral("\\3"));
+            } else {
+                newInner =
+                    QStringLiteral("<div contenteditable='true'>%1</div>").arg(scorePlain.toHtmlEscaped());
+            }
+            html.replace(match.capturedStart(), match.capturedLength(),
+                match.captured(1) + newInner + match.captured(3));
+            break;
+        }
+        ++found;
+        offset = match.capturedEnd();
+    }
+    return html;
+}
+
 QString ExerciseProtocol::applyProtocol126SumFromDocument(
     const QString &storedBody,
     QTextDocument *editorDocument,
@@ -1665,6 +1707,10 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     }
 
     QString body = storedBody;
+    double sumFromTask1 = 0;
+    double sumFromTask2 = 0;
+    bool sawTask1Scores = false;
+    bool sawTask2Scores = false;
     if (editorDocument) {
         QList<QTextTable *> tables;
         collectTables(editorDocument->rootFrame(), tables);
@@ -1688,6 +1734,9 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
             if (ballsCol < 0) {
                 continue;
             }
+            double tableSum = 0;
+            bool looksLikeTask1 = false;
+            bool looksLikeTask2 = false;
             for (int r = headerRow + 1; r < table->rows(); ++r) {
                 const QString label = readTableCellText(table, r, 0);
                 const QString score = readTableCellText(table, r, ballsCol);
@@ -1698,7 +1747,29 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
                     || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
                     continue;
                 }
+                if (label.contains(QStringLiteral("Радость"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Злость"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Грусть"), Qt::CaseInsensitive)) {
+                    looksLikeTask1 = true;
+                }
+                bool isNumber = false;
+                label.toInt(&isNumber);
+                if (isNumber) {
+                    looksLikeTask2 = true;
+                }
                 body = replaceScoreCellByRowLabel(body, label, score);
+                bool ok = false;
+                const double value = score.toDouble(&ok);
+                if (ok) {
+                    tableSum += value;
+                }
+            }
+            if (looksLikeTask1) {
+                sumFromTask1 = tableSum;
+                sawTask1Scores = true;
+            } else if (looksLikeTask2) {
+                sumFromTask2 = tableSum;
+                sawTask2Scores = true;
             }
         }
     }
@@ -1707,18 +1778,24 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
         return body;
     }
 
-    // Как bsum/getSum("col1") / getSum("col2") в оригинале.
-    const double sum1 = sumDivPrefix(body, QStringLiteral("col1"));
-    const double sum2 = sumDivPrefix(body, QStringLiteral("col2"));
+    // Сумма из таблиц редактора (приоритет) или из HTML id col1*/col2*.
+    const double sum1 = sawTask1Scores ? sumFromTask1 : sumDivPrefix(body, QStringLiteral("col1"));
+    const double sum2 = sawTask2Scores ? sumFromTask2 : sumDivPrefix(body, QStringLiteral("col2"));
     const int sum3 = static_cast<int>(sum1 + sum2);
-    const QString sum1Text = QString::number(sum1, 'g', 15);
-    const QString sum2Text = QString::number(sum2, 'g', 15);
+    const QString sum1Text = QString::number(static_cast<int>(sum1));
+    const QString sum2Text = QString::number(static_cast<int>(sum2));
     const QString sum3Text = QString::number(sum3);
+    const QString vivodText = sum3Text + QStringLiteral("(36)");
 
     body = replaceDivInnerById(body, QStringLiteral("sum1"), sum1Text);
     body = replaceDivInnerById(body, QStringLiteral("sum2"), sum2Text);
     body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
-    body = replaceDivInnerById(body, QStringLiteral("idvivod"), sum3Text + QStringLiteral("(36)"));
+    body = replaceDivInnerById(body, QStringLiteral("idvivod"), vivodText);
+
+    // Запасной путь: если id съел редактор — пишем по подписям строк.
+    body = replaceNthLabeledScoreCell(body, QStringLiteral("Итоговая оценка"), 0, sum1Text);
+    body = replaceNthLabeledScoreCell(body, QStringLiteral("Итоговая оценка"), 1, sum2Text);
+    body = replaceNthLabeledScoreCell(body, QStringLiteral("Индекс успешности"), 0, sum3Text);
     return body;
 }
 

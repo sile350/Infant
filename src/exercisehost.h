@@ -113,6 +113,8 @@ private:
     int m_elapsedSeconds = 0;
     QMap<QString, int> m_stepElapsedSeconds;
     QString m_sessionAdditional;
+    // 1.26: ответы по заданиям 1/2 в рамках открытия методики (чтобы не потерять задание 1).
+    QMap<QString, QString> m_additionalByStep;
     QString m_sessionStepId;
     int m_picturesShown = 0;
     QString m_capturedImagePath;
@@ -138,7 +140,7 @@ private:
     QLabel *m_timeResultLabel = nullptr;
     ImageButton *m_beginButton = nullptr;
     ImageButton *m_formProtocolButton = nullptr;
-    QPushButton *m_sumButton = nullptr;
+    ImageButton *m_sumButton = nullptr;
     QComboBox *m_stepCombo = nullptr;
     QWidget *m_exerciseOptionsPanel = nullptr;
     QCheckBox *m_showHintCheck = nullptr;
