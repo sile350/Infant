@@ -19,6 +19,7 @@ public:
     // Смена задания 1↔2 без полного рестарта таймера с нуля (время продолжается).
     void switchStep(const QString &stepId);
     int elapsedSeconds() const { return m_elapsed; }
+    QString stepId() const { return m_stepId; }
     QString answersSnapshot() const;
 
 signals:

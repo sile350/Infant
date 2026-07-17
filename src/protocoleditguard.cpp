@@ -57,6 +57,38 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
     if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
         return true;
     }
+    // OR / HLP после формирования (как contenteditable в оригинале).
+    if ((firstCell.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+         || firstCell.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive))
+        && col >= 1) {
+        return true;
+    }
+    // Колонка «Баллы» + ячейки итоговых сумм (1.26 и др.).
+    int ballsCol = -1;
+    int ballsHeaderRow = -1;
+    for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
+        for (int c = 0; c < table->columns(); ++c) {
+            const QString header = readProtocolTableCellText(table, r, c);
+            if (header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
+                || header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                // Заголовок колонки, не «Итоговая оценка» в другой таблице.
+                if (header.length() <= 12) {
+                    ballsCol = c;
+                    ballsHeaderRow = r;
+                    break;
+                }
+            }
+        }
+    }
+    if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {
+        return true;
+    }
+    if (firstCell.contains(QStringLiteral("Итоговая оценка"), Qt::CaseInsensitive) && col >= 1) {
+        return true;
+    }
+    if (firstCell.contains(QStringLiteral("Индекс успешности"), Qt::CaseInsensitive) && col >= 1) {
+        return true;
+    }
     return false;
 }
 

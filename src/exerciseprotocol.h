@@ -75,6 +75,12 @@ public:
         const QString &storedBody,
         QTextDocument *editorDocument);
 
+    // 1.26: перенос баллов из редактора → HTML; при computeSums — sum1/sum2/sum3/idvivod (bsum).
+    static QString applyProtocol126SumFromDocument(
+        const QString &storedBody,
+        QTextDocument *editorDocument,
+        bool computeSums = true);
+
     // Безопасно дописывает строки <tr> к телу протокола (не внутрь последней ячейки).
     static QString appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml);
 

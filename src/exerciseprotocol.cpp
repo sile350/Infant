@@ -1575,6 +1575,153 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
     return joinClosedProtocolSessions(sessions);
 }
 
+QString replaceDivInnerById(QString html, const QString &divId, const QString &innerHtml) {
+    const QRegularExpression re(
+        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
+            .arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption);
+    if (!re.match(html).hasMatch()) {
+        return html;
+    }
+    return html.replace(re, QStringLiteral("\\1") + innerHtml + QStringLiteral("\\3"));
+}
+
+QString extractDivInnerById(const QString &html, const QString &divId) {
+    const QRegularExpression re(
+        QStringLiteral("<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
+            .arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = re.match(html);
+    if (!match.hasMatch()) {
+        return {};
+    }
+    return htmlFragmentToPlainText(match.captured(1)).trimmed();
+}
+
+double sumDivPrefix(const QString &html, const QString &prefix) {
+    double sum = 0;
+    for (int i = 1; i <= 100; ++i) {
+        const QString id = prefix + QString::number(i);
+        const QRegularExpression exists(
+            QStringLiteral("<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"]")
+                .arg(QRegularExpression::escape(id)),
+            QRegularExpression::CaseInsensitiveOption);
+        if (!exists.match(html).hasMatch()) {
+            break;
+        }
+        const QString plain = extractDivInnerById(html, id);
+        bool ok = false;
+        const double value = plain.toDouble(&ok);
+        if (ok) {
+            sum += value;
+        }
+    }
+    return sum;
+}
+
+QString replaceScoreCellByRowLabel(QString html, const QString &rowLabel, const QString &scorePlain) {
+    const QString escaped = QRegularExpression::escape(rowLabel);
+    // <tr>...<td>label</td><td>answer</td><td>...score...</td></tr>
+    const QRegularExpression re(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
+            .arg(escaped),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    if (!re.match(html).hasMatch()) {
+        // Итоговая / индекс: colspan на первых ячейках
+        const QRegularExpression re2(
+            QStringLiteral(
+                "(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
+                .arg(escaped),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        if (!re2.match(html).hasMatch()) {
+            return html;
+        }
+        const QString inner = QStringLiteral("<div contenteditable='true'>%1</div>").arg(scorePlain.toHtmlEscaped());
+        return html.replace(re2, QStringLiteral("\\1") + inner + QStringLiteral("\\3"));
+    }
+    // Сохраняем id у div, если был.
+    QRegularExpressionMatch match = re.match(html);
+    QString oldInner = match.captured(2);
+    QString newInner;
+    const QRegularExpression idRe(
+        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"][^'\"]+['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+        QRegularExpression::CaseInsensitiveOption);
+    if (idRe.match(oldInner).hasMatch()) {
+        newInner = oldInner;
+        newInner.replace(idRe, QStringLiteral("\\1") + scorePlain.toHtmlEscaped() + QStringLiteral("\\3"));
+    } else {
+        newInner = QStringLiteral("<div contenteditable='true'>%1</div>").arg(scorePlain.toHtmlEscaped());
+    }
+    return html.replace(re, QStringLiteral("\\1") + newInner + QStringLiteral("\\3"));
+}
+
+QString ExerciseProtocol::applyProtocol126SumFromDocument(
+    const QString &storedBody,
+    QTextDocument *editorDocument,
+    bool computeSums) {
+    if (storedBody.trimmed().isEmpty()) {
+        return storedBody;
+    }
+
+    QString body = storedBody;
+    if (editorDocument) {
+        QList<QTextTable *> tables;
+        collectTables(editorDocument->rootFrame(), tables);
+        for (QTextTable *table : tables) {
+            if (!table || table->columns() < 2) {
+                continue;
+            }
+            int ballsCol = -1;
+            int headerRow = -1;
+            for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
+                for (int c = 0; c < table->columns(); ++c) {
+                    const QString header = readTableCellText(table, r, c);
+                    if (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                        && header.length() <= 12) {
+                        ballsCol = c;
+                        headerRow = r;
+                        break;
+                    }
+                }
+            }
+            if (ballsCol < 0) {
+                continue;
+            }
+            for (int r = headerRow + 1; r < table->rows(); ++r) {
+                const QString label = readTableCellText(table, r, 0);
+                const QString score = readTableCellText(table, r, ballsCol);
+                if (label.isEmpty()) {
+                    continue;
+                }
+                if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                body = replaceScoreCellByRowLabel(body, label, score);
+            }
+        }
+    }
+
+    if (!computeSums) {
+        return body;
+    }
+
+    // Как bsum/getSum("col1") / getSum("col2") в оригинале.
+    const double sum1 = sumDivPrefix(body, QStringLiteral("col1"));
+    const double sum2 = sumDivPrefix(body, QStringLiteral("col2"));
+    const int sum3 = static_cast<int>(sum1 + sum2);
+    const QString sum1Text = QString::number(sum1, 'g', 15);
+    const QString sum2Text = QString::number(sum2, 'g', 15);
+    const QString sum3Text = QString::number(sum3);
+
+    body = replaceDivInnerById(body, QStringLiteral("sum1"), sum1Text);
+    body = replaceDivInnerById(body, QStringLiteral("sum2"), sum2Text);
+    body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
+    body = replaceDivInnerById(body, QStringLiteral("idvivod"), sum3Text + QStringLiteral("(36)"));
+    return body;
+}
+
 QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
     const QString &storedBody,
     const QString &editorHtml,

@@ -1719,8 +1719,10 @@ private:
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
         // Для протоколов 1.26/1.272: номер задания + ответы.
         const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
-        result.additional = (m_stepId.isEmpty() ? QStringLiteral("1") : m_stepId) + QLatin1Char(';')
-            + answers;
+        const QString step = m_canvas && !m_canvas->stepId().isEmpty()
+            ? m_canvas->stepId()
+            : (m_stepId.isEmpty() ? QStringLiteral("1") : m_stepId);
+        result.additional = step + QLatin1Char(';') + answers;
         m_canvas->hide();
         m_stop->hide();
         hide();

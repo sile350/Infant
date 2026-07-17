@@ -112,11 +112,40 @@ QString ExerciseAssets::exerciseDir(const QString &exerciseId) {
 
 QString ExerciseAssets::exerciseFile(const QString &exerciseId, const QString &fileName) {
     const QString dir = exerciseDir(exerciseId);
-    if (dir.isEmpty()) {
+    if (dir.isEmpty() || fileName.trimmed().isEmpty()) {
         return {};
     }
-    const QString path = QDir(dir).filePath(fileName);
-    return QFile::exists(path) ? QDir::fromNativeSeparators(path) : QString();
+    const QDir folder(dir);
+    const QFileInfo want(fileName);
+    const QString base = want.completeBaseName();
+    const QString ext = want.suffix();
+
+    // Всегда ищем реальное имя в каталоге (3.PNG при запросе 3.png) — так QPixmap
+    // получает путь с фактическим регистром, что надёжнее на разных ФС.
+    const QStringList entries = folder.entryList(QDir::Files);
+    for (const QString &entry : entries) {
+        const QFileInfo info(entry);
+        if (info.completeBaseName().compare(base, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+        if (!ext.isEmpty() && info.suffix().compare(ext, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+        return QDir::fromNativeSeparators(folder.filePath(entry));
+    }
+
+    const QString direct = folder.filePath(fileName);
+    if (QFile::exists(direct)) {
+        return QDir::fromNativeSeparators(direct);
+    }
+    if (!ext.isEmpty()) {
+        const QString altExt = (ext == ext.toLower()) ? ext.toUpper() : ext.toLower();
+        const QString altPath = folder.filePath(base + QLatin1Char('.') + altExt);
+        if (QFile::exists(altPath)) {
+            return QDir::fromNativeSeparators(altPath);
+        }
+    }
+    return {};
 }
 
 QString ExerciseAssets::sysImage(const QString &fileName) {

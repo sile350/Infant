@@ -418,7 +418,13 @@ void E126Canvas::buildStoryMode() {
         }
     });
     connect(m_sceneCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (m_answerEdit && m_count >= 0 && m_count < m_answers.size()) {
+            m_answers[m_count] = m_answerEdit->text();
+        }
         m_count = index + 1;
+        if (m_answerEdit) {
+            m_answerEdit->setText(m_answers.value(m_count));
+        }
         showStoryImage();
         if (m_nextButton) {
             m_nextButton->setVisible(m_count < 12);
@@ -468,27 +474,12 @@ void E126Canvas::showDemoImage() {
 }
 
 void E126Canvas::showStoryImage() {
-    const QString path = ExerciseAssets::exerciseFile(
-        m_exerciseId, QString::number(m_count) + QStringLiteral(".png"));
-    if (m_imageLabel && !path.isEmpty()) {
-        QPixmap px(path);
-        if (!px.isNull()) {
-            QSize fitted = px.size();
-            fitted.scale(820, 520, Qt::KeepAspectRatio);
-            if (fitted != px.size()) {
-                px = px.scaled(fitted, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            }
-            m_imageLabel->setProperty("sourcePath", path);
-            m_imageLabel->setProperty("nativeW", fitted.width());
-            m_imageLabel->setProperty("nativeH", fitted.height());
-            const QSize screenSz = scaledSize(fitted);
-            m_imageLabel->setFixedSize(screenSz);
-            m_imageLabel->setPixmap(
-                (screenSz == px.size())
-                    ? px
-                    : px.scaled(screenSz, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
-            m_imageLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
-        }
+    // Как в оригинале: Image.FromFile(...\\{count}.png). Не кэшируем fitted-size в nativeW —
+    // иначе placePixmapLabel может оставить старый pixmap при смене кадра.
+    const QString fileName = QString::number(m_count) + QStringLiteral(".png");
+    applyPixmap(m_imageLabel, fileName);
+    if (m_imageLabel && m_imageLabel->property("sourcePath").toString().isEmpty()) {
+        applyPixmap(m_imageLabel, QString::number(m_count) + QStringLiteral(".PNG"));
     }
     if (m_questionEdit && m_count >= 1 && m_count <= m_questions.size()) {
         m_questionEdit->setPlainText(m_questions.at(m_count - 1));
@@ -546,38 +537,47 @@ void E126Canvas::toggleEmotions() {
 }
 
 void E126Canvas::advanceDemo() {
+    // Оригинал bnext: if (count==5) hide; if (count<6) { count++; save answers[count-1]; }
     if (m_count >= 6) {
         return;
     }
-    if (m_answerEdit) {
-        m_answers[m_count] = m_answerEdit->text();
-        m_answerEdit->clear();
-    }
-    ++m_count;
-    if (m_count >= 6 && m_nextButton) {
+    if (m_count == 5 && m_nextButton) {
         m_nextButton->hide();
     }
-    showDemoImage();
+    if (m_count < 6) {
+        ++m_count;
+        if (m_answerEdit) {
+            // После ++: answers[count-1] — ответ к только что покинутому кадру.
+            if (m_count - 1 >= 0 && m_count - 1 < m_answers.size()) {
+                m_answers[m_count - 1] = m_answerEdit->text();
+            }
+            m_answerEdit->clear();
+        }
+        showDemoImage();
+    }
 }
 
 void E126Canvas::advanceStory() {
+    // Оригинал bnext2: answers[count]=text; count++; combo=count; (картинка через SelectedIndexChanged)
     if (m_count >= 12) {
         return;
     }
-    if (m_answerEdit) {
-        m_answers[m_count] = m_answerEdit->text();
-        m_answerEdit->clear();
-    }
-    ++m_count;
-    if (m_sceneCombo) {
-        m_sceneCombo->blockSignals(true);
-        m_sceneCombo->setCurrentIndex(m_count - 1);
-        m_sceneCombo->blockSignals(false);
-    }
-    if (m_count >= 12 && m_nextButton) {
+    if (m_count == 11 && m_nextButton) {
         m_nextButton->hide();
     }
-    showStoryImage();
+    if (m_count < 12) {
+        if (m_answerEdit && m_count >= 0 && m_count < m_answers.size()) {
+            m_answers[m_count] = m_answerEdit->text();
+            m_answerEdit->clear();
+        }
+        ++m_count;
+        if (m_sceneCombo) {
+            m_sceneCombo->blockSignals(true);
+            m_sceneCombo->setCurrentIndex(m_count - 1);
+            m_sceneCombo->blockSignals(false);
+        }
+        showStoryImage();
+    }
 }
 
 void E126Canvas::layoutUi() {

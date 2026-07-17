@@ -71,6 +71,8 @@ private:
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
+    void sumProtocol126();
+    void updateSumButtonVisibility();
     void resetProtocolToInitialTemplate();
     void updateProtocolEditMode();
     void setExerciseChromeVisible(bool visible);
@@ -136,6 +138,7 @@ private:
     QLabel *m_timeResultLabel = nullptr;
     ImageButton *m_beginButton = nullptr;
     ImageButton *m_formProtocolButton = nullptr;
+    QPushButton *m_sumButton = nullptr;
     QComboBox *m_stepCombo = nullptr;
     QWidget *m_exerciseOptionsPanel = nullptr;
     QCheckBox *m_showHintCheck = nullptr;

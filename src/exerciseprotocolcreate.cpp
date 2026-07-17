@@ -442,6 +442,114 @@ QString createExerciseProtocolBodyFallback(
     return existingProtocolHtml;
 }
 
+QString tmpAt(const QStringList &parts, int index) {
+    if (index < 0 || index >= parts.size()) {
+        return {};
+    }
+    return parts.at(index).toHtmlEscaped();
+}
+
+// Порт protocols.cs createP("1.26"): additional = №задания;answers[0..12]
+QString buildProtocol126(
+    const QString &userFio,
+    bool partly,
+    const QString &existingProtocolHtml,
+    const ExerciseProtocol::CheckboxValues &checkboxes,
+    const ProtocolSessionInput &session) {
+    QStringList tmp = session.additional.split(QLatin1Char(';'));
+    while (tmp.size() < 14) {
+        tmp.append(QString());
+    }
+    const QString step = tmp.at(0).trimmed().isEmpty() ? QStringLiteral("1") : tmp.at(0).trimmed();
+    const QString orText = formatProtocolCellText(checkboxes.activity);
+    const QString hlpText = formatProtocolCellText(checkboxes.help);
+
+    QString block;
+    if (step == QStringLiteral("1")) {
+        block += QStringLiteral(
+            "<tr width='673'><td width='674'  colspan='3' align='center'> Задание 1 </td></tr>");
+        block += QStringLiteral(
+            "<tr><td width='24%'  >Характер деятельности ребенка</td>"
+            "<td  valign='top' colspan='2' align='left'><div contenteditable='true' >")
+            + orText + QStringLiteral("</div></td></tr>");
+        block += QStringLiteral(
+            "<tr><td  width='24%'  >Виды помощи</td>"
+            "<td valign='top' colspan='2' align='left'><div contenteditable='true' >")
+            + hlpText + QStringLiteral("</div></td></tr>");
+        block += QStringLiteral("</table> ");
+        block += QStringLiteral(
+            "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='676' cellpadding='0'  > ");
+        block += QStringLiteral(
+            "<tr><td  width='24%'   align='center'  > Портретная картинка </td>"
+            "<td  align='center'  > Ответ ребенка </td>"
+            "<td  align='center' width='10%'  > Баллы </td></tr>");
+        block += QStringLiteral("<tr><td    >Радость</td><td  align='left'  >") + tmpAt(tmp, 2)
+            + QStringLiteral("</td><td  align='center'  ><div  id='col11'   contenteditable='true' ></div></td></tr>");
+        block += QStringLiteral("<tr><td   >Злость</td><td  align='left'  >") + tmpAt(tmp, 3)
+            + QStringLiteral("</td><td  align='center'  ><div id='col12' contenteditable='true' ></div></td></tr>");
+        block += QStringLiteral("<tr><td   >Грусть</td><td   align='left' >") + tmpAt(tmp, 4)
+            + QStringLiteral("</td><td   align='center' ><div id='col13' contenteditable='true' ></div></td></tr>");
+        block += QStringLiteral("<tr><td   >Страх</td><td   align='left' >") + tmpAt(tmp, 5)
+            + QStringLiteral("</td><td   align='center' ><div id='col14' contenteditable='true' ></div></td></tr>");
+        block += QStringLiteral("<tr><td   >Удивление</td><td   align='left' >") + tmpAt(tmp, 6)
+            + QStringLiteral("</td><td  align='center'  ><div id='col15' contenteditable='true' ></div></td></tr>");
+        block += QStringLiteral("<tr><td   >Спокойствие</td><td  align='left'  >") + tmpAt(tmp, 7)
+            + QStringLiteral("</td><td  align='center'  ><div id='col16' contenteditable='true' ></div></td></tr>");
+        block += QStringLiteral(
+            "<tr><td align='left' colspan='2'   >Итоговая оценка</td>  <td  >"
+            "<div  align='center' id='sum1' contenteditable='true'   ></div></td></tr>");
+    } else if (step == QStringLiteral("2")) {
+        block += QStringLiteral("<tr><td colspan='3' align='center'><b>Задание 2</b></td></tr>");
+        block += QStringLiteral(
+            "<tr><td   >Характер деятельности ребенка</td>"
+            "<td valign='top' colspan='2' align='left'><div contenteditable='true' >")
+            + orText + QStringLiteral("</div></td></tr>");
+        block += QStringLiteral(
+            "<tr><td   >Виды помощи</td>"
+            "<td valign='top' colspan='2' align='left'><div contenteditable='true' >")
+            + hlpText + QStringLiteral("</div></td></tr>");
+        block += QStringLiteral(
+            "<tr><td  align='center'  ><b>№ рассказа</b></td>"
+            "<td  align='center'  ><b>Ответ ребенка</b></td>"
+            "<td  align='center'  ><b>Баллы</b></td></tr>");
+        for (int i = 1; i <= 12; ++i) {
+            block += QStringLiteral("<tr><td  align='center'   >") + QString::number(i)
+                + QStringLiteral("</td><td   align='left' >") + tmpAt(tmp, i + 1)
+                + QStringLiteral("</td><td align='center'  ><div id='col2") + QString::number(i)
+                + QStringLiteral("' contenteditable='true' ></div></td></tr>");
+        }
+        block += QStringLiteral(
+            "<tr><td colspan='2'   align='left'  >Итоговая оценка</td>  "
+            "<td   align='center' ><div id='sum2' contenteditable='true'></div></td></tr>");
+        block += QStringLiteral(
+            "<tr><td colspan='2'  align='left'    >Индекс успешности по двум сериям</td>  "
+            "<td    align='center'><div id='sum3' contenteditable='true'></div></td></tr>");
+    } else {
+        return QString();
+    }
+
+    if (partly) {
+        // Как в оригинале: только строки задания дописываются в уже сохранённый протокол.
+        return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, block);
+    }
+
+    QString add = dateSpecialistRow(userFio, 2);
+    add += QStringLiteral(
+        "<tr><td >Результат: : баллы (макс.)/вывод об уровне развития</td>"
+        "<td colspan='2'><div id='idvivod' contenteditable='true' >(36)</div> </td></tr>");
+    add += QStringLiteral(
+        "<tr><td  >Примечание </td><td    ><div contenteditable='true' ></div> </td> </tr>");
+    add += QStringLiteral(
+        "<tr><td align='center' colspan='2'>Процесс выполнения диагностического задания</td></tr>"
+        "</table><!--s-->"
+        "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='674' cellpadding='0'  > ");
+    add += block;
+    if (!add.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+        add += QStringLiteral("</table>");
+    }
+    return add;
+}
+
 } // namespace
 
 QString readDoneStateFromOrHtml(const QString &orHtml) {
@@ -482,6 +590,13 @@ QString createExerciseProtocolBody(
     const QList<bool> &answers,
     const ExerciseProtocol::CheckboxValues &checkboxes,
     const ProtocolSessionInput &session) {
+    // 1.26 — явная сборка как в оригинале (ответы tmp[] + таблицы заданий).
+    if (definition.id == QStringLiteral("1.26")) {
+        const QString body126 = buildProtocol126(userFio, partly, existingProtocolHtml, checkboxes, session);
+        if (!body126.isEmpty()) {
+            return body126;
+        }
+    }
     const QString fromTemplate = createExerciseProtocolFromTemplate(
         definition.id,
         userFio,

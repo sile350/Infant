@@ -527,6 +527,19 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_formProtocolButton->setFixedSize(196, 33);
     }
     templateLayout->addWidget(m_formProtocolButton, 0, Qt::AlignHCenter);
+    m_sumButton = new QPushButton(QStringLiteral("Сумма"), m_templatePanel);
+    m_sumButton->setFixedSize(120, 32);
+    m_sumButton->setStyleSheet(QStringLiteral(
+        "QPushButton {"
+        "  font: 12pt 'Microsoft Sans Serif';"
+        "  background:#f0f0f0; color:#000000;"
+        "  border:1px solid #808080;"
+        "}"
+        "QPushButton:hover { background:#e6e6e6; }"
+        "QPushButton:pressed { background:#d0d0d0; }"));
+    m_sumButton->hide();
+    templateLayout->addSpacing(8);
+    templateLayout->addWidget(m_sumButton, 0, Qt::AlignHCenter);
     templateLayout->addSpacing(12);
     templateLayout->addSpacing(12);
 
@@ -733,6 +746,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
+    connect(m_sumButton, &QPushButton::clicked, this, [this]() { sumProtocol126(); });
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
         m_answers = answers;
         m_elapsedSeconds = elapsedSeconds;
@@ -1654,7 +1668,18 @@ void ExerciseHost::updateProtocolEditMode() {
         ? ProtocolEditGuard::Mode::LimitedEdit
         : ProtocolEditGuard::Mode::ReadOnly;
     ProtocolEditGuard::setMode(m_templateBrowser, mode);
+    updateSumButtonVisibility();
 }
+
+void ExerciseHost::updateSumButtonVisibility() {
+    if (!m_sumButton) {
+        return;
+    }
+    const bool show = m_exerciseId == QStringLiteral("1.26") && m_protocolSavedThisSession;
+    m_sumButton->setVisible(show);
+}
+
+namespace {
 
 void commitTextEditChanges(QTextEdit *editor, bool preserveFocus) {
     if (!editor) {
@@ -1666,6 +1691,43 @@ void commitTextEditChanges(QTextEdit *editor, bool preserveFocus) {
         editor->clearFocus();
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }
+}
+
+} // namespace
+
+void ExerciseHost::sumProtocol126() {
+    if (m_exerciseId != QStringLiteral("1.26") || !m_repository || m_currentProtocolId.isEmpty()
+        || !m_templateBrowser) {
+        return;
+    }
+    commitTextEditChanges(m_templateBrowser, true);
+    QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
+        return;
+    }
+    // Сначала обычные поля, затем баллы + сумма как bsum в оригинале.
+    storedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+        storedBody, m_templateBrowser->document());
+    storedBody = ExerciseProtocol::applyProtocol126SumFromDocument(
+        storedBody, m_templateBrowser->document(), true);
+    storedBody = ExerciseProtocol::normalizeStoredProtocolBody(storedBody);
+
+    QString error;
+    if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
+        CustomMessageBox::showError(this, error);
+        return;
+    }
+
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    applyCompactLineHeight(m_templateBrowser->document());
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+    updateContentHeights();
+    updateProtocolEditMode();
 }
 
 void ExerciseHost::saveProtocolEdits() {
@@ -1687,6 +1749,11 @@ void ExerciseHost::saveProtocolEdits() {
     if (m_exerciseId == QStringLiteral("1.2")) {
         body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
             storedBody, m_templateBrowser->document(), 0);
+    } else if (m_exerciseId == QStringLiteral("1.26")) {
+        body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+            storedBody, m_templateBrowser->document());
+        body = ExerciseProtocol::applyProtocol126SumFromDocument(
+            body, m_templateBrowser->document(), false);
     } else {
         body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
             storedBody, m_templateBrowser->document());
