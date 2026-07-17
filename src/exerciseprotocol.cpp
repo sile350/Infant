@@ -436,10 +436,10 @@ QString extractVernoForPictureRow(const QString &body, int index) {
 }
 
 bool looksLikePictureAnswersResults(const QString &body) {
-    // Таблица процесса упражнения 1.2 — нельзя применять к 1.1 и прочим видам протоколов.
-    return body.contains(QStringLiteral("Бабушка"), Qt::CaseInsensitive)
-        || body.contains(QStringLiteral("Велосипедист"), Qt::CaseInsensitive)
-        || body.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive);
+    // Только явные маркеры 1.2 — не «Картинка» (слишком широко, ложные срабатывания).
+    return body.contains(QStringLiteral("Бабушка на диване"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("Ослик без уха"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("Велосипедист без переднего"), Qt::CaseInsensitive);
 }
 
 QString rebuildResultsTableSection(
@@ -897,9 +897,82 @@ QString rebuildProtocol12SessionList(const QStringList &sessions) {
     return result;
 }
 
+// Гарантирует: summary закрыт перед <!--s-->, таблица процесса закрыта, без вложенных <table>.
+QString ensureClosedProtocolSession(QString session) {
+    session = stripLeadingSummaryTableWrapper(session.trimmed());
+    if (session.isEmpty()) {
+        return session;
+    }
+
+    const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+    if (marker < 0) {
+        if (!session.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            session += QStringLiteral("</table>");
+        }
+        return session;
+    }
+
+    QString summary = session.left(marker);
+    summary.replace(
+        QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+    summary = summary.trimmed();
+
+    QString results = session.mid(marker + QStringLiteral("<!--s-->").size()).trimmed();
+    const int tableStart = results.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+    if (tableStart < 0) {
+        return summary + QStringLiteral("</table><!--s-->");
+    }
+    results = results.mid(tableStart);
+
+    const int nestedOpen = results.indexOf(QStringLiteral("<table"), 6, Qt::CaseInsensitive);
+    const int firstClose = results.indexOf(QStringLiteral("</table>"), 0, Qt::CaseInsensitive);
+
+    QString processTable;
+    if (nestedOpen >= 0 && (firstClose < 0 || nestedOpen < firstClose)) {
+        int cut = results.lastIndexOf(QStringLiteral("</tr>"), nestedOpen, Qt::CaseInsensitive);
+        if (cut > 0) {
+            processTable = results.left(cut + QStringLiteral("</tr>").size());
+        } else {
+            processTable = results.left(nestedOpen);
+        }
+        processTable += QStringLiteral("</table>");
+    } else if (firstClose >= 0) {
+        processTable = results.left(firstClose + QStringLiteral("</table>").size());
+    } else {
+        const int lastTr = results.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
+        if (lastTr >= 0) {
+            processTable = results.left(lastTr + QStringLiteral("</tr>").size());
+        } else {
+            processTable = results;
+        }
+        processTable += QStringLiteral("</table>");
+    }
+
+    return summary + QStringLiteral("</table><!--s-->") + processTable;
+}
+
+QString joinClosedProtocolSessions(const QStringList &sessions) {
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = ensureClosedProtocolSession(sessions.at(i));
+        if (session.isEmpty()) {
+            continue;
+        }
+        if (i > 0 && !session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+            session.prepend(protocolSummaryTableOpenHtml());
+        }
+        result += session;
+    }
+    return result;
+}
+
 QString reassembleProtocolSessions(const QString &originalBody, const QStringList &sessions) {
-    Q_UNUSED(originalBody);
-    return rebuildProtocol12SessionList(sessions);
+    if (looksLikePictureAnswersResults(originalBody)
+        || (!sessions.isEmpty() && looksLikePictureAnswersResults(sessions.first()))) {
+        return rebuildProtocol12SessionList(sessions);
+    }
+    return joinClosedProtocolSessions(sessions);
 }
 
 QString applyParsedFieldsToStoredBody(const QString &storedBody, const ParsedProtocolFields &parsed) {
@@ -1467,6 +1540,41 @@ QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
     return reassembleProtocolSessions(storedBody, updated);
 }
 
+QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty() || !editorDocument) {
+        return storedBody;
+    }
+
+    ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, 0);
+    if (!parsed.hasResult && !parsed.hasNote) {
+        return storedBody;
+    }
+
+    QStringList sessions = extractProtocolBodiesByDateRows(storedBody);
+    if (sessions.isEmpty()) {
+        QString body = storedBody;
+        if (parsed.hasResult) {
+            body = replaceResultRowSecondCell(body, parsed.resultText);
+        }
+        if (parsed.hasNote) {
+            body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
+        }
+        return ensureClosedProtocolSession(body);
+    }
+
+    QString last = sessions.last();
+    if (parsed.hasResult) {
+        last = replaceResultRowSecondCell(last, parsed.resultText);
+    }
+    if (parsed.hasNote) {
+        last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
+    }
+    sessions[sessions.size() - 1] = last;
+    return joinClosedProtocolSessions(sessions);
+}
+
 QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
     const QString &storedBody,
     const QString &editorHtml,
@@ -1536,74 +1644,51 @@ QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, co
 QString ExerciseProtocol::appendFullSessionToStoredBody(
     const QString &existingBody,
     const QString &sessionHtml) {
-    QString session = sessionHtml.trimmed();
+    QString session = ensureClosedProtocolSession(sessionHtml.trimmed());
     if (session.isEmpty()) {
         return existingBody;
     }
-    if (existingBody.trimmed().isEmpty()) {
-        return session;
-    }
-
-    QString base = existingBody;
-
-    // Жёстко закрываем таблицу процесса ПОСЛЕДНЕЙ сессии и отбрасываем «хвост»
-    // (незакрытые div/td или уже вложенный следующий <table> в последней ячейке).
-    const int lastMarker = base.lastIndexOf(QStringLiteral("<!--s-->"));
-    if (lastMarker >= 0) {
-        const int tableStart =
-            base.indexOf(QStringLiteral("<table"), lastMarker, Qt::CaseInsensitive);
-        if (tableStart >= 0) {
-            const int firstClose =
-                base.indexOf(QStringLiteral("</table>"), tableStart, Qt::CaseInsensitive);
-            const int nestedOpen =
-                base.indexOf(QStringLiteral("<table"), tableStart + 6, Qt::CaseInsensitive);
-
-            if (nestedOpen >= 0 && (firstClose < 0 || nestedOpen < firstClose)) {
-                // Уже есть вложение новой сессии в ячейку — обрезаем до него.
-                int cut = base.lastIndexOf(QStringLiteral("</tr>"), nestedOpen, Qt::CaseInsensitive);
-                if (cut < tableStart) {
-                    cut = nestedOpen;
-                    base = base.left(cut);
-                } else {
-                    base = base.left(cut + QStringLiteral("</tr>").size());
-                }
-                base += QStringLiteral("</table>");
-            } else if (firstClose >= 0) {
-                // Нормально закрытая таблица процесса — всё после неё отбрасываем.
-                base = base.left(firstClose + QStringLiteral("</table>").size());
-            } else {
-                // Таблица открыта: оставляем только полные строки, затем закрываем.
-                const int lastTrEnd =
-                    base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
-                if (lastTrEnd > tableStart) {
-                    base = base.left(lastTrEnd + QStringLiteral("</tr>").size());
-                }
-                base += QStringLiteral("</table>");
-            }
-        } else if (!base.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            base += QStringLiteral("</table>");
-        }
-    } else {
-        const int lastTrEnd = base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
-        if (lastTrEnd >= 0) {
-            const int afterPos = lastTrEnd + QStringLiteral("</tr>").size();
-            const QString after = base.mid(afterPos);
-            const bool hasCompleteTail =
-                after.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)
-                || after.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)
-                || after.contains(QStringLiteral("<!--"), Qt::CaseInsensitive)
-                || after.contains(QStringLiteral("<table"), Qt::CaseInsensitive);
-            if (!after.trimmed().isEmpty() && !hasCompleteTail) {
-                base = base.left(afterPos);
-            }
-        }
-        if (!base.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            base += QStringLiteral("</table>");
-        }
-    }
-
     if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
         session.prepend(protocolSummaryTableOpenHtml());
     }
+
+    if (existingBody.trimmed().isEmpty()) {
+        // Первая сессия в БД хранится без обёртки <table> (её даёт header.html).
+        return ensureClosedProtocolSession(stripLeadingSummaryTableWrapper(session));
+    }
+
+    // Пересобираем все уже сохранённые сессии в плоский список закрытых блоков —
+    // иначе 3-й+ протокол вкладывается в незакрытую таблицу после merge/QTextDocument.
+    QStringList sessions = extractProtocolBodiesByDateRows(existingBody);
+    if (sessions.isEmpty()) {
+        sessions.append(existingBody);
+    }
+    QString base = joinClosedProtocolSessions(sessions);
     return base + session;
+}
+
+QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
+    if (sessions.isEmpty()) {
+        return ensureClosedProtocolSession(protocolBody);
+    }
+    // Первая сессия без ведущего <table> — шапка методики уже открывает таблицу.
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = ensureClosedProtocolSession(sessions.at(i));
+        if (session.isEmpty()) {
+            continue;
+        }
+        if (i > 0 && !session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+            session.prepend(protocolSummaryTableOpenHtml());
+        } else if (i == 0) {
+            session = stripLeadingSummaryTableWrapper(session);
+            session = ensureClosedProtocolSession(session);
+        }
+        result += session;
+    }
+    return result;
 }

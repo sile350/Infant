@@ -1499,8 +1499,16 @@ void ExerciseHost::saveProtocolEdits() {
         return;
     }
 
-    QString body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
-        storedBody, m_templateBrowser->document(), 0);
+    // Для 1.1 и прочих полная пересборка через QTextDocument ломает границы сессий
+    // (3-й+ протокол оказывается внутри таблицы). Для них — только Результат/Примечание.
+    QString body;
+    if (m_exerciseId == QStringLiteral("1.2")) {
+        body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
+            storedBody, m_templateBrowser->document(), 0);
+    } else {
+        body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+            storedBody, m_templateBrowser->document());
+    }
     body = ExerciseProtocol::normalizeStoredProtocolBody(body);
     QString error;
     m_repository->updateProtocolBody(m_currentProtocolId, body, &error);

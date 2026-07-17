@@ -139,7 +139,7 @@ QString buildTimedBallsInitial(
     body += QStringLiteral("<tr><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td>") + editableCell(formatProtocolCellText(checkboxes.help))
         + QStringLiteral("</td><td align='center'>") + editableCell(QString::number(score))
-        + QStringLiteral("</td></tr>");
+        + QStringLiteral("</td></tr></table>");
     return body;
 }
 
@@ -174,7 +174,7 @@ QString buildDoneTimeInitial(
         + formatProtocolTime(elapsedSeconds).toHtmlEscaped()
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.help))
-        + QStringLiteral("</td></tr>");
+        + QStringLiteral("</td></tr></table>");
     return body;
 }
 
@@ -211,7 +211,7 @@ QString buildNumberedInitial(
         + formatProtocolTime(elapsedSeconds).toHtmlEscaped()
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.help))
-        + QStringLiteral("</td></tr>");
+        + QStringLiteral("</td></tr></table>");
     return body;
 }
 
@@ -249,7 +249,7 @@ QString buildOrHlpInitial(
     if (withBallsColumn) {
         body += QStringLiteral("</td><td align='center'>") + editableCell();
     }
-    body += QStringLiteral("</td></tr>");
+    body += QStringLiteral("</td></tr></table>");
     return body;
 }
 
@@ -382,7 +382,7 @@ QString createExerciseProtocolBodyFallback(
                 + QStringLiteral("</td><td valign='top'>")
                 + editableCell(formatProtocolCellText(checkboxes.help))
                 + QStringLiteral("</td><td align='center'>") + editableCell(QString::number(score))
-                + QStringLiteral("</td></tr>");
+                + QStringLiteral("</td></tr></table>");
             if (partly) {
                 return ExerciseProtocol::appendFullSessionToStoredBody(base, body);
             }

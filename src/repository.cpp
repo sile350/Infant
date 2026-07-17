@@ -83,23 +83,19 @@ void appendProtocolRecord(
         record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
             continuation ? QString() : headerForExercise(uprid), protocolBody);
     } else {
-        const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
-        if (sessions.size() > 1) {
-            // Несколько блоков «Дата/специалист» в одном pr — как у 1.2, рендерим по сессиям.
-            record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
-                continuation ? QString() : headerForExercise(uprid), protocolBody);
-        } else if (continuation) {
+        // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
+        const QString flatBody = ExerciseProtocol::flattenStoredProtocolBody(protocolBody);
+        if (continuation) {
             record = QStringLiteral(
                           "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
                           "<colgroup><col width='165'><col width='506'></colgroup>")
-                      + protocolBody;
+                      + flatBody;
         } else {
-            record = headerForExercise(uprid) + protocolBody;
+            record = headerForExercise(uprid) + flatBody;
         }
-    }
-    if (uprid != QStringLiteral("1.2")
-        && !record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-        record += QStringLiteral("</table>");
+        if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            record += QStringLiteral("</table>");
+        }
     }
     if (!protocolId.isEmpty()) {
         record = ExerciseProtocol::wrapProtocolRecord(protocolId, record);
@@ -529,13 +525,22 @@ QString Repository::exerciseHeaderFragment(const QString &uprid) const {
         }
         const QString content = QString::fromUtf8(file.readAll());
         const int bodyPos = content.indexOf(QStringLiteral("<body"), 0, Qt::CaseInsensitive);
+        QString fragment;
         if (bodyPos >= 0) {
             const int tagEnd = content.indexOf(QLatin1Char('>'), bodyPos);
             if (tagEnd >= 0 && tagEnd + 1 < content.size()) {
-                return content.mid(tagEnd + 1).trimmed();
+                fragment = content.mid(tagEnd + 1).trimmed();
             }
         }
-        return content;
+        if (fragment.isEmpty()) {
+            fragment = content;
+        }
+        // В исходных header.html часто висит незакрытый хвост «<tr>» — из‑за него
+        // следующие таблицы вкладываются в ячейку при рендере QTextDocument.
+        fragment.replace(
+            QRegularExpression(QStringLiteral("<tr\\s*>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        return fragment.trimmed();
     }
     return QStringLiteral("<table border='1' cellspacing='0' style='table-layout:fixed' cellpadding='0' width='671'>");
 }

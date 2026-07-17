@@ -413,6 +413,9 @@ QString createExerciseProtocolFromTemplate(
             sessionBlock += substituteAll(tmpl.initialBlock, vars);
         }
         sessionBlock += row;
+        if (!sessionBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            sessionBlock += QStringLiteral("</table>");
+        }
         if (!session.capturedImagePath.isEmpty()
             && (tmpl.kind == QStringLiteral("done_time_scan") || tmpl.kind == QStringLiteral("scan_slots"))) {
             const QString link = scanLinkHtml(session.capturedImagePath);
@@ -434,6 +437,9 @@ QString createExerciseProtocolFromTemplate(
         body += substituteAll(tmpl.initialBlock, vars);
     }
     body += row;
+    if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+        body += QStringLiteral("</table>");
+    }
 
     if (!session.capturedImagePath.isEmpty()
         && (tmpl.kind == QStringLiteral("done_time_scan") || tmpl.kind == QStringLiteral("scan_slots"))) {

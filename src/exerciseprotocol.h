@@ -67,6 +67,11 @@ public:
         QTextDocument *editorDocument,
         int protocolIndex = 0);
 
+    // Только «Результат»/«Примечание» последней сессии — без пересборки таблиц (для 1.1 и др.).
+    static QString mergeLimitedEditableFieldsIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
     // Безопасно дописывает строки <tr> к телу протокола (не внутрь последней ячейки).
     static QString appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml);
 
@@ -74,6 +79,9 @@ public:
     static QString appendFullSessionToStoredBody(
         const QString &existingBody,
         const QString &sessionHtml);
+
+    // Плоская пересборка сессий для безопасного отображения (без вложенных таблиц).
+    static QString flattenStoredProtocolBody(const QString &protocolBody);
 
     static CheckboxValues readCheckboxValues(const QString &orHtml);
     static QString applyCheckboxValues(const QString &orHtml, const CheckboxValues &values);
