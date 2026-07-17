@@ -1109,8 +1109,9 @@ QString ExerciseProtocol::extractLastSessionStoredBody(const QString &protocolBo
         return {};
     }
     const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
+    // Если разбор по таблицам склеил сессии — режем только по «Дата/специалист».
     if (sessions.size() <= 1) {
-        return stripLeadingSummaryTableWrapper(protocolBody);
+        return extractLastProtocol126Session(protocolBody);
     }
     // Для отображения на странице упражнения шапка (header.html) уже открывает <table>.
     // Последняя сессия должна продолжаться строками <tr>, без нового <table> внутри.
@@ -2274,6 +2275,93 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
         }
     }
     return body;
+}
+
+QStringList expected3110Pictures() {
+    // Эталон «лишнего» предмета по сериям (spravka 3.1.10).
+    return {
+        QStringLiteral("картофель"),
+        QStringLiteral("мяч"),
+        QStringLiteral("шуба"),
+        QStringLiteral("яблоко"),
+        QStringLiteral("дверь"),
+        QStringLiteral("птица"),
+        QStringLiteral("кошка"),
+        QStringLiteral("собака"),
+        QStringLiteral("бабочка"),
+        QStringLiteral("кукла"),
+    };
+}
+
+bool pictureMatches3110Expected(const QString &entered, const QString &expected) {
+    const QString a = entered.trimmed().toLower();
+    const QString b = expected.trimmed().toLower();
+    if (a.isEmpty() || b.isEmpty()) {
+        return false;
+    }
+    return a == b || a.contains(b) || b.contains(a);
+}
+
+int countHelpEntries3110(const QString &helpCell) {
+    const QStringList parts =
+        helpCell.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
+    int count = 0;
+    for (const QString &part : parts) {
+        if (!part.trimmed().isEmpty()) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+QString ExerciseProtocol::applyProtocol3110SumFromDocument(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty()) {
+        return storedBody;
+    }
+
+    // Считаем и пишем только в последнюю сессию — иначе idb1.. затрагивают старые протоколы,
+    // а после join вид может показать всё тело.
+    QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+    const bool multi = sessions.size() > 1;
+    QString chunk = multi ? sessions.last() : storedBody;
+    chunk = mergeProtocol3110EditorIntoStoredBody(chunk, editorDocument);
+
+    const QStringList expected = expected3110Pictures();
+    for (int i = 0; i < expected.size(); ++i) {
+        const QString stepNo = QString::number(i + 1);
+        const QString id = QStringLiteral("idb") + stepNo;
+        if (!chunk.contains(QStringLiteral("id='%1'").arg(id), Qt::CaseInsensitive)
+            && !chunk.contains(QStringLiteral("id=\"%1\"").arg(id), Qt::CaseInsensitive)) {
+            continue;
+        }
+        const QRegularExpression rowRe(
+            QStringLiteral(
+                "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>"
+                "([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>")
+                .arg(QRegularExpression::escape(stepNo)),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpressionMatch match = rowRe.match(chunk);
+        if (!match.hasMatch()) {
+            continue;
+        }
+        const QString picture = htmlFragmentToPlainText(match.captured(1)).trimmed();
+        const QString help = htmlFragmentToPlainText(match.captured(4)).trimmed();
+        if (picture.isEmpty()) {
+            continue;
+        }
+        double score = pictureMatches3110Expected(picture, expected.at(i)) ? 2.0 : 0.0;
+        score = qMax(0.0, score - 0.5 * countHelpEntries3110(help));
+        chunk = replaceDivInnerById(chunk, id, formatBallsNumber(score));
+    }
+
+    chunk = applyProtocolIdbSum(chunk, QStringLiteral("(20)"), QStringLiteral("idb"));
+    if (!multi) {
+        return chunk;
+    }
+    sessions[sessions.size() - 1] = chunk;
+    return joinProtocol126Sessions(sessions);
 }
 
 QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(

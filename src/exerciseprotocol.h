@@ -99,6 +99,12 @@ public:
         const QString &storedBody,
         QTextDocument *editorDocument);
 
+    // 3.1.10: баллы по «Выбранная картинка» (эталон серии) −0.5 за каждый вид помощи в строке;
+    // затем сумма idb → idsum / idvivod(20).
+    static QString applyProtocol3110SumFromDocument(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
     // or_hlp_balls (3.1.18 и др.): OR/HLP/Баллы из редактора без пересборки таблиц.
     static QString mergeOrHlpBallsEditorIntoStoredBody(
         const QString &storedBody,

@@ -546,7 +546,8 @@ QString createExerciseProtocolFromTemplate(
     QString row;
     if (tmpl.kind == QStringLiteral("numbered")) {
         row = buildNumberedProcessRows(tmpl, vars, session, elapsedSeconds);
-    } else if (tmpl.kind == QStringLiteral("or_hlp_balls")) {
+    } else if (tmpl.kind == QStringLiteral("or_hlp_balls")
+               || tmpl.kind == QStringLiteral("or_hlp_balls_row")) {
         row = buildOrHlpBallsProcessRows(tmpl, vars, session);
     } else {
         row = buildRow(tmpl, vars, answers, checkboxes, session);
@@ -568,12 +569,12 @@ QString createExerciseProtocolFromTemplate(
                 }
                 stepIds << stepKey;
             }
-            const QString idPrefix = (tmpl.kind == QStringLiteral("or_hlp_balls"))
+            const QString prefix = (tmpl.kind == QStringLiteral("or_hlp_balls"))
                 ? QStringLiteral("ids")
                 : QStringLiteral("idb");
             QStringList newSteps;
             for (const QString &sid : stepIds) {
-                const QString idToken = idPrefix + sid;
+                const QString idToken = prefix + sid;
                 const bool present =
                     existingProtocolHtml.contains(
                         QStringLiteral("id='%1'").arg(idToken), Qt::CaseInsensitive)
@@ -587,9 +588,7 @@ QString createExerciseProtocolFromTemplate(
             if (newSteps.isEmpty()) {
                 ProtocolSessionInput repeatSession = session;
                 repeatSession.stepIds = stepIds;
-                const QString repeatRows = (tmpl.kind == QStringLiteral("or_hlp_balls"))
-                    ? buildOrHlpBallsProcessRows(tmpl, vars, repeatSession)
-                    : row;
+                const QString repeatRows = buildOrHlpBallsProcessRows(tmpl, vars, repeatSession);
                 QString sessionBlock;
                 if (!tmpl.dateRow.isEmpty()) {
                     sessionBlock += substituteAll(tmpl.dateRow, vars);
@@ -605,9 +604,7 @@ QString createExerciseProtocolFromTemplate(
             }
             ProtocolSessionInput appendSession = session;
             appendSession.stepIds = newSteps;
-            const QString appendRows = (tmpl.kind == QStringLiteral("or_hlp_balls"))
-                ? buildOrHlpBallsProcessRows(tmpl, vars, appendSession)
-                : row;
+            const QString appendRows = buildOrHlpBallsProcessRows(tmpl, vars, appendSession);
             return ExerciseProtocol::appendRowsToStoredBody(
                 trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }

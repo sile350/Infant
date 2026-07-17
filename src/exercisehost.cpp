@@ -830,6 +830,12 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_exerciseDone = true;
         m_protocolFormed = false;
         m_exerciseRunning = false;
+        if (m_exerciseId == QStringLiteral("3.1.10")) {
+            const QString stepKey = currentStepId().trimmed().isEmpty()
+                ? QStringLiteral("1")
+                : currentStepId().trimmed();
+            m_additionalByStep.insert(stepKey, stepKey);
+        }
         if (m_dualScreen) {
             if (m_specialistExercise) {
                 m_specialistExercise->hide();
@@ -1729,10 +1735,23 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
     } else if (definition && definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp) {
         session.additional = session.doneState;
     } else if (definition && definition->protocol == ExerciseProtocolKind::OrHlpBallsRow) {
-        // 3.1.10 и др.: номер картинки/задания в первой колонке (без таймера).
-        session.additional = session.stepId.trimmed().isEmpty()
+        // 3.1.10 и др.: номер картинки/задания; все выполненные № — отдельные строки.
+        const QString step = session.stepId.trimmed().isEmpty()
             ? QStringLiteral("1")
             : session.stepId.trimmed();
+        session.stepId = step;
+        session.additional = step;
+        if (m_exerciseId == QStringLiteral("3.1.10")) {
+            const QStringList order = numberedStepIds();
+            for (const QString &sid : order) {
+                if (m_additionalByStep.contains(sid) || m_stepElapsedSeconds.contains(sid)) {
+                    session.stepIds << sid;
+                }
+            }
+            if (session.stepIds.isEmpty()) {
+                session.stepIds << step;
+            }
+        }
     } else if (!m_sessionAdditional.isEmpty()) {
         session.additional = m_sessionAdditional;
     } else if (m_exerciseId == QStringLiteral("1.2")) {
@@ -1902,13 +1921,13 @@ void ExerciseHost::sumProtocol3110() {
         return;
     }
     commitTextEditChanges(m_templateBrowser, true);
-    // Сначала перенести правки редактора (в т.ч. «Выбранная картинка») в БД.
-    saveProtocolEdits();
     QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    storedBody = ExerciseProtocol::applyProtocolIdbSum(storedBody);
+    // Перенос правок + баллы по «Выбранная картинка» → idb; сумма → idsum / idvivod(20).
+    storedBody = ExerciseProtocol::applyProtocol3110SumFromDocument(
+        storedBody, m_templateBrowser->document());
 
     QString error;
     if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
@@ -1921,8 +1940,8 @@ void ExerciseHost::sumProtocol3110() {
     }
     m_suppressProtocolAutosave = true;
 
-    const QString viewHtml = ExerciseProtocol::protocolViewHtml(
-        m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
@@ -1991,8 +2010,9 @@ void ExerciseHost::sumProtocol418() {
     }
     m_suppressProtocolAutosave = true;
 
-    const QString viewHtml = ExerciseProtocol::protocolViewHtml(
-        m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
+    // Только последний сформированный блок (как на вкладке упражнения до «Подвести итог»).
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
@@ -2032,9 +2052,9 @@ void ExerciseHost::sumProtocol126() {
     }
     m_suppressProtocolAutosave = true;
 
-    // Показать обновлённый протокол целиком (оба задания), без extractLastSession.
-    const QString viewHtml = ExerciseProtocol::protocolViewHtml(
-        m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
+    // Последняя сессия (оба задания 1.26 внутри неё), не все исторические протоколы.
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
@@ -2325,7 +2345,7 @@ void ExerciseHost::formProtocol() {
     m_protocolSavedThisSession = true;
     m_partly = true;
     m_stepElapsedSeconds.clear();
-    if (m_exerciseId == QStringLiteral("1.272")) {
+    if (m_exerciseId == QStringLiteral("1.272") || m_exerciseId == QStringLiteral("3.1.10")) {
         // Строки уже попали в протокол — не дублировать при следующем формировании.
         m_additionalByStep.clear();
     }
