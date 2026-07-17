@@ -447,6 +447,10 @@ QString createExerciseProtocolFromTemplate(
         : buildRow(tmpl, vars, answers, checkboxes, session);
 
     if (partly) {
+        // 1.26/tmp0_variants: как в оригинале — только блок задания в существующий протокол.
+        if (tmpl.kind == QStringLiteral("tmp0_variants")) {
+            return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
+        }
         // Повторный протокол — всегда с новой «Дата/специалист» (в т.ч. numbered 1.17/1.18).
         QString sessionBlock;
         if (!tmpl.dateRow.isEmpty()) {

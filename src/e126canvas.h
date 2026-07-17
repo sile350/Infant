@@ -36,6 +36,7 @@ private:
     QRect localRect(int x, int y, int w, int h) const;
     QSize scaledSize(const QSize &native) const;
     void placePixmapLabel(QLabel *label, int designX, int designY, bool localToParent);
+    void setScaledPixmap(QLabel *label, const QPixmap &nativePx);
     void clearUi();
     void applyChromeStyles();
     void buildDemoMode();

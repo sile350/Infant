@@ -861,10 +861,10 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kComboY = 12;
     constexpr int kRightMargin = 24;
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
-    // 1.26 задание 2: справа groupBox3 с кнопками — селект не кладём поверх них.
+    // 1.26/1.272: не поверх правой панели задания 2; +100px правее прежней позиции.
     if (m_exerciseRunning
         && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))) {
-        comboX = qMax(0, qMin(comboX, 1120));
+        comboX = qMax(0, qMin(comboX, 1220));
     }
     const int comboY = (host == this) ? kComboY : (y() + kComboY);
     m_stepCombo->setStyleSheet(
@@ -1554,6 +1554,14 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
 
     if (keepRunnerAdditional) {
         session.additional = m_sessionAdditional;
+    } else if (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")) {
+        // Как в оригинале: param1 + ";" + answers[0..12].join(";")
+        const QString step = session.stepId.trimmed().isEmpty() ? QStringLiteral("1") : session.stepId;
+        QStringList emptyAnswers;
+        for (int i = 0; i < 13; ++i) {
+            emptyAnswers << QString();
+        }
+        session.additional = step + QLatin1Char(';') + emptyAnswers.join(QLatin1Char(';'));
     } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
         // № = номера заданий из селекта (1/2/3…); время — отдельно на каждое в stepElapsedSeconds.
         session.stepIds = numberedStepIds();
