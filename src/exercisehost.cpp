@@ -1857,81 +1857,64 @@ void ExerciseHost::formProtocol() {
     bool saveAsPartly = partlySave && !existingBody.trimmed().isEmpty();
 
     if (m_exerciseId == QStringLiteral("1.26")) {
-        // Как в оригинале: каждое задание дописывается, но собираем полный документ
-        // из всех известных ответов сессии (1 и/или 2), чтобы блок «Задание 1» не терялся.
-        const QStringList stepOrder = {QStringLiteral("1"), QStringLiteral("2")};
-        QString combined;
-        bool started = false;
-        for (const QString &stepKey : stepOrder) {
-            if (!m_additionalByStep.contains(stepKey)) {
-                continue;
-            }
-            ProtocolSessionInput stepSession = session;
-            stepSession.additional = m_additionalByStep.value(stepKey);
-            stepSession.stepId = stepKey;
-            if (!started) {
-                // Если в БД уже есть шапка/задание 1, а сейчас добавляем только 2 —
-                // базу берём из БД, иначе строим с нуля.
-                if (stepKey == QStringLiteral("2") && existingBody.contains(QStringLiteral("Задание 1"))
-                    && !m_additionalByStep.contains(QStringLiteral("1"))) {
-                    combined = ExerciseProtocol::createProtocolHtml(
-                        m_exerciseId,
-                        m_specialistFio,
-                        m_elapsedSeconds,
-                        true,
-                        existingBody,
-                        m_answers,
-                        checkboxValues(),
-                        stepSession);
-                } else {
-                    combined = ExerciseProtocol::createProtocolHtml(
-                        m_exerciseId,
-                        m_specialistFio,
-                        m_elapsedSeconds,
-                        false,
-                        QString(),
-                        m_answers,
-                        checkboxValues(),
-                        stepSession);
+        // 1) Первое сохранение — новая запись с «Дата/специалист».
+        // 2) То же посещение, задание 2 после задания 1 — дописать строки (partly/appendRows).
+        // 3) Повторный протокол (ТЗ 14.2) — полная сессия с новой датой в то же тело.
+        const QStringList parts = session.additional.split(QLatin1Char(';'));
+        const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : parts.at(0).trimmed();
+
+        // Хвост с последней «Дата/специалист» до конца (без обрезки вложенных таблиц).
+        QString lastSessionHtml = existingBody;
+        {
+            const int lastDate = existingBody.lastIndexOf(QStringLiteral("Дата/специалист"));
+            if (lastDate >= 0) {
+                const int rowStart = existingBody.lastIndexOf(QStringLiteral("<tr"), lastDate);
+                if (rowStart >= 0) {
+                    lastSessionHtml = existingBody.mid(rowStart);
                 }
-                started = true;
-            } else {
-                combined = ExerciseProtocol::createProtocolHtml(
-                    m_exerciseId,
-                    m_specialistFio,
-                    m_elapsedSeconds,
-                    true,
-                    combined,
-                    m_answers,
-                    checkboxValues(),
-                    stepSession);
             }
         }
-        if (!started) {
-            // fallback — текущая сессия
-            combined = ExerciseProtocol::createProtocolHtml(
+        const bool continueTask2 = saveAsPartly
+            && stepKey == QStringLiteral("2")
+            && lastSessionHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
+            && !lastSessionHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
+
+        if (continueTask2) {
+            protocolBody = ExerciseProtocol::createProtocolHtml(
                 m_exerciseId,
                 m_specialistFio,
                 m_elapsedSeconds,
-                saveAsPartly,
+                true,
                 existingBody,
                 m_answers,
                 checkboxValues(),
                 session);
-        }
-        protocolBody = combined;
-        // Полная пересборка 1+2 → UPDATE существующей записи, если она есть.
-        const bool hasExisting =
-            !m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId).isEmpty();
-        saveAsPartly = hasExisting
-            && (partlySave || m_additionalByStep.size() > 1
-                || protocolBody.contains(QStringLiteral("Задание 1")));
-        // Если только что собрали оба задания «с нуля», а в БД была битая запись — UPDATE целиком.
-        if (hasExisting && m_additionalByStep.contains(QStringLiteral("1"))
-            && m_additionalByStep.contains(QStringLiteral("2"))) {
             saveAsPartly = true;
-        }
-        if (!hasExisting) {
+        } else if (saveAsPartly) {
+            // Повтор: новый блок с даты, не затирая предыдущие сессии.
+            const QString newSession = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                false,
+                QString(),
+                m_answers,
+                checkboxValues(),
+                session);
+            protocolBody = ExerciseProtocol::appendFullSessionToStoredBody(existingBody, newSession);
+            saveAsPartly = true;
+        } else {
+            protocolBody = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                false,
+                QString(),
+                m_answers,
+                checkboxValues(),
+                session);
             saveAsPartly = false;
         }
     } else {
