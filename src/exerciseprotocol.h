@@ -67,6 +67,9 @@ public:
         QTextDocument *editorDocument,
         int protocolIndex = 0);
 
+    // Безопасно дописывает строки <tr> к телу протокола (не внутрь последней ячейки).
+    static QString appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml);
+
     static CheckboxValues readCheckboxValues(const QString &orHtml);
     static QString applyCheckboxValues(const QString &orHtml, const CheckboxValues &values);
 };

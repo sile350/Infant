@@ -404,18 +404,10 @@ QString createExerciseProtocolFromTemplate(
     const QString row = buildRow(tmpl, vars, answers, checkboxes, session);
 
     if (partly) {
-        // Повторный протокол: для timed-методик добавляем с новой строки «Дата/специалист».
-        if (tmpl.scoreKind.startsWith(QStringLiteral("timed")) || tmpl.scoreKind == QStringLiteral("timed11_result")
-            || tmpl.scoreKind == QStringLiteral("timed18_result") || tmpl.id == QStringLiteral("1.1")
-            || tmpl.id == QStringLiteral("1.4") || tmpl.id == QStringLiteral("1.8")) {
-            QString addition;
-            if (!tmpl.dateRow.isEmpty()) {
-                addition += substituteAll(tmpl.dateRow, vars);
-            }
-            addition += row;
-            return existingProtocolHtml + addition;
-        }
-        return existingProtocolHtml + row;
+        // Как в оригинале: к уже сохранённому телу только дописывается строка процесса.
+        // Нельзя конкатенировать «в лоб» — иначе при незакрытых тегах новая строка
+        // оказывается внутри последней ячейки.
+        return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
     }
 
     QString body;

@@ -1434,3 +1434,50 @@ QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
 
     return applyParsedFieldsToStoredBody(storedBody, parsed);
 }
+
+QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml) {
+    QString addition = rowsHtml.trimmed();
+    if (addition.isEmpty()) {
+        return existingBody;
+    }
+    if (!addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
+        && addition.startsWith(QStringLiteral("<td"), Qt::CaseInsensitive)) {
+        addition.prepend(QStringLiteral("<tr>"));
+    }
+    if (addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
+        && !addition.contains(QStringLiteral("</tr>"), Qt::CaseInsensitive)) {
+        addition.append(QStringLiteral("</tr>"));
+    }
+
+    QString base = existingBody;
+    if (base.trimmed().isEmpty()) {
+        return addition;
+    }
+
+    // Обрезаем «хвост» после последнего полного </tr>, если там остались незакрытые теги
+    // (типичная причина вложения нового протокола внутрь последней ячейки).
+    const int lastTrEnd = base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
+    if (lastTrEnd >= 0) {
+        const int afterPos = lastTrEnd + QStringLiteral("</tr>").size();
+        const QString after = base.mid(afterPos);
+        const bool hasCompleteTail =
+            after.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)
+            || after.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)
+            || after.contains(QStringLiteral("<!--"), Qt::CaseInsensitive)
+            || after.contains(QStringLiteral("<table"), Qt::CaseInsensitive);
+        if (!after.trimmed().isEmpty() && !hasCompleteTail) {
+            base = base.left(afterPos);
+        }
+    }
+
+    // Если таблица результатов после <!--s--> уже закрыта — вставляем строки перед </table>.
+    const int marker = base.indexOf(QStringLiteral("<!--s-->"));
+    if (marker >= 0) {
+        const int tableClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+        if (tableClose > marker) {
+            return base.left(tableClose) + addition + base.mid(tableClose);
+        }
+    }
+
+    return base + addition;
+}

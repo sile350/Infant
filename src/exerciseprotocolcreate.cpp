@@ -147,10 +147,11 @@ QString appendTimedBallsRow(
     const QString &existing,
     int score,
     const ExerciseProtocol::CheckboxValues &checkboxes) {
-    return existing + QStringLiteral("<tr><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
+    const QString row = QStringLiteral("<tr><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td>") + editableCell(formatProtocolCellText(checkboxes.help))
         + QStringLiteral("</td><td align='center'>") + editableCell(QString::number(score))
         + QStringLiteral("</td></tr>");
+    return ExerciseProtocol::appendRowsToStoredBody(existing, row);
 }
 
 QString buildDoneTimeInitial(
@@ -182,11 +183,12 @@ QString appendDoneTimeRow(
     const QString &doneState,
     int elapsedSeconds,
     const ExerciseProtocol::CheckboxValues &checkboxes) {
-    return existing + QStringLiteral("<tr><td>") + doneState.toHtmlEscaped() + QStringLiteral("/")
+    const QString row = QStringLiteral("<tr><td>") + doneState.toHtmlEscaped() + QStringLiteral("/")
         + formatProtocolTime(elapsedSeconds).toHtmlEscaped()
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.help))
         + QStringLiteral("</td></tr>");
+    return ExerciseProtocol::appendRowsToStoredBody(existing, row);
 }
 
 QString buildNumberedInitial(
@@ -219,12 +221,13 @@ QString appendNumberedRow(
     const QString &doneState,
     int elapsedSeconds,
     const ExerciseProtocol::CheckboxValues &checkboxes) {
-    return existing + QStringLiteral("<tr><td align='center'>") + stepId.toHtmlEscaped()
+    const QString row = QStringLiteral("<tr><td align='center'>") + stepId.toHtmlEscaped()
         + QStringLiteral("</td><td>") + doneState.toHtmlEscaped() + QStringLiteral("/")
         + formatProtocolTime(elapsedSeconds).toHtmlEscaped()
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.help))
         + QStringLiteral("</td></tr>");
+    return ExerciseProtocol::appendRowsToStoredBody(existing, row);
 }
 
 QString buildOrHlpInitial(
@@ -260,7 +263,7 @@ QString appendOrHlpRow(
         row += QStringLiteral("</td><td align='center'>") + editableCell();
     }
     row += QStringLiteral("</td></tr>");
-    return existing + row;
+    return ExerciseProtocol::appendRowsToStoredBody(existing, row);
 }
 
 QString createExerciseProtocolBodyFallback(

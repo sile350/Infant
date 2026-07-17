@@ -888,7 +888,12 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->show();
     m_previewImage->raise();
     if (m_timeResultLabel && m_timeResultLabel->isVisible()) {
-        m_timeResultLabel->move(qMax(0, localX), qMax(8, localY - 36));
+        // По центру правой панели (правее превью по горизонтали).
+        const int rightPanelWidth = qMax(1, width() - rightPanelLeft);
+        m_timeResultLabel->adjustSize();
+        const int timerX = qMax(0, (rightPanelWidth - m_timeResultLabel->width()) / 2);
+        const int timerY = qMax(8, localY - 36);
+        m_timeResultLabel->move(timerX, timerY);
         m_timeResultLabel->raise();
     }
 }
@@ -1297,9 +1302,10 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
         m_wrongCountLabel->hide();
     }
 
-    // Таймер результата над превью для методик без кнопок «верно/неверно».
+    // Таймер результата по центру правой части (для методик без кнопок «верно/неверно»).
     if (m_timeResultLabel && !showAnswerCounts && elapsedSeconds >= 0 && m_exerciseDone) {
         m_timeResultLabel->setText(timeText);
+        m_timeResultLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         m_timeResultLabel->adjustSize();
         m_timeResultLabel->show();
         m_timeResultLabel->raise();
@@ -1432,7 +1438,11 @@ void ExerciseHost::resetProtocolToInitialTemplate() {
     if (!m_templateBrowser) {
         return;
     }
-    saveProtocolEdits();
+    // Сохраняем правки «Результат/Примечание», но не даём merge сломать разметку:
+    // дописывание следующей сессии идёт через appendRowsToStoredBody.
+    if (m_protocolSavedThisSession && !m_currentProtocolId.isEmpty()) {
+        saveProtocolEdits();
+    }
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
