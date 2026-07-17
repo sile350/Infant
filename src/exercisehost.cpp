@@ -833,14 +833,28 @@ void ExerciseHost::layoutStepCombo() {
         m_stepCombo->hide();
         return;
     }
-    // На правой панели, слева от кнопки «Старт».
-    constexpr int kComboW = 200;
+
+    // Во время упражнения оверлей лежит на parent (m_root) поверх ExerciseHost —
+    // селект тоже поднимаем туда, иначе он остаётся под оверлеем.
+    QWidget *host = this;
+    if (m_exerciseRunning && parentWidget()) {
+        host = parentWidget();
+    }
+    if (m_stepCombo->parentWidget() != host) {
+        const bool wasVisible = m_stepCombo->isVisible();
+        m_stepCombo->setParent(host);
+        if (wasVisible) {
+            m_stepCombo->show();
+        }
+    }
+
+    constexpr int kComboW = 121;
     constexpr int kComboH = 33;
     constexpr int kComboY = 12;
-    constexpr int kBeginX = 976;
-    const int rightX = kPanelX + kScrollWidth;
-    const int comboX = qMax(rightX + 8, kBeginX - kComboW - 12);
-    m_stepCombo->setGeometry(comboX, kComboY, kComboW, kComboH);
+    constexpr int kRightMargin = 24;
+    const int comboX = qMax(0, host->width() - kComboW - kRightMargin);
+    const int comboY = (host == this) ? kComboY : (y() + kComboY);
+    m_stepCombo->setGeometry(comboX, comboY, kComboW, kComboH);
     m_stepCombo->show();
     m_stepCombo->raise();
 }
@@ -1188,8 +1202,12 @@ void ExerciseHost::restoreExerciseOverlay() {
         m_sessionRunner->setParent(this);
         m_sessionRunner->setGeometry(0, 0, width(), height());
     }
+    if (m_stepCombo && m_stepCombo->parentWidget() != this) {
+        m_stepCombo->setParent(this);
+    }
     if (!m_onlyP) {
         raise();
+        layoutStepCombo();
         emit exerciseOverlayChanged(false);
         return;
     }
@@ -1197,6 +1215,7 @@ void ExerciseHost::restoreExerciseOverlay() {
     m_onlyP->setGeometry(0, 0, width(), height());
     m_onlyP->hide();
     raise();
+    layoutStepCombo();
     emit exerciseOverlayChanged(false);
 }
 
@@ -1296,6 +1315,8 @@ void ExerciseHost::runExerciseSession() {
     m_sessionRunner->startSession(m_exerciseId, *definition, m_sessionStepId);
     m_sessionRunner->show();
     m_sessionRunner->raise();
+    layoutStepCombo();
+    QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
     syncPatientDisplay();
 }
 
@@ -1339,6 +1360,7 @@ void ExerciseHost::runOnlyPExercise() {
         }
         syncPatientDisplay();
         updateChromeLayout();
+        layoutStepCombo();
         return;
     }
 
@@ -1347,6 +1369,8 @@ void ExerciseHost::runOnlyPExercise() {
     m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
     m_onlyP->start(m_exerciseId, settings, stepId);
     m_onlyP->raise();
+    layoutStepCombo();
+    QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
 }
 
 void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSeconds) {
