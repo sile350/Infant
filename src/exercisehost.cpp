@@ -4,6 +4,7 @@
 #include "custommessagebox.h"
 #include "exerciseassets.h"
 #include "exerciseconfig.h"
+#include "exerciseprotocol.h"
 #include "exerciseprotocolcreate.h"
 #include "exerciserunnerwidget.h"
 #include "exercisesession.h"
@@ -1754,12 +1755,10 @@ void ExerciseHost::sumProtocol126() {
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    // Сначала обычные поля, затем баллы + сумма как bsum в оригинале.
-    storedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
-        storedBody, m_templateBrowser->document());
+    // Не вызываем merge/joinClosed — они пересобирают таблицы и «сжимают» вёрстку.
+    // Как bsum в оригинале: только подстановка баллов/сумм в существующие div по id.
     storedBody = ExerciseProtocol::applyProtocol126SumFromDocument(
         storedBody, m_templateBrowser->document(), true);
-    storedBody = ExerciseProtocol::normalizeStoredProtocolBody(storedBody);
 
     QString error;
     if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
@@ -1767,8 +1766,9 @@ void ExerciseHost::sumProtocol126() {
         return;
     }
 
-    const QString viewHtml = m_repository->loadProtocolViewHtml(
-        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+    // Показать обновлённый протокол целиком (оба задания), без extractLastSession.
+    const QString viewHtml = ExerciseProtocol::protocolViewHtml(
+        m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {

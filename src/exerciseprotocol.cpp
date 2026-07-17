@@ -1825,9 +1825,8 @@ QString fillProtocol126RowScores(QString body) {
     for (int i = 0; i < task1Labels.size(); ++i) {
         const QString answer = extractAnswerFromLabeledRow(body, task1Labels.at(i));
         const int score = scoreEmotionAnswer(answer, expected1.at(i));
-        const QString id = QStringLiteral("col1%1").arg(i + 1);
-        body = replaceDivInnerById(body, id, QString::number(score));
-        body = replaceScoreCellByRowLabel(body, task1Labels.at(i), QString::number(score));
+        // Только содержимое div по id — как InnerHtml в оригинале, без правки <td>/<tr>.
+        body = replaceDivInnerById(body, QStringLiteral("col1%1").arg(i + 1), QString::number(score));
     }
 
     const QStringList expected2 = expectedEmotionsTask2();
@@ -1835,9 +1834,7 @@ QString fillProtocol126RowScores(QString body) {
         const QString label = QString::number(i + 1);
         const QString answer = extractAnswerFromLabeledRow(body, label);
         const int score = scoreEmotionAnswer(answer, expected2.at(i));
-        const QString id = QStringLiteral("col2%1").arg(i + 1);
-        body = replaceDivInnerById(body, id, QString::number(score));
-        body = replaceScoreCellByRowLabel(body, label, QString::number(score));
+        body = replaceDivInnerById(body, QStringLiteral("col2%1").arg(i + 1), QString::number(score));
     }
     return body;
 }
@@ -1885,8 +1882,33 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
                         || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
                         continue;
                     }
-                    if (!score.trimmed().isEmpty()) {
-                        body = replaceScoreCellByRowLabel(body, label, score);
+                    if (score.trimmed().isEmpty()) {
+                        continue;
+                    }
+                    // Предпочитаем id col1N/col2N — не трогаем разметку строки.
+                    bool wrote = false;
+                    for (int n = 1; n <= 16 && !wrote; ++n) {
+                        const QString id1 = QStringLiteral("col1%1").arg(n);
+                        const QString id2 = QStringLiteral("col2%1").arg(n);
+                        if (body.contains(QStringLiteral("id='%1'").arg(id1))
+                            || body.contains(QStringLiteral("id=\"%1\"").arg(id1))) {
+                            // Сопоставить строку по подписи задачи 1.
+                            static const QStringList kTask1 = {
+                                QStringLiteral("Радость"), QStringLiteral("Злость"),
+                                QStringLiteral("Грусть"), QStringLiteral("Страх"),
+                                QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
+                            };
+                            if (n <= kTask1.size() && label.compare(kTask1.at(n - 1), Qt::CaseInsensitive) == 0) {
+                                body = replaceDivInnerById(body, id1, score);
+                                wrote = true;
+                            }
+                        }
+                        if (!wrote && label == QString::number(n)
+                            && (body.contains(QStringLiteral("id='%1'").arg(id2))
+                                || body.contains(QStringLiteral("id=\"%1\"").arg(id2)))) {
+                            body = replaceDivInnerById(body, id2, score);
+                            wrote = true;
+                        }
                     }
                 }
             }
@@ -1895,7 +1917,7 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     }
 
     Q_UNUSED(editorDocument);
-    // Подвести итог: баллы 0/1/2 в каждой строке по эталону из справки, затем суммы.
+    // Подвести итог: как bsum в оригинале — заполнить col*/sum*/idvivod, таблицу не пересобирать.
     body = fillProtocol126RowScores(body);
 
     const double sum1 = sumDivPrefix(body, QStringLiteral("col1"));
@@ -1910,10 +1932,6 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     body = replaceDivInnerById(body, QStringLiteral("sum2"), sum2Text);
     body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
     body = replaceDivInnerById(body, QStringLiteral("idvivod"), vivodText);
-
-    body = replaceNthLabeledScoreCell(body, QStringLiteral("Итоговая оценка"), 0, sum1Text);
-    body = replaceNthLabeledScoreCell(body, QStringLiteral("Итоговая оценка"), 1, sum2Text);
-    body = replaceNthLabeledScoreCell(body, QStringLiteral("Индекс успешности"), 0, sum3Text);
     return body;
 }
 
