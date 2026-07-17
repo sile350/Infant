@@ -1645,8 +1645,14 @@ class EmotionsRunner final : public ExerciseRunnerWidget {
 public:
     explicit EmotionsRunner(QWidget *parent = nullptr) : ExerciseRunnerWidget(parent) {
         setAttribute(Qt::WA_StyledBackground, true);
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
         setAutoFillBackground(true);
-        setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+        // Явно гасим наследуемый fone.jpg с корневого окна.
+        setStyleSheet(QStringLiteral(
+            "EmotionsRunner, QWidget {"
+            "  background-color:#ffffff;"
+            "  background-image:none;"
+            "}"));
         m_canvas = new E126Canvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
@@ -1657,6 +1663,12 @@ public:
         }
         m_stop->onClick = [this]() { finishSession(); };
         connect(m_canvas, &E126Canvas::stopRequested, this, [this]() { finishSession(); });
+    }
+
+    void paintEvent(QPaintEvent *event) override {
+        QPainter painter(this);
+        painter.fillRect(rect(), Qt::white);
+        ExerciseRunnerWidget::paintEvent(event);
     }
 
     void startSession(

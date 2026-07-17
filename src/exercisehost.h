@@ -66,6 +66,7 @@ private:
     void updateChromeLayout();
     void layoutStepCombo();
     void updatePreviewLayout();
+    void reloadPreviewForCurrentStep();
     void runExerciseSession();
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);

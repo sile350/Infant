@@ -164,11 +164,16 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
     }
 
     setAttribute(Qt::WA_StyledBackground, true);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
     setAutoFillBackground(true);
     setStyleSheet(QStringLiteral(
-        "E126Canvas { background-color:#ffffff; }"
+        "E126Canvas {"
+        "  background-color:#ffffff;"
+        "  background-image:none;"
+        "}"
         "QGroupBox {"
         "  background-color:#ffffff;"
+        "  background-image:none;"
         "  border:1px solid #a0a0a0;"
         "  margin-top:6px;"
         "  color:#000000;"
@@ -178,29 +183,38 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
         "  left:8px;"
         "  padding:0 3px;"
         "  background-color:#ffffff;"
+        "  background-image:none;"
         "}"
-        "QLabel { background-color:transparent; color:#000000; }"
+        "QLabel { background-color:transparent; background-image:none; color:#000000; }"
         "QLineEdit {"
         "  background-color:#ffffff;"
+        "  background-image:none;"
         "  color:#000000;"
         "  border:1px solid #7a7a7a;"
         "}"
         "QTextEdit {"
         "  background-color:#ffffff;"
+        "  background-image:none;"
         "  color:#000000;"
         "  border:none;"
         "}"
         "QComboBox {"
         "  background-color:#ffffff;"
+        "  background-image:none;"
         "  color:#000000;"
         "  border:1px solid #7a7a7a;"
         "}"
         "QComboBox QAbstractItemView {"
         "  background-color:#ffffff;"
+        "  background-image:none;"
         "  color:#000000;"
         "  selection-background-color:#cce8ff;"
         "}"
-        "QRadioButton { background-color:#ffffff; color:#000000; }"));
+        "QRadioButton {"
+        "  background-color:#ffffff;"
+        "  background-image:none;"
+        "  color:#000000;"
+        "}"));
 
     clearUi();
 

@@ -662,6 +662,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         }
         m_sessionStepId = currentStepId();
         refreshRotateCombos();
+        reloadPreviewForCurrentStep();
         if (m_exerciseRunning && m_onlyP && m_onlyP->isVisible() && !m_sessionStepId.isEmpty()) {
             // Только смена картинки — без raise() всего оверлея поверх селекта.
             m_onlyP->switchStep(m_sessionStepId);
@@ -995,6 +996,34 @@ void ExerciseHost::updatePreviewLayout() {
     }
 }
 
+void ExerciseHost::reloadPreviewForCurrentStep() {
+    m_previewSource = QPixmap();
+    const QString step = currentStepId();
+    QStringList candidates;
+    if (m_exerciseId == QStringLiteral("1.26")) {
+        // Оригинал: задание 1 → d1.png, задание 2 → f2.png
+        if (step == QStringLiteral("2")) {
+            candidates << QStringLiteral("f2.png");
+        } else {
+            candidates << QStringLiteral("d1.png") << QStringLiteral("f1.png");
+        }
+    } else if (!step.isEmpty()) {
+        candidates << QStringLiteral("f") + step + QStringLiteral(".png")
+                   << step + QStringLiteral(".png")
+                   << QStringLiteral("p") + step + QStringLiteral(".png")
+                   << QStringLiteral("f1.png");
+    } else {
+        candidates << QStringLiteral("f1.png") << QStringLiteral("p1.png") << QStringLiteral("1.png");
+    }
+    for (const QString &name : candidates) {
+        const QString path = ExerciseAssets::exerciseFile(m_exerciseId, name);
+        if (!path.isEmpty() && m_previewSource.load(path)) {
+            break;
+        }
+    }
+    updatePreviewLayout();
+}
+
 void ExerciseHost::loadExercise() {
     m_evaluationPanel->show();
 
@@ -1034,15 +1063,7 @@ void ExerciseHost::loadExercise() {
     }
 
     m_previewSource = QPixmap();
-    const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
-    if (!previewPath.isEmpty()) {
-        m_previewSource.load(previewPath);
-    }
-    if (m_previewImage) {
-        if (m_previewSource.isNull()) {
-            m_previewImage->hide();
-        }
-    }
+    reloadPreviewForCurrentStep();
 
     if (m_stepCombo) {
         m_stepCombo->blockSignals(true);
@@ -1055,6 +1076,7 @@ void ExerciseHost::loadExercise() {
             }
         }
         m_stepCombo->blockSignals(false);
+        reloadPreviewForCurrentStep();
         layoutStepCombo();
     }
 
@@ -1262,12 +1284,17 @@ void ExerciseHost::runExerciseSession() {
     if (!definition) {
         return;
     }
-    // Повторный старт — всегда с первого задания в селекте.
-    if (m_stepCombo && m_stepCombo->count() > 0) {
+    // Для numbered OnlyPicture (1.17/1.18) при старте сбрасываем на 1-е задание.
+    // Для 1.26 и др. — уважаем выбранное в селекте задание.
+    if (m_stepCombo && m_stepCombo->count() > 0
+        && definition->runner == ExerciseRunnerKind::OnlyPicture
+        && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
         m_stepCombo->blockSignals(true);
         m_stepCombo->setCurrentIndex(0);
         m_stepCombo->blockSignals(false);
         m_sessionStepId = m_stepCombo->currentText().trimmed();
+    } else {
+        m_sessionStepId = currentStepId();
     }
     if (definition->runner == ExerciseRunnerKind::OnlyPicture) {
         runOnlyPExercise();
@@ -1424,8 +1451,11 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
         m_wrongCountLabel->hide();
     }
 
-    // Таймер результата по центру правой части (для методик без кнопок «верно/неверно»).
-    if (m_timeResultLabel && !showAnswerCounts && elapsedSeconds >= 0 && m_exerciseDone) {
+    // Таймер результата — не для 1.26/1.272 (в оригинале не показывают).
+    const bool hideResultTimer = m_exerciseId == QStringLiteral("1.26")
+        || m_exerciseId == QStringLiteral("1.272");
+    if (m_timeResultLabel && !showAnswerCounts && !hideResultTimer && elapsedSeconds >= 0
+        && m_exerciseDone) {
         m_timeResultLabel->setText(timeText);
         m_timeResultLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         m_timeResultLabel->adjustSize();
