@@ -15,6 +15,7 @@
 #include "repository.h"
 
 #include <QAbstractTextDocumentLayout>
+#include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QCheckBox>
 #include <QComboBox>
@@ -655,15 +656,19 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             m_e15ModeGroup->setVisible(m_shardPanelVisible);
         }
     });
-    connect(m_stepCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+    connect(m_stepCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index < 0) {
+            return;
+        }
         m_sessionStepId = currentStepId();
         refreshRotateCombos();
         if (m_exerciseRunning && m_onlyP && m_onlyP->isVisible() && !m_sessionStepId.isEmpty()) {
-            // Смена задания в процессе — подгрузить соответствующую картинку.
-            if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
-                m_onlyP->start(m_exerciseId, definition->onlyPicture, m_sessionStepId);
-            }
+            // Только смена картинки — без raise() всего оверлея поверх селекта.
+            m_onlyP->switchStep(m_sessionStepId);
         }
+        // Селект должен оставаться видимым всегда, когда есть задания.
+        layoutStepCombo();
+        QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
     });
     connect(m_rotateWCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
         if (!m_rotateWCombo || !m_rotateCWCombo) {
@@ -834,18 +839,13 @@ void ExerciseHost::layoutStepCombo() {
         return;
     }
 
-    // Во время упражнения оверлей лежит на parent (m_root) поверх ExerciseHost —
-    // селект тоже поднимаем туда, иначе он остаётся под оверлеем.
+    // Во время упражнения оверлей на parent (m_root) — селект тоже там и поверх оверлея.
     QWidget *host = this;
     if (m_exerciseRunning && parentWidget()) {
         host = parentWidget();
     }
     if (m_stepCombo->parentWidget() != host) {
-        const bool wasVisible = m_stepCombo->isVisible();
         m_stepCombo->setParent(host);
-        if (wasVisible) {
-            m_stepCombo->show();
-        }
     }
 
     constexpr int kComboW = 121;
@@ -855,8 +855,12 @@ void ExerciseHost::layoutStepCombo() {
     const int comboX = qMax(0, host->width() - kComboW - kRightMargin);
     const int comboY = (host == this) ? kComboY : (y() + kComboY);
     m_stepCombo->setGeometry(comboX, comboY, kComboW, kComboH);
-    m_stepCombo->show();
+    m_stepCombo->setVisible(true);
     m_stepCombo->raise();
+    // Выпадающий список тоже поверх оверлея.
+    if (QWidget *popup = m_stepCombo->view() ? m_stepCombo->view()->window() : nullptr) {
+        popup->raise();
+    }
 }
 
 void ExerciseHost::toggleOrSection(const QString &sectionId) {

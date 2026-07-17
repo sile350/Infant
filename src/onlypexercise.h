@@ -24,6 +24,8 @@ public:
 
     void start(const QString &exerciseId, const OnlyPictureSettings &settings = OnlyPictureSettings(),
                const QString &stepId = QString());
+    // Смена задания без raise() оверлея (чтобы не перекрывать селект задания).
+    void switchStep(const QString &stepId);
     void showPicture(int index);
     void submitAnswer(bool correct);
     void setMirrorMode(bool enabled);

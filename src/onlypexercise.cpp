@@ -475,6 +475,20 @@ void OnlyPExercise::start(
     }
 }
 
+void OnlyPExercise::switchStep(const QString &stepId) {
+    if (stepId.trimmed().isEmpty() || stepId == m_stepId) {
+        return;
+    }
+    m_stepId = stepId.trimmed();
+    if (m_settings.dualPicture) {
+        return;
+    }
+    loadPicture(1);
+    if (m_picture) {
+        m_picture->raise();
+    }
+}
+
 QString OnlyPExercise::imageFileName(int index) const {
     OnlyPictureSettings settings = m_settings;
     if (settings.imagePattern.isEmpty()) {
