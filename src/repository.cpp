@@ -837,11 +837,12 @@ bool Repository::updateProtocolsFromEditedDocument(
             QTextDocument sectionDocument;
             sectionDocument.setHtml(
                 ExerciseAssets::buildProtocolDocumentHtml(sectionBody));
-            mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
-                storedBody, &sectionDocument, 0);
+            // Только Результат/Примечание своей секции — без сопоставления чужих дат.
+            mergedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+                storedBody, &sectionDocument);
         } else {
-            mergedBody = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
-                storedBody, document, i);
+            // Маркеры id потеряны после QTextDocument — не пишем i-ю дату чужой методики.
+            continue;
         }
         if (!updateProtocolBody(protocolId, mergedBody, errorText)) {
             return false;

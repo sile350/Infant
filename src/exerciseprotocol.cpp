@@ -120,14 +120,13 @@ QString protocolRecordEndMarker(const QString &protocolId) {
 }
 
 QString protocolRecordStartSpan(const QString &protocolId) {
-    return QStringLiteral(
-               "<span id=\"dokit-pid-%1-start\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
+    // <a id> лучше переживает QTextDocument::setHtml/toHtml, чем пустой span/комментарии.
+    return QStringLiteral("<a id=\"dokit-pid-%1-start\" name=\"dokit-pid-%1-start\"></a>")
         .arg(protocolId);
 }
 
 QString protocolRecordEndSpan(const QString &protocolId) {
-    return QStringLiteral(
-               "<span id=\"dokit-pid-%1-end\" style=\"font-size:0pt;line-height:0;\">\uFEFF</span>")
+    return QStringLiteral("<a id=\"dokit-pid-%1-end\" name=\"dokit-pid-%1-end\"></a>")
         .arg(protocolId);
 }
 
@@ -780,14 +779,22 @@ QString replaceRowSecondCell(QString body, const QString &rowLabel, const QStrin
 
 QString replaceResultRowSecondCell(QString body, const QString &plainText) {
     // У разных методик подписи отличаются: «Результат: вывод…» / «Результат: баллы…» и т.п.
+    // В подписи может быть <br> — нельзя резать по [^<]*.
     const QRegularExpression rowRe(
         QStringLiteral(
-            "(<tr[^>]*>\\s*<td[^>]*>\\s*Результат[^<]*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*Результат[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
                               ? QStringLiteral("<div contenteditable='true'>%1</div>").arg(plainText.toHtmlEscaped())
                               : plainText.toHtmlEscaped();
-    return body.replace(rowRe, QStringLiteral("\\1") + inner + QStringLiteral("\\3"));
+    // Только первое совпадение в переданном фрагменте (обычно одна сессия).
+    const QRegularExpressionMatch match = rowRe.match(body);
+    if (!match.hasMatch()) {
+        return body;
+    }
+    return body.left(match.capturedStart())
+        + match.captured(1) + inner + match.captured(3)
+        + body.mid(match.capturedEnd());
 }
 
 QString replaceAnswerInBody(QString body, const QString &description, const QString &verno) {
@@ -1426,26 +1433,29 @@ QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &doc
 
 QMap<QString, QString> ExerciseProtocol::extractProtocolBodiesById(const QString &documentHtml) {
     QMap<QString, QString> bodies;
-    const QRegularExpression spanRe(
-        QStringLiteral("id=[\"']dokit-pid-(\\d+)-start[\"'][^>]*>.*?</span>([\\s\\S]*?)<span[^>]*id=[\"']dokit-pid-\\1-end[\"']"),
-        QRegularExpression::DotMatchesEverythingOption);
-    QRegularExpressionMatchIterator spanIt = spanRe.globalMatch(documentHtml);
-    while (spanIt.hasNext()) {
-        const QRegularExpressionMatch match = spanIt.next();
-        bodies.insert(match.captured(1), match.captured(2).trimmed());
-    }
+
+    auto collect = [&](const QRegularExpression &re) {
+        QRegularExpressionMatchIterator it = re.globalMatch(documentHtml);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch match = it.next();
+            bodies.insert(match.captured(1), match.captured(2).trimmed());
+        }
+    };
+
+    // Якоря <a id> (новый формат) и старые <span id>.
+    collect(QRegularExpression(
+        QStringLiteral(
+            "id=[\"']dokit-pid-(\\d+)-start[\"'][^>]*>\\s*(?:</a>|</span>)?"
+            "([\\s\\S]*?)"
+            "<(?:a|span)\\b[^>]*id=[\"']dokit-pid-\\1-end[\"']"),
+        QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption));
     if (!bodies.isEmpty()) {
         return bodies;
     }
 
-    const QRegularExpression commentRe(
+    collect(QRegularExpression(
         QStringLiteral("<!--protocol-id:(\\d+)-->([\\s\\S]*?)<!--/protocol-id:\\1-->"),
-        QRegularExpression::DotMatchesEverythingOption);
-    QRegularExpressionMatchIterator commentIt = commentRe.globalMatch(documentHtml);
-    while (commentIt.hasNext()) {
-        const QRegularExpressionMatch match = commentIt.next();
-        bodies.insert(match.captured(1), match.captured(2).trimmed());
-    }
+        QRegularExpression::DotMatchesEverythingOption));
     return bodies;
 }
 
@@ -1502,6 +1512,26 @@ QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
 
     const QString editorHtml = editorDocument->toHtml();
     QStringList editorSessions = ExerciseProtocol::extractProtocolBodiesByDateRows(editorHtml);
+    const QStringList storedSessions = ExerciseProtocol::extractProtocolBodiesByDateRows(storedBody);
+
+    // Вкладка «Протоколы»: в документе все методики. Нельзя сопоставлять editorSessions[0]
+    // с телом другой методики — иначе в «Результат» попадают баллы/текст чужого протокола.
+    if (!editorSessions.isEmpty()
+        && editorSessions.size() > qMax(1, storedSessions.size())
+        && protocolIndex >= 0
+        && protocolIndex < editorSessions.size()) {
+        ParsedProtocolFields parsed = parseProtocolFieldsFromHtml(editorSessions.at(protocolIndex), 0);
+        if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote
+            && parsed.answersByIndex.isEmpty()) {
+            parsed = parseProtocolFieldsFromDocument(editorDocument, protocolIndex);
+        }
+        if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote
+            && parsed.answersByIndex.isEmpty()) {
+            return storedBody;
+        }
+        return applyParsedFieldsToStoredBody(storedBody, parsed);
+    }
+
     if (editorSessions.isEmpty()) {
         ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, protocolIndex);
         if (!parsed.hasDateSpecialist && !parsed.hasResult && !parsed.hasNote && parsed.answersByIndex.isEmpty()) {
@@ -1513,7 +1543,6 @@ QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
         return applyParsedFieldsToStoredBody(storedBody, parsed);
     }
 
-    const QStringList storedSessions = ExerciseProtocol::extractProtocolBodiesByDateRows(storedBody);
     if (storedSessions.isEmpty()) {
         ParsedProtocolFields parsed = parseProtocolFieldsFromHtml(editorSessions.first(), 0);
         return applyParsedFieldsToStoredBody(storedBody, parsed);
@@ -1605,7 +1634,16 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         return storedBody;
     }
 
-    ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, 0);
+    // Берём поля из последней сессии в редакторе (повторный протокол), не из первой.
+    int editorSectionIndex = 0;
+    {
+        const QStringList editorSessions =
+            ExerciseProtocol::extractProtocolBodiesByDateRows(editorDocument->toHtml());
+        if (editorSessions.size() > 1) {
+            editorSectionIndex = editorSessions.size() - 1;
+        }
+    }
+    ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, editorSectionIndex);
     if (!parsed.hasResult && !parsed.hasNote) {
         return storedBody;
     }
