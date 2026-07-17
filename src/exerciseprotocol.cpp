@@ -1698,6 +1698,150 @@ QString replaceNthLabeledScoreCell(
     return html;
 }
 
+// Эталоны из spravka/1.26.html + порядок портретов в протоколе задания 1.
+QStringList expectedEmotionsTask1() {
+    return {
+        QStringLiteral("радость"),
+        QStringLiteral("злость"),
+        QStringLiteral("грусть"),
+        QStringLiteral("страх"),
+        QStringLiteral("удивление"),
+        QStringLiteral("спокойствие"),
+    };
+}
+
+QStringList expectedEmotionsTask2() {
+    return {
+        QStringLiteral("злость"),
+        QStringLiteral("грусть"),
+        QStringLiteral("спокойствие"),
+        QStringLiteral("злость"),
+        QStringLiteral("удивление"),
+        QStringLiteral("радость"),
+        QStringLiteral("страх"),
+        QStringLiteral("спокойствие"),
+        QStringLiteral("грусть"),
+        QStringLiteral("страх"),
+        QStringLiteral("радость"),
+        QStringLiteral("удивление"),
+    };
+}
+
+QStringList emotionSynonyms(const QString &expected) {
+    const QString key = expected.toLower().trimmed();
+    if (key.startsWith(QStringLiteral("радост"))) {
+        return {QStringLiteral("радост"), QStringLiteral("весел"), QStringLiteral("счастли"),
+                QStringLiteral("улыб"), QStringLiteral("хорош")};
+    }
+    if (key.startsWith(QStringLiteral("злост")) || key.startsWith(QStringLiteral("зл"))) {
+        return {QStringLiteral("злост"), QStringLiteral("зл"), QStringLiteral("гнев"),
+                QStringLiteral("сердит"), QStringLiteral("раздраж")};
+    }
+    if (key.startsWith(QStringLiteral("груст"))) {
+        return {QStringLiteral("груст"), QStringLiteral("печал"), QStringLiteral("плач"),
+                QStringLiteral("слез"), QStringLiteral("огорч")};
+    }
+    if (key.startsWith(QStringLiteral("страх"))) {
+        return {QStringLiteral("страх"), QStringLiteral("боит"), QStringLiteral("испуг"),
+                QStringLiteral("ужас")};
+    }
+    if (key.startsWith(QStringLiteral("удивл"))) {
+        return {QStringLiteral("удивл"), QStringLiteral("изумл"), QStringLiteral("шок"),
+                QStringLiteral("огорош")};
+    }
+    if (key.startsWith(QStringLiteral("спокой"))) {
+        return {QStringLiteral("спокой"), QStringLiteral("нейтрал"), QStringLiteral("обычн"),
+                QStringLiteral("норм")};
+    }
+    return {key};
+}
+
+QStringList emotionApproximate(const QString &expected) {
+    const QString key = expected.toLower().trimmed();
+    if (key.startsWith(QStringLiteral("радост"))) {
+        return {QStringLiteral("улыб"), QStringLiteral("сме"), QStringLiteral("радостн")};
+    }
+    if (key.startsWith(QStringLiteral("груст"))) {
+        return {QStringLiteral("плач"), QStringLiteral("слез"), QStringLiteral("грустн")};
+    }
+    if (key.startsWith(QStringLiteral("злост"))) {
+        return {QStringLiteral("сердит"), QStringLiteral("злой"), QStringLiteral("злая")};
+    }
+    if (key.startsWith(QStringLiteral("страх"))) {
+        return {QStringLiteral("боит"), QStringLiteral("тревог")};
+    }
+    if (key.startsWith(QStringLiteral("удивл"))) {
+        return {QStringLiteral("удив"), QStringLiteral("не ожид")};
+    }
+    if (key.startsWith(QStringLiteral("спокой"))) {
+        return {QStringLiteral("спокойн"), QStringLiteral("тих")};
+    }
+    return {};
+}
+
+int scoreEmotionAnswer(const QString &answer, const QString &expected) {
+    const QString a = answer.toLower().simplified();
+    if (a.isEmpty()) {
+        return 0;
+    }
+    for (const QString &syn : emotionSynonyms(expected)) {
+        if (a.contains(syn)) {
+            return 2;
+        }
+    }
+    for (const QString &approx : emotionApproximate(expected)) {
+        if (a.contains(approx)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+QString extractAnswerFromLabeledRow(const QString &html, const QString &rowLabel) {
+    const QString escaped = QRegularExpression::escape(rowLabel);
+    // label | answer | score
+    const QRegularExpression re(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>")
+            .arg(escaped),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = re.match(html);
+    if (!match.hasMatch()) {
+        return {};
+    }
+    return htmlFragmentToPlainText(match.captured(1)).trimmed();
+}
+
+QString fillProtocol126RowScores(QString body) {
+    const QStringList task1Labels = {
+        QStringLiteral("Радость"),
+        QStringLiteral("Злость"),
+        QStringLiteral("Грусть"),
+        QStringLiteral("Страх"),
+        QStringLiteral("Удивление"),
+        QStringLiteral("Спокойствие"),
+    };
+    const QStringList expected1 = expectedEmotionsTask1();
+    for (int i = 0; i < task1Labels.size(); ++i) {
+        const QString answer = extractAnswerFromLabeledRow(body, task1Labels.at(i));
+        const int score = scoreEmotionAnswer(answer, expected1.at(i));
+        const QString id = QStringLiteral("col1%1").arg(i + 1);
+        body = replaceDivInnerById(body, id, QString::number(score));
+        body = replaceScoreCellByRowLabel(body, task1Labels.at(i), QString::number(score));
+    }
+
+    const QStringList expected2 = expectedEmotionsTask2();
+    for (int i = 0; i < expected2.size(); ++i) {
+        const QString label = QString::number(i + 1);
+        const QString answer = extractAnswerFromLabeledRow(body, label);
+        const int score = scoreEmotionAnswer(answer, expected2.at(i));
+        const QString id = QStringLiteral("col2%1").arg(i + 1);
+        body = replaceDivInnerById(body, id, QString::number(score));
+        body = replaceScoreCellByRowLabel(body, label, QString::number(score));
+    }
+    return body;
+}
+
 QString ExerciseProtocol::applyProtocol126SumFromDocument(
     const QString &storedBody,
     QTextDocument *editorDocument,
@@ -1707,80 +1851,55 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     }
 
     QString body = storedBody;
-    double sumFromTask1 = 0;
-    double sumFromTask2 = 0;
-    bool sawTask1Scores = false;
-    bool sawTask2Scores = false;
-    if (editorDocument) {
-        QList<QTextTable *> tables;
-        collectTables(editorDocument->rootFrame(), tables);
-        for (QTextTable *table : tables) {
-            if (!table || table->columns() < 2) {
-                continue;
-            }
-            int ballsCol = -1;
-            int headerRow = -1;
-            for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
-                for (int c = 0; c < table->columns(); ++c) {
-                    const QString header = readTableCellText(table, r, c);
-                    if (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
-                        && header.length() <= 12) {
-                        ballsCol = c;
-                        headerRow = r;
-                        break;
+
+    // Без «Подвести итог» — только перенос вручную введённых баллов из редактора в HTML.
+    if (!computeSums) {
+        if (editorDocument) {
+            QList<QTextTable *> tables;
+            collectTables(editorDocument->rootFrame(), tables);
+            for (QTextTable *table : tables) {
+                if (!table || table->columns() < 2) {
+                    continue;
+                }
+                int ballsCol = -1;
+                int headerRow = -1;
+                for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
+                    for (int c = 0; c < table->columns(); ++c) {
+                        const QString header = readTableCellText(table, r, c);
+                        if (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                            && header.length() <= 12) {
+                            ballsCol = c;
+                            headerRow = r;
+                            break;
+                        }
+                    }
+                }
+                if (ballsCol < 0) {
+                    continue;
+                }
+                for (int r = headerRow + 1; r < table->rows(); ++r) {
+                    const QString label = readTableCellText(table, r, 0);
+                    const QString score = readTableCellText(table, r, ballsCol);
+                    if (label.isEmpty()
+                        || label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                        || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
+                        continue;
+                    }
+                    if (!score.trimmed().isEmpty()) {
+                        body = replaceScoreCellByRowLabel(body, label, score);
                     }
                 }
             }
-            if (ballsCol < 0) {
-                continue;
-            }
-            double tableSum = 0;
-            bool looksLikeTask1 = false;
-            bool looksLikeTask2 = false;
-            for (int r = headerRow + 1; r < table->rows(); ++r) {
-                const QString label = readTableCellText(table, r, 0);
-                const QString score = readTableCellText(table, r, ballsCol);
-                if (label.isEmpty()) {
-                    continue;
-                }
-                if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
-                    || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
-                    continue;
-                }
-                if (label.contains(QStringLiteral("Радость"), Qt::CaseInsensitive)
-                    || label.contains(QStringLiteral("Злость"), Qt::CaseInsensitive)
-                    || label.contains(QStringLiteral("Грусть"), Qt::CaseInsensitive)) {
-                    looksLikeTask1 = true;
-                }
-                bool isNumber = false;
-                label.toInt(&isNumber);
-                if (isNumber) {
-                    looksLikeTask2 = true;
-                }
-                body = replaceScoreCellByRowLabel(body, label, score);
-                bool ok = false;
-                const double value = score.toDouble(&ok);
-                if (ok) {
-                    tableSum += value;
-                }
-            }
-            if (looksLikeTask1) {
-                sumFromTask1 = tableSum;
-                sawTask1Scores = true;
-            } else if (looksLikeTask2) {
-                sumFromTask2 = tableSum;
-                sawTask2Scores = true;
-            }
         }
-    }
-
-    if (!computeSums) {
         return body;
     }
 
-    // Сумма из таблиц редактора (приоритет) или из HTML id col1*/col2*.
-    const double sum1 = sawTask1Scores ? sumFromTask1 : sumDivPrefix(body, QStringLiteral("col1"));
-    const double sum2 = sawTask2Scores ? sumFromTask2 : sumDivPrefix(body, QStringLiteral("col2"));
+    Q_UNUSED(editorDocument);
+    // Подвести итог: баллы 0/1/2 в каждой строке по эталону из справки, затем суммы.
+    body = fillProtocol126RowScores(body);
+
+    const double sum1 = sumDivPrefix(body, QStringLiteral("col1"));
+    const double sum2 = sumDivPrefix(body, QStringLiteral("col2"));
     const int sum3 = static_cast<int>(sum1 + sum2);
     const QString sum1Text = QString::number(static_cast<int>(sum1));
     const QString sum2Text = QString::number(static_cast<int>(sum2));
@@ -1792,7 +1911,6 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
     body = replaceDivInnerById(body, QStringLiteral("idvivod"), vivodText);
 
-    // Запасной путь: если id съел редактор — пишем по подписям строк.
     body = replaceNthLabeledScoreCell(body, QStringLiteral("Итоговая оценка"), 0, sum1Text);
     body = replaceNthLabeledScoreCell(body, QStringLiteral("Итоговая оценка"), 1, sum2Text);
     body = replaceNthLabeledScoreCell(body, QStringLiteral("Индекс успешности"), 0, sum3Text);

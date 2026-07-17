@@ -60,6 +60,8 @@ private:
     void commitCurrentStepTime();
     void initAnswerButtons(const QString &exerciseId);
     void updateWidgetLayout();
+    void updateOvertimeTimer();
+    int overtimeThresholdSeconds() const;
 
     QString m_exerciseId;
     QString m_stepId;
@@ -81,6 +83,7 @@ private:
     QLabel *m_stopButton = nullptr;
     QLabel *m_rightButton = nullptr;
     QLabel *m_wrongButton = nullptr;
+    QLabel *m_overtimeLabel = nullptr;
     QTimer *m_timer = nullptr;
     QTimer *m_advanceTimer = nullptr;
     QPixmap m_picture2Source;

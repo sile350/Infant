@@ -857,8 +857,9 @@ public:
 
         m_toggle->hide();
         m_toggle->onClick = [this, exerciseId]() {
-            if (m_reference->isVisible()) {
-                m_reference->hide();
+            // Как в оригинале e28: Image==null → показать подсказку + hide.png; иначе скрыть + show.png.
+            if (!m_reference->isVisible() || m_reference->pixmap(Qt::ReturnByValue).isNull()) {
+                m_reference->show();
                 const QString hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
                 if (!hidePath.isEmpty()) {
                     const QPixmap hidePixmap(hidePath);
@@ -866,7 +867,7 @@ public:
                     m_toggle->setFixedSize(hidePixmap.size());
                 }
             } else {
-                m_reference->show();
+                m_reference->hide();
                 const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
                 if (!showPath.isEmpty()) {
                     const QPixmap showPixmap(showPath);
@@ -893,12 +894,14 @@ public:
     }
 
     void layoutE28() {
+        // Оригинал e28.Designer: pictureBox1 (задание/2.png) = (228,246),
+        // pictureBox2 (подсказка/1.png) = (1043,246) — иначе 2.png перекрывает подсказку.
         if (m_reference) {
-            m_reference->move(900, 200);
+            m_reference->move(1043, 246);
             m_reference->raise();
         }
         if (m_task) {
-            m_task->move(500, 200);
+            m_task->move(228, 246);
             m_task->raise();
         }
         if (m_next) {
@@ -908,6 +911,10 @@ public:
         if (m_toggle) {
             m_toggle->move(m_stop->x() + m_stop->width() + 24, 70);
             m_toggle->raise();
+        }
+        // Подсказка поверх задания, когда обе видны.
+        if (m_reference && m_reference->isVisible()) {
+            m_reference->raise();
         }
         m_stop->raise();
     }
@@ -1676,6 +1683,14 @@ public:
         if (m_canvas) {
             m_canvas->switchStep(stepId);
         }
+    }
+
+    QString currentAdditionalSnapshot() const override {
+        const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
+        const QString step = m_canvas && !m_canvas->stepId().isEmpty()
+            ? m_canvas->stepId()
+            : (m_stepId.isEmpty() ? QStringLiteral("1") : m_stepId);
+        return step + QLatin1Char(';') + answers;
     }
 
     void startSession(

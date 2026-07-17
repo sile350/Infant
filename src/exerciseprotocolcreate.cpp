@@ -350,22 +350,6 @@ QString createExerciseProtocolBodyFallback(
             }
         }
 
-        auto appendAllStepRows = [&](QString body) {
-            for (const QString &sid : stepIds) {
-                int stepTime = session.stepElapsedSeconds.value(sid, -1);
-                if (stepTime < 0) {
-                    if (session.stepElapsedSeconds.isEmpty()
-                        && (stepIds.size() == 1 || sid == session.stepId)) {
-                        stepTime = elapsedSeconds;
-                    } else {
-                        stepTime = 0;
-                    }
-                }
-                body = appendNumberedRow(body, sid, rowDone, stepTime, checkboxes);
-            }
-            return body;
-        };
-
         auto stepTimeOf = [&](const QString &sid) {
             int stepTime = session.stepElapsedSeconds.value(sid, -1);
             if (stepTime < 0) {
@@ -377,6 +361,7 @@ QString createExerciseProtocolBodyFallback(
             }
             return stepTime;
         };
+        // Повторный протокол — всегда полный блок с «Дата/специалист», не только <tr> процесса.
         QString sessionBody = buildNumberedInitial(
             userFio, header, stepIds.first(), rowDone, stepTimeOf(stepIds.first()), checkboxes);
         for (int i = 1; i < stepIds.size(); ++i) {

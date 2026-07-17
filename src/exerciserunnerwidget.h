@@ -17,6 +17,8 @@ public:
         const QString &stepId) = 0;
     virtual void stopSession() = 0;
     virtual void switchStep(const QString &stepId) { Q_UNUSED(stepId); }
+    // Текущие данные сессии без завершения (для 1.26 при смене задания).
+    virtual QString currentAdditionalSnapshot() const { return {}; }
 
     void setSessionOptions(const ExerciseSessionOptions &options) { m_sessionOptions = options; }
     const ExerciseSessionOptions &sessionOptions() const { return m_sessionOptions; }

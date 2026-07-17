@@ -674,6 +674,20 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         if (index < 0) {
             return;
         }
+        // 1.26: перед сменой задания сохраняем ответы текущего, иначе при Стоп останется только №2.
+        if (m_exerciseRunning && m_sessionRunner
+            && (m_sessionRunnerKind == ExerciseRunnerKind::E126
+                || m_sessionRunnerKind == ExerciseRunnerKind::E1272)) {
+            const QString snap = m_sessionRunner->currentAdditionalSnapshot();
+            if (!snap.trimmed().isEmpty()) {
+                const QStringList parts = snap.split(QLatin1Char(';'));
+                const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
+                    ? QStringLiteral("1")
+                    : parts.at(0).trimmed();
+                m_additionalByStep.insert(stepKey, snap);
+                m_sessionAdditional = snap;
+            }
+        }
         m_sessionStepId = currentStepId();
         refreshRotateCombos();
         reloadPreviewForCurrentStep();
@@ -1599,14 +1613,27 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
         }
         session.additional = step + QLatin1Char(';') + emptyAnswers.join(QLatin1Char(';'));
     } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        // № = номера заданий из селекта (1/2/3…); время — отдельно на каждое в stepElapsedSeconds.
-        session.stepIds = numberedStepIds();
+        // Как в оригинале: в протокол попадают задания, которые реально запускали
+        // (время в stepElapsedSeconds). Не все пункты combo сразу — иначе повторная
+        // сессия выглядит как дописка строк без новой «Дата/специалист».
         session.stepElapsedSeconds = m_stepElapsedSeconds;
         if (session.stepId.isEmpty()) {
             session.stepId = QStringLiteral("1");
         }
         if (session.stepElapsedSeconds.isEmpty() && !session.stepId.isEmpty()) {
             session.stepElapsedSeconds.insert(session.stepId, m_elapsedSeconds);
+        }
+        if (!session.stepElapsedSeconds.isEmpty()) {
+            // Порядок как в combo / definition.
+            const QStringList order = numberedStepIds();
+            for (const QString &sid : order) {
+                if (session.stepElapsedSeconds.contains(sid)) {
+                    session.stepIds << sid;
+                }
+            }
+            if (session.stepIds.isEmpty()) {
+                session.stepIds = session.stepElapsedSeconds.keys();
+            }
         }
         if (session.stepIds.isEmpty()) {
             session.stepIds << session.stepId;
@@ -1657,7 +1684,7 @@ void ExerciseHost::resetProtocolToInitialTemplate() {
         return;
     }
     // Сохраняем правки «Результат/Примечание», но не даём merge сломать разметку:
-    // дописывание следующей сессии идёт через appendRowsToStoredBody.
+    // повторная сессия дописывается через appendFullSessionToStoredBody (с «Дата/специалист»).
     if (m_protocolSavedThisSession && !m_currentProtocolId.isEmpty()) {
         saveProtocolEdits();
     }
@@ -1808,7 +1835,8 @@ void ExerciseHost::formProtocol() {
         : QString();
 
     ProtocolSessionInput session = buildProtocolSession();
-    if (m_exerciseId == QStringLiteral("1.26") && !session.additional.trimmed().isEmpty()) {
+    if ((m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))
+        && !session.additional.trimmed().isEmpty()) {
         const QStringList parts = session.additional.split(QLatin1Char(';'));
         const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
             ? QStringLiteral("1")
@@ -1817,56 +1845,92 @@ void ExerciseHost::formProtocol() {
     }
 
     QString protocolBody;
-    bool reconstructed126 = false;
-    if (m_exerciseId == QStringLiteral("1.26")) {
-        const QStringList parts = session.additional.split(QLatin1Char(';'));
-        const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
-            ? QStringLiteral("1")
-            : parts.at(0).trimmed();
+    bool saveAsPartly = partlySave && !existingBody.trimmed().isEmpty();
 
-        // Если формируем задание 2, а в сохранённом протоколе нет задания 1 —
-        // сначала восстанавливаем блок 1 из ответов этой сессии.
-        if (stepKey == QStringLiteral("2")
-            && !existingBody.contains(QStringLiteral("Задание 1"))
-            && m_additionalByStep.contains(QStringLiteral("1"))) {
-            ProtocolSessionInput session1 = session;
-            session1.additional = m_additionalByStep.value(QStringLiteral("1"));
-            const QString body1 = ExerciseProtocol::createProtocolHtml(
+    if (m_exerciseId == QStringLiteral("1.26")) {
+        // Как в оригинале: каждое задание дописывается, но собираем полный документ
+        // из всех известных ответов сессии (1 и/или 2), чтобы блок «Задание 1» не терялся.
+        const QStringList stepOrder = {QStringLiteral("1"), QStringLiteral("2")};
+        QString combined;
+        bool started = false;
+        for (const QString &stepKey : stepOrder) {
+            if (!m_additionalByStep.contains(stepKey)) {
+                continue;
+            }
+            ProtocolSessionInput stepSession = session;
+            stepSession.additional = m_additionalByStep.value(stepKey);
+            stepSession.stepId = stepKey;
+            if (!started) {
+                // Если в БД уже есть шапка/задание 1, а сейчас добавляем только 2 —
+                // базу берём из БД, иначе строим с нуля.
+                if (stepKey == QStringLiteral("2") && existingBody.contains(QStringLiteral("Задание 1"))
+                    && !m_additionalByStep.contains(QStringLiteral("1"))) {
+                    combined = ExerciseProtocol::createProtocolHtml(
+                        m_exerciseId,
+                        m_specialistFio,
+                        m_elapsedSeconds,
+                        true,
+                        existingBody,
+                        m_answers,
+                        checkboxValues(),
+                        stepSession);
+                } else {
+                    combined = ExerciseProtocol::createProtocolHtml(
+                        m_exerciseId,
+                        m_specialistFio,
+                        m_elapsedSeconds,
+                        false,
+                        QString(),
+                        m_answers,
+                        checkboxValues(),
+                        stepSession);
+                }
+                started = true;
+            } else {
+                combined = ExerciseProtocol::createProtocolHtml(
+                    m_exerciseId,
+                    m_specialistFio,
+                    m_elapsedSeconds,
+                    true,
+                    combined,
+                    m_answers,
+                    checkboxValues(),
+                    stepSession);
+            }
+        }
+        if (!started) {
+            // fallback — текущая сессия
+            combined = ExerciseProtocol::createProtocolHtml(
                 m_exerciseId,
                 m_specialistFio,
                 m_elapsedSeconds,
-                false,
-                QString(),
-                m_answers,
-                checkboxValues(),
-                session1);
-            protocolBody = ExerciseProtocol::createProtocolHtml(
-                m_exerciseId,
-                m_specialistFio,
-                m_elapsedSeconds,
-                true,
-                body1,
-                m_answers,
-                checkboxValues(),
-                session);
-            reconstructed126 = true;
-        } else {
-            protocolBody = ExerciseProtocol::createProtocolHtml(
-                m_exerciseId,
-                m_specialistFio,
-                m_elapsedSeconds,
-                partlySave && !existingBody.trimmed().isEmpty(),
+                saveAsPartly,
                 existingBody,
                 m_answers,
                 checkboxValues(),
                 session);
+        }
+        protocolBody = combined;
+        // Полная пересборка 1+2 → UPDATE существующей записи, если она есть.
+        const bool hasExisting =
+            !m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId).isEmpty();
+        saveAsPartly = hasExisting
+            && (partlySave || m_additionalByStep.size() > 1
+                || protocolBody.contains(QStringLiteral("Задание 1")));
+        // Если только что собрали оба задания «с нуля», а в БД была битая запись — UPDATE целиком.
+        if (hasExisting && m_additionalByStep.contains(QStringLiteral("1"))
+            && m_additionalByStep.contains(QStringLiteral("2"))) {
+            saveAsPartly = true;
+        }
+        if (!hasExisting) {
+            saveAsPartly = false;
         }
     } else {
         protocolBody = ExerciseProtocol::createProtocolHtml(
             m_exerciseId,
             m_specialistFio,
             m_elapsedSeconds,
-            partlySave,
+            saveAsPartly,
             existingBody,
             m_answers,
             checkboxValues(),
@@ -1875,10 +1939,6 @@ void ExerciseHost::formProtocol() {
 
     QString error;
     QString protocolId;
-    const bool hasExistingProtocol =
-        !m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId).isEmpty();
-    bool saveAsPartly = (partlySave || reconstructed126) && hasExistingProtocol;
-
     if (!m_repository->saveExerciseProtocol(
             m_patientId, m_exerciseId, protocolBody, saveAsPartly, &error, &protocolId)) {
         if (saveAsPartly) {

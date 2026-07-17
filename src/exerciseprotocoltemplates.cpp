@@ -115,6 +115,21 @@ int scoreExercise11(int time) {
     return 0;
 }
 
+// 3.1.11 / шкала «Нелепицы» и родственные: пороги 60/75/90…/195
+int scoreExerciseTimed60(int time) {
+    if (time <= 60) return 10;
+    if (time <= 75) return 9;
+    if (time <= 90) return 8;
+    if (time <= 105) return 7;
+    if (time <= 120) return 6;
+    if (time <= 135) return 5;
+    if (time <= 150) return 4;
+    if (time <= 165) return 3;
+    if (time <= 180) return 2;
+    if (time <= 195) return 1;
+    return 0;
+}
+
 // 4.1.2 (protocols.cs): пороги 45 / 46-47 / … / ≥86
 int scoreExercise412(int time) {
     if (time <= 45) return 10;
@@ -193,6 +208,8 @@ QString cleanTemplateArtifacts(QString html) {
     html.replace(QStringLiteral("}}\" "), QStringLiteral("}} "));
     html.replace(QStringLiteral("}}\"</div>"), QStringLiteral("}}</div>"));
     html.replace(QStringLiteral("}}\"(4)"), QStringLiteral("}}(4)"));
+    // Артефакты экстрактора C#: `" + "` / `"   + "` → пустая подстановка.
+    html.replace(QRegularExpression(QStringLiteral("\"\\s*\\+\\s*\"")), QString());
     return html;
 }
 
@@ -302,9 +319,13 @@ QMap<QString, QString> buildVariables(
         // timed11_result в шаблонах: для 4.1.2 — шкала 45с; для прочих открытых — та же.
         if (tmpl.id == QStringLiteral("4.1.2")) {
             score = scoreExercise412(elapsedSeconds);
+        } else if (tmpl.id == QStringLiteral("3.1.11")) {
+            score = scoreExerciseTimed60(elapsedSeconds);
         } else {
             score = scoreExercise11(elapsedSeconds);
         }
+    } else if (tmpl.scoreKind == QStringLiteral("timed60_result")) {
+        score = scoreExerciseTimed60(elapsedSeconds);
     } else if (tmpl.scoreKind == QStringLiteral("timed11")) {
         score = scoreExercise11(elapsedSeconds);
     } else if (tmpl.scoreKind == QStringLiteral("timed18")) {
@@ -451,10 +472,17 @@ QString createExerciseProtocolFromTemplate(
         if (tmpl.kind == QStringLiteral("tmp0_variants")) {
             return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
         }
-        // Повторный протокол — всегда с новой «Дата/специалист» (в т.ч. numbered 1.17/1.18).
+        // Повторный протокол (ТЗ 14.2): всегда новая сессия со строки «Дата/специалист».
+        // Для numbered (1.17/1.18/2.10/…) нельзя дописывать только строки процесса —
+        // иначе повторная сессия сливается с предыдущей без новой даты.
         QString sessionBlock;
         if (!tmpl.dateRow.isEmpty()) {
             sessionBlock += substituteAll(tmpl.dateRow, vars);
+        } else {
+            // Защита: шаблон без dateRow — всё равно начинаем с даты.
+            const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
+            sessionBlock += QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
+                                .arg(now, userFio.toHtmlEscaped());
         }
         if (!tmpl.initialBlock.isEmpty()) {
             sessionBlock += substituteAll(tmpl.initialBlock, vars);

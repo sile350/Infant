@@ -141,9 +141,18 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     m_wrongButton->setScaledContents(false);
     m_wrongButton->setAutoFillBackground(true);
 
+    // Как f311 в onlyp.cs: таймер появляется после порога (3.1.1/3.1.11/3.1.17 — 180с).
+    m_overtimeLabel = new QLabel(this);
+    m_overtimeLabel->setStyleSheet(QStringLiteral(
+        "color: #000000; background: transparent; font-size: 16pt; font-weight: 700;"));
+    m_overtimeLabel->hide();
+
     m_timer = new QTimer(this);
     m_timer->setInterval(1000);
-    connect(m_timer, &QTimer::timeout, this, [this]() { ++m_elapsedSeconds; });
+    connect(m_timer, &QTimer::timeout, this, [this]() {
+        ++m_elapsedSeconds;
+        updateOvertimeTimer();
+    });
 
     m_advanceTimer = new QTimer(this);
     m_advanceTimer->setInterval(10000);
@@ -305,6 +314,11 @@ void OnlyPExercise::updateWidgetLayout() {
         if (m_exerciseId == QStringLiteral("1.1") || m_exerciseId == QStringLiteral("1.25")) {
             extraX = 100;
             extraY = -200;
+        } else if (m_exerciseId == QStringLiteral("2.10")
+                   || m_exerciseId == QStringLiteral("3.1.1")
+                   || m_exerciseId == QStringLiteral("3.1.2")) {
+            // Поднять картинку на основном экране на 200px.
+            extraY = -200;
         } else if (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")) {
             extraX = 100;
             extraY = -200;
@@ -393,6 +407,49 @@ void OnlyPExercise::updateWidgetLayout() {
     m_rightButton->raise();
     m_wrongButton->raise();
     m_picture->raise();
+    updateOvertimeTimer();
+}
+
+int OnlyPExercise::overtimeThresholdSeconds() const {
+    // onlyp.cs: f311 появляется после порога.
+    if (m_exerciseId == QStringLiteral("3.1.1")
+        || m_exerciseId == QStringLiteral("3.1.11")
+        || m_exerciseId == QStringLiteral("3.1.17")) {
+        return 180;
+    }
+    if (m_exerciseId == QStringLiteral("3.1.18")) {
+        return 120;
+    }
+    if (m_exerciseId == QStringLiteral("4.1.2")) {
+        return 90;
+    }
+    return -1;
+}
+
+void OnlyPExercise::updateOvertimeTimer() {
+    if (!m_overtimeLabel) {
+        return;
+    }
+    const int threshold = overtimeThresholdSeconds();
+    const bool show = threshold > 0
+        && m_elapsedSeconds > threshold
+        && m_timer && m_timer->isActive()
+        && m_displayRole != DisplayRole::Headless
+        && m_displayRole != DisplayRole::Patient;
+    if (!show) {
+        m_overtimeLabel->hide();
+        return;
+    }
+    const int minutes = m_elapsedSeconds / 60;
+    const int seconds = m_elapsedSeconds - minutes * 60;
+    m_overtimeLabel->setText(QStringLiteral("%1:%2 сек").arg(minutes).arg(seconds));
+    m_overtimeLabel->adjustSize();
+    // onlyp.Designer: f311 @ (1162, 75)
+    const qreal sx = width() / 1920.0;
+    const qreal sy = height() / 1080.0;
+    m_overtimeLabel->move(qRound(1162 * sx), qRound(75 * sy));
+    m_overtimeLabel->show();
+    m_overtimeLabel->raise();
 }
 
 void OnlyPExercise::resizeEvent(QResizeEvent *event) {
@@ -433,6 +490,10 @@ void OnlyPExercise::start(
     m_stepElapsedSeconds.clear();
     if (!m_stepId.isEmpty()) {
         m_stepElapsedSeconds.insert(m_stepId, 0);
+    }
+    if (m_overtimeLabel) {
+        m_overtimeLabel->hide();
+        m_overtimeLabel->clear();
     }
 
     if (m_displayRole != DisplayRole::Headless) {
@@ -587,6 +648,9 @@ void OnlyPExercise::recordAnswer(bool correct) {
 void OnlyPExercise::finishExercise() {
     m_timer->stop();
     m_advanceTimer->stop();
+    if (m_overtimeLabel) {
+        m_overtimeLabel->hide();
+    }
     commitCurrentStepTime();
     if (!m_settings.answerButtons) {
         m_picturesShown = qMax(m_picturesShown, 1);
