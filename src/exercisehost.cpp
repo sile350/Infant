@@ -771,21 +771,12 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
 }
 
 void ExerciseHost::updateChromeLayout() {
-    // Селект задания доступен и во время выполнения (как param1 в оригинале).
-    if (m_stepCombo && m_stepCombo->count() > 0) {
-        m_stepCombo->setGeometry(760, 12, 200, 33);
-        m_stepCombo->show();
-        m_stepCombo->raise();
-    }
-
     if (m_exerciseRunning && !m_dualScreen) {
         updateExerciseOverlayGeometry();
         if (m_onlyP && m_onlyP->isVisible()) {
             m_onlyP->raise();
         }
-        if (m_stepCombo && m_stepCombo->count() > 0) {
-            m_stepCombo->raise();
-        }
+        layoutStepCombo();
         return;
     }
 
@@ -813,7 +804,7 @@ void ExerciseHost::updateChromeLayout() {
         m_beginButton->setVisible(!m_exerciseRunning);
         m_beginButton->raise();
     }
-    if (m_exerciseOptionsPanel) {
+    if (m_exerciseOptionsPanel && m_rightPanel) {
         m_exerciseOptionsPanel->setGeometry(12, 52, qMax(120, m_rightPanel->width() - 24), 220);
         m_exerciseOptionsPanel->raise();
     }
@@ -830,6 +821,28 @@ void ExerciseHost::updateChromeLayout() {
         m_rightCountLabel->raise();
         m_wrongCountLabel->raise();
     }
+
+    layoutStepCombo();
+}
+
+void ExerciseHost::layoutStepCombo() {
+    if (!m_stepCombo) {
+        return;
+    }
+    if (m_stepCombo->count() <= 0) {
+        m_stepCombo->hide();
+        return;
+    }
+    // На правой панели, слева от кнопки «Старт».
+    constexpr int kComboW = 200;
+    constexpr int kComboH = 33;
+    constexpr int kComboY = 12;
+    constexpr int kBeginX = 976;
+    const int rightX = kPanelX + kScrollWidth;
+    const int comboX = qMax(rightX + 8, kBeginX - kComboW - 12);
+    m_stepCombo->setGeometry(comboX, kComboY, kComboW, kComboH);
+    m_stepCombo->show();
+    m_stepCombo->raise();
 }
 
 void ExerciseHost::toggleOrSection(const QString &sectionId) {
@@ -1010,17 +1023,17 @@ void ExerciseHost::loadExercise() {
     }
 
     if (m_stepCombo) {
+        m_stepCombo->blockSignals(true);
         m_stepCombo->clear();
         if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
             if (!definition->onlyPicture.stepIds.isEmpty()) {
                 m_stepCombo->addItems(definition->onlyPicture.stepIds);
-                m_stepCombo->show();
-            } else {
-                m_stepCombo->hide();
+                m_stepCombo->setCurrentIndex(0);
+                m_sessionStepId = m_stepCombo->currentText();
             }
-        } else {
-            m_stepCombo->hide();
         }
+        m_stepCombo->blockSignals(false);
+        layoutStepCombo();
     }
 
     updateExerciseOptionsPanel();

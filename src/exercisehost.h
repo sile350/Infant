@@ -63,6 +63,7 @@ private:
     void layoutContent();
     void updateContentHeights();
     void updateChromeLayout();
+    void layoutStepCombo();
     void updatePreviewLayout();
     void runExerciseSession();
     void runOnlyPExercise();
