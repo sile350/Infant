@@ -1292,7 +1292,9 @@ QString ExerciseProtocol::extractEditableProtocolBody(const QString &documentHtm
 }
 
 QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &documentHtml) {
-    if (looksLikeProtocol12Body(documentHtml)) {
+    // Специфичное разбиение 1.2 — только для picture-answers.
+    // Иначе тела 1.1/других (тоже с <!--s-->) обрабатываются как 1.2 и портятся при merge/append.
+    if (looksLikePictureAnswersResults(documentHtml)) {
         const QStringList sessions = extractProtocol12Sessions(documentHtml);
         if (!sessions.isEmpty()) {
             return sessions;
@@ -1314,6 +1316,30 @@ QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &doc
             }
         } else {
             endPos = findProtocolChunkEnd(documentHtml, rowStart, -1);
+            // Для не-1.2 обрезаем по таблице процесса; если внутри уже вложен новый <table> —
+            // режем до него (иначе сессии склеиваются «ячейка в ячейке»).
+            const int marker = documentHtml.lastIndexOf(QStringLiteral("<!--s-->"), endPos);
+            if (marker >= rowStart) {
+                const int tableStart =
+                    documentHtml.indexOf(QStringLiteral("<table"), marker, Qt::CaseInsensitive);
+                if (tableStart >= 0) {
+                    const int tableClose = documentHtml.indexOf(
+                        QStringLiteral("</table>"), tableStart, Qt::CaseInsensitive);
+                    const int nestedTable = documentHtml.indexOf(
+                        QStringLiteral("<table"), tableStart + 6, Qt::CaseInsensitive);
+                    if (nestedTable >= 0 && (tableClose < 0 || nestedTable < tableClose)) {
+                        int cut = documentHtml.lastIndexOf(
+                            QStringLiteral("</tr>"), nestedTable, Qt::CaseInsensitive);
+                        if (cut > tableStart) {
+                            endPos = cut + QStringLiteral("</tr>").size();
+                        } else {
+                            endPos = nestedTable;
+                        }
+                    } else if (tableClose >= 0 && tableClose + 8 <= endPos) {
+                        endPos = tableClose + QStringLiteral("</table>").size();
+                    }
+                }
+            }
         }
         QString chunk = normalizeStoredProtocolBody(trimProtocolBodyTail(documentHtml.mid(rowStart, endPos - rowStart)));
         if (!chunk.isEmpty()) {
@@ -1518,35 +1544,64 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
         return session;
     }
 
-    // Сначала подчистим битый хвост через appendRows с пустой добавкой-нормализацией.
     QString base = existingBody;
-    const int lastTrEnd = base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
-    if (lastTrEnd >= 0) {
-        const int afterPos = lastTrEnd + QStringLiteral("</tr>").size();
-        const QString after = base.mid(afterPos);
-        const bool hasCompleteTail =
-            after.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)
-            || after.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)
-            || after.contains(QStringLiteral("<!--"), Qt::CaseInsensitive)
-            || after.contains(QStringLiteral("<table"), Qt::CaseInsensitive);
-        if (!after.trimmed().isEmpty() && !hasCompleteTail) {
-            base = base.left(afterPos);
-        }
-    }
 
-    // Закрываем таблицу процесса предыдущей сессии, если она ещё открыта.
+    // Жёстко закрываем таблицу процесса ПОСЛЕДНЕЙ сессии и отбрасываем «хвост»
+    // (незакрытые div/td или уже вложенный следующий <table> в последней ячейке).
     const int lastMarker = base.lastIndexOf(QStringLiteral("<!--s-->"));
     if (lastMarker >= 0) {
-        const int closeAfterMarker =
-            base.indexOf(QStringLiteral("</table>"), lastMarker, Qt::CaseInsensitive);
-        if (closeAfterMarker < 0) {
+        const int tableStart =
+            base.indexOf(QStringLiteral("<table"), lastMarker, Qt::CaseInsensitive);
+        if (tableStart >= 0) {
+            const int firstClose =
+                base.indexOf(QStringLiteral("</table>"), tableStart, Qt::CaseInsensitive);
+            const int nestedOpen =
+                base.indexOf(QStringLiteral("<table"), tableStart + 6, Qt::CaseInsensitive);
+
+            if (nestedOpen >= 0 && (firstClose < 0 || nestedOpen < firstClose)) {
+                // Уже есть вложение новой сессии в ячейку — обрезаем до него.
+                int cut = base.lastIndexOf(QStringLiteral("</tr>"), nestedOpen, Qt::CaseInsensitive);
+                if (cut < tableStart) {
+                    cut = nestedOpen;
+                    base = base.left(cut);
+                } else {
+                    base = base.left(cut + QStringLiteral("</tr>").size());
+                }
+                base += QStringLiteral("</table>");
+            } else if (firstClose >= 0) {
+                // Нормально закрытая таблица процесса — всё после неё отбрасываем.
+                base = base.left(firstClose + QStringLiteral("</table>").size());
+            } else {
+                // Таблица открыта: оставляем только полные строки, затем закрываем.
+                const int lastTrEnd =
+                    base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
+                if (lastTrEnd > tableStart) {
+                    base = base.left(lastTrEnd + QStringLiteral("</tr>").size());
+                }
+                base += QStringLiteral("</table>");
+            }
+        } else if (!base.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             base += QStringLiteral("</table>");
         }
-    } else if (!base.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-        base += QStringLiteral("</table>");
+    } else {
+        const int lastTrEnd = base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
+        if (lastTrEnd >= 0) {
+            const int afterPos = lastTrEnd + QStringLiteral("</tr>").size();
+            const QString after = base.mid(afterPos);
+            const bool hasCompleteTail =
+                after.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)
+                || after.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)
+                || after.contains(QStringLiteral("<!--"), Qt::CaseInsensitive)
+                || after.contains(QStringLiteral("<table"), Qt::CaseInsensitive);
+            if (!after.trimmed().isEmpty() && !hasCompleteTail) {
+                base = base.left(afterPos);
+            }
+        }
+        if (!base.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            base += QStringLiteral("</table>");
+        }
     }
 
-    // Повторный блок всегда начинается с новой summary-таблицы и «Дата/специалист».
     if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
         session.prepend(protocolSummaryTableOpenHtml());
     }
