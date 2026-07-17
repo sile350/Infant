@@ -11,17 +11,22 @@
 
 #include "imagebutton.h"
 
+#include <QButtonGroup>
 #include <QColor>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QTextBrowser>
 #include <QTimer>
@@ -98,8 +103,9 @@ CanvasLayout paintCanvasLayout(const QString &exerciseId, const QString &stepId)
         return layout;
     }
     if (exerciseId == QStringLiteral("3.3.3")) {
-        layout.size = QSize(1000, 620);
-        layout.pos = QPoint(0, 140);
+        // Как в paint.Designer: pictureBox 1856×961 @ (52,107); traf1 @ (1100,50)
+        layout.size = QSize(1856, 961);
+        layout.pos = QPoint(52, 107);
         layout.trafPos = QPoint(1100, 50);
         layout.trafFile = QStringLiteral("traf1.png");
         return layout;
@@ -350,6 +356,13 @@ public:
         drawPixmapOnImage(&m_canvas, exerciseId, m_layout.trafFile, m_layout.trafPos);
         drawPixmapOnImage(&m_canvas, exerciseId, m_layout.traf2File, m_layout.traf2Pos);
         m_drawing = true;
+        if (exerciseId == QStringLiteral("3.3.3")) {
+            m_brushColor = QColor(QStringLiteral("#176ee3"));
+            m_brushWidth = 5;
+        } else {
+            m_brushColor = Qt::blue;
+            m_brushWidth = 20;
+        }
         m_timer->start();
         show();
         raise();
@@ -393,7 +406,7 @@ protected:
             return;
         }
         QPainter painter(&m_canvas);
-        painter.setPen(QPen(Qt::blue, 20, Qt::SolidLine, Qt::RoundCap));
+        painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap));
         if (m_hasLast) {
             painter.drawLine(m_lastPoint, canvasPt);
         }
@@ -434,8 +447,16 @@ protected:
         if (m_canvas.isNull() || !m_picture) {
             return;
         }
-        m_picture->setPixmap(QPixmap::fromImage(m_canvas));
-        m_picture->setFixedSize(m_canvas.size());
+        // Не вылезаем за экран: при необходимости уменьшаем отображение, сохраняя hit-test через mapToCanvas.
+        QPixmap full = QPixmap::fromImage(m_canvas);
+        const int maxW = qMax(100, width() - m_layout.pos.x() - 20);
+        const int maxH = qMax(100, height() - m_layout.pos.y() - 20);
+        QPixmap display = full;
+        if (display.width() > maxW || display.height() > maxH) {
+            display = full.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+        m_picture->setPixmap(display);
+        m_picture->setFixedSize(display.size());
         m_picture->move(m_layout.pos);
         m_picture->raise();
     }
@@ -445,6 +466,8 @@ protected:
     bool m_drawing = false;
     bool m_hasLast = false;
     QPoint m_lastPoint;
+    QColor m_brushColor = Qt::blue;
+    int m_brushWidth = 20;
 };
 
 class FindMarkRunner final : public PaintRunner {
@@ -645,13 +668,18 @@ public:
         const ExerciseDefinition &definition,
         const QString &stepId) override {
         TimedSessionRunner::startSession(exerciseId, definition, stepId);
+        if (m_picture) {
+            m_picture->hide();
+        }
         m_showA = new ClickableLabel(this);
         m_showB = new ClickableLabel(this);
         const QString hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
         const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
         if (!hidePath.isEmpty()) {
             m_showA->setPixmap(QPixmap(hidePath));
-            m_showB->setPixmap(QPixmap(hidePath));
+        }
+        if (!showPath.isEmpty()) {
+            m_showB->setPixmap(QPixmap(showPath));
         }
         m_showA->onClick = [this, showPath, hidePath]() { toggleCard(m_cardA, m_showA, showPath, hidePath); };
         m_showB->onClick = [this, showPath, hidePath]() { toggleCard(m_cardB, m_showB, showPath, hidePath); };
@@ -660,33 +688,86 @@ public:
         const QString aPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("a.png"));
         const QString bPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("b.png"));
         if (!aPath.isEmpty()) {
-            m_cardA->setPixmap(QPixmap(aPath));
+            const QPixmap aPixmap(aPath);
+            m_cardA->setPixmap(aPixmap);
+            m_cardA->setFixedSize(aPixmap.size());
         }
         if (!bPath.isEmpty()) {
-            m_cardB->setPixmap(QPixmap(bPath));
+            const QPixmap bPixmap(bPath);
+            m_cardB->setPixmap(bPixmap);
+            m_cardB->setFixedSize(bPixmap.size());
         }
-        m_cardA->hide();
+        // В оригинале картинка А видна сразу, Б скрыта.
+        m_cardA->show();
         m_cardB->hide();
         layoutRemember2();
     }
 
     void layoutRemember2() {
-        m_showA->move(200, 500);
-        m_showB->move(400, 500);
-        m_cardA->move(220, 200);
-        m_cardB->move(420, 200);
+        // remember2.Designer: кнопки 1120/1380@120, карточки 708/1284@174, stop 970@70
+        if (m_stop) {
+            m_stop->move(970, 70);
+            m_stop->show();
+            m_stop->raise();
+        }
+        if (m_showA) {
+            m_showA->move(1120, 120);
+            m_showA->show();
+            m_showA->raise();
+        }
+        if (m_showB) {
+            m_showB->move(1380, 120);
+            m_showB->show();
+            m_showB->raise();
+        }
+        if (m_cardA) {
+            m_cardA->move(708, 174);
+        }
+        if (m_cardB) {
+            m_cardB->move(1284, 174);
+        }
     }
 
     void toggleCard(QLabel *card, ClickableLabel *button, const QString &showPath, const QString &hidePath) {
-        if (card->isVisible()) {
-            card->hide();
-            if (!hidePath.isEmpty()) {
-                button->setPixmap(QPixmap(hidePath));
+        Q_UNUSED(button);
+        // Как в remember2.cs: кнопки переключают видимость А/Б взаимно.
+        if (card == m_cardA) {
+            if (m_cardA->isVisible()) {
+                m_cardA->hide();
+                if (!showPath.isEmpty()) {
+                    m_showA->setPixmap(QPixmap(showPath));
+                }
+            } else {
+                m_cardA->show();
+                m_cardB->hide();
+                if (!hidePath.isEmpty()) {
+                    m_showA->setPixmap(QPixmap(hidePath));
+                }
+                if (!showPath.isEmpty()) {
+                    m_showB->setPixmap(QPixmap(showPath));
+                }
             }
-        } else {
-            card->show();
-            if (!showPath.isEmpty()) {
-                button->setPixmap(QPixmap(showPath));
+            return;
+        }
+        if (card == m_cardB) {
+            if (m_cardB->isVisible()) {
+                m_cardB->hide();
+                m_cardA->show();
+                if (!showPath.isEmpty()) {
+                    m_showB->setPixmap(QPixmap(showPath));
+                }
+                if (!hidePath.isEmpty()) {
+                    m_showA->setPixmap(QPixmap(hidePath));
+                }
+            } else {
+                m_cardB->show();
+                m_cardA->hide();
+                if (!hidePath.isEmpty()) {
+                    m_showB->setPixmap(QPixmap(hidePath));
+                }
+                if (!showPath.isEmpty()) {
+                    m_showA->setPixmap(QPixmap(showPath));
+                }
             }
         }
     }
@@ -704,68 +785,131 @@ public:
 
 class E28Runner final : public TimedSessionRunner {
 public:
-    using TimedSessionRunner::TimedSessionRunner;
+    explicit E28Runner(QWidget *parent = nullptr) : TimedSessionRunner(parent) {
+        m_reference = new QLabel(this);
+        m_task = new QLabel(this);
+        m_next = new ClickableLabel(this);
+        m_toggle = new ClickableLabel(this);
+        m_reference->hide();
+        m_task->hide();
+        m_next->hide();
+        m_toggle->hide();
+    }
 
     void startSession(
         const QString &exerciseId,
         const ExerciseDefinition &definition,
         const QString &stepId) override {
-        TimedSessionRunner::startSession(exerciseId, definition, stepId);
-        m_reference = new QLabel(this);
-        m_task = new QLabel(this);
-        const QString refPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("1.png"));
+        Q_UNUSED(definition);
+        m_exerciseId = exerciseId;
+        m_stepId = stepId;
+        m_elapsed = 0;
+        m_capturePath.clear();
+        m_pixmap = QPixmap();
+        if (m_picture) {
+            m_picture->hide();
+        }
+
+        QString refPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("1.png"));
+        if (refPath.isEmpty()) {
+            refPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("1.PNG"));
+        }
         if (!refPath.isEmpty()) {
             const QPixmap refPixmap(refPath);
             m_reference->setPixmap(refPixmap);
             m_reference->setFixedSize(refPixmap.size());
+            m_reference->show();
+        } else {
+            m_reference->hide();
         }
-        m_next = new ClickableLabel(this);
+        m_task->clear();
+        m_task->hide();
+
         const QString nextPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("next.png"));
         if (!nextPath.isEmpty()) {
-            m_next->setPixmap(QPixmap(nextPath));
+            const QPixmap nextPixmap(nextPath);
+            m_next->setPixmap(nextPixmap);
+            m_next->setFixedSize(nextPixmap.size());
+            m_next->show();
         }
         m_next->onClick = [this, exerciseId]() {
-            const QString taskPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("2.png"));
+            QString taskPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("2.png"));
+            if (taskPath.isEmpty()) {
+                taskPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("2.PNG"));
+            }
             if (!taskPath.isEmpty()) {
                 const QPixmap taskPixmap(taskPath);
                 m_task->setPixmap(taskPixmap);
                 m_task->setFixedSize(taskPixmap.size());
+                m_task->show();
             }
             m_reference->hide();
             m_next->hide();
+            const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
+            if (!showPath.isEmpty()) {
+                const QPixmap showPixmap(showPath);
+                m_toggle->setPixmap(showPixmap);
+                m_toggle->setFixedSize(showPixmap.size());
+                m_toggle->show();
+            }
+            layoutE28();
         };
-        m_toggle = new ClickableLabel(this);
-        const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
-        if (!showPath.isEmpty()) {
-            m_toggle->setPixmap(QPixmap(showPath));
-        }
-        m_toggle->onClick = [this, exerciseId, showPath]() {
+
+        m_toggle->hide();
+        m_toggle->onClick = [this, exerciseId]() {
             if (m_reference->isVisible()) {
                 m_reference->hide();
                 const QString hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
                 if (!hidePath.isEmpty()) {
-                    m_toggle->setPixmap(QPixmap(hidePath));
+                    const QPixmap hidePixmap(hidePath);
+                    m_toggle->setPixmap(hidePixmap);
+                    m_toggle->setFixedSize(hidePixmap.size());
                 }
             } else {
                 m_reference->show();
+                const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
                 if (!showPath.isEmpty()) {
-                    m_toggle->setPixmap(QPixmap(showPath));
+                    const QPixmap showPixmap(showPath);
+                    m_toggle->setPixmap(showPixmap);
+                    m_toggle->setFixedSize(showPixmap.size());
                 }
             }
+            layoutE28();
         };
+
+        m_timer->start();
+        show();
+        raise();
+        layoutE28();
+        m_stop->move(970, 70);
+        m_stop->show();
+        m_stop->raise();
+    }
+
+    void layoutUi() override {
+        m_stop->move(970, 70);
+        m_stop->raise();
         layoutE28();
     }
 
     void layoutE28() {
-        m_reference->move(900, 200);
-        m_task->move(500, 200);
-        m_next->move(250, 72);
-        m_toggle->move(450, 72);
-    }
-
-    void resizeEvent(QResizeEvent *event) override {
-        TimedSessionRunner::resizeEvent(event);
-        layoutE28();
+        if (m_reference) {
+            m_reference->move(900, 200);
+            m_reference->raise();
+        }
+        if (m_task) {
+            m_task->move(500, 200);
+            m_task->raise();
+        }
+        if (m_next) {
+            m_next->move(m_stop->x() + m_stop->width() + 24, 70);
+            m_next->raise();
+        }
+        if (m_toggle) {
+            m_toggle->move(m_stop->x() + m_stop->width() + 24, 70);
+            m_toggle->raise();
+        }
+        m_stop->raise();
     }
 
     QLabel *m_reference = nullptr;
@@ -786,26 +930,63 @@ public:
         Q_UNUSED(stepId);
         m_exerciseId = exerciseId;
         m_elapsed = 0;
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(120, 120, 120, 120);
-        auto *title = new QLabel(QStringLiteral("Выберите цифры и нажмите «Стоп»"), this);
-        layout->addWidget(title);
-        auto *row1 = new QWidget(this);
-        auto *row1Layout = new QVBoxLayout(row1);
-        for (int i = 1; i <= 8; ++i) {
-            auto *radio = new QRadioButton(QString::number(i), row1);
+        m_row1.clear();
+        m_row2.clear();
+
+        // Как в digits.Designer: две группы рядов цифр.
+        static const QStringList kLeft = {
+            QStringLiteral("9"),
+            QStringLiteral("2 4"),
+            QStringLiteral("3 8 6"),
+            QStringLiteral("1 5 8 5"),
+            QStringLiteral("4 6 2 3 9"),
+            QStringLiteral("4 8 9 1 7 3"),
+            QStringLiteral("5 1 7 4 2 3 8"),
+            QStringLiteral("1 4 2 5 9 7 6 3"),
+        };
+        static const QStringList kRight = {
+            QStringLiteral("4 9 1 6 3 2 5 8"),
+            QStringLiteral("8 5 9 2 3 4 6"),
+            QStringLiteral("1 6 5 2 9 8"),
+            QStringLiteral("4 1 3 7 2"),
+            QStringLiteral("9 2 6 5"),
+            QStringLiteral("4 1 7"),
+            QStringLiteral("2 5"),
+            QStringLiteral("3"),
+        };
+
+        auto *host = new QWidget(this);
+        host->setGeometry(200, 140, 1200, 800);
+        auto *layout = new QHBoxLayout(host);
+        layout->setSpacing(80);
+
+        auto *group1 = new QGroupBox(QStringLiteral("Ряд 1"), host);
+        auto *row1Layout = new QVBoxLayout(group1);
+        auto *group1Exclusive = new QButtonGroup(this);
+        for (int i = 0; i < kLeft.size(); ++i) {
+            auto *radio = new QRadioButton(kLeft.at(i), group1);
+            radio->setProperty("digitValue", i + 1);
+            group1Exclusive->addButton(radio);
             m_row1 << radio;
             row1Layout->addWidget(radio);
         }
-        layout->addWidget(row1);
-        auto *row2 = new QWidget(this);
-        auto *row2Layout = new QVBoxLayout(row2);
-        for (int i = 8; i >= 1; --i) {
-            auto *radio = new QRadioButton(QString::number(i), row2);
+        layout->addWidget(group1);
+
+        auto *group2 = new QGroupBox(QStringLiteral("Ряд 2"), host);
+        auto *row2Layout = new QVBoxLayout(group2);
+        auto *group2Exclusive = new QButtonGroup(this);
+        for (int i = 0; i < kRight.size(); ++i) {
+            auto *radio = new QRadioButton(kRight.at(i), group2);
+            // В оригинале radio16=8 … radio9=1
+            radio->setProperty("digitValue", 8 - i);
+            group2Exclusive->addButton(radio);
             m_row2 << radio;
             row2Layout->addWidget(radio);
         }
-        layout->addWidget(row2);
+        layout->addWidget(group2);
+
+        m_host = host;
+        m_stop->move(970, 70);
         m_stop->show();
         m_stop->raise();
         m_timer->start();
@@ -818,13 +999,13 @@ public:
         QString second;
         for (QRadioButton *radio : m_row1) {
             if (radio->isChecked()) {
-                first = radio->text();
+                first = radio->property("digitValue").toString();
                 break;
             }
         }
         for (QRadioButton *radio : m_row2) {
             if (radio->isChecked()) {
-                second = radio->text();
+                second = radio->property("digitValue").toString();
                 break;
             }
         }
@@ -832,14 +1013,25 @@ public:
         result.elapsedSeconds = m_elapsed;
         if (!first.isEmpty() && !second.isEmpty()) {
             result.additional = first + QLatin1Char('/') + second;
+        } else if (!first.isEmpty()) {
+            result.additional = first;
         }
         m_timer->stop();
         hide();
         emitFinished(result);
     }
 
+    void layoutUi() override {
+        m_stop->move(970, 70);
+        m_stop->raise();
+        if (m_host) {
+            m_host->setGeometry(200, 140, qMax(400, width() - 400), qMax(300, height() - 200));
+        }
+    }
+
     QList<QRadioButton *> m_row1;
     QList<QRadioButton *> m_row2;
+    QWidget *m_host = nullptr;
 };
 
 class HtmlTableRunner final : public TimedSessionRunner {
@@ -861,16 +1053,21 @@ public:
             if (!table2.isEmpty()) {
                 QFile file(table2);
                 if (file.open(QIODevice::ReadOnly)) {
-                    m_browser->setHtml(QString::fromUtf8(file.readAll()));
+                    m_tableHtml = QString::fromUtf8(file.readAll());
+                    m_browser->setHtml(ExerciseAssets::prepareExerciseHtml(
+                        m_tableHtml, QFileInfo(table2).absolutePath()));
                 }
             }
         } else {
             QFile file(tablePath);
             if (file.open(QIODevice::ReadOnly)) {
-                m_browser->setHtml(QString::fromUtf8(file.readAll()));
+                m_tableHtml = QString::fromUtf8(file.readAll());
+                m_browser->setHtml(ExerciseAssets::prepareExerciseHtml(
+                    m_tableHtml, QFileInfo(tablePath).absolutePath()));
             }
         }
         m_browser->setGeometry(100, 120, width() - 200, height() - 200);
+        m_stop->move(970, 70);
         m_stop->show();
         m_stop->raise();
         m_timer->start();
@@ -878,12 +1075,51 @@ public:
         raise();
     }
 
+    static QString extractDivById(const QString &html, const QString &id) {
+        const QRegularExpression re(
+            QStringLiteral("<div[^>]*\\bid=['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
+                .arg(QRegularExpression::escape(id)),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch match = re.match(html);
+        if (!match.hasMatch()) {
+            return {};
+        }
+        QString inner = match.captured(1);
+        inner.replace(QRegularExpression(QStringLiteral("<[^>]+>")), QString());
+        return inner.trimmed();
+    }
+
+    QString collectAdditional() const {
+        // Берём актуальный HTML из браузера (после правок contenteditable).
+        const QString html = m_browser ? m_browser->toHtml() : m_tableHtml;
+        if (m_exerciseId == QStringLiteral("5.1.1")) {
+            QStringList parts;
+            for (int i = 1; i <= 8; ++i) {
+                parts << extractDivById(html, QStringLiteral("data%1").arg(i));
+            }
+            return parts.join(QLatin1Char('['));
+        }
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
+            QStringList parts;
+            for (int i = 1; i <= 10; ++i) {
+                parts << extractDivById(html, QStringLiteral("data%1").arg(i));
+            }
+            return parts.join(QLatin1Char(';'));
+        }
+        if (m_exerciseId == QStringLiteral("4.2.2")) {
+            QStringList parts;
+            for (int i = 1; i <= 6; ++i) {
+                parts << extractDivById(html, QStringLiteral("p%1").arg(i));
+            }
+            return parts.join(QLatin1Char(';'));
+        }
+        return m_browser ? m_browser->toPlainText().left(4000) : QString();
+    }
+
     void finish() override {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_elapsed;
-        if (m_browser) {
-            result.additional = m_browser->toPlainText().left(4000);
-        }
+        result.additional = collectAdditional();
         m_timer->stop();
         hide();
         emitFinished(result);
@@ -894,9 +1130,14 @@ public:
         if (m_browser) {
             m_browser->setGeometry(100, 120, qMax(200, width() - 200), qMax(200, height() - 200));
         }
+        if (m_stop) {
+            m_stop->move(970, 70);
+            m_stop->raise();
+        }
     }
 
     QTextBrowser *m_browser = nullptr;
+    QString m_tableHtml;
 };
 
 class PuzzlesRunner : public ExerciseRunnerWidget {
@@ -969,7 +1210,8 @@ private:
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
-        result.additional = m_canvas ? m_canvas->positionsSnapshot() : QString();
+        // Для NumberedDoneTime хост сам соберёт №;done — не перетираем позициями.
+        result.additional.clear();
         m_canvas->hide();
         m_stop->hide();
         hide();
@@ -1096,12 +1338,17 @@ public:
         QPixmap backPixmap(zeroPath);
 
         if (exerciseId == QStringLiteral("4.1.5")) {
-            FlipCardCanvas::Card card;
-            card.front = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("1.png")));
-            card.back = backPixmap;
-            card.x = 50;
-            card.y = 81;
-            cards.append(card);
+            // cards.cs: 1,5,4,6,3,2 в ряд с шагом 250
+            const int order[] = {1, 5, 4, 6, 3, 2};
+            for (int i = 0; i < 6; ++i) {
+                FlipCardCanvas::Card card;
+                card.front = QPixmap(ExerciseAssets::exerciseFile(
+                    exerciseId, QString::number(order[i]) + QStringLiteral(".png")));
+                card.back = backPixmap;
+                card.x = 50 + i * 250;
+                card.y = 81;
+                cards.append(card);
+            }
         } else if (exerciseId == QStringLiteral("4.1.6")) {
             int count = 1;
             int linex = 910;
@@ -1397,6 +1644,9 @@ private:
 class EmotionsRunner final : public ExerciseRunnerWidget {
 public:
     explicit EmotionsRunner(QWidget *parent = nullptr) : ExerciseRunnerWidget(parent) {
+        setAttribute(Qt::WA_StyledBackground, true);
+        setAutoFillBackground(true);
+        setStyleSheet(QStringLiteral("background-color:#ffffff;"));
         m_canvas = new E126Canvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
@@ -1443,7 +1693,10 @@ private:
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
-        result.additional = m_canvas ? m_canvas->answersSnapshot() : QString();
+        // Для протоколов 1.26/1.272: номер задания + ответы.
+        const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
+        result.additional = (m_stepId.isEmpty() ? QStringLiteral("1") : m_stepId) + QLatin1Char(';')
+            + answers;
         m_canvas->hide();
         m_stop->hide();
         hide();

@@ -49,6 +49,20 @@ int scoreExercise11(int time) {
     return 0;
 }
 
+int scoreExercise412(int time) {
+    if (time <= 45) return 10;
+    if (time <= 47) return 9;
+    if (time <= 50) return 8;
+    if (time <= 55) return 7;
+    if (time <= 60) return 6;
+    if (time <= 65) return 5;
+    if (time <= 70) return 4;
+    if (time <= 75) return 3;
+    if (time <= 80) return 2;
+    if (time <= 85) return 1;
+    return 0;
+}
+
 int scoreExercise18(int time) {
     if (time <= 20) return 10;
     if (time <= 25) return 9;
@@ -82,8 +96,15 @@ QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
         return QString();
     }
-    const QStringList parts = text.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
-    return parts.join(QStringLiteral("<br>"));
+    const QStringList parts = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
+    QStringList lines;
+    for (const QString &part : parts) {
+        const QString trimmed = part.trimmed();
+        if (!trimmed.isEmpty()) {
+            lines << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+        }
+    }
+    return lines.join(QStringLiteral("<br>"));
 }
 
 QString dateSpecialistRow(const QString &userFio, int colspan = 2) {
@@ -336,6 +357,33 @@ QString createExerciseProtocolBodyFallback(
             "<tr><td width='300' align='center'>Характер деятельности ребенка</td>"
             "<td width='300' align='center'>Виды помощи</td>"
             "<td width='69' align='center'>Баллы</td></tr>");
+        QString initialHeader = header;
+        if (definition.id == QStringLiteral("4.1.2")) {
+            const int score = scoreExercise412(elapsedSeconds);
+            // В fallback без шаблона — сразу подставляем баллы/уровень.
+            QString body = dateSpecialistRow(userFio, 2);
+            body += QStringLiteral(
+                "<tr><td>Результат:баллы (макс.) /<br>вывод об уровне развития</td><td>")
+                + editableCell(QStringLiteral("%1(10)/%2").arg(score).arg(developmentLevel(score)))
+                + QStringLiteral("</td></tr>");
+            body += QStringLiteral("<tr><td>Примечание</td><td>") + editableCell()
+                + QStringLiteral("</td></tr>");
+            body += QStringLiteral(
+                "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
+                "</table><!--s-->");
+            body += header;
+            body += QStringLiteral("<tr><td valign='top'>")
+                + editableCell(formatProtocolCellText(checkboxes.activity))
+                + QStringLiteral("</td><td valign='top'>")
+                + editableCell(formatProtocolCellText(checkboxes.help))
+                + QStringLiteral("</td><td align='center'>") + editableCell(QString::number(score))
+                + QStringLiteral("</td></tr>");
+            if (partly) {
+                return appendOrHlpRow(base, checkboxes, true);
+            }
+            return body;
+        }
+        Q_UNUSED(initialHeader);
         if (partly) {
             return appendOrHlpRow(base, checkboxes, true);
         }

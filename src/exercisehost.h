@@ -68,6 +68,8 @@ private:
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
+    void resetProtocolToInitialTemplate();
+    void updateProtocolEditMode();
     void setExerciseChromeVisible(bool visible);
     void showExerciseOverlay();
     void restoreExerciseOverlay();
@@ -81,6 +83,9 @@ private:
     QString orHtmlSnapshot() const;
     ProtocolSessionInput buildProtocolSession() const;
     QString currentStepId() const;
+    QString selectedDoneState() const;
+    bool needsDoneStatePanel() const;
+    int nextNumberedProtocolIndex() const;
 
     QString m_exerciseId;
     QString m_patientId;
@@ -117,10 +122,13 @@ private:
     QTextEdit *m_templateBrowser = nullptr;
     QList<ExerciseCheckRow> m_activityChecks;
     QList<ExerciseCheckRow> m_helpChecks;
+    QList<ExerciseCheckRow> m_doneChecks;
+    QWidget *m_donePanel = nullptr;
     QLabel *m_previewImage = nullptr;
     QPixmap m_previewSource;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;
+    QLabel *m_timeResultLabel = nullptr;
     ImageButton *m_beginButton = nullptr;
     ImageButton *m_formProtocolButton = nullptr;
     QComboBox *m_stepCombo = nullptr;

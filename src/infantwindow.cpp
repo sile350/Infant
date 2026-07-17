@@ -1389,9 +1389,9 @@ void InfantWindow::buildUi() {
         "font-size:9pt; background: transparent;"));
 
     m_protocolsView = new QTextEdit(m_panelProtocols);
-    m_protocolsView->setReadOnly(false);
-    m_protocolsView->setTextInteractionFlags(Qt::TextEditorInteraction);
-    m_protocolsView->setFocusPolicy(Qt::StrongFocus);
+    m_protocolsView->setReadOnly(true);
+    m_protocolsView->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    m_protocolsView->setFocusPolicy(Qt::NoFocus);
     m_protocolsView->setGeometry(100, 99, 760, 889);
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);
@@ -1414,24 +1414,14 @@ void InfantWindow::buildUi() {
         m_protocolsView->viewport()->setStyleSheet(
             QStringLiteral("background-color: #ffffff; background-image: none; color: #000000;")
         );
+        m_protocolsView->viewport()->setCursor(Qt::ArrowCursor);
     }
 
     m_protocolsSaveTimer = new QTimer(this);
     m_protocolsSaveTimer->setSingleShot(true);
     m_protocolsSaveTimer->setInterval(700);
-    ProtocolEditGuard::install(m_protocolsView);
-    connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
-    connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
-        if (m_protocolsSuppressDirty
-            || m_currentScreen != ScreenMode::Protocols
-            || m_currentPatientId.isEmpty()) {
-            return;
-        }
-        m_protocolsViewDirty = true;
-        if (m_protocolsSaveTimer) {
-            m_protocolsSaveTimer->start();
-        }
-    });
+    ProtocolEditGuard::install(m_protocolsView, ProtocolEditGuard::Mode::ReadOnly);
+    // Сохранённые протоколы только для просмотра — автосохранение правок отключено.
 
     m_panelExercises = new WhitePanelWidget(m_workStack);
     m_panelExercises->setObjectName(QStringLiteral("exercisesPanel"));
@@ -2206,6 +2196,9 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     m_bSave->setVisible(workScreen);
     m_bPrint->setVisible(workScreen);
     m_bSettings->setVisible(anamnesis);
+    if (!anamnesis && m_settingsPanel && m_settingsPanel->isVisible()) {
+        m_settingsPanel->hide();
+    }
     m_bPicPrint->setVisible(false);
     m_bUpload->setVisible(false);
     m_bInfo->setVisible(true);
@@ -2229,7 +2222,9 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
         m_pUpr->raise();
         m_bSave->raise();
         m_bPrint->raise();
-        m_bSettings->raise();
+        if (anamnesis) {
+            m_bSettings->raise();
+        }
     }
 
     if (patients) {
@@ -4689,19 +4684,26 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         m_workStack->lower();
     }
     m_exerciseHost->raise();
+    if (m_bSettings) {
+        m_bSettings->hide();
+    }
     raiseChromeWidgets();
 }
 
 void InfantWindow::setWorkChromeVisible(bool visible) {
     const bool exercisesList = m_currentScreen == ScreenMode::Exercises && !m_exerciseOpen;
+    const bool showSettings = visible && m_currentScreen == ScreenMode::Anamnesis;
     const QWidgetList chromeWidgets = {
-        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
+        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bInfo,
         m_pAna, m_pProto, m_pUpr, m_patientTitle, m_userOpenPatients
     };
     for (QWidget *widget : chromeWidgets) {
         if (widget) {
             widget->setVisible(visible);
         }
+    }
+    if (m_bSettings) {
+        m_bSettings->setVisible(showSettings);
     }
     if (m_authorsFilterHost) {
         m_authorsFilterHost->setVisible(visible && exercisesList);

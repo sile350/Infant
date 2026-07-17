@@ -6,9 +6,12 @@
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextTable>
+#include <QVariant>
 #include <QWidget>
 
 namespace {
+
+constexpr char kGuardProperty[] = "protocolEditGuard";
 
 QString readProtocolTableCellText(QTextTable *table, int row, int column) {
     if (!table || row < 0 || column < 0 || row >= table->rows() || column >= table->columns()) {
@@ -26,21 +29,10 @@ QString readProtocolTableCellText(QTextTable *table, int row, int column) {
     return text.trimmed();
 }
 
-bool tableHasActivityHelpHeader(QTextTable *table) {
-    if (!table) {
-        return false;
-    }
-    const int rows = qMin(3, table->rows());
-    const int columns = table->columns();
-    for (int row = 0; row < rows; ++row) {
-        for (int col = 0; col < columns; ++col) {
-            const QString text = readProtocolTableCellText(table, row, col);
-            if (text.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
-                return true;
-            }
-        }
-    }
-    return false;
+bool isLockedHeaderCell(const QString &cellText) {
+    return cellText.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+        || cellText.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+        || cellText.contains(QStringLiteral("Виды возможной помощи"), Qt::CaseInsensitive);
 }
 
 bool isEditableProtocolCursor(const QTextCursor &cursor) {
@@ -54,6 +46,10 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
     }
     const int row = cell.row();
     const int col = cell.column();
+    const QString cellText = readProtocolTableCellText(table, row, col);
+    if (isLockedHeaderCell(cellText)) {
+        return false;
+    }
     const QString firstCell = readProtocolTableCellText(table, row, 0);
     if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive) && col == 1) {
         return true;
@@ -61,20 +57,20 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
     if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
         return true;
     }
-    if ((col == 2 || col == 3) && tableHasActivityHelpHeader(table)) {
-        return true;
-    }
     return false;
 }
 
 class ProtocolEditGuardImpl final : public QObject {
 public:
-    explicit ProtocolEditGuardImpl(QTextEdit *editor)
-        : QObject(editor), m_editor(editor) {
+    explicit ProtocolEditGuardImpl(QTextEdit *editor, ProtocolEditGuard::Mode mode)
+        : QObject(editor)
+        , m_editor(editor)
+        , m_mode(mode) {
         if (!m_editor) {
             return;
         }
-        m_editor->setCursorWidth(0);
+        m_editor->setProperty(kGuardProperty, QVariant::fromValue(static_cast<QObject *>(this)));
+        applyModeToEditor();
         connect(m_editor, &QTextEdit::cursorPositionChanged, this, &ProtocolEditGuardImpl::enforceCursor);
         m_editor->installEventFilter(this);
         if (QWidget *viewport = m_editor->viewport()) {
@@ -83,10 +79,49 @@ public:
         }
     }
 
+    void setMode(ProtocolEditGuard::Mode mode) {
+        if (m_mode == mode) {
+            return;
+        }
+        m_mode = mode;
+        m_lastEditablePos = -1;
+        applyModeToEditor();
+        enforceCursor();
+    }
+
+    ProtocolEditGuard::Mode mode() const { return m_mode; }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override {
         Q_UNUSED(watched);
         if (!m_editor) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        if (m_mode == ProtocolEditGuard::Mode::ReadOnly) {
+            switch (event->type()) {
+            case QEvent::MouseButtonPress:
+            case QEvent::MouseButtonRelease:
+            case QEvent::MouseButtonDblClick:
+            case QEvent::KeyPress:
+            case QEvent::InputMethod:
+                // Прокрутка/выделение ссылок не нужны — блокируем ввод и установку курсора.
+                if (event->type() == QEvent::MouseButtonPress
+                    || event->type() == QEvent::MouseButtonDblClick) {
+                    m_editor->setCursorWidth(0);
+                    m_editor->clearFocus();
+                    return true;
+                }
+                if (event->type() == QEvent::KeyPress || event->type() == QEvent::InputMethod) {
+                    return true;
+                }
+                break;
+            case QEvent::FocusIn:
+                m_editor->setCursorWidth(0);
+                break;
+            default:
+                break;
+            }
             return QObject::eventFilter(watched, event);
         }
 
@@ -114,6 +149,24 @@ protected:
     }
 
 private:
+    void applyModeToEditor() {
+        if (!m_editor) {
+            return;
+        }
+        if (m_mode == ProtocolEditGuard::Mode::ReadOnly) {
+            m_editor->setReadOnly(true);
+            m_editor->setTextInteractionFlags(Qt::TextBrowserInteraction);
+            m_editor->setCursorWidth(0);
+            if (m_editor->viewport()) {
+                m_editor->viewport()->setCursor(Qt::ArrowCursor);
+            }
+        } else {
+            m_editor->setReadOnly(false);
+            m_editor->setTextInteractionFlags(Qt::TextEditorInteraction);
+            m_editor->setCursorWidth(0);
+        }
+    }
+
     QTextCursor cursorAtViewportPos(const QPoint &viewportPos) const {
         QTextCursor cursor(m_editor->document());
         if (!m_editor->viewport()) {
@@ -174,12 +227,17 @@ private:
             cursor.clearSelection();
             m_editor->setTextCursor(cursor);
             m_editor->setCursorWidth(0);
+            m_editor->clearFocus();
         }
         m_guarding = false;
     }
 
     void enforceCursor() {
         if (m_guarding || !m_editor) {
+            return;
+        }
+        if (m_mode == ProtocolEditGuard::Mode::ReadOnly) {
+            m_editor->setCursorWidth(0);
             return;
         }
         const QTextCursor current = m_editor->textCursor();
@@ -192,15 +250,39 @@ private:
     }
 
     QTextEdit *m_editor = nullptr;
+    ProtocolEditGuard::Mode m_mode = ProtocolEditGuard::Mode::LimitedEdit;
     int m_lastEditablePos = -1;
     bool m_guarding = false;
 };
 
+ProtocolEditGuardImpl *guardFor(QTextEdit *editor) {
+    if (!editor) {
+        return nullptr;
+    }
+    return static_cast<ProtocolEditGuardImpl *>(
+        editor->property(kGuardProperty).value<QObject *>());
+}
+
 } // namespace
 
-void ProtocolEditGuard::install(QTextEdit *editor) {
+void ProtocolEditGuard::install(QTextEdit *editor, Mode mode) {
     if (!editor) {
         return;
     }
-    new ProtocolEditGuardImpl(editor);
+    if (ProtocolEditGuardImpl *existing = guardFor(editor)) {
+        existing->setMode(mode);
+        return;
+    }
+    new ProtocolEditGuardImpl(editor, mode);
+}
+
+void ProtocolEditGuard::setMode(QTextEdit *editor, Mode mode) {
+    if (!editor) {
+        return;
+    }
+    if (ProtocolEditGuardImpl *existing = guardFor(editor)) {
+        existing->setMode(mode);
+        return;
+    }
+    install(editor, mode);
 }

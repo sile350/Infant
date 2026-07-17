@@ -5,8 +5,16 @@ class QTextEdit;
 
 namespace ProtocolEditGuard {
 
-void install(QTextEdit *editor);
+enum class Mode {
+    // Полный запрет редактирования (вкладка «Протоколы», шаблон до формирования).
+    ReadOnly,
+    // После формирования: только «Результат» и «Примечание».
+    LimitedEdit
+};
 
-}
+void install(QTextEdit *editor, Mode mode = Mode::LimitedEdit);
+void setMode(QTextEdit *editor, Mode mode);
+
+} // namespace ProtocolEditGuard
 
 #endif

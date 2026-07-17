@@ -41,6 +41,7 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpression>
 #include <QScrollBar>
 #include <QSizePolicy>
 #include <QStyleOption>
@@ -435,6 +436,43 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         checkboxLayout,
         initialCheckWidth);
 
+    for (const ExerciseCheckRow &row : m_helpChecks) {
+        connect(row.box, &QCheckBox::toggled, this, [this](bool) {});
+    }
+
+    m_donePanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
+    auto *doneOuter = new QHBoxLayout(m_donePanel);
+    doneOuter->setContentsMargins(0, 8, 0, 0);
+    doneOuter->setSpacing(16);
+    auto *doneTitle = new WhiteLabel(QStringLiteral("Выполнение"), m_donePanel);
+    doneTitle->setStyleSheet(QStringLiteral("font: 10pt 'Microsoft Sans Serif'; color:#000000;"));
+    doneOuter->addWidget(doneTitle, 0, Qt::AlignTop);
+    auto *doneChecksHost = new QWidget(m_donePanel);
+    auto *doneChecksLayout = new QVBoxLayout(doneChecksHost);
+    doneChecksLayout->setContentsMargins(8, 4, 8, 4);
+    doneChecksLayout->setSpacing(4);
+    doneChecksHost->setStyleSheet(
+        QStringLiteral("QWidget { background:#f0f0f0; border:1px solid #808080; }"));
+    m_doneChecks << makeCheckRow(QStringLiteral("Выполнено"), doneChecksLayout, 220)
+                 << makeCheckRow(QStringLiteral("Выполнено частично"), doneChecksLayout, 220)
+                 << makeCheckRow(QStringLiteral("Не выполнено"), doneChecksLayout, 220);
+    for (const ExerciseCheckRow &row : m_doneChecks) {
+        connect(row.box, &QCheckBox::toggled, this, [this, row](bool checked) {
+            if (!checked) {
+                return;
+            }
+            for (const ExerciseCheckRow &other : m_doneChecks) {
+                if (other.box && other.box != row.box) {
+                    other.box->setChecked(false);
+                }
+            }
+        });
+    }
+    doneOuter->addWidget(doneChecksHost, 0, Qt::AlignLeft | Qt::AlignTop);
+    doneOuter->addStretch(1);
+    m_donePanel->hide();
+    evaluationLayout->addWidget(m_donePanel);
+
     evaluationLayout->addWidget(m_checkboxPanel);
 
     m_templatePanel = new OpaquePanel(kDocumentBg, m_scrollContent);
@@ -453,7 +491,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     templateLayout->addSpacing(12);
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
-    ProtocolEditGuard::install(m_templateBrowser);
+    ProtocolEditGuard::install(m_templateBrowser, ProtocolEditGuard::Mode::ReadOnly);
     templateLayout->addWidget(m_templateBrowser);
 
     m_protocolSaveTimer = new QTimer(this);
@@ -461,7 +499,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_protocolSaveTimer->setInterval(700);
     connect(m_protocolSaveTimer, &QTimer::timeout, this, &ExerciseHost::saveProtocolEdits);
     connect(m_templateBrowser->document(), &QTextDocument::contentsChanged, this, [this]() {
-        if (!m_currentProtocolId.isEmpty()) {
+        if (!m_protocolSavedThisSession || m_currentProtocolId.isEmpty()) {
+            return;
+        }
+        if (m_protocolSaveTimer) {
             m_protocolSaveTimer->start();
         }
     });
@@ -498,10 +539,21 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_wrongCountLabel->setStyleSheet(m_rightCountLabel->styleSheet());
     m_wrongCountLabel->hide();
 
+    m_timeResultLabel = new QLabel(m_rightPanel);
+    m_timeResultLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_timeResultLabel->setStyleSheet(QStringLiteral(
+        "QLabel { font: bold 16pt 'Arial'; color: #000000; background: transparent; border: none; }"));
+    m_timeResultLabel->hide();
+
     m_stepCombo = new QComboBox(m_rightPanel);
     m_stepCombo->setStyleSheet(
         "QComboBox { background:#ffffff; color:#000000; border:1px solid #000000; "
-        "font-family:'Microsoft Sans Serif'; font-size:14px; padding:2px 8px; }");
+        "font-family:'Microsoft Sans Serif'; font-size:14px; padding:2px 8px; }"
+        "QComboBox QAbstractItemView { background:#ffffff; color:#000000; selection-background-color:#cce8ff; "
+        "outline:0; border:1px solid #808080; }"
+        "QComboBox::drop-down { border:0; width:20px; background:#ffffff; }"
+        "QComboBox::down-arrow { image:none; width:0; height:0; border-left:4px solid transparent; "
+        "border-right:4px solid transparent; border-top:6px solid #000000; margin-right:6px; }");
     m_stepCombo->hide();
 
     m_exerciseOptionsPanel = new QWidget(m_rightPanel);
@@ -611,12 +663,15 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
+        // Перед новой попыткой — снова «пустой» шаблон, как при первом входе.
+        resetProtocolToInitialTemplate();
         runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
         m_answers = answers;
         m_elapsedSeconds = elapsedSeconds;
+        m_picturesShown = m_onlyP ? m_onlyP->picturesShown() : m_picturesShown;
         m_exerciseDone = true;
         m_protocolFormed = false;
         m_exerciseRunning = false;
@@ -775,6 +830,9 @@ void ExerciseHost::openExercise(
     m_elapsedSeconds = 0;
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
+    if (m_timeResultLabel) {
+        m_timeResultLabel->hide();
+    }
     setExerciseChromeVisible(true);
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
@@ -814,14 +872,25 @@ void ExerciseHost::updatePreviewLayout() {
     const int localY = kPreviewAbsTop;
     const int maxW = qMax(120, width() - kPreviewAbsLeft - 16);
     const int maxH = qMax(120, height() - kPreviewAbsTop - 16);
-    const QPixmap display = m_previewSource.width() <= maxW && m_previewSource.height() <= maxH
-        ? m_previewSource
-        : m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPixmap display = m_previewSource;
+    if (m_exerciseId == QStringLiteral("1.1")) {
+        display = m_previewSource.scaled(
+            qMax(1, m_previewSource.width() / 2),
+            qMax(1, m_previewSource.height() / 2),
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation);
+    } else if (display.width() > maxW || display.height() > maxH) {
+        display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
     m_previewImage->setPixmap(display);
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
     m_previewImage->raise();
+    if (m_timeResultLabel && m_timeResultLabel->isVisible()) {
+        m_timeResultLabel->move(qMax(0, localX), qMax(8, localY - 36));
+        m_timeResultLabel->raise();
+    }
 }
 
 void ExerciseHost::loadExercise() {
@@ -832,8 +901,35 @@ void ExerciseHost::loadExercise() {
 
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
-    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+    if (m_repository && m_partly) {
+        const QString lastBody = m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
+        const QString lastId = m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId);
+        if (!lastBody.trimmed().isEmpty()) {
+            m_currentProtocolId = lastId;
+            const QString viewHtml = m_repository->loadProtocolViewHtml(
+                m_exerciseId, lastId, m_patientFio, m_patientBirthDate);
+            if (!viewHtml.trimmed().isEmpty()) {
+                m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+            } else {
+                m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+            }
+        } else {
+            m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+        }
+    } else {
+        m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+    }
     applyCompactLineHeight(m_templateBrowser->document());
+    updateProtocolEditMode();
+
+    if (m_donePanel) {
+        m_donePanel->setVisible(needsDoneStatePanel());
+    }
+    for (const ExerciseCheckRow &row : m_doneChecks) {
+        if (row.box) {
+            row.box->setChecked(false);
+        }
+    }
 
     m_previewSource = QPixmap();
     const QString previewPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
@@ -956,10 +1052,13 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
         m_previewImage->setVisible(visible && !m_previewSource.isNull() && !(m_dualScreen && m_exerciseRunning));
     }
     if (m_rightCountLabel) {
-        m_rightCountLabel->setVisible(visible && m_exerciseDone);
+        m_rightCountLabel->setVisible(visible && m_exerciseDone && m_rightCountLabel->text().startsWith(QStringLiteral("Верно")));
     }
     if (m_wrongCountLabel) {
-        m_wrongCountLabel->setVisible(visible && m_exerciseDone);
+        m_wrongCountLabel->setVisible(visible && m_exerciseDone && m_wrongCountLabel->text().startsWith(QStringLiteral("Неверно")));
+    }
+    if (m_timeResultLabel) {
+        m_timeResultLabel->setVisible(visible && m_exerciseDone && !m_timeResultLabel->text().isEmpty());
     }
 }
 
@@ -1096,8 +1195,7 @@ void ExerciseHost::runExerciseSession() {
                 restoreExerciseOverlay();
                 setExerciseChromeVisible(true);
                 updateChromeLayout();
-                m_rightCountLabel->hide();
-                m_wrongCountLabel->hide();
+                showResultLabels(result.answers, result.elapsedSeconds);
                 emit exerciseOverlayChanged(false);
             });
     } else if (m_sessionRunner->parent() != this) {
@@ -1170,28 +1268,141 @@ void ExerciseHost::runOnlyPExercise() {
 }
 
 void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSeconds) {
-    Q_UNUSED(elapsedSeconds);
     const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
-    if (!definition || !definition->onlyPicture.answerButtons) {
+    const int minutes = elapsedSeconds / 60;
+    const int seconds = elapsedSeconds % 60;
+    const QString timeText = QStringLiteral("%1:%2 сек")
+        .arg(minutes, 2, 10, QLatin1Char('0'))
+        .arg(seconds, 2, 10, QLatin1Char('0'));
+
+    const bool showAnswerCounts = definition && definition->onlyPicture.answerButtons;
+    if (showAnswerCounts) {
+        int right = 0;
+        int wrong = 0;
+        for (bool answer : answers) {
+            if (answer) {
+                ++right;
+            } else {
+                ++wrong;
+            }
+        }
+        m_rightCountLabel->setText(QStringLiteral("Верно %1").arg(right));
+        m_wrongCountLabel->setText(QStringLiteral("Неверно %1").arg(wrong));
+        m_rightCountLabel->show();
+        m_wrongCountLabel->show();
+        m_rightCountLabel->raise();
+        m_wrongCountLabel->raise();
+    } else {
         m_rightCountLabel->hide();
         m_wrongCountLabel->hide();
-        return;
     }
-    int right = 0;
-    int wrong = 0;
-    for (bool answer : answers) {
-        if (answer) {
-            ++right;
-        } else {
-            ++wrong;
+
+    // Таймер результата над превью для методик без кнопок «верно/неверно».
+    if (m_timeResultLabel && !showAnswerCounts && elapsedSeconds >= 0 && m_exerciseDone) {
+        m_timeResultLabel->setText(timeText);
+        m_timeResultLabel->adjustSize();
+        m_timeResultLabel->show();
+        m_timeResultLabel->raise();
+        updatePreviewLayout();
+    } else if (m_timeResultLabel) {
+        m_timeResultLabel->hide();
+    }
+}
+
+bool ExerciseHost::needsDoneStatePanel() const {
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (!definition) {
+        return false;
+    }
+    return definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp
+        || definition->protocol == ExerciseProtocolKind::NumberedDoneTime;
+}
+
+QString ExerciseHost::selectedDoneState() const {
+    for (const ExerciseCheckRow &row : m_doneChecks) {
+        if (row.box && row.box->isChecked() && row.label) {
+            return row.label->text();
         }
     }
-    m_rightCountLabel->setText(QStringLiteral("Верно %1").arg(right));
-    m_wrongCountLabel->setText(QStringLiteral("Неверно %1").arg(wrong));
-    m_rightCountLabel->show();
-    m_wrongCountLabel->show();
-    m_rightCountLabel->raise();
-    m_wrongCountLabel->raise();
+    const QString fromOr = readDoneStateFromOrHtml(orHtmlSnapshot());
+    if (!fromOr.isEmpty() && fromOr != QStringLiteral("не определено")) {
+        return fromOr;
+    }
+    return QStringLiteral("не определено");
+}
+
+int ExerciseHost::nextNumberedProtocolIndex() const {
+    if (!m_repository || !m_partly) {
+        return 1;
+    }
+    const QString existing = m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
+    if (existing.isEmpty()) {
+        return 1;
+    }
+    // Строки результата после <!--s-->: считаем <tr> с align='center' в первой ячейке №.
+    const int marker = existing.indexOf(QStringLiteral("<!--s-->"));
+    const QString table = marker >= 0 ? existing.mid(marker) : existing;
+    const QRegularExpression rowRe(
+        QStringLiteral("<tr[^>]*>\\s*<td[^>]*align=['\"]center['\"][^>]*>\\s*\\d+"),
+        QRegularExpression::CaseInsensitiveOption);
+    int count = 0;
+    QRegularExpressionMatchIterator it = rowRe.globalMatch(table);
+    while (it.hasNext()) {
+        it.next();
+        ++count;
+    }
+    return count + 1;
+}
+
+QString ExerciseHost::currentStepId() const {
+    if (m_stepCombo && m_stepCombo->isVisible()) {
+        return m_stepCombo->currentText();
+    }
+    return QString();
+}
+
+ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
+    ProtocolSessionInput session;
+    session.doneState = selectedDoneState();
+    session.stepId = currentStepId();
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (m_exerciseId == QStringLiteral("1.4")) {
+        session.picturesShown = m_picturesShown > 0 ? m_picturesShown - 1 : 0;
+    } else {
+        session.picturesShown = m_picturesShown;
+    }
+
+    // Раннер уже положил данные (ответы, цифры, сказка и т.п.) — не затираем.
+    const bool keepRunnerAdditional = !m_sessionAdditional.isEmpty()
+        && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+            || m_exerciseId == QStringLiteral("4.1.8") || m_exerciseId == QStringLiteral("4.2.1")
+            || m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
+            || m_exerciseId == QStringLiteral("5.2.1") || m_exerciseId == QStringLiteral("5.4.2"));
+
+    if (keepRunnerAdditional) {
+        session.additional = m_sessionAdditional;
+    } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
+        // № = номер задания из combo (как в оригинале), не порядковый номер сессии.
+        QString step = currentStepId();
+        if (step.isEmpty()) {
+            step = QStringLiteral("1");
+        }
+        session.stepId = step;
+        session.additional = step + QLatin1Char(';') + session.doneState;
+    } else if (definition && definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp) {
+        session.additional = session.doneState;
+    } else if (!m_sessionAdditional.isEmpty()) {
+        session.additional = m_sessionAdditional;
+    } else if (m_exerciseId == QStringLiteral("1.2")) {
+        QStringList parts;
+        for (bool answer : m_answers) {
+            parts << (answer ? QStringLiteral("True") : QStringLiteral("False"));
+        }
+        session.additional = parts.join(QLatin1Char(';'));
+    }
+    session.capturedImagePath = m_capturedImagePath;
+    session.orHtml = orHtmlSnapshot();
+    return session;
 }
 
 ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
@@ -1213,41 +1424,44 @@ ExerciseProtocol::CheckboxValues ExerciseHost::checkboxValues() const {
     return values;
 }
 
-QString ExerciseHost::currentStepId() const {
-    if (m_stepCombo && m_stepCombo->isVisible()) {
-        return m_stepCombo->currentText();
-    }
-    return QString();
-}
-
-ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
-    ProtocolSessionInput session;
-    session.doneState = readDoneStateFromOrHtml(orHtmlSnapshot());
-    session.stepId = currentStepId();
-    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
-    if (m_exerciseId == QStringLiteral("1.4")) {
-        session.picturesShown = m_picturesShown > 0 ? m_picturesShown - 1 : 0;
-    } else {
-        session.picturesShown = m_picturesShown;
-    }
-    if (!m_sessionAdditional.isEmpty()) {
-        session.additional = m_sessionAdditional;
-    } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        session.additional = session.stepId + QLatin1Char(';') + session.doneState;
-    } else if (m_exerciseId == QStringLiteral("1.2")) {
-        QStringList parts;
-        for (bool answer : m_answers) {
-            parts << (answer ? QStringLiteral("True") : QStringLiteral("False"));
-        }
-        session.additional = parts.join(QLatin1Char(';'));
-    }
-    session.capturedImagePath = m_capturedImagePath;
-    session.orHtml = orHtmlSnapshot();
-    return session;
-}
-
 QString ExerciseHost::orHtmlSnapshot() const {
     return m_orBrowser ? m_orBrowser->toHtml() : QString();
+}
+
+void ExerciseHost::resetProtocolToInitialTemplate() {
+    if (!m_templateBrowser) {
+        return;
+    }
+    saveProtocolEdits();
+    const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
+    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+    applyCompactLineHeight(m_templateBrowser->document());
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+    const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
+    m_templateBrowser->setFixedWidth(templateViewportWidth);
+    if (m_templatePanel) {
+        m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
+    }
+    m_currentProtocolId.clear();
+    m_protocolSavedThisSession = false;
+    updateProtocolEditMode();
+    layoutContent();
+    QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
+}
+
+void ExerciseHost::updateProtocolEditMode() {
+    if (!m_templateBrowser) {
+        return;
+    }
+    // Редактирование только после формирования протокола в текущей сессии.
+    const ProtocolEditGuard::Mode mode = m_protocolSavedThisSession
+        ? ProtocolEditGuard::Mode::LimitedEdit
+        : ProtocolEditGuard::Mode::ReadOnly;
+    ProtocolEditGuard::setMode(m_templateBrowser, mode);
 }
 
 void commitTextEditChanges(QTextEdit *editor, bool preserveFocus) {
@@ -1263,6 +1477,9 @@ void commitTextEditChanges(QTextEdit *editor, bool preserveFocus) {
 }
 
 void ExerciseHost::saveProtocolEdits() {
+    if (!m_protocolSavedThisSession) {
+        return;
+    }
     if (!m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
         return;
     }
@@ -1347,6 +1564,7 @@ void ExerciseHost::formProtocol() {
     m_protocolFormed = true;
     m_protocolSavedThisSession = true;
     m_partly = true;
+    updateProtocolEditMode();
     emit protocolSaved();
 }
 

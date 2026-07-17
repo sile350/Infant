@@ -120,6 +120,12 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     m_picture->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_picture->setStyleSheet(QStringLiteral("background: transparent;"));
 
+    m_picture2 = new QLabel(this);
+    m_picture2->setScaledContents(false);
+    m_picture2->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_picture2->setStyleSheet(QStringLiteral("background: transparent;"));
+    m_picture2->hide();
+
     m_stopButton = new ClickableLabel(this);
     m_stopButton->setGeometry(kStopLeft, kStopTop, 134, 29);
     m_stopButton->setScaledContents(false);
@@ -138,6 +144,21 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     m_timer = new QTimer(this);
     m_timer->setInterval(1000);
     connect(m_timer, &QTimer::timeout, this, [this]() { ++m_elapsedSeconds; });
+
+    m_advanceTimer = new QTimer(this);
+    m_advanceTimer->setInterval(10000);
+    connect(m_advanceTimer, &QTimer::timeout, this, [this]() {
+        if (!m_settings.autoAdvancePictures) {
+            return;
+        }
+        // Как в onlyp.t14: пока acount <= 2, показываем следующий фрагмент p2..p4.
+        if (m_picturesShown <= 3) {
+            const int next = m_picturesShown + 1;
+            if (next <= m_settings.pictureCount) {
+                loadPicture(next);
+            }
+        }
+    });
 
     asClickable(m_stopButton)->onClick = [this]() {
         if (m_mirrorMode) {
@@ -278,37 +299,93 @@ void OnlyPExercise::updateWidgetLayout() {
         }
         m_picture->setPixmap(display);
         m_picture->setFixedSize(display.size());
-        if (m_displayRole == DisplayRole::Patient) {
+
+        int extraX = 0;
+        int extraY = 0;
+        if (m_exerciseId == QStringLiteral("1.1") || m_exerciseId == QStringLiteral("1.25")) {
+            extraX = 100;
+            extraY = -200;
+        } else if (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")) {
+            extraX = 100;
+            extraY = -200;
+        } else if (m_exerciseId == QStringLiteral("4.1.2")) {
+            // onlyp.cs: Пример → (1300,500), «1» → (1300,170)
+            if (m_stepId == QStringLiteral("1")) {
+                extraX = 600;
+                extraY = -70;
+            } else {
+                extraX = 600;
+                extraY = 260;
+            }
+        }
+
+        if (m_settings.dualPicture) {
+            // 1.13: 200/950 @300; 2.9: 200/1000 @240
+            const int leftX = 200;
+            const int rightX = (m_exerciseId == QStringLiteral("2.9")) ? 1000 : 950;
+            const int dualY = (m_exerciseId == QStringLiteral("2.9")) ? 240 : 300;
+            const int halfW = qMax(40, (availableW - 40) / 2);
+            QPixmap leftDisplay = display;
+            if (leftDisplay.width() > halfW || leftDisplay.height() > availableH) {
+                leftDisplay = m_pictureSource.scaled(
+                    halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                m_picture->setPixmap(leftDisplay);
+                m_picture->setFixedSize(leftDisplay.size());
+            }
+            m_picture->move(qRound(leftX * sx) + extraX, qRound(dualY * sy) + extraY);
+            m_picture->show();
+            if (!m_picture2Source.isNull() && m_picture2) {
+                QPixmap display2 = m_picture2Source;
+                if (display2.width() > halfW || display2.height() > availableH) {
+                    display2 = m_picture2Source.scaled(
+                        halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                }
+                m_picture2->setPixmap(display2);
+                m_picture2->setFixedSize(display2.size());
+                m_picture2->move(qRound(rightX * sx) + extraX, qRound(dualY * sy) + extraY);
+                m_picture2->show();
+                m_picture2->raise();
+            }
+        } else if (m_displayRole == DisplayRole::Patient) {
             int pictureX = pictureMargin + qMax(0, (width() - display.width()) / 2) + kPatientPictureShiftRight
-                - kPatientSecondScreenShiftLeft;
+                - kPatientSecondScreenShiftLeft + extraX;
             if (pictureX + display.width() > width() - pictureMargin) {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - display.width());
             }
-            const int pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
+            const int pictureY = qMax(pictureMargin, (height() - display.height()) / 2 + extraY);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
+            if (m_picture2) {
+                m_picture2->hide();
+            }
         } else if (m_displayRole == DisplayRole::Specialist) {
             int pictureX = pictureMargin + qMax(0, (width() - display.width()) / 2)
-                - kSpecialistPictureShiftLeft;
+                - kSpecialistPictureShiftLeft + extraX;
             if (pictureX + display.width() > width() - pictureMargin) {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - display.width());
             }
             pictureX = qMax(pictureMargin, pictureX);
-            const int pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
+            const int pictureY = qMax(pictureMargin, (height() - display.height()) / 2 + extraY);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
+            if (m_picture2) {
+                m_picture2->hide();
+            }
         } else {
-            int pictureX = qRound(kPictureLeft * sx) - kPictureShiftLeft;
+            int pictureX = qRound(kPictureLeft * sx) - kPictureShiftLeft + extraX;
             if (pictureX + display.width() > width() - pictureMargin) {
                 pictureX = pictureMargin
                     + qMax(0, (width() - 2 * pictureMargin - display.width()) / 2)
-                    - kPictureShiftLeft;
+                    - kPictureShiftLeft + extraX;
             }
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
-            const int pictureY = baseTop + qRound(kPictureTopOffset * sy);
+            const int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
+            if (m_picture2) {
+                m_picture2->hide();
+            }
         }
     }
 
@@ -359,8 +436,39 @@ void OnlyPExercise::start(
         updateWidgetLayout();
     }
 
-    loadPicture(1);
+    if (m_settings.dualPicture) {
+        // left = imagePattern, right = secondImagePattern (1.13: p2|p1; 2.9: 1|2)
+        const QString leftName = m_settings.imagePattern.isEmpty()
+            ? QStringLiteral("p2.png")
+            : m_settings.imagePattern;
+        const QString rightName = m_settings.secondImagePattern.isEmpty()
+            ? QStringLiteral("p1.png")
+            : m_settings.secondImagePattern;
+        const QString leftPath = ExerciseAssets::exerciseFile(exerciseId, leftName);
+        const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, rightName);
+        if (!leftPath.isEmpty()) {
+            m_pictureSource.load(leftPath);
+        }
+        if (!rightPath.isEmpty()) {
+            m_picture2Source.load(rightPath);
+        }
+        m_picturesShown = 1;
+        updateWidgetLayout();
+        if (m_picture) {
+            m_picture->raise();
+        }
+        if (m_picture2) {
+            m_picture2->raise();
+        }
+    } else {
+        loadPicture(1);
+    }
     m_timer->start();
+    if (m_settings.autoAdvancePictures) {
+        m_advanceTimer->start();
+    } else {
+        m_advanceTimer->stop();
+    }
     if (m_displayRole != DisplayRole::Headless) {
         show();
         raise();
@@ -373,6 +481,13 @@ QString OnlyPExercise::imageFileName(int index) const {
         if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
             settings = definition->onlyPicture;
         }
+    }
+    // 4.1.2: «Пример» → 1.png, «1» → 2.png
+    if (m_exerciseId == QStringLiteral("4.1.2")) {
+        if (m_stepId == QStringLiteral("1")) {
+            return QStringLiteral("2.png");
+        }
+        return QStringLiteral("1.png");
     }
     if (!m_stepId.isEmpty()) {
         return settings.imagePattern.arg(m_stepId);
@@ -393,6 +508,9 @@ void OnlyPExercise::loadPicture(int index) {
 }
 
 void OnlyPExercise::showPicture(int index) {
+    if (m_settings.dualPicture) {
+        return;
+    }
     loadPicture(index);
 }
 
@@ -440,6 +558,7 @@ void OnlyPExercise::recordAnswer(bool correct) {
 
 void OnlyPExercise::finishExercise() {
     m_timer->stop();
+    m_advanceTimer->stop();
     if (!m_settings.answerButtons) {
         m_picturesShown = qMax(m_picturesShown, 1);
     }

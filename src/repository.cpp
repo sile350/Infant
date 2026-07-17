@@ -737,6 +737,15 @@ QString Repository::loadLastExerciseProtocolBody(const QString &patientId, const
         + LocalDatabase::escape(exerciseId) + "' ORDER BY id DESC LIMIT 1");
 }
 
+QString Repository::loadLastExerciseProtocolId(const QString &patientId, const QString &exerciseId) {
+    if (patientId.trimmed().isEmpty() || exerciseId.trimmed().isEmpty()) {
+        return {};
+    }
+    return m_local.queryScalar(
+        "SELECT id FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
+        + LocalDatabase::escape(exerciseId) + "' ORDER BY id DESC LIMIT 1");
+}
+
 QString Repository::loadProtocolViewHtml(
     const QString &exerciseId,
     const QString &protocolId,

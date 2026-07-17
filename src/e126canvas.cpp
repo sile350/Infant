@@ -8,6 +8,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QResizeEvent>
@@ -44,6 +45,17 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
     for (int i = 0; i < 13; ++i) {
         m_answers.append(QString());
     }
+
+    setAttribute(Qt::WA_StyledBackground, true);
+    setAutoFillBackground(true);
+    setStyleSheet(QStringLiteral(
+        "E126Canvas { background-color:#ffffff; }"
+        "QGroupBox { background-color:#ffffff; border:1px solid #c0c0c0; margin-top:8px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left:8px; padding:0 4px; background:#ffffff; }"
+        "QLabel, QLineEdit, QComboBox, QPushButton, QRadioButton { background-color:#ffffff; color:#000000; }"
+        "QComboBox QAbstractItemView { background-color:#ffffff; color:#000000; selection-background-color:#cce8ff; }"
+        "QLineEdit { border:1px solid #808080; }"
+        "QPushButton { border:1px solid #808080; padding:4px 10px; }"));
 
     qDeleteAll(findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly));
     m_questionLabel = nullptr;
@@ -104,10 +116,12 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
         }
         m_emotionsToggle = new QPushButton(QStringLiteral("Показать"), m_groupBox3);
         m_emotionsLabel = new QLabel(this);
-        m_imageLabel = new QLabel(m_groupBox1);
+        m_imageLabel = new QLabel(m_groupBox3);
         m_imageLabel->setAlignment(Qt::AlignCenter);
         m_groupBox1 = new QGroupBox(this);
         m_groupBox1->setTitle(QStringLiteral(" "));
+        // Переносим картинку в groupBox1 после создания контейнера.
+        m_imageLabel->setParent(m_groupBox1);
         m_answerCaption = new QLabel(QStringLiteral("Ответ ребенка"), m_groupBox1);
         m_answerCaption->setStyleSheet(QStringLiteral("font-weight:bold;"));
         m_answerEdit = new QLineEdit(m_groupBox1);
@@ -356,6 +370,8 @@ QString E126Canvas::answersSnapshot() const {
 }
 
 void E126Canvas::paintEvent(QPaintEvent *event) {
+    QPainter painter(this);
+    painter.fillRect(rect(), Qt::white);
     QWidget::paintEvent(event);
 }
 

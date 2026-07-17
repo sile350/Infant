@@ -74,8 +74,15 @@ QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
         return QString();
     }
-    const QStringList parts = text.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
-    return parts.join(QStringLiteral("<br>"));
+    const QStringList parts = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
+    QStringList lines;
+    for (const QString &part : parts) {
+        const QString trimmed = part.trimmed();
+        if (!trimmed.isEmpty()) {
+            lines << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+        }
+    }
+    return lines.join(QStringLiteral("<br>"));
 }
 
 QString developmentLevel(int score) {
@@ -105,6 +112,21 @@ int scoreExercise11(int time) {
     if (time <= 42) return 3;
     if (time <= 44) return 2;
     if (time <= 50) return 1;
+    return 0;
+}
+
+// 4.1.2 (protocols.cs): пороги 45 / 46-47 / … / ≥86
+int scoreExercise412(int time) {
+    if (time <= 45) return 10;
+    if (time <= 47) return 9;
+    if (time <= 50) return 8;
+    if (time <= 55) return 7;
+    if (time <= 60) return 6;
+    if (time <= 65) return 5;
+    if (time <= 70) return 4;
+    if (time <= 75) return 3;
+    if (time <= 80) return 2;
+    if (time <= 85) return 1;
     return 0;
 }
 
@@ -276,13 +298,18 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
 
     int score = 0;
-    if (tmpl.scoreKind == QStringLiteral("timed11")) {
+    if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
+        // timed11_result в шаблонах: для 4.1.2 — шкала 45с; для прочих открытых — та же.
+        if (tmpl.id == QStringLiteral("4.1.2")) {
+            score = scoreExercise412(elapsedSeconds);
+        } else {
+            score = scoreExercise11(elapsedSeconds);
+        }
+    } else if (tmpl.scoreKind == QStringLiteral("timed11")) {
         score = scoreExercise11(elapsedSeconds);
     } else if (tmpl.scoreKind == QStringLiteral("timed18")) {
         score = scoreExercise18(elapsedSeconds);
-    } else if (tmpl.scoreKind == QStringLiteral("timed14")
-               || tmpl.scoreKind == QStringLiteral("timed11_result")
-               || tmpl.id == QStringLiteral("1.4")) {
+    } else if (tmpl.scoreKind == QStringLiteral("timed14") || tmpl.id == QStringLiteral("1.4")) {
         score = scoreExercise14(elapsedSeconds, session.picturesShown);
     } else if (tmpl.scoreKind == QStringLiteral("or_checkbox_4")) {
         score = wolfScoreFromOrHtml(session.orHtml);
@@ -377,6 +404,17 @@ QString createExerciseProtocolFromTemplate(
     const QString row = buildRow(tmpl, vars, answers, checkboxes, session);
 
     if (partly) {
+        // Повторный протокол: для timed-методик добавляем с новой строки «Дата/специалист».
+        if (tmpl.scoreKind.startsWith(QStringLiteral("timed")) || tmpl.scoreKind == QStringLiteral("timed11_result")
+            || tmpl.scoreKind == QStringLiteral("timed18_result") || tmpl.id == QStringLiteral("1.1")
+            || tmpl.id == QStringLiteral("1.4") || tmpl.id == QStringLiteral("1.8")) {
+            QString addition;
+            if (!tmpl.dateRow.isEmpty()) {
+                addition += substituteAll(tmpl.dateRow, vars);
+            }
+            addition += row;
+            return existingProtocolHtml + addition;
+        }
         return existingProtocolHtml + row;
     }
 

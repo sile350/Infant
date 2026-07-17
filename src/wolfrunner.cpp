@@ -201,9 +201,37 @@ void WolfRunner::layoutUi() {
 void WolfRunner::finishSession() {
     ExerciseSessionResult result;
     result.elapsedSeconds = m_elapsed;
-    if (m_tableBrowser) {
-        result.additional = m_tableBrowser->toHtml();
+    // Как в exbegin: h1..h7 | p1..p7
+    const QString html = m_tableBrowser ? m_tableBrowser->toHtml() : m_tableHtml;
+    auto extract = [](const QString &source, const QString &id) -> QString {
+        const QRegularExpression re(
+            QStringLiteral("<div[^>]*\\bid=['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
+                .arg(QRegularExpression::escape(id)),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch match = re.match(source);
+        if (!match.hasMatch()) {
+            return {};
+        }
+        QString inner = match.captured(1);
+        inner.replace(QRegularExpression(QStringLiteral("<[^>]+>")), QString());
+        return inner.trimmed();
+    };
+    QStringList helps;
+    QStringList answers;
+    for (int i = 1; i <= 7; ++i) {
+        helps << extract(html, QStringLiteral("h%1").arg(i));
+        answers << extract(html, QStringLiteral("p%1").arg(i));
     }
+    // Fallback: значения из исходного HTML, куда пишутся подсказки.
+    if (helps.join(QString()).isEmpty() && !m_tableHtml.isEmpty()) {
+        helps.clear();
+        answers.clear();
+        for (int i = 1; i <= 7; ++i) {
+            helps << extract(m_tableHtml, QStringLiteral("h%1").arg(i));
+            answers << extract(m_tableHtml, QStringLiteral("p%1").arg(i));
+        }
+    }
+    result.additional = helps.join(QLatin1Char(';')) + QLatin1Char('|') + answers.join(QLatin1Char(';'));
     m_timer->stop();
     hide();
     emitFinished(result);

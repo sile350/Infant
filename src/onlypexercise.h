@@ -70,10 +70,13 @@ private:
     QPixmap m_wrongSource;
 
     QLabel *m_picture = nullptr;
+    QLabel *m_picture2 = nullptr;
     QLabel *m_stopButton = nullptr;
     QLabel *m_rightButton = nullptr;
     QLabel *m_wrongButton = nullptr;
     QTimer *m_timer = nullptr;
+    QTimer *m_advanceTimer = nullptr;
+    QPixmap m_picture2Source;
 };
 
 #endif
