@@ -1540,6 +1540,16 @@ QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
     return reassembleProtocolSessions(storedBody, updated);
 }
 
+bool looksLikeProtocol126Body(const QString &body) {
+    // Таблицы заданий 1/2 с div id — ensureClosed/joinClosed их срезает.
+    return body.contains(QStringLiteral("id='idvivod'"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("id=\"idvivod\""), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("id='col11'"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("id=\"col11\""), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("id='sum1'"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("id=\"sum1\""), Qt::CaseInsensitive);
+}
+
 QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
     const QString &storedBody,
     QTextDocument *editorDocument) {
@@ -1550,6 +1560,18 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
     ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, 0);
     if (!parsed.hasResult && !parsed.hasNote) {
         return storedBody;
+    }
+
+    // 1.26: только Результат/Примечание на всём теле — без extract/joinClosed.
+    if (looksLikeProtocol126Body(storedBody)) {
+        QString body = storedBody;
+        if (parsed.hasResult) {
+            body = replaceResultRowSecondCell(body, parsed.resultText);
+        }
+        if (parsed.hasNote) {
+            body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
+        }
+        return body;
     }
 
     QStringList sessions = extractProtocolBodiesByDateRows(storedBody);

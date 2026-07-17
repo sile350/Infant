@@ -554,7 +554,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_protocolSaveTimer->setInterval(700);
     connect(m_protocolSaveTimer, &QTimer::timeout, this, &ExerciseHost::saveProtocolEdits);
     connect(m_templateBrowser->document(), &QTextDocument::contentsChanged, this, [this]() {
-        if (!m_protocolSavedThisSession || m_currentProtocolId.isEmpty()) {
+        if (m_suppressProtocolAutosave || !m_protocolSavedThisSession || m_currentProtocolId.isEmpty()) {
             return;
         }
         if (m_protocolSaveTimer) {
@@ -1766,6 +1766,12 @@ void ExerciseHost::sumProtocol126() {
         return;
     }
 
+    // Не даём autosave сразу после setHtml перезаписать тело из QTextDocument без id.
+    if (m_protocolSaveTimer) {
+        m_protocolSaveTimer->stop();
+    }
+    m_suppressProtocolAutosave = true;
+
     // Показать обновлённый протокол целиком (оба задания), без extractLastSession.
     const QString viewHtml = ExerciseProtocol::protocolViewHtml(
         m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
@@ -1777,10 +1783,12 @@ void ExerciseHost::sumProtocol126() {
     }
     updateContentHeights();
     updateProtocolEditMode();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
+    emit protocolSaved();
 }
 
 void ExerciseHost::saveProtocolEdits() {
-    if (!m_protocolSavedThisSession) {
+    if (!m_protocolSavedThisSession || m_suppressProtocolAutosave) {
         return;
     }
     if (!m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
@@ -1799,6 +1807,7 @@ void ExerciseHost::saveProtocolEdits() {
         body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
             storedBody, m_templateBrowser->document(), 0);
     } else if (m_exerciseId == QStringLiteral("1.26")) {
+        // Результат/Примечание без joinClosed; баллы — только через id (не пересборка таблиц).
         body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
             storedBody, m_templateBrowser->document());
         body = ExerciseProtocol::applyProtocol126SumFromDocument(

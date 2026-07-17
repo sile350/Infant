@@ -82,6 +82,20 @@ void appendProtocolRecord(
     if (uprid == QStringLiteral("1.2")) {
         record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
             continuation ? QString() : headerForExercise(uprid), protocolBody);
+    } else if (uprid == QStringLiteral("1.26")) {
+        // Не flatten/ensureClosed: там срезаются вложенные таблицы баллов (col*/sum*).
+        const QString rawBody = protocolBody;
+        if (continuation) {
+            record = QStringLiteral(
+                          "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+                          "<colgroup><col width='165'><col width='506'></colgroup>")
+                      + rawBody;
+        } else {
+            record = headerForExercise(uprid) + rawBody;
+        }
+        if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            record += QStringLiteral("</table>");
+        }
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
         const QString flatBody = ExerciseProtocol::flattenStoredProtocolBody(protocolBody);
