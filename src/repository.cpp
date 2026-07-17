@@ -786,7 +786,12 @@ QString Repository::loadProtocolViewHtml(
     QString body = protocolBody;
     // На странице упражнения показываем только последний сформированный блок
     // (начиная с его «Дата/специалист»).
-    body = ExerciseProtocol::extractLastSessionStoredBody(body);
+    if (exerciseId == QStringLiteral("1.26")) {
+        // Не extractLastSessionStoredBody: он режет вложенные таблицы и теряет задание 1/2.
+        body = ExerciseProtocol::extractLastProtocol126Session(body);
+    } else {
+        body = ExerciseProtocol::extractLastSessionStoredBody(body);
+    }
     if (exerciseId == QStringLiteral("1.2")) {
         body = ExerciseProtocol::normalizeProtocol12Layout(body);
         body = ExerciseProtocol::repairResultsTableBody(body);

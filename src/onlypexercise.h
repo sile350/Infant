@@ -33,6 +33,11 @@ public:
     void setDisplayRole(DisplayRole role);
     void prepareMirrorUi(const QString &exerciseId);
     void stopExercise();
+    void browseNext();
+    void browseBack();
+    void applyBrowseIndex(int index);
+    void syncMirrorSession(const QString &exerciseId, const OnlyPictureSettings &settings,
+                           const QString &stepId);
     QList<bool> answers() const { return m_answers; }
     int elapsedSeconds() const { return m_elapsedSeconds; }
     // Суммарное время по каждому № задания (после смен stepId / финиша).
@@ -46,6 +51,9 @@ signals:
     void answerRecorded(int index, bool correct);
     void mirrorAnswerRequested(bool correct);
     void mirrorStopRequested();
+    void mirrorBrowseNextRequested();
+    void mirrorBrowseBackRequested();
+    void browseStateChanged(int index);
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -62,6 +70,11 @@ private:
     void updateWidgetLayout();
     void updateOvertimeTimer();
     int overtimeThresholdSeconds() const;
+    bool isCombineWordsExercise() const;
+    bool combineWordsUsesText() const;
+    void refreshCombineWordsStimulus(bool notifyMirrors = true);
+    void updateCombineWordsNavVisibility();
+    void ensureCombineWordsUi();
 
     QString m_exerciseId;
     QString m_stepId;
@@ -70,6 +83,7 @@ private:
     int m_index = 0;
     int m_picturesShown = 0;
     int m_elapsedSeconds = 0;
+    int m_browseIndex = 0;
     QMap<QString, int> m_stepElapsedSeconds;
     bool m_mirrorMode = false;
     DisplayRole m_displayRole = DisplayRole::Primary;
@@ -77,6 +91,8 @@ private:
     QPixmap m_stopSource;
     QPixmap m_rightSource;
     QPixmap m_wrongSource;
+    QPixmap m_navBackSource;
+    QPixmap m_navNextSource;
 
     QLabel *m_picture = nullptr;
     QLabel *m_picture2 = nullptr;
@@ -84,6 +100,9 @@ private:
     QLabel *m_rightButton = nullptr;
     QLabel *m_wrongButton = nullptr;
     QLabel *m_overtimeLabel = nullptr;
+    QLabel *m_navBackButton = nullptr;
+    QLabel *m_navNextButton = nullptr;
+    QLabel *m_wordLabel = nullptr;
     QTimer *m_timer = nullptr;
     QTimer *m_advanceTimer = nullptr;
     QPixmap m_picture2Source;

@@ -289,16 +289,15 @@ void E126Canvas::switchStep(const QString &stepId) {
                              || (next != QStringLiteral("1") && m_groupBox2))) {
         return;
     }
-    // Сохраняем текущий ответ и пересобираем UI под другое задание.
+    // Текущий ответ уже снимет ExerciseHost в m_additionalByStep до switchStep.
+    // Ответы задания 1 и 2 не смешиваем — у каждого свой массив в протоколе.
     if (m_answerEdit && m_count >= 0 && m_count < m_answers.size()) {
         m_answers[m_count] = m_answerEdit->text();
     }
     const int savedElapsed = m_elapsed;
-    const QStringList savedAnswers = m_answers;
     const QString gender = m_genderPrefix;
     startExercise(m_exerciseId, next);
     m_elapsed = savedElapsed;
-    m_answers = savedAnswers;
     m_genderPrefix = gender;
     if (m_girlRadio && m_boyRadio) {
         const bool girl = m_genderPrefix != QStringLiteral("m");
@@ -322,7 +321,11 @@ void E126Canvas::applyPixmap(QLabel *label, const QString &fileName, bool autoSi
         return;
     }
     QString path = ExerciseAssets::exerciseFile(m_exerciseId, fileName);
-    if (path.isEmpty() && m_exerciseId == QStringLiteral("1.272")) {
+    // Не подменяем сюжетные картинки 1.272 картинками 1.26 (разные задания).
+    if (path.isEmpty() && m_exerciseId == QStringLiteral("1.272")
+        && (fileName == QStringLiteral("pshow.png") || fileName == QStringLiteral("phide.png")
+            || fileName == QStringLiteral("mem.png") || fileName == QStringLiteral("dem.png")
+            || fileName == QStringLiteral("emo.png"))) {
         path = ExerciseAssets::exerciseFile(QStringLiteral("1.26"), fileName);
     }
     if (path.isEmpty()) {
@@ -488,7 +491,13 @@ void E126Canvas::showStoryImage() {
 }
 
 void E126Canvas::show272Image() {
-    applyPixmap(m_imageLabel, QString::number(m_count) + QStringLiteral(".png"));
+    // Как e1272.initEx: Image.FromFile(...\1.272\{param}.png).
+    const int n = qBound(1, m_stepId.toInt(), 6);
+    m_count = n;
+    applyPixmap(m_imageLabel, QString::number(n) + QStringLiteral(".png"));
+    if (m_questionEdit && n >= 1 && n <= m_questions.size()) {
+        m_questionEdit->setPlainText(m_questions.at(n - 1));
+    }
     layoutUi();
 }
 

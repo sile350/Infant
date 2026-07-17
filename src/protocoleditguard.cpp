@@ -66,18 +66,62 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
     // Колонка «Баллы» + ячейки итоговых сумм (1.26 и др.).
     int ballsCol = -1;
     int ballsHeaderRow = -1;
-    for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
+    int selectedPicCol = -1;
+    int explanationCol = -1;
+    int activityCol = -1;
+    int helpCol = -1;
+    for (int r = 0; r < table->rows(); ++r) {
         for (int c = 0; c < table->columns(); ++c) {
             const QString header = readProtocolTableCellText(table, r, c);
-            if (header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
-                || header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
-                // Заголовок колонки, не «Итоговая оценка» в другой таблице.
-                if (header.length() <= 12) {
-                    ballsCol = c;
+            if (ballsCol < 0
+                && (header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
+                    || (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                        && header.length() <= 12))) {
+                ballsCol = c;
+                ballsHeaderRow = r;
+            }
+            if (selectedPicCol < 0
+                && header.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+                selectedPicCol = c;
+                if (ballsHeaderRow < 0) {
                     ballsHeaderRow = r;
-                    break;
                 }
             }
+            if (explanationCol < 0
+                && header.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive)) {
+                explanationCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
+            }
+            if (activityCol < 0
+                && header.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                activityCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
+            }
+            if (helpCol < 0 && header.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                && !header.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
+                helpCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
+            }
+        }
+    }
+    if (ballsHeaderRow >= 0 && row > ballsHeaderRow) {
+        if (selectedPicCol >= 0 && col == selectedPicCol) {
+            return true;
+        }
+        if (explanationCol >= 0 && col == explanationCol) {
+            return true;
+        }
+        if (activityCol >= 0 && col == activityCol) {
+            return true;
+        }
+        if (helpCol >= 0 && col == helpCol) {
+            return true;
         }
     }
     if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {

@@ -3,6 +3,7 @@
 #include "exerciseassets.h"
 #include "exerciseconfig.h"
 
+#include <QFont>
 #include <QMouseEvent>
 #include <QLabel>
 #include <QPaintEvent>
@@ -106,6 +107,23 @@ void applyButtonPixmap(QLabel *label, const QPixmap &source, int maxWidth, int m
     setWhiteBackedPixmap(label, pixmap);
 }
 
+// onlyp.cs: cword[] для 3.2.3, задание 2.
+const QStringList &combineWordsList() {
+    static const QStringList words = {
+        QStringLiteral("Василий, Федер, Семен, Иванов, Николай"),
+        QStringLiteral("Молоко, сливки, сыр, сало, сметана"),
+        QStringLiteral("Береза, сосна, дуб, ель, дерево"),
+        QStringLiteral("Нос, уши, глаза, рот, очки"),
+        QStringLiteral("Лист, почка, кора, дерево, сук"),
+        QStringLiteral("Щетка, ботинки, сапоги, тапочки, валенки"),
+        QStringLiteral("Минута, секунда, час, вечер, сутки"),
+        QStringLiteral("Глубокий, высокий, светлый, низкий, мелкий"),
+        QStringLiteral("Смелый, злой, храбрый, отважный, бесстрашный"),
+        QStringLiteral("Молоток, гвоздь, клещи, топор, пила"),
+    };
+    return words;
+}
+
 } // namespace
 
 OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
@@ -140,6 +158,22 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     m_wrongButton->setGeometry(kWrongLeft, kAnswerTop, 134, 29);
     m_wrongButton->setScaledContents(false);
     m_wrongButton->setAutoFillBackground(true);
+
+    m_navBackButton = new ClickableLabel(this);
+    m_navBackButton->setScaledContents(false);
+    m_navBackButton->setAutoFillBackground(true);
+    m_navBackButton->hide();
+
+    m_navNextButton = new ClickableLabel(this);
+    m_navNextButton->setScaledContents(false);
+    m_navNextButton->setAutoFillBackground(true);
+    m_navNextButton->hide();
+
+    m_wordLabel = new QLabel(this);
+    m_wordLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_wordLabel->setStyleSheet(QStringLiteral("color: #000000; background: transparent;"));
+    m_wordLabel->setFont(QFont(QStringLiteral("Segoe UI"), 22));
+    m_wordLabel->hide();
 
     // Как f311 в onlyp.cs: таймер появляется после порога (3.1.1/3.1.11/3.1.17 — 180с).
     m_overtimeLabel = new QLabel(this);
@@ -178,6 +212,8 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     };
     asClickable(m_rightButton)->onClick = [this]() { recordAnswer(true); };
     asClickable(m_wrongButton)->onClick = [this]() { recordAnswer(false); };
+    asClickable(m_navBackButton)->onClick = [this]() { browseBack(); };
+    asClickable(m_navNextButton)->onClick = [this]() { browseNext(); };
 }
 
 void OnlyPExercise::paintEvent(QPaintEvent *event) {
@@ -316,8 +352,18 @@ void OnlyPExercise::updateWidgetLayout() {
             extraY = -200;
         } else if (m_exerciseId == QStringLiteral("2.10")
                    || m_exerciseId == QStringLiteral("3.1.1")
-                   || m_exerciseId == QStringLiteral("3.1.2")) {
+                   || m_exerciseId == QStringLiteral("3.1.2")
+                   || m_exerciseId == QStringLiteral("3.1.11")
+                   || m_exerciseId == QStringLiteral("3.1.12")
+                   || m_exerciseId == QStringLiteral("3.1.18")
+                   || m_exerciseId == QStringLiteral("3.2.1")
+                   || m_exerciseId == QStringLiteral("3.2.2")
+                   || m_exerciseId == QStringLiteral("3.2.4")
+                   || m_exerciseId == QStringLiteral("3.2.5")) {
             // Поднять картинку на основном экране на 200px.
+            extraY = -200;
+        } else if (m_exerciseId == QStringLiteral("3.2.11") && m_stepId == QStringLiteral("2")) {
+            // «Существенные признаки…» — поднять картинку во 2-м задании.
             extraY = -200;
         } else if (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")) {
             extraX = 100;
@@ -401,12 +447,66 @@ void OnlyPExercise::updateWidgetLayout() {
                 m_picture2->hide();
             }
         }
+    } else if (m_picture) {
+        m_picture->hide();
+        if (m_picture2) {
+            m_picture2->hide();
+        }
+    }
+
+    if (isCombineWordsExercise() && combineWordsUsesText() && m_wordLabel
+        && m_displayRole != DisplayRole::Headless) {
+        const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
+        const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
+        m_wordLabel->adjustSize();
+        // onlyp.Designer: cWord @ (806, 275)
+        m_wordLabel->move(qRound(806 * sx), qRound(275 * sy));
+        m_wordLabel->show();
+    } else if (m_wordLabel) {
+        m_wordLabel->hide();
+    }
+
+    if (isCombineWordsExercise() && m_displayRole != DisplayRole::Headless
+        && m_displayRole != DisplayRole::Patient
+        && m_navBackButton && m_navNextButton) {
+        const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
+        const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
+        ensureCombineWordsUi();
+        const int stopX = m_stopButton->isVisible() ? m_stopButton->x() : qRound(kStopLeft * sx);
+        const int stopY = m_stopButton->isVisible() ? m_stopButton->y() : qRound(kStopTop * sy);
+        // onlyp.cs: f312 = stop+240, ff312 = stop+350
+        if (!m_navBackSource.isNull()) {
+            setWhiteBackedPixmap(m_navBackButton, m_navBackSource);
+            m_navBackButton->move(stopX + 240, stopY);
+        }
+        if (!m_navNextSource.isNull()) {
+            setWhiteBackedPixmap(m_navNextButton, m_navNextSource);
+            m_navNextButton->move(stopX + 350, stopY);
+        }
+        updateCombineWordsNavVisibility();
+    } else {
+        if (m_navBackButton) {
+            m_navBackButton->hide();
+        }
+        if (m_navNextButton) {
+            m_navNextButton->hide();
+        }
     }
 
     m_stopButton->raise();
     m_rightButton->raise();
     m_wrongButton->raise();
-    m_picture->raise();
+    if (m_navBackButton) {
+        m_navBackButton->raise();
+    }
+    if (m_navNextButton) {
+        m_navNextButton->raise();
+    }
+    if (m_wordLabel && m_wordLabel->isVisible()) {
+        m_wordLabel->raise();
+    } else {
+        m_picture->raise();
+    }
     updateOvertimeTimer();
 }
 
@@ -525,6 +625,10 @@ void OnlyPExercise::start(
         if (m_picture2) {
             m_picture2->raise();
         }
+    } else if (isCombineWordsExercise()) {
+        m_browseIndex = 0;
+        ensureCombineWordsUi();
+        refreshCombineWordsStimulus();
     } else {
         loadPicture(1);
     }
@@ -558,6 +662,11 @@ void OnlyPExercise::switchStep(const QString &stepId) {
     if (m_settings.dualPicture) {
         return;
     }
+    if (isCombineWordsExercise()) {
+        m_browseIndex = 0;
+        refreshCombineWordsStimulus();
+        return;
+    }
     loadPicture(1);
     if (m_picture) {
         m_picture->raise();
@@ -578,10 +687,153 @@ QString OnlyPExercise::imageFileName(int index) const {
         }
         return QStringLiteral("1.png");
     }
+    // 3.2.3: задание 1 → 1.png/2.png (листание), задание 2 → слова (без картинки).
+    if (isCombineWordsExercise() && m_stepId == QStringLiteral("1")) {
+        return QStringLiteral("%1.png").arg(m_browseIndex + 1);
+    }
     if (!m_stepId.isEmpty()) {
         return settings.imagePattern.arg(m_stepId);
     }
     return settings.imagePattern.arg(index);
+}
+
+bool OnlyPExercise::isCombineWordsExercise() const {
+    return m_exerciseId == QStringLiteral("3.2.3");
+}
+
+bool OnlyPExercise::combineWordsUsesText() const {
+    return isCombineWordsExercise() && m_stepId == QStringLiteral("2");
+}
+
+void OnlyPExercise::ensureCombineWordsUi() {
+    if (!isCombineWordsExercise()) {
+        return;
+    }
+    if (m_navBackSource.isNull()) {
+        const QString path = ExerciseAssets::exerciseFile(QStringLiteral("3.1.12"), QStringLiteral("back.png"));
+        if (!path.isEmpty()) {
+            m_navBackSource.load(path);
+        }
+    }
+    if (m_navNextSource.isNull()) {
+        const QString path = ExerciseAssets::exerciseFile(QStringLiteral("3.1.12"), QStringLiteral("next.png"));
+        if (!path.isEmpty()) {
+            m_navNextSource.load(path);
+        }
+    }
+}
+
+void OnlyPExercise::updateCombineWordsNavVisibility() {
+    if (!m_navBackButton || !m_navNextButton) {
+        return;
+    }
+    if (!isCombineWordsExercise() || m_displayRole == DisplayRole::Headless
+        || m_displayRole == DisplayRole::Patient) {
+        m_navBackButton->hide();
+        m_navNextButton->hide();
+        return;
+    }
+    const int maxIndex = combineWordsUsesText() ? (combineWordsList().size() - 1) : 1;
+    m_navBackButton->setVisible(m_browseIndex > 0 && !m_navBackSource.isNull());
+    m_navNextButton->setVisible(m_browseIndex < maxIndex && !m_navNextSource.isNull());
+}
+
+void OnlyPExercise::refreshCombineWordsStimulus(bool notifyMirrors) {
+    if (!isCombineWordsExercise()) {
+        return;
+    }
+    if (combineWordsUsesText()) {
+        const QStringList &words = combineWordsList();
+        m_browseIndex = qBound(0, m_browseIndex, words.size() - 1);
+        m_pictureSource = QPixmap();
+        if (m_picture) {
+            m_picture->hide();
+            m_picture->clear();
+        }
+        if (m_wordLabel) {
+            m_wordLabel->setText(words.at(m_browseIndex));
+            m_wordLabel->adjustSize();
+        }
+        m_picturesShown = qMax(m_picturesShown, 1);
+        updateWidgetLayout();
+        if (notifyMirrors) {
+            emit browseStateChanged(m_browseIndex);
+        }
+        return;
+    }
+    if (m_wordLabel) {
+        m_wordLabel->hide();
+        m_wordLabel->clear();
+    }
+    m_browseIndex = qBound(0, m_browseIndex, 1);
+    const QString path = ExerciseAssets::exerciseFile(
+        m_exerciseId, QStringLiteral("%1.png").arg(m_browseIndex + 1));
+    if (!path.isEmpty()) {
+        m_pictureSource.load(path);
+    }
+    m_picturesShown = qMax(m_picturesShown, m_browseIndex + 1);
+    updateWidgetLayout();
+    if (m_picture) {
+        m_picture->raise();
+    }
+    if (notifyMirrors) {
+        emit pictureChanged(m_browseIndex + 1);
+        emit browseStateChanged(m_browseIndex);
+    }
+}
+
+void OnlyPExercise::browseNext() {
+    if (m_mirrorMode) {
+        emit mirrorBrowseNextRequested();
+        return;
+    }
+    if (!isCombineWordsExercise()) {
+        return;
+    }
+    const int maxIndex = combineWordsUsesText() ? (combineWordsList().size() - 1) : 1;
+    if (m_browseIndex >= maxIndex) {
+        return;
+    }
+    ++m_browseIndex;
+    refreshCombineWordsStimulus(true);
+}
+
+void OnlyPExercise::browseBack() {
+    if (m_mirrorMode) {
+        emit mirrorBrowseBackRequested();
+        return;
+    }
+    if (!isCombineWordsExercise() || m_browseIndex <= 0) {
+        return;
+    }
+    --m_browseIndex;
+    refreshCombineWordsStimulus(true);
+}
+
+void OnlyPExercise::applyBrowseIndex(int index) {
+    if (!isCombineWordsExercise()) {
+        return;
+    }
+    const int maxIndex = combineWordsUsesText() ? (combineWordsList().size() - 1) : 1;
+    m_browseIndex = qBound(0, index, maxIndex);
+    refreshCombineWordsStimulus(false);
+}
+
+void OnlyPExercise::syncMirrorSession(
+    const QString &exerciseId,
+    const OnlyPictureSettings &settings,
+    const QString &stepId) {
+    m_exerciseId = exerciseId;
+    m_settings = settings;
+    m_stepId = stepId.trimmed().isEmpty() && !settings.stepIds.isEmpty()
+        ? settings.stepIds.first()
+        : stepId.trimmed();
+    m_browseIndex = 0;
+    setProperty("exerciseId", exerciseId);
+    if (isCombineWordsExercise()) {
+        ensureCombineWordsUi();
+        refreshCombineWordsStimulus(false);
+    }
 }
 
 void OnlyPExercise::loadPicture(int index) {
@@ -598,6 +850,10 @@ void OnlyPExercise::loadPicture(int index) {
 
 void OnlyPExercise::showPicture(int index) {
     if (m_settings.dualPicture) {
+        return;
+    }
+    if (isCombineWordsExercise()) {
+        applyBrowseIndex(qMax(0, index - 1));
         return;
     }
     loadPicture(index);

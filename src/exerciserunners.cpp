@@ -11,8 +11,10 @@
 
 #include "imagebutton.h"
 
+#include <QAbstractItemView>
 #include <QButtonGroup>
 #include <QColor>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -20,14 +22,17 @@
 #include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QKeyEvent>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
 #include <QScrollArea>
+#include <QTableWidget>
 #include <QTextBrowser>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -1050,30 +1055,112 @@ public:
         const ExerciseDefinition &definition,
         const QString &stepId) override {
         Q_UNUSED(definition);
-        Q_UNUSED(stepId);
         m_exerciseId = exerciseId;
+        m_stepId = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
         m_elapsed = 0;
-        m_browser = new QTextBrowser(this);
-        const QString tablePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("table.html"));
-        if (tablePath.isEmpty()) {
-            const QString table2 = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("table2.html"));
-            if (!table2.isEmpty()) {
-                QFile file(table2);
-                if (file.open(QIODevice::ReadOnly)) {
-                    m_tableHtml = QString::fromUtf8(file.readAll());
-                    m_browser->setHtml(ExerciseAssets::prepareExerciseHtml(
-                        m_tableHtml, QFileInfo(table2).absolutePath()));
+
+        if (m_table) {
+            m_table->deleteLater();
+            m_table = nullptr;
+        }
+        if (m_stimulusLabel) {
+            m_stimulusLabel->deleteLater();
+            m_stimulusLabel = nullptr;
+        }
+        if (m_overtimeLabel) {
+            m_overtimeLabel->deleteLater();
+            m_overtimeLabel = nullptr;
+        }
+        if (m_picture) {
+            m_picture->hide();
+        }
+
+        m_table = new QTableWidget(this);
+        m_table->horizontalHeader()->setStretchLastSection(true);
+        m_table->verticalHeader()->setVisible(true);
+        m_table->setWordWrap(true);
+        m_table->setEditTriggers(
+            QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked
+            | QAbstractItemView::EditKeyPressed | QAbstractItemView::AnyKeyPressed);
+
+        if (exerciseId == QStringLiteral("5.1.1")) {
+            static const QStringList groups = {
+                QStringLiteral("Животные"),
+                QStringLiteral("Растения"),
+                QStringLiteral("Цвета предметов"),
+                QStringLiteral("Формы предметов"),
+                QStringLiteral("Другие признаки предметов, кроме формы и цвета."),
+                QStringLiteral("Действия человека."),
+                QStringLiteral("Способы выполнения человеком действий."),
+                QStringLiteral("Качества выполняемых человеком действий."),
+            };
+            m_table->setColumnCount(1);
+            m_table->setRowCount(groups.size());
+            m_table->setHorizontalHeaderLabels({QStringLiteral("Названные ребенком слова")});
+            for (int i = 0; i < groups.size(); ++i) {
+                m_table->setVerticalHeaderItem(i, new QTableWidgetItem(groups.at(i)));
+                m_table->setItem(i, 0, new QTableWidgetItem);
+            }
+            m_overtimeLabel = new QLabel(this);
+            m_overtimeLabel->setStyleSheet(
+                QStringLiteral("color:#cc0000; font-size:16pt; font-weight:700; background:transparent;"));
+            m_overtimeLabel->hide();
+            if (m_overtimeConnection) {
+                disconnect(m_overtimeConnection);
+            }
+            m_overtimeConnection = connect(m_timer, &QTimer::timeout, this, [this]() {
+                if (m_exerciseId == QStringLiteral("5.1.1")) {
+                    layoutTableUi();
                 }
+            });
+        } else if (exerciseId == QStringLiteral("5.2.1")) {
+            static const QStringList fragments = {
+                QStringLiteral("Существительные"),
+                QStringLiteral("Глаголы"),
+                QStringLiteral("Прилагательные в обычной форме"),
+                QStringLiteral("Прилагательные в сравнительной степени"),
+                QStringLiteral("Прилагательные в превосходной степени"),
+                QStringLiteral("Наречия"),
+                QStringLiteral("Местоимения"),
+                QStringLiteral("Союзы"),
+                QStringLiteral("Предлоги"),
+                QStringLiteral("Сложные предложения и конструкции"),
+            };
+            m_table->setColumnCount(1);
+            m_table->setRowCount(fragments.size());
+            m_table->setHorizontalHeaderLabels({QStringLiteral("Частота употребления")});
+            for (int i = 0; i < fragments.size(); ++i) {
+                m_table->setVerticalHeaderItem(i, new QTableWidgetItem(fragments.at(i)));
+                m_table->setItem(i, 0, new QTableWidgetItem);
+            }
+            m_stimulusLabel = new QLabel(this);
+            m_stimulusLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+            m_stimulusLabel->setStyleSheet(QStringLiteral("background:transparent;"));
+            const QString picPath = ExerciseAssets::exerciseFile(
+                exerciseId, m_stepId + QStringLiteral(".png"));
+            if (!picPath.isEmpty()) {
+                m_stimulusLabel->setPixmap(QPixmap(picPath));
+            }
+            m_stimulusLabel->show();
+        } else if (exerciseId == QStringLiteral("4.2.2")) {
+            m_table->setColumnCount(1);
+            m_table->setRowCount(6);
+            m_table->setHorizontalHeaderLabels({QStringLiteral("Кол-во правильно названных слов")});
+            for (int i = 0; i < 6; ++i) {
+                m_table->setVerticalHeaderItem(
+                    i, new QTableWidgetItem(QStringLiteral("%1").arg(i + 1)));
+                m_table->setItem(i, 0, new QTableWidgetItem);
             }
         } else {
-            QFile file(tablePath);
-            if (file.open(QIODevice::ReadOnly)) {
-                m_tableHtml = QString::fromUtf8(file.readAll());
-                m_browser->setHtml(ExerciseAssets::prepareExerciseHtml(
-                    m_tableHtml, QFileInfo(tablePath).absolutePath()));
-            }
+            m_table->setColumnCount(1);
+            m_table->setRowCount(1);
+            m_table->setItem(0, 0, new QTableWidgetItem);
         }
-        m_browser->setGeometry(100, 120, width() - 200, height() - 200);
+
+        m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+        m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        layoutTableUi();
+        m_table->show();
         m_stop->move(970, 70);
         m_stop->show();
         m_stop->raise();
@@ -1082,45 +1169,37 @@ public:
         raise();
     }
 
-    static QString extractDivById(const QString &html, const QString &id) {
-        const QRegularExpression re(
-            QStringLiteral("<div[^>]*\\bid=['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
-                .arg(QRegularExpression::escape(id)),
-            QRegularExpression::CaseInsensitiveOption);
-        const QRegularExpressionMatch match = re.match(html);
-        if (!match.hasMatch()) {
-            return {};
+    void switchStep(const QString &stepId) override {
+        const QString next = stepId.trimmed();
+        if (next.isEmpty() || next == m_stepId) {
+            return;
         }
-        QString inner = match.captured(1);
-        inner.replace(QRegularExpression(QStringLiteral("<[^>]+>")), QString());
-        return inner.trimmed();
+        m_stepId = next;
+        if (m_exerciseId == QStringLiteral("5.2.1") && m_stimulusLabel) {
+            const QString picPath =
+                ExerciseAssets::exerciseFile(m_exerciseId, m_stepId + QStringLiteral(".png"));
+            if (!picPath.isEmpty()) {
+                m_stimulusLabel->setPixmap(QPixmap(picPath));
+            } else {
+                m_stimulusLabel->clear();
+            }
+            layoutTableUi();
+        }
     }
 
     QString collectAdditional() const {
-        // Берём актуальный HTML из браузера (после правок contenteditable).
-        const QString html = m_browser ? m_browser->toHtml() : m_tableHtml;
+        if (!m_table) {
+            return {};
+        }
+        QStringList parts;
+        for (int r = 0; r < m_table->rowCount(); ++r) {
+            const QTableWidgetItem *item = m_table->item(r, 0);
+            parts << (item ? item->text().trimmed() : QString());
+        }
         if (m_exerciseId == QStringLiteral("5.1.1")) {
-            QStringList parts;
-            for (int i = 1; i <= 8; ++i) {
-                parts << extractDivById(html, QStringLiteral("data%1").arg(i));
-            }
             return parts.join(QLatin1Char('['));
         }
-        if (m_exerciseId == QStringLiteral("5.2.1")) {
-            QStringList parts;
-            for (int i = 1; i <= 10; ++i) {
-                parts << extractDivById(html, QStringLiteral("data%1").arg(i));
-            }
-            return parts.join(QLatin1Char(';'));
-        }
-        if (m_exerciseId == QStringLiteral("4.2.2")) {
-            QStringList parts;
-            for (int i = 1; i <= 6; ++i) {
-                parts << extractDivById(html, QStringLiteral("p%1").arg(i));
-            }
-            return parts.join(QLatin1Char(';'));
-        }
-        return m_browser ? m_browser->toPlainText().left(4000) : QString();
+        return parts.join(QLatin1Char(';'));
     }
 
     void finish() override {
@@ -1132,19 +1211,49 @@ public:
         emitFinished(result);
     }
 
+    void layoutTableUi() {
+        if (!m_table) {
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("5.2.1") && m_stimulusLabel) {
+            m_stimulusLabel->setGeometry(40, 120, 520, 700);
+            m_table->setGeometry(580, 120, qMax(300, width() - 620), qMax(300, height() - 180));
+            m_stimulusLabel->raise();
+        } else {
+            m_table->setGeometry(100, 120, qMax(400, width() - 200), qMax(300, height() - 200));
+        }
+        m_table->raise();
+        if (m_overtimeLabel && m_exerciseId == QStringLiteral("5.1.1") && m_elapsed > 160) {
+            m_overtimeLabel->setText(
+                QStringLiteral("%1:%2 сек")
+                    .arg(m_elapsed / 60)
+                    .arg(m_elapsed % 60, 2, 10, QLatin1Char('0')));
+            m_overtimeLabel->adjustSize();
+            m_overtimeLabel->move(1200, 70);
+            m_overtimeLabel->show();
+            m_overtimeLabel->raise();
+        }
+    }
+
     void resizeEvent(QResizeEvent *event) override {
         TimedSessionRunner::resizeEvent(event);
-        if (m_browser) {
-            m_browser->setGeometry(100, 120, qMax(200, width() - 200), qMax(200, height() - 200));
-        }
+        layoutTableUi();
         if (m_stop) {
             m_stop->move(970, 70);
             m_stop->raise();
         }
     }
 
-    QTextBrowser *m_browser = nullptr;
-    QString m_tableHtml;
+    void layoutUi() override {
+        layoutTableUi();
+        m_stop->move(970, 70);
+        m_stop->raise();
+    }
+
+    QTableWidget *m_table = nullptr;
+    QLabel *m_stimulusLabel = nullptr;
+    QLabel *m_overtimeLabel = nullptr;
+    QMetaObject::Connection m_overtimeConnection;
 };
 
 class PuzzlesRunner : public ExerciseRunnerWidget {
@@ -1233,6 +1342,7 @@ class FlipCardCanvas final : public QWidget {
 public:
     explicit FlipCardCanvas(QWidget *parent = nullptr) : QWidget(parent) {
         setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setMouseTracking(true);
         m_timer.setInterval(1000);
         connect(&m_timer, &QTimer::timeout, this, [this]() { ++m_elapsed; });
     }
@@ -1244,14 +1354,22 @@ public:
         int y = 0;
         bool closed = true;
         bool clickable = true;
+        bool draggable = false;
     };
 
     int elapsedSeconds() const { return m_elapsed; }
+
+    void setCanvasBackground(const QColor &color) {
+        m_background = color;
+        update();
+    }
 
     void loadCards(const QString &exerciseId, const QVector<Card> &cards) {
         m_exerciseId = exerciseId;
         m_cards = cards;
         m_elapsed = 0;
+        m_dragIndex = -1;
+        m_dragging = false;
         m_timer.start();
         update();
     }
@@ -1260,7 +1378,7 @@ protected:
     void paintEvent(QPaintEvent *event) override {
         Q_UNUSED(event);
         QPainter painter(this);
-        painter.fillRect(rect(), Qt::white);
+        painter.fillRect(rect(), m_background);
         const double scale = qMin(
             1.0,
             qMin(width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
@@ -1281,38 +1399,106 @@ protected:
         }
     }
 
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() != Qt::LeftButton) {
+            return;
+        }
+        int index = -1;
+        if (!hitTestCard(event->pos(), &index)) {
+            return;
+        }
+        m_dragIndex = index;
+        m_dragging = false;
+        m_pressPos = event->pos();
+        const double scale = designScale();
+        const int offsetX = (width() - qRound(1920 * scale)) / 2;
+        const int offsetY = (height() - qRound(1080 * scale)) / 2;
+        m_dragOffsetX = qRound((event->x() - offsetX) / scale) - m_cards[index].x;
+        m_dragOffsetY = qRound((event->y() - offsetY) / scale) - m_cards[index].y;
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (m_dragIndex < 0 || m_dragIndex >= m_cards.size()) {
+            return;
+        }
+        Card &card = m_cards[m_dragIndex];
+        if (!card.draggable) {
+            return;
+        }
+        if (!m_dragging
+            && (event->pos() - m_pressPos).manhattanLength() < 4) {
+            return;
+        }
+        m_dragging = true;
+        const double scale = designScale();
+        const int offsetX = (width() - qRound(1920 * scale)) / 2;
+        const int offsetY = (height() - qRound(1080 * scale)) / 2;
+        card.x = qRound((event->x() - offsetX) / scale) - m_dragOffsetX;
+        card.y = qRound((event->y() - offsetY) / scale) - m_dragOffsetY;
+        update();
+    }
+
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (event->button() != Qt::LeftButton) {
             return;
         }
-        const double scale = qMin(
-            1.0,
-            qMin(width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
-                 height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0));
-        const int offsetX = (width() - qRound(1920 * scale)) / 2;
-        const int offsetY = (height() - qRound(1080 * scale)) / 2;
-        const int designX = qRound((event->x() - offsetX) / scale);
-        const int designY = qRound((event->y() - offsetY) / scale);
-
-        for (Card &card : m_cards) {
-            if (!card.clickable) {
-                continue;
-            }
-            const QPixmap &pixmap = card.closed ? card.back : card.front;
-            if (designX >= card.x && designY >= card.y && designX < card.x + pixmap.width()
-                && designY < card.y + pixmap.height()) {
-                card.closed = !card.closed;
-                update();
-                return;
-            }
+        const bool wasDrag = m_dragging;
+        const int index = m_dragIndex;
+        m_dragging = false;
+        m_dragIndex = -1;
+        if (wasDrag || index < 0 || index >= m_cards.size()) {
+            update();
+            return;
         }
+        Card &card = m_cards[index];
+        if (!card.clickable) {
+            return;
+        }
+        card.closed = !card.closed;
+        update();
     }
 
 private:
+    double designScale() const {
+        return qMin(
+            1.0,
+            qMin(width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
+                 height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0));
+    }
+
+    bool hitTestCard(const QPoint &pos, int *outIndex) const {
+        const double scale = designScale();
+        const int offsetX = (width() - qRound(1920 * scale)) / 2;
+        const int offsetY = (height() - qRound(1080 * scale)) / 2;
+        const int designX = qRound((pos.x() - offsetX) / scale);
+        const int designY = qRound((pos.y() - offsetY) / scale);
+        for (int i = m_cards.size() - 1; i >= 0; --i) {
+            const Card &card = m_cards.at(i);
+            const QPixmap &pixmap = card.closed ? card.back : card.front;
+            if (pixmap.isNull()) {
+                continue;
+            }
+            if (designX >= card.x && designY >= card.y && designX < card.x + pixmap.width()
+                && designY < card.y + pixmap.height()) {
+                if (outIndex) {
+                    *outIndex = i;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     QString m_exerciseId;
     QVector<Card> m_cards;
     QTimer m_timer;
     int m_elapsed = 0;
+    QColor m_background = Qt::white;
+    int m_dragIndex = -1;
+    bool m_dragging = false;
+    QPoint m_pressPos;
+    int m_dragOffsetX = 0;
+    int m_dragOffsetY = 0;
 };
 
 class CardsRunner final : public ExerciseRunnerWidget {
@@ -1336,12 +1522,12 @@ public:
         Q_UNUSED(definition);
         Q_UNUSED(stepId);
         m_exerciseId = exerciseId;
+        m_wordsHidden = false;
 
         QVector<FlipCardCanvas::Card> cards;
         const QString zeroPath = ExerciseAssets::exerciseFile(
-            exerciseId,
-            exerciseId == QStringLiteral("4.1.6") ? QStringLiteral("zero.png")
-                                                  : QStringLiteral("zero.png"));
+            exerciseId == QStringLiteral("4.1.8") ? QStringLiteral("4.1.6") : exerciseId,
+            QStringLiteral("zero.png"));
         QPixmap backPixmap(zeroPath);
 
         if (exerciseId == QStringLiteral("4.1.5")) {
@@ -1354,8 +1540,12 @@ public:
                 card.back = backPixmap;
                 card.x = 50 + i * 250;
                 card.y = 81;
+                card.closed = true;
+                card.clickable = true;
+                card.draggable = true;
                 cards.append(card);
             }
+            m_canvas->setCanvasBackground(Qt::white);
         } else if (exerciseId == QStringLiteral("4.1.6")) {
             int count = 1;
             int linex = 910;
@@ -1368,6 +1558,9 @@ public:
                     card.back = backPixmap;
                     card.x = linex;
                     card.y = liney;
+                    card.closed = true;
+                    card.clickable = true;
+                    card.draggable = true;
                     cards.append(card);
                     ++count;
                     linex += 250;
@@ -1375,33 +1568,10 @@ public:
                 linex = 910;
                 liney += 250;
             }
+            m_canvas->setCanvasBackground(Qt::white);
         } else if (exerciseId == QStringLiteral("4.1.8")) {
-            if (!m_tableBrowser) {
-                m_tableBrowser = new QTextBrowser(this);
-                m_tableBrowser->hide();
-            }
-            const QString tablePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("table.html"));
-            if (!tablePath.isEmpty()) {
-                QFile file(tablePath);
-                if (file.open(QIODevice::ReadOnly)) {
-                    m_tableBrowser->setHtml(QString::fromUtf8(file.readAll()));
-                }
-            }
-            m_tableBrowser->setGeometry(0, 0, qMax(400, width() / 2), height());
-            m_tableBrowser->show();
-
-            if (!m_hideButton) {
-                m_hideButton = new ImageButton(this);
-                m_hideButton->hide();
-                connect(m_hideButton, &ImageButton::clicked, this, [this]() {
-                    if (m_canvas) {
-                        m_canvas->setVisible(!m_canvas->isVisible());
-                    }
-                });
-            }
-            m_hideButton->setImagePath(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png")));
-            m_hideButton->move(900, 72);
-            m_hideButton->show();
+            ensure418Ui();
+            m_canvas->setCanvasBackground(QColor(240, 240, 240));
 
             int count = 1;
             int linex = 1000;
@@ -1417,7 +1587,10 @@ public:
                     card.back = backPixmap;
                     card.x = linex;
                     card.y = liney;
+                    // pcards.closed = false по умолчанию; clickable = false
+                    card.closed = false;
                     card.clickable = false;
+                    card.draggable = true;
                     cards.append(card);
                     ++count;
                     linex += 220;
@@ -1427,17 +1600,30 @@ public:
             }
         }
 
-        if (exerciseId == QStringLiteral("4.1.8")) {
-            m_canvas->setGeometry(width() / 2, 0, width() - width() / 2, height());
-        } else {
-            m_canvas->setGeometry(0, 0, width(), height());
-        }
+        m_canvas->setGeometry(0, 0, width(), height());
         m_canvas->loadCards(exerciseId, cards);
         m_canvas->show();
-        m_canvas->raise();
-        if (m_tableBrowser && exerciseId == QStringLiteral("4.1.8")) {
-            m_tableBrowser->raise();
+        m_canvas->lower();
+
+        if (exerciseId == QStringLiteral("4.1.8")) {
+            layout418Ui();
+            if (m_panel418) {
+                m_panel418->show();
+                m_panel418->raise();
+            }
+            if (m_hideButton) {
+                m_hideButton->show();
+                m_hideButton->raise();
+            }
+        } else {
+            if (m_panel418) {
+                m_panel418->hide();
+            }
+            if (m_hideButton) {
+                m_hideButton->hide();
+            }
         }
+
         m_stop->move(80, 72);
         m_stop->show();
         m_stop->raise();
@@ -1450,14 +1636,10 @@ public:
     void resizeEvent(QResizeEvent *event) override {
         ExerciseRunnerWidget::resizeEvent(event);
         if (m_canvas) {
-            if (m_exerciseId == QStringLiteral("4.1.8")) {
-                m_canvas->setGeometry(width() / 2, 0, width() - width() / 2, height());
-                if (m_tableBrowser) {
-                    m_tableBrowser->setGeometry(0, 0, width() / 2, height());
-                }
-            } else {
-                m_canvas->setGeometry(0, 0, width(), height());
-            }
+            m_canvas->setGeometry(0, 0, width(), height());
+        }
+        if (m_exerciseId == QStringLiteral("4.1.8")) {
+            layout418Ui();
         }
         if (m_stop) {
             m_stop->move(80, 72);
@@ -1466,15 +1648,161 @@ public:
     }
 
 private:
+    static const QStringList &stimulusWords() {
+        static const QStringList words = {
+            QStringLiteral("Школа"),
+            QStringLiteral("Обед"),
+            QStringLiteral("Утро"),
+            QStringLiteral("Красота"),
+            QStringLiteral("Прогулка"),
+        };
+        return words;
+    }
+
+    void ensure418Ui() {
+        if (!m_panel418) {
+            m_panel418 = new QGroupBox(this);
+            m_panel418->setTitle(QString());
+            m_panel418->setStyleSheet(QStringLiteral(
+                "QGroupBox { background-color:#f0f0f0; border:1px solid #a0a0a0; }"));
+
+            auto *helpWordLabel = new QLabel(QStringLiteral("Помощь к слову"), m_panel418);
+            helpWordLabel->move(144, 28);
+            m_wordCombo = new QComboBox(m_panel418);
+            m_wordCombo->addItems(stimulusWords());
+            m_wordCombo->setGeometry(241, 24, 121, 24);
+            m_wordCombo->setCurrentIndex(-1);
+
+            auto *helpTypeLabel = new QLabel(QStringLiteral("Виды помощи"), m_panel418);
+            helpTypeLabel->move(364, 28);
+            m_helpCombo = new QComboBox(m_panel418);
+            m_helpCombo->addItems({
+                QStringLiteral("Повтор более подробной инструкции"),
+                QStringLiteral(
+                    "Направляющая помощь \"подумай какая карточка сможете тебе напомнить слово\""),
+                QStringLiteral("Показ способа выполнения задания с просьбой повторить это действие"),
+            });
+            m_helpCombo->setGeometry(448, 25, 467, 24);
+            m_helpCombo->setCurrentIndex(-1);
+            connect(m_wordCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                    [this](int) { m_helpCombo->setCurrentIndex(-1); });
+            connect(m_helpCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                    [this](int index) {
+                        if (index < 0 || !m_table418 || !m_wordCombo) {
+                            return;
+                        }
+                        const int row = m_wordCombo->currentIndex();
+                        if (row < 0 || row >= m_table418->rowCount()) {
+                            return;
+                        }
+                        QTableWidgetItem *item = m_table418->item(row, 3);
+                        if (!item) {
+                            item = new QTableWidgetItem;
+                            m_table418->setItem(row, 3, item);
+                        }
+                        const QString help = m_helpCombo->currentText().trimmed();
+                        if (help.isEmpty()) {
+                            return;
+                        }
+                        const QString prev = item->text().trimmed();
+                        item->setText(prev.isEmpty() ? help : (prev + QLatin1Char(' ') + help));
+                    });
+
+            m_table418 = new QTableWidget(5, 6, m_panel418);
+            m_table418->setGeometry(6, 52, 933, 354);
+            m_table418->setHorizontalHeaderLabels({
+                QStringLiteral("Выбранная картинка"),
+                QStringLiteral("Объяснение выбора"),
+                QStringLiteral("Воспроиз. до помощи"),
+                QStringLiteral("Виды помощи"),
+                QStringLiteral("Воспроиз. после помощи"),
+                QStringLiteral("Баллы"),
+            });
+            m_table418->verticalHeader()->setVisible(true);
+            for (int r = 0; r < 5; ++r) {
+                m_table418->setVerticalHeaderItem(r, new QTableWidgetItem(stimulusWords().at(r)));
+                for (int c = 0; c < 6; ++c) {
+                    m_table418->setItem(r, c, new QTableWidgetItem);
+                }
+            }
+            m_table418->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+            m_table418->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+            m_table418->setWordWrap(true);
+        }
+
+        if (!m_hideButton) {
+            m_hideButton = new ImageButton(this);
+            connect(m_hideButton, &ImageButton::clicked, this, [this]() { toggle418Words(); });
+        }
+        m_hideButton->setImagePath(
+            ExerciseAssets::exerciseFile(QStringLiteral("4.1.8"), QStringLiteral("hide.png")));
+        m_wordsHidden = false;
+        apply418WordHeaderVisibility();
+    }
+
+    void layout418Ui() {
+        if (!m_panel418) {
+            return;
+        }
+        // cards.Designer: groupBox1 @ (12,12,945,421), phide @ (1339,29)
+        const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
+        const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
+        m_panel418->setGeometry(qRound(12 * sx), qRound(12 * sy), qRound(945 * sx), qRound(421 * sy));
+        if (m_hideButton) {
+            m_hideButton->move(qRound(1339 * sx), qRound(29 * sy));
+            m_hideButton->raise();
+        }
+        m_panel418->raise();
+    }
+
+    void apply418WordHeaderVisibility() {
+        if (!m_table418) {
+            return;
+        }
+        for (int r = 0; r < m_table418->rowCount(); ++r) {
+            QTableWidgetItem *header = m_table418->verticalHeaderItem(r);
+            if (!header) {
+                continue;
+            }
+            header->setText(m_wordsHidden ? QString() : stimulusWords().value(r));
+        }
+    }
+
+    void toggle418Words() {
+        m_wordsHidden = !m_wordsHidden;
+        apply418WordHeaderVisibility();
+        if (m_hideButton) {
+            m_hideButton->setImagePath(ExerciseAssets::exerciseFile(
+                QStringLiteral("4.1.8"),
+                m_wordsHidden ? QStringLiteral("show.png") : QStringLiteral("hide.png")));
+        }
+    }
+
+    QString collect418Additional() const {
+        if (!m_table418) {
+            return {};
+        }
+        QStringList rows;
+        for (int r = 0; r < m_table418->rowCount(); ++r) {
+            QStringList cells;
+            for (int c = 0; c < m_table418->columnCount(); ++c) {
+                const QTableWidgetItem *item = m_table418->item(r, c);
+                cells << (item ? item->text().trimmed() : QString());
+            }
+            rows << cells.join(QLatin1Char(';'));
+        }
+        return rows.join(QLatin1Char('|'));
+    }
+
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
-        if (m_tableBrowser && m_exerciseId == QStringLiteral("4.1.8")) {
-            result.additional = m_tableBrowser->toPlainText().left(4000);
+        if (m_exerciseId == QStringLiteral("4.1.8")) {
+            result.additional = collect418Additional();
         }
         m_canvas->hide();
-        if (m_tableBrowser) {
-            m_tableBrowser->hide();
+        if (m_panel418) {
+            m_panel418->hide();
         }
         if (m_hideButton) {
             m_hideButton->hide();
@@ -1486,8 +1814,12 @@ private:
 
     FlipCardCanvas *m_canvas = nullptr;
     ClickableLabel *m_stop = nullptr;
-    QTextBrowser *m_tableBrowser = nullptr;
     ImageButton *m_hideButton = nullptr;
+    QGroupBox *m_panel418 = nullptr;
+    QComboBox *m_wordCombo = nullptr;
+    QComboBox *m_helpCombo = nullptr;
+    QTableWidget *m_table418 = nullptr;
+    bool m_wordsHidden = false;
 };
 
 class E15Runner final : public ExerciseRunnerWidget {
@@ -1686,10 +2018,13 @@ public:
     }
 
     QString currentAdditionalSnapshot() const override {
-        const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
         const QString step = m_canvas && !m_canvas->stepId().isEmpty()
             ? m_canvas->stepId()
             : (m_stepId.isEmpty() ? QStringLiteral("1") : m_stepId);
+        if (m_exerciseId == QStringLiteral("1.272")) {
+            return step;
+        }
+        const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
         return step + QLatin1Char(';') + answers;
     }
 
@@ -1732,12 +2067,17 @@ private:
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
-        // Для протоколов 1.26/1.272: номер задания + ответы.
-        const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
         const QString step = m_canvas && !m_canvas->stepId().isEmpty()
             ? m_canvas->stepId()
             : (m_stepId.isEmpty() ? QStringLiteral("1") : m_stepId);
-        result.additional = step + QLatin1Char(';') + answers;
+        if (m_exerciseId == QStringLiteral("1.272")) {
+            // Оригинал: createP(..., param1.Text) — только номер задания.
+            result.additional = step;
+        } else {
+            // 1.26: номер задания + ответы.
+            const QString answers = m_canvas ? m_canvas->answersSnapshot() : QString();
+            result.additional = step + QLatin1Char(';') + answers;
+        }
         m_canvas->hide();
         m_stop->hide();
         hide();

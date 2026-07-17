@@ -5,7 +5,7 @@
 
 class QComboBox;
 class QLabel;
-class QTextBrowser;
+class QTableWidget;
 class QTimer;
 
 class WolfRunner final : public ExerciseRunnerWidget {
@@ -32,14 +32,13 @@ private:
     QLabel *m_templateBtn2 = nullptr;
     QLabel *m_taleImage = nullptr;
     QLabel *m_templateImage = nullptr;
-    QTextBrowser *m_tableBrowser = nullptr;
+    QTableWidget *m_table = nullptr;
     QComboBox *m_episodeCombo = nullptr;
     QComboBox *m_helpCombo = nullptr;
     QTimer *m_timer = nullptr;
     int m_elapsed = 0;
     bool m_template1Visible = false;
     bool m_template2Visible = false;
-    QString m_tableHtml;
 };
 
 #endif

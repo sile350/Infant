@@ -71,9 +71,14 @@ private:
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
     void formProtocol();
+    void sumProtocolScores();
     void sumProtocol126();
+    void sumProtocol1272();
+    void sumProtocol3110();
+    void sumProtocol418();
     void updateSumButtonVisibility();
     void resetProtocolToInitialTemplate();
+    void showLastProtocolInTemplate();
     void updateProtocolEditMode();
     void setExerciseChromeVisible(bool visible);
     void showExerciseOverlay();

@@ -3,32 +3,28 @@
 #include "exerciseassets.h"
 #include "imagebutton.h"
 
+#include <QAbstractItemView>
 #include <QComboBox>
-#include <QFile>
-#include <QFileInfo>
+#include <QHeaderView>
 #include <QLabel>
-#include <QRegularExpression>
-#include <QTextBrowser>
+#include <QTableWidget>
 #include <QTimer>
 
 namespace {
 
-QString appendToHelpCell(const QString &html, int episode, const QString &text) {
-    if (text.isEmpty()) {
-        return html;
-    }
-    const QString id = QStringLiteral("h%1").arg(episode);
-    const QRegularExpression re(
-        QStringLiteral("(<div\\s+contenteditable=['\"]true['\"]\\s+id=['\"]%1['\"][^>]*>)").arg(id),
-        QRegularExpression::CaseInsensitiveOption);
-    const QRegularExpressionMatch match = re.match(html);
-    if (!match.hasMatch()) {
-        return html;
-    }
-    const int insertPos = match.capturedEnd(0);
-    const QString addition =
-        (episode <= 3 ? QStringLiteral("<br>&nbsp;&nbsp;&nbsp;") : QString()) + text + QLatin1Char(' ');
-    return html.left(insertPos) + addition + html.mid(insertPos);
+const QStringList &wolfQuestions() {
+    static const QStringList questions = {
+        QStringLiteral("О чем эта сказка?"),
+        QStringLiteral("Кто самый главный герой в этой сказке"),
+        QStringLiteral(
+            "Какие чувства испытывал заяц, когда спас волка? Какие чувства испытывал волк, когда заяц помог ему?"),
+        QStringLiteral("Какой характер у волка? Зайца? Лисы?"),
+        QStringLiteral(
+            "Почему? Кем бы ты хотел быть в этой сказке, на чье место встал бы?"),
+        QStringLiteral("Какой герой тебе не понравился, почему? Как бы ты поступил на его месте?"),
+        QStringLiteral("Как ты думаешь, захотят ли с волком дружить другие звери, почему?"),
+    };
+    return questions;
 }
 
 } // namespace
@@ -54,10 +50,25 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
 
     m_taleImage = new QLabel(this);
     m_templateImage = new QLabel(this);
-    m_tableBrowser = new QTextBrowser(this);
+
+    m_table = new QTableWidget(7, 2, this);
+    m_table->setHorizontalHeaderLabels(
+        {QStringLiteral("Ответы"), QStringLiteral("Помощь")});
+    m_table->verticalHeader()->setVisible(true);
+    m_table->setWordWrap(true);
+    m_table->setEditTriggers(
+        QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked
+        | QAbstractItemView::EditKeyPressed | QAbstractItemView::AnyKeyPressed);
+    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    for (int i = 0; i < 7; ++i) {
+        m_table->setVerticalHeaderItem(i, new QTableWidgetItem(wolfQuestions().at(i)));
+        m_table->setItem(i, 0, new QTableWidgetItem);
+        m_table->setItem(i, 1, new QTableWidgetItem);
+    }
+
     m_episodeCombo = new QComboBox(this);
     m_helpCombo = new QComboBox(this);
-
     for (int i = 1; i <= 7; ++i) {
         m_episodeCombo->addItem(QString::number(i));
     }
@@ -84,14 +95,15 @@ void WolfRunner::startSession(
     Q_UNUSED(stepId);
     m_exerciseId = exerciseId;
     m_elapsed = 0;
+    m_template1Visible = false;
+    m_template2Visible = false;
 
-    const QString tablePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("table.html"));
-    if (!tablePath.isEmpty()) {
-        QFile file(tablePath);
-        if (file.open(QIODevice::ReadOnly)) {
-            m_tableHtml = QString::fromUtf8(file.readAll());
-            m_tableBrowser->setHtml(ExerciseAssets::prepareExerciseHtml(
-                m_tableHtml, QFileInfo(tablePath).absolutePath()));
+    for (int i = 0; i < m_table->rowCount(); ++i) {
+        if (QTableWidgetItem *a = m_table->item(i, 0)) {
+            a->setText(QString());
+        }
+        if (QTableWidgetItem *h = m_table->item(i, 1)) {
+            h->setText(QString());
         }
     }
 
@@ -174,14 +186,17 @@ void WolfRunner::toggleTemplate2() {
 
 void WolfRunner::appendHelpText() {
     const int episode = m_episodeCombo->currentText().toInt();
-    const QString text = m_helpCombo->currentText();
-    if (episode < 1 || episode > 7 || text.isEmpty()) {
+    const QString text = m_helpCombo->currentText().trimmed();
+    if (episode < 1 || episode > 7 || text.isEmpty() || !m_table) {
         return;
     }
-    m_tableHtml = appendToHelpCell(m_tableHtml, episode, text);
-    const QString tablePath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("table.html"));
-    m_tableBrowser->setHtml(ExerciseAssets::prepareExerciseHtml(
-        m_tableHtml, QFileInfo(tablePath).absolutePath()));
+    QTableWidgetItem *item = m_table->item(episode - 1, 1);
+    if (!item) {
+        item = new QTableWidgetItem;
+        m_table->setItem(episode - 1, 1, item);
+    }
+    const QString prev = item->text().trimmed();
+    item->setText(prev.isEmpty() ? text : (prev + QLatin1Char(' ') + text));
 }
 
 void WolfRunner::layoutUi() {
@@ -191,46 +206,26 @@ void WolfRunner::layoutUi() {
     m_taleImage->setGeometry(12, 24, 805, 248);
     m_episodeCombo->setGeometry(74, 278, 52, 24);
     m_helpCombo->setGeometry(313, 278, 467, 24);
-    m_tableBrowser->setGeometry(12, 316, 805, 752);
+    m_table->setGeometry(12, 316, 805, 752);
     m_templateImage->setGeometry(964, 243, 616, 399);
     m_stop->raise();
     m_templateBtn1->raise();
     m_templateBtn2->raise();
+    m_table->raise();
 }
 
 void WolfRunner::finishSession() {
     ExerciseSessionResult result;
     result.elapsedSeconds = m_elapsed;
-    // Как в exbegin: h1..h7 | p1..p7
-    const QString html = m_tableBrowser ? m_tableBrowser->toHtml() : m_tableHtml;
-    auto extract = [](const QString &source, const QString &id) -> QString {
-        const QRegularExpression re(
-            QStringLiteral("<div[^>]*\\bid=['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
-                .arg(QRegularExpression::escape(id)),
-            QRegularExpression::CaseInsensitiveOption);
-        const QRegularExpressionMatch match = re.match(source);
-        if (!match.hasMatch()) {
-            return {};
-        }
-        QString inner = match.captured(1);
-        inner.replace(QRegularExpression(QStringLiteral("<[^>]+>")), QString());
-        return inner.trimmed();
-    };
     QStringList helps;
     QStringList answers;
-    for (int i = 1; i <= 7; ++i) {
-        helps << extract(html, QStringLiteral("h%1").arg(i));
-        answers << extract(html, QStringLiteral("p%1").arg(i));
+    for (int i = 0; i < 7; ++i) {
+        const QTableWidgetItem *answer = m_table ? m_table->item(i, 0) : nullptr;
+        const QTableWidgetItem *help = m_table ? m_table->item(i, 1) : nullptr;
+        answers << (answer ? answer->text().trimmed() : QString());
+        helps << (help ? help->text().trimmed() : QString());
     }
-    // Fallback: значения из исходного HTML, куда пишутся подсказки.
-    if (helps.join(QString()).isEmpty() && !m_tableHtml.isEmpty()) {
-        helps.clear();
-        answers.clear();
-        for (int i = 1; i <= 7; ++i) {
-            helps << extract(m_tableHtml, QStringLiteral("h%1").arg(i));
-            answers << extract(m_tableHtml, QStringLiteral("p%1").arg(i));
-        }
-    }
+    // Как в exbegin: h1..h7 | p1..p7
     result.additional = helps.join(QLatin1Char(';')) + QLatin1Char('|') + answers.join(QLatin1Char(';'));
     m_timer->stop();
     hide();

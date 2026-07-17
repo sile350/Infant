@@ -13,6 +13,8 @@
 #include <QMap>
 #include <QRegularExpression>
 #include <QUrl>
+#include <QtMath>
+#include <cmath>
 
 namespace {
 
@@ -23,6 +25,7 @@ struct ProtocolTemplate {
     QString dateRow;
     QString initialBlock;
     QString rowTemplate;
+    QString summaryRow;
     QMap<QString, QString> rowVariants;
 };
 
@@ -56,6 +59,7 @@ bool loadProtocolTemplate(const QString &exerciseId, ProtocolTemplate *out) {
     out->dateRow = obj.value(QStringLiteral("dateRow")).toString();
     out->initialBlock = obj.value(QStringLiteral("initialBlock")).toString();
     out->rowTemplate = obj.value(QStringLiteral("rowTemplate")).toString();
+    out->summaryRow = obj.value(QStringLiteral("summaryRow")).toString();
     out->rowVariants.clear();
     const QJsonObject variants = obj.value(QStringLiteral("rowVariants")).toObject();
     for (auto it = variants.constBegin(); it != variants.constEnd(); ++it) {
@@ -314,7 +318,7 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{DONE}}"), doneState.toHtmlEscaped());
     vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
 
-    int score = 0;
+    double score = 0;
     if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
         // timed11_result в шаблонах: для 4.1.2 — шкала 45с; для прочих открытых — та же.
         if (tmpl.id == QStringLiteral("4.1.2")) {
@@ -334,9 +338,27 @@ QMap<QString, QString> buildVariables(
         score = scoreExercise14(elapsedSeconds, session.picturesShown);
     } else if (tmpl.scoreKind == QStringLiteral("or_checkbox_4")) {
         score = wolfScoreFromOrHtml(session.orHtml);
+    } else if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
+        // Как в protocols.cs 3.1.10: idd3 → 2, каждый вид помощи −0.5.
+        if (checkboxes.activity.contains(QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)
+            || checkboxes.activity.contains(QStringLiteral("III уровень"), Qt::CaseInsensitive)
+            || checkboxes.activity.contains(QStringLiteral("2 балла"), Qt::CaseInsensitive)) {
+            score = 2.0;
+        }
+        const QStringList helpParts =
+            checkboxes.help.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+        score = qMax(0.0, score - 0.5 * helpParts.size());
     }
-    vars.insert(QStringLiteral("{{SCORE}}"), QString::number(score));
-    vars.insert(QStringLiteral("{{LEVEL}}"), developmentLevel(score).toHtmlEscaped());
+    if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
+        if (qFuzzyIsNull(score - std::floor(score))) {
+            vars.insert(QStringLiteral("{{SCORE}}"), QString::number(static_cast<int>(score)));
+        } else {
+            vars.insert(QStringLiteral("{{SCORE}}"), QString::number(score, 'f', 1));
+        }
+    } else {
+        vars.insert(QStringLiteral("{{SCORE}}"), QString::number(static_cast<int>(score)));
+    }
+    vars.insert(QStringLiteral("{{LEVEL}}"), developmentLevel(static_cast<int>(score)).toHtmlEscaped());
 
     if (!session.capturedImagePath.isEmpty()) {
         vars.insert(QStringLiteral("{{SCAN}}"), scanLinkHtml(session.capturedImagePath));
@@ -347,6 +369,16 @@ QMap<QString, QString> buildVariables(
 
     if (tmpl.kind == QStringLiteral("wolf_542")) {
         fillWolfVariables(session.additional, &vars);
+    }
+
+    // 5.1.1: слова разделены '[' (как в e511 / protocols.cs).
+    if (tmpl.id == QStringLiteral("5.1.1")) {
+        const QStringList words = session.additional.split(QLatin1Char('['));
+        for (int i = 0; i < 8; ++i) {
+            vars.insert(
+                QStringLiteral("{{W%1}}").arg(i),
+                i < words.size() ? words.at(i).toHtmlEscaped() : QString());
+        }
     }
 
     const QStringList tmpParts = session.additional.split(QLatin1Char(';'));
@@ -446,7 +478,55 @@ QString buildNumberedProcessRows(
     return rows;
 }
 
+// 1.27 / 1.272: строка на каждое № задания + одна «Итоговая оценка» (как createP + trim1).
+QString buildOrHlpBallsProcessRows(
+    const ProtocolTemplate &tmpl,
+    const QMap<QString, QString> &baseVars,
+    const ProtocolSessionInput &session) {
+    QStringList stepIds = session.stepIds;
+    if (stepIds.isEmpty()) {
+        QString step = session.stepId.trimmed();
+        if (step.isEmpty() && !session.additional.trimmed().isEmpty()) {
+            step = session.additional.split(QLatin1Char(';')).value(0).trimmed();
+        }
+        if (step.isEmpty()) {
+            step = QStringLiteral("1");
+        }
+        stepIds << step;
+    }
+
+    const QString rowTpl = tmpl.rowTemplate;
+    if (rowTpl.isEmpty()) {
+        return QString();
+    }
+
+    QString rows;
+    for (const QString &stepId : stepIds) {
+        QMap<QString, QString> vars = baseVars;
+        vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
+        vars.insert(QStringLiteral("{{ADDITIONAL}}"), stepId.toHtmlEscaped());
+        rows += ensureRowWrapped(substituteAll(rowTpl, vars));
+    }
+    if (!tmpl.summaryRow.isEmpty()) {
+        rows += ensureRowWrapped(substituteAll(tmpl.summaryRow, baseVars));
+    }
+    return rows;
+}
+
 } // namespace
+
+QString trimTrailingSummaryRow(QString body) {
+    // Как trim1 в оригинале: срезать последнюю <tr> (строка «Итоговая оценка»).
+    int index = body.lastIndexOf(QStringLiteral("<tr"), -1, Qt::CaseInsensitive);
+    if (index < 0) {
+        return body;
+    }
+    const QString tail = body.mid(index);
+    if (!tail.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
+        return body;
+    }
+    return body.left(index);
+}
 
 QString createExerciseProtocolFromTemplate(
     const QString &exerciseId,
@@ -463,14 +543,73 @@ QString createExerciseProtocolFromTemplate(
     }
 
     const QMap<QString, QString> vars = buildVariables(tmpl, userFio, elapsedSeconds, checkboxes, session);
-    const QString row = (tmpl.kind == QStringLiteral("numbered"))
-        ? buildNumberedProcessRows(tmpl, vars, session, elapsedSeconds)
-        : buildRow(tmpl, vars, answers, checkboxes, session);
+    QString row;
+    if (tmpl.kind == QStringLiteral("numbered")) {
+        row = buildNumberedProcessRows(tmpl, vars, session, elapsedSeconds);
+    } else if (tmpl.kind == QStringLiteral("or_hlp_balls")) {
+        row = buildOrHlpBallsProcessRows(tmpl, vars, session);
+    } else {
+        row = buildRow(tmpl, vars, answers, checkboxes, session);
+    }
 
     if (partly) {
-        // 1.26/tmp0_variants: как в оригинале — только блок задания в существующий протокол.
-        if (tmpl.kind == QStringLiteral("tmp0_variants")) {
-            return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
+        // 1.26/tmp0_variants, 3.1.10, 1.27/1.272: дописка строк задания в текущий протокол.
+        if (tmpl.kind == QStringLiteral("tmp0_variants")
+            || tmpl.kind == QStringLiteral("or_hlp_balls_row")
+            || tmpl.kind == QStringLiteral("or_hlp_balls")) {
+            QStringList stepIds = session.stepIds;
+            if (stepIds.isEmpty()) {
+                QString stepKey = session.stepId.trimmed();
+                if (stepKey.isEmpty()) {
+                    stepKey = session.additional.split(QLatin1Char(';')).value(0).trimmed();
+                }
+                if (stepKey.isEmpty()) {
+                    stepKey = QStringLiteral("1");
+                }
+                stepIds << stepKey;
+            }
+            const QString idPrefix = (tmpl.kind == QStringLiteral("or_hlp_balls"))
+                ? QStringLiteral("ids")
+                : QStringLiteral("idb");
+            QStringList newSteps;
+            for (const QString &sid : stepIds) {
+                const QString idToken = idPrefix + sid;
+                const bool present =
+                    existingProtocolHtml.contains(
+                        QStringLiteral("id='%1'").arg(idToken), Qt::CaseInsensitive)
+                    || existingProtocolHtml.contains(
+                        QStringLiteral("id=\"%1\"").arg(idToken), Qt::CaseInsensitive);
+                if (!present) {
+                    newSteps << sid;
+                }
+            }
+            // Все шаги уже были — повторный протокол с новой «Дата/специалист».
+            if (newSteps.isEmpty()) {
+                ProtocolSessionInput repeatSession = session;
+                repeatSession.stepIds = stepIds;
+                const QString repeatRows = (tmpl.kind == QStringLiteral("or_hlp_balls"))
+                    ? buildOrHlpBallsProcessRows(tmpl, vars, repeatSession)
+                    : row;
+                QString sessionBlock;
+                if (!tmpl.dateRow.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.dateRow, vars);
+                }
+                if (!tmpl.initialBlock.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.initialBlock, vars);
+                }
+                sessionBlock += repeatRows;
+                if (!sessionBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                    sessionBlock += QStringLiteral("</table>");
+                }
+                return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, sessionBlock);
+            }
+            ProtocolSessionInput appendSession = session;
+            appendSession.stepIds = newSteps;
+            const QString appendRows = (tmpl.kind == QStringLiteral("or_hlp_balls"))
+                ? buildOrHlpBallsProcessRows(tmpl, vars, appendSession)
+                : row;
+            return ExerciseProtocol::appendRowsToStoredBody(
+                trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
         // Повторный протокол (ТЗ 14.2): всегда новая сессия со строки «Дата/специалист».
         // Для numbered (1.17/1.18/2.10/…) нельзя дописывать только строки процесса —

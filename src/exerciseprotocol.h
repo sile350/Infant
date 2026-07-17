@@ -49,6 +49,8 @@ public:
     static QString normalizeProtocol12Layout(const QString &protocolBody);
     static QString patientProtocolBody(const QString &protocolBody);
     static QString extractLastSessionStoredBody(const QString &protocolBody);
+    // 1.26: последняя сессия по «Дата/специалист» без обрезки вложенных таблиц баллов.
+    static QString extractLastProtocol126Session(const QString &protocolBody);
     static QString formatProtocol12BodyForHeaderView(const QString &protocolBody);
     static QString buildProtocol12ProtocolsTabRecord(
         const QString &headerFragment,
@@ -80,6 +82,32 @@ public:
         const QString &storedBody,
         QTextDocument *editorDocument,
         bool computeSums = true);
+
+    // 3.1.10: сумма idb* → idsum и idvivod = sum(20); 1.272: ids* → (24).
+    static QString applyProtocolIdbSum(
+        const QString &storedBody,
+        const QString &maxSuffix = QStringLiteral("(20)"),
+        const QString &idPrefix = QStringLiteral("idb"));
+
+    // 4.1.8: сумма b* → idsum и idvivod = sum(10).
+    static QString applyProtocolBPrefixSum(
+        const QString &storedBody,
+        const QString &maxSuffix = QStringLiteral("(10)"));
+
+    // 3.1.10: перенос «Выбранная картинка» / «Объяснение» / баллов из редактора.
+    static QString mergeProtocol3110EditorIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
+    // or_hlp_balls (3.1.18 и др.): OR/HLP/Баллы из редактора без пересборки таблиц.
+    static QString mergeOrHlpBallsEditorIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
+    // 1.272: перенос баллов idsN / OR / HLP из редактора.
+    static QString mergeProtocol1272EditorIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
 
     // Безопасно дописывает строки <tr> к телу протокола (не внутрь последней ячейки).
     static QString appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml);

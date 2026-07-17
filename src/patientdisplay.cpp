@@ -1,5 +1,6 @@
 #include "patientdisplay.h"
 
+#include "exerciseconfig.h"
 #include "onlypexercise.h"
 
 #include <QGuiApplication>
@@ -53,6 +54,12 @@ void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
         m_mirrorExercise,
         &OnlyPExercise::showPicture,
         Qt::UniqueConnection);
+    connect(
+        m_exercise,
+        &OnlyPExercise::browseStateChanged,
+        m_mirrorExercise,
+        &OnlyPExercise::applyBrowseIndex,
+        Qt::UniqueConnection);
     connect(m_exercise, &OnlyPExercise::finished, this, &PatientDisplay::hideDisplay, Qt::UniqueConnection);
 }
 
@@ -104,7 +111,12 @@ void PatientDisplay::showOnSecondaryScreen() {
         if (!exerciseId.isEmpty() && m_mirrorExercise) {
             m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
             m_mirrorExercise->prepareMirrorUi(exerciseId);
-            m_mirrorExercise->showPicture(1);
+            if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
+                m_mirrorExercise->syncMirrorSession(
+                    exerciseId, definition->onlyPicture, QStringLiteral("1"));
+            } else {
+                m_mirrorExercise->showPicture(1);
+            }
             m_mirrorExercise->show();
         }
     }

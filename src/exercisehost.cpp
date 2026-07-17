@@ -692,12 +692,16 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_sessionStepId = currentStepId();
         refreshRotateCombos();
         reloadPreviewForCurrentStep();
-        if (m_exerciseRunning && m_onlyP && m_onlyP->isVisible() && !m_sessionStepId.isEmpty()) {
+        if (m_exerciseRunning && m_onlyP && !m_sessionStepId.isEmpty()) {
             m_onlyP->switchStep(m_sessionStepId);
+            if (m_specialistExercise) {
+                m_specialistExercise->switchStep(m_sessionStepId);
+            }
         }
         if (m_exerciseRunning && m_sessionRunner
             && (m_sessionRunnerKind == ExerciseRunnerKind::E126
-                || m_sessionRunnerKind == ExerciseRunnerKind::E1272)
+                || m_sessionRunnerKind == ExerciseRunnerKind::E1272
+                || m_sessionRunnerKind == ExerciseRunnerKind::E521)
             && !m_sessionStepId.isEmpty()) {
             m_sessionRunner->switchStep(m_sessionStepId);
         }
@@ -738,6 +742,24 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_specialistExercise->hide();
     connect(m_onlyP, &OnlyPExercise::pictureChanged, m_specialistExercise, &OnlyPExercise::showPicture, Qt::UniqueConnection);
     connect(
+        m_onlyP,
+        &OnlyPExercise::browseStateChanged,
+        m_specialistExercise,
+        &OnlyPExercise::applyBrowseIndex,
+        Qt::UniqueConnection);
+    connect(
+        m_specialistExercise,
+        &OnlyPExercise::mirrorBrowseNextRequested,
+        m_onlyP,
+        &OnlyPExercise::browseNext,
+        Qt::UniqueConnection);
+    connect(
+        m_specialistExercise,
+        &OnlyPExercise::mirrorBrowseBackRequested,
+        m_onlyP,
+        &OnlyPExercise::browseBack,
+        Qt::UniqueConnection);
+    connect(
         m_specialistExercise,
         &OnlyPExercise::mirrorAnswerRequested,
         m_onlyP,
@@ -757,25 +779,47 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // 1.26: не трогаем уже сохранённый протокол в БД перед заданием 2 —
-        // иначе merge из редактора может повредить блок задания 1.
+        // 1.26: оставляем на вкладке последний протокол; при полном цикле — старт с №1.
         if (m_exerciseId == QStringLiteral("1.26")) {
-            const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
-            const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
-            if (m_templateBrowser) {
-                m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-                applyCompactLineHeight(m_templateBrowser->document());
-            }
-            m_currentProtocolId.clear();
+            m_sessionAdditional.clear();
+            m_additionalByStep.clear();
             m_protocolSavedThisSession = false;
-            updateProtocolEditMode();
+
+            bool continueTask2 = false;
+            if (m_repository && m_partly) {
+                const QString existingBody =
+                    m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
+                QString lastSessionHtml = existingBody;
+                const int lastDate = existingBody.lastIndexOf(QStringLiteral("Дата/специалист"));
+                if (lastDate >= 0) {
+                    const int rowStart = existingBody.lastIndexOf(QStringLiteral("<tr"), lastDate);
+                    if (rowStart >= 0) {
+                        lastSessionHtml = existingBody.mid(rowStart);
+                    }
+                }
+                continueTask2 = lastSessionHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
+                    && !lastSessionHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
+            }
+            if (m_stepCombo && m_stepCombo->count() > 0) {
+                m_stepCombo->blockSignals(true);
+                if (continueTask2) {
+                    const int idx2 = m_stepCombo->findText(QStringLiteral("2"));
+                    m_stepCombo->setCurrentIndex(idx2 >= 0 ? idx2 : 0);
+                } else {
+                    m_stepCombo->setCurrentIndex(0);
+                }
+                m_stepCombo->blockSignals(false);
+                m_sessionStepId = m_stepCombo->currentText().trimmed();
+                reloadPreviewForCurrentStep();
+            }
+            showLastProtocolInTemplate();
         } else {
             resetProtocolToInitialTemplate();
         }
         runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
-    connect(m_sumButton, &ImageButton::clicked, this, [this]() { sumProtocol126(); });
+    connect(m_sumButton, &ImageButton::clicked, this, [this]() { sumProtocolScores(); });
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
         m_answers = answers;
         m_elapsedSeconds = elapsedSeconds;
@@ -1066,6 +1110,13 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
             candidates << QStringLiteral("f2.png");
         } else {
             candidates << QStringLiteral("d1.png") << QStringLiteral("f1.png");
+        }
+    } else if (m_exerciseId == QStringLiteral("1.272")) {
+        // Оригинал e1272: картинка задания = N.png (fN.png — только мелкое превью в списке).
+        if (!step.isEmpty()) {
+            candidates << step + QStringLiteral(".png") << QStringLiteral("f") + step + QStringLiteral(".png");
+        } else {
+            candidates << QStringLiteral("1.png") << QStringLiteral("f1.png");
         }
     } else if (!step.isEmpty()) {
         candidates << QStringLiteral("f") + step + QStringLiteral(".png")
@@ -1386,12 +1437,17 @@ void ExerciseHost::runExerciseSession() {
                     m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
                 }
                 m_sessionAdditional = result.additional;
-                if (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")) {
+                if (m_exerciseId == QStringLiteral("1.26")) {
                     const QStringList parts = result.additional.split(QLatin1Char(';'));
                     const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
                         ? QStringLiteral("1")
                         : parts.at(0).trimmed();
                     m_additionalByStep.insert(stepKey, result.additional);
+                } else if (m_exerciseId == QStringLiteral("1.272")) {
+                    const QString stepKey = currentStepId().trimmed().isEmpty()
+                        ? QStringLiteral("1")
+                        : currentStepId().trimmed();
+                    m_additionalByStep.insert(stepKey, stepKey);
                 }
                 m_picturesShown = result.picturesShown;
                 m_capturedImagePath = result.capturedImagePath;
@@ -1464,7 +1520,10 @@ void ExerciseHost::runOnlyPExercise() {
             m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
             m_specialistExercise->setMirrorMode(true);
             m_specialistExercise->prepareMirrorUi(m_exerciseId);
-            m_specialistExercise->showPicture(1);
+            m_specialistExercise->syncMirrorSession(m_exerciseId, settings, stepId);
+            if (m_exerciseId != QStringLiteral("3.2.3")) {
+                m_specialistExercise->showPicture(1);
+            }
             m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
             m_specialistExercise->show();
             m_specialistExercise->raise();
@@ -1518,9 +1577,10 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
         m_wrongCountLabel->hide();
     }
 
-    // Таймер результата — не для 1.26/1.272 (в оригинале не показывают).
+    // Таймер результата — не для методик без времени в протоколе.
     const bool hideResultTimer = m_exerciseId == QStringLiteral("1.26")
-        || m_exerciseId == QStringLiteral("1.272");
+        || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("3.1.10");
     if (m_timeResultLabel && !showAnswerCounts && !hideResultTimer && elapsedSeconds >= 0
         && m_exerciseDone) {
         m_timeResultLabel->setText(timeText);
@@ -1598,14 +1658,39 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
 
     // Раннер уже положил данные (ответы, цифры, сказка и т.п.) — не затираем.
     const bool keepRunnerAdditional = !m_sessionAdditional.isEmpty()
-        && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+        && (m_exerciseId == QStringLiteral("1.26")
             || m_exerciseId == QStringLiteral("4.1.8") || m_exerciseId == QStringLiteral("4.2.1")
             || m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
             || m_exerciseId == QStringLiteral("5.2.1") || m_exerciseId == QStringLiteral("5.4.2"));
 
-    if (keepRunnerAdditional) {
+    if (m_exerciseId == QStringLiteral("1.272")) {
+        // Оригинал createP("1.272"): additional = только param1.Text (№ задания).
+        const QString step = session.stepId.trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : session.stepId.trimmed();
+        session.stepId = step;
+        session.additional = step;
+        const QStringList order = numberedStepIds();
+        for (const QString &sid : order) {
+            if (m_additionalByStep.contains(sid) || m_stepElapsedSeconds.contains(sid)) {
+                session.stepIds << sid;
+            }
+        }
+        if (session.stepIds.isEmpty()) {
+            session.stepIds << step;
+        }
+    } else if (keepRunnerAdditional) {
         session.additional = m_sessionAdditional;
-    } else if (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")) {
+        // 5.2.1: оригинал createP получает param1 + ";" + data1..data10
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
+            const QString step = session.stepId.trimmed().isEmpty()
+                ? QStringLiteral("1")
+                : session.stepId.trimmed();
+            if (!session.additional.startsWith(step + QLatin1Char(';'))) {
+                session.additional = step + QLatin1Char(';') + session.additional;
+            }
+        }
+    } else if (m_exerciseId == QStringLiteral("1.26")) {
         // Как в оригинале: param1 + ";" + answers[0..12].join(";")
         const QString step = session.stepId.trimmed().isEmpty() ? QStringLiteral("1") : session.stepId;
         QStringList emptyAnswers;
@@ -1643,6 +1728,11 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
         session.additional = session.stepId + QLatin1Char(';') + session.doneState;
     } else if (definition && definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp) {
         session.additional = session.doneState;
+    } else if (definition && definition->protocol == ExerciseProtocolKind::OrHlpBallsRow) {
+        // 3.1.10 и др.: номер картинки/задания в первой колонке (без таймера).
+        session.additional = session.stepId.trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : session.stepId.trimmed();
     } else if (!m_sessionAdditional.isEmpty()) {
         session.additional = m_sessionAdditional;
     } else if (m_exerciseId == QStringLiteral("1.2")) {
@@ -1709,6 +1799,47 @@ void ExerciseHost::resetProtocolToInitialTemplate() {
     QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
 }
 
+void ExerciseHost::showLastProtocolInTemplate() {
+    if (!m_templateBrowser) {
+        return;
+    }
+    const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
+    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    if (m_repository && !m_patientId.trimmed().isEmpty()) {
+        const QString lastBody =
+            m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
+        const QString lastId =
+            m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId);
+        if (!lastBody.trimmed().isEmpty() && !lastId.isEmpty()) {
+            m_currentProtocolId = lastId;
+            m_partly = true;
+            const QString viewHtml = m_repository->loadProtocolViewHtml(
+                m_exerciseId, lastId, m_patientFio, m_patientBirthDate);
+            if (!viewHtml.trimmed().isEmpty()) {
+                m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+                applyCompactLineHeight(m_templateBrowser->document());
+                if (QTextDocument *doc = m_templateBrowser->document()) {
+                    doc->setDocumentMargin(kTemplateViewportPadding / 2);
+                    doc->setTextWidth(kTemplateTableWidth);
+                }
+                const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
+                m_templateBrowser->setFixedWidth(templateViewportWidth);
+                if (m_templatePanel) {
+                    m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
+                }
+                updateProtocolEditMode();
+                layoutContent();
+                QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
+                return;
+            }
+        }
+    }
+    m_currentProtocolId.clear();
+    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+    applyCompactLineHeight(m_templateBrowser->document());
+    updateProtocolEditMode();
+}
+
 void ExerciseHost::updateProtocolEditMode() {
     if (!m_templateBrowser) {
         return;
@@ -1725,7 +1856,9 @@ void ExerciseHost::updateSumButtonVisibility() {
     if (!m_sumButton) {
         return;
     }
-    const bool show = m_exerciseId == QStringLiteral("1.26") && m_protocolSavedThisSession;
+    const bool show = m_protocolSavedThisSession
+        && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+            || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("4.1.8"));
     m_sumButton->setVisible(show);
 }
 
@@ -1744,6 +1877,133 @@ void commitTextEditChanges(QTextEdit *editor, bool preserveFocus) {
 }
 
 } // namespace
+
+void ExerciseHost::sumProtocolScores() {
+    if (m_exerciseId == QStringLiteral("1.26")) {
+        sumProtocol126();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.272")) {
+        sumProtocol1272();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("3.1.10")) {
+        sumProtocol3110();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("4.1.8")) {
+        sumProtocol418();
+    }
+}
+
+void ExerciseHost::sumProtocol3110() {
+    if (m_exerciseId != QStringLiteral("3.1.10") || !m_repository || m_currentProtocolId.isEmpty()
+        || !m_templateBrowser) {
+        return;
+    }
+    commitTextEditChanges(m_templateBrowser, true);
+    // Сначала перенести правки редактора (в т.ч. «Выбранная картинка») в БД.
+    saveProtocolEdits();
+    QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
+        return;
+    }
+    storedBody = ExerciseProtocol::applyProtocolIdbSum(storedBody);
+
+    QString error;
+    if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
+        CustomMessageBox::showError(this, error);
+        return;
+    }
+
+    if (m_protocolSaveTimer) {
+        m_protocolSaveTimer->stop();
+    }
+    m_suppressProtocolAutosave = true;
+
+    const QString viewHtml = ExerciseProtocol::protocolViewHtml(
+        m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    applyCompactLineHeight(m_templateBrowser->document());
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+    updateContentHeights();
+    updateProtocolEditMode();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
+    emit protocolSaved();
+}
+
+void ExerciseHost::sumProtocol418() {
+    if (m_exerciseId != QStringLiteral("4.1.8") || !m_repository || m_currentProtocolId.isEmpty()
+        || !m_templateBrowser) {
+        return;
+    }
+    commitTextEditChanges(m_templateBrowser, true);
+    saveProtocolEdits();
+    QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
+        return;
+    }
+    // Подтянуть баллы b1..b5 из редактора (если Qt сохранил id).
+    if (m_templateBrowser->document()) {
+        const QString editorHtml = m_templateBrowser->document()->toHtml();
+        static const char *kIds[] = {
+            "b1", "b2", "b3", "b4", "b5", "sel1", "sel2", "sel3", "sel4", "sel5",
+            "ex1", "ex2", "ex3", "ex4", "ex5", "re1", "re2", "re3", "re4", "re5",
+            "hlp1", "hlp2", "hlp3", "hlp4", "hlp5", "rea1", "rea2", "rea3", "rea4", "rea5",
+            "cidd", "idspc"};
+        for (const char *idRaw : kIds) {
+            const QString id = QString::fromUtf8(idRaw);
+            const QRegularExpression re(
+                QStringLiteral("<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
+                    .arg(QRegularExpression::escape(id)),
+                QRegularExpression::CaseInsensitiveOption);
+            const QRegularExpressionMatch match = re.match(editorHtml);
+            if (!match.hasMatch()) {
+                continue;
+            }
+            const QRegularExpression targetRe(
+                QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
+                    .arg(QRegularExpression::escape(id)),
+                QRegularExpression::CaseInsensitiveOption);
+            const QRegularExpressionMatch target = targetRe.match(storedBody);
+            if (!target.hasMatch()) {
+                continue;
+            }
+            storedBody.replace(
+                target.capturedStart(0),
+                target.capturedLength(0),
+                target.captured(1) + match.captured(1) + target.captured(3));
+        }
+    }
+    storedBody = ExerciseProtocol::applyProtocolBPrefixSum(storedBody);
+
+    QString error;
+    if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
+        CustomMessageBox::showError(this, error);
+        return;
+    }
+
+    if (m_protocolSaveTimer) {
+        m_protocolSaveTimer->stop();
+    }
+    m_suppressProtocolAutosave = true;
+
+    const QString viewHtml = ExerciseProtocol::protocolViewHtml(
+        m_exerciseId, storedBody, m_patientFio, m_patientBirthDate);
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    applyCompactLineHeight(m_templateBrowser->document());
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+    updateContentHeights();
+    updateProtocolEditMode();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
+    emit protocolSaved();
+}
 
 void ExerciseHost::sumProtocol126() {
     if (m_exerciseId != QStringLiteral("1.26") || !m_repository || m_currentProtocolId.isEmpty()
@@ -1787,6 +2047,46 @@ void ExerciseHost::sumProtocol126() {
     emit protocolSaved();
 }
 
+void ExerciseHost::sumProtocol1272() {
+    if (m_exerciseId != QStringLiteral("1.272") || !m_repository || m_currentProtocolId.isEmpty()
+        || !m_templateBrowser) {
+        return;
+    }
+    commitTextEditChanges(m_templateBrowser, true);
+    QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
+        return;
+    }
+    storedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+        storedBody, m_templateBrowser->document());
+    // Оригинал bsum: getSum("ids") → idsum, idvivod = sum+"(24)".
+    storedBody = ExerciseProtocol::applyProtocolIdbSum(
+        storedBody, QStringLiteral("(24)"), QStringLiteral("ids"));
+
+    QString error;
+    if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
+        CustomMessageBox::showError(this, error);
+        return;
+    }
+    if (m_protocolSaveTimer) {
+        m_protocolSaveTimer->stop();
+    }
+    m_suppressProtocolAutosave = true;
+
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    applyCompactLineHeight(m_templateBrowser->document());
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+    updateContentHeights();
+    updateProtocolEditMode();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
+    emit protocolSaved();
+}
+
 void ExerciseHost::saveProtocolEdits() {
     if (!m_protocolSavedThisSession || m_suppressProtocolAutosave) {
         return;
@@ -1812,6 +2112,15 @@ void ExerciseHost::saveProtocolEdits() {
             storedBody, m_templateBrowser->document());
         body = ExerciseProtocol::applyProtocol126SumFromDocument(
             body, m_templateBrowser->document(), false);
+    } else if (m_exerciseId == QStringLiteral("1.272")) {
+        body = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+            storedBody, m_templateBrowser->document());
+    } else if (m_exerciseId == QStringLiteral("3.1.10")) {
+        body = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
+            storedBody, m_templateBrowser->document());
+    } else if (m_exerciseId == QStringLiteral("3.1.18")) {
+        body = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+            storedBody, m_templateBrowser->document());
     } else {
         body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
             storedBody, m_templateBrowser->document());
@@ -1844,8 +2153,7 @@ void ExerciseHost::formProtocol() {
         : QString();
 
     ProtocolSessionInput session = buildProtocolSession();
-    if ((m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))
-        && !session.additional.trimmed().isEmpty()) {
+    if (m_exerciseId == QStringLiteral("1.26") && !session.additional.trimmed().isEmpty()) {
         const QStringList parts = session.additional.split(QLatin1Char(';'));
         const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
             ? QStringLiteral("1")
@@ -1860,6 +2168,7 @@ void ExerciseHost::formProtocol() {
         // 1) Первое сохранение — новая запись с «Дата/специалист».
         // 2) То же посещение, задание 2 после задания 1 — дописать строки (partly/appendRows).
         // 3) Повторный протокол (ТЗ 14.2) — полная сессия с новой датой в то же тело.
+        // 4) Оба задания за один прогон без промежуточного «Сформировать» — собрать оба блока.
         const QStringList parts = session.additional.split(QLatin1Char(';'));
         const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
             ? QStringLiteral("1")
@@ -1881,6 +2190,18 @@ void ExerciseHost::formProtocol() {
             && lastSessionHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
             && !lastSessionHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
 
+        const QString add1 = m_additionalByStep.value(QStringLiteral("1"));
+        const QString add2 = m_additionalByStep.value(QStringLiteral("2"));
+        const bool needBothTasks = !add1.trimmed().isEmpty()
+            && (stepKey == QStringLiteral("2") || !add2.trimmed().isEmpty())
+            && !continueTask2;
+
+        auto sessionWithAdditional = [&](const QString &additional) {
+            ProtocolSessionInput copy = session;
+            copy.additional = additional;
+            return copy;
+        };
+
         if (continueTask2) {
             protocolBody = ExerciseProtocol::createProtocolHtml(
                 m_exerciseId,
@@ -1892,6 +2213,34 @@ void ExerciseHost::formProtocol() {
                 checkboxValues(),
                 session);
             saveAsPartly = true;
+        } else if (needBothTasks) {
+            const QString task2Additional = !add2.trimmed().isEmpty() ? add2 : session.additional;
+            QString newSession = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                false,
+                QString(),
+                m_answers,
+                checkboxValues(),
+                sessionWithAdditional(add1));
+            newSession = ExerciseProtocol::createProtocolHtml(
+                m_exerciseId,
+                m_specialistFio,
+                m_elapsedSeconds,
+                true,
+                newSession,
+                m_answers,
+                checkboxValues(),
+                sessionWithAdditional(task2Additional));
+            if (saveAsPartly) {
+                protocolBody =
+                    ExerciseProtocol::appendFullSessionToStoredBody(existingBody, newSession);
+                saveAsPartly = true;
+            } else {
+                protocolBody = newSession;
+                saveAsPartly = false;
+            }
         } else if (saveAsPartly) {
             // Повтор: новый блок с даты, не затирая предыдущие сессии.
             const QString newSession = ExerciseProtocol::createProtocolHtml(
@@ -1976,6 +2325,10 @@ void ExerciseHost::formProtocol() {
     m_protocolSavedThisSession = true;
     m_partly = true;
     m_stepElapsedSeconds.clear();
+    if (m_exerciseId == QStringLiteral("1.272")) {
+        // Строки уже попали в протокол — не дублировать при следующем формировании.
+        m_additionalByStep.clear();
+    }
     updateProtocolEditMode();
     emit protocolSaved();
 }

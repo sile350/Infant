@@ -11,6 +11,8 @@
 #include <QTextDocumentFragment>
 #include <QTextFrame>
 #include <QTextTable>
+#include <QtMath>
+#include <cmath>
 #include <utility>
 
 namespace {
@@ -1610,6 +1612,17 @@ QStringList extractProtocol126SessionsByDate(const QString &body) {
     return sessions;
 }
 
+QString ExerciseProtocol::extractLastProtocol126Session(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    const QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
+    if (sessions.isEmpty() || sessions.size() == 1) {
+        return stripLeadingSummaryTableWrapper(protocolBody);
+    }
+    return stripLeadingSummaryTableWrapper(sessions.last());
+}
+
 QString joinProtocol126Sessions(const QStringList &sessions) {
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
@@ -1741,6 +1754,32 @@ double sumDivPrefix(const QString &html, const QString &prefix) {
         }
     }
     return sum;
+}
+
+// Сумма всех idbN / idsN без требования непрерывной нумерации.
+double sumAllDivIdsWithPrefix(const QString &html, const QString &prefix) {
+    double sum = 0;
+    const QRegularExpression re(
+        QStringLiteral("<div\\b[^>]*\\bid\\s*=\\s*['\"]%1(\\d+)['\"][^>]*>([\\s\\S]*?)</div>")
+            .arg(QRegularExpression::escape(prefix)),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator it = re.globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        bool ok = false;
+        const double value = htmlFragmentToPlainText(match.captured(2)).trimmed().toDouble(&ok);
+        if (ok) {
+            sum += value;
+        }
+    }
+    return sum;
+}
+
+QString formatBallsNumber(double value) {
+    if (qFuzzyCompare(value + 1.0, std::floor(value) + 1.0)) {
+        return QString::number(static_cast<int>(value));
+    }
+    return QString::number(value, 'f', 1);
 }
 
 QString replaceScoreCellByRowLabel(QString html, const QString &rowLabel, const QString &scorePlain) {
@@ -2072,6 +2111,341 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     body = replaceDivInnerById(body, QStringLiteral("sum2"), sum2Text);
     body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
     body = replaceDivInnerById(body, QStringLiteral("idvivod"), vivodText);
+    return body;
+}
+
+QString ExerciseProtocol::applyProtocolIdbSum(
+    const QString &storedBody,
+    const QString &maxSuffix,
+    const QString &idPrefix) {
+    if (storedBody.trimmed().isEmpty()) {
+        return storedBody;
+    }
+    // Как bsum для 3.1.10 / 1.272: только последняя сессия с idb*/ids*.
+    QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+    auto applyToChunk = [&](QString chunk) {
+        const double sum = sumAllDivIdsWithPrefix(chunk, idPrefix);
+        const QString sumText = formatBallsNumber(sum);
+        chunk = replaceDivInnerById(chunk, QStringLiteral("idsum"), sumText);
+        chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), sumText + maxSuffix);
+        return chunk;
+    };
+    if (sessions.size() > 1) {
+        sessions[sessions.size() - 1] = applyToChunk(sessions.last());
+        return joinProtocol126Sessions(sessions);
+    }
+    return applyToChunk(storedBody);
+}
+
+QString ExerciseProtocol::applyProtocolBPrefixSum(const QString &storedBody, const QString &maxSuffix) {
+    if (storedBody.trimmed().isEmpty()) {
+        return storedBody;
+    }
+    // Как bsum для 4.1.8: сумма b1..b5 → idsum / idvivod=sum(10).
+    QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+    auto applyToChunk = [&](QString chunk) {
+        const double sum = sumAllDivIdsWithPrefix(chunk, QStringLiteral("b"));
+        const QString sumText = formatBallsNumber(sum);
+        // Только первое idvivod (во втором — «Примечание»).
+        const QRegularExpression idsumRe(
+            QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]idsum['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch idsumMatch = idsumRe.match(chunk);
+        if (idsumMatch.hasMatch()) {
+            chunk.replace(
+                idsumMatch.capturedStart(0),
+                idsumMatch.capturedLength(0),
+                idsumMatch.captured(1) + sumText + idsumMatch.captured(3));
+        }
+        const QRegularExpression idvivodRe(
+            QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]idvivod['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch idvivodMatch = idvivodRe.match(chunk);
+        if (idvivodMatch.hasMatch()) {
+            chunk.replace(
+                idvivodMatch.capturedStart(0),
+                idvivodMatch.capturedLength(0),
+                idvivodMatch.captured(1) + sumText + maxSuffix + idvivodMatch.captured(3));
+        }
+        return chunk;
+    };
+    if (sessions.size() > 1) {
+        sessions[sessions.size() - 1] = applyToChunk(sessions.last());
+        return joinProtocol126Sessions(sessions);
+    }
+    return applyToChunk(storedBody);
+}
+
+QString replace3110ProcessRowCells(
+    QString body,
+    const QString &stepNo,
+    const QString &picture,
+    const QString &explanation,
+    const QString &score) {
+    const QString escaped = QRegularExpression::escape(stepNo);
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)"
+            "([\\s\\S]*?)(</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>)"
+            "([\\s\\S]*?)(</td>\\s*</tr>)")
+            .arg(escaped),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch match = rowRe.match(body);
+    if (!match.hasMatch()) {
+        // Хотя бы баллы по id.
+        if (!score.trimmed().isEmpty()) {
+            body = replaceDivInnerById(body, QStringLiteral("idb") + stepNo, score.toHtmlEscaped());
+        }
+        return body;
+    }
+    const QString picInner = QStringLiteral("<div contenteditable='true'>%1</div>").arg(picture.toHtmlEscaped());
+    const QString explInner =
+        QStringLiteral("<div contenteditable='true'>%1</div>").arg(explanation.toHtmlEscaped());
+    QString scoreInner = match.captured(6);
+    if (!score.trimmed().isEmpty()) {
+        const QString id = QStringLiteral("idb") + stepNo;
+        if (scoreInner.contains(id, Qt::CaseInsensitive)) {
+            scoreInner = replaceDivInnerById(
+                QStringLiteral("<div id='%1'>%2</div>").arg(id, scoreInner.contains(QLatin1Char('>')) ? scoreInner : QString()),
+                id,
+                score.toHtmlEscaped());
+            // Проще пересобрать div с id.
+            scoreInner = QStringLiteral("<div id='%1' contenteditable='true'>%2</div>")
+                             .arg(id, score.toHtmlEscaped());
+        } else {
+            scoreInner = QStringLiteral("<div id='%1' contenteditable='true'>%2</div>")
+                             .arg(id, score.toHtmlEscaped());
+        }
+    }
+    return body.left(match.capturedStart())
+        + match.captured(1) + picInner + match.captured(3) + explInner + match.captured(5) + scoreInner
+        + match.captured(7) + body.mid(match.capturedEnd());
+}
+
+QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty() || !editorDocument) {
+        return storedBody;
+    }
+    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+
+    QList<QTextTable *> tables;
+    collectTables(editorDocument->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table || table->columns() < 6) {
+            continue;
+        }
+        int headerRow = -1;
+        int picCol = -1;
+        int explCol = -1;
+        int ballsCol = -1;
+        for (int r = 0; r < table->rows() && headerRow < 0; ++r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                const QString h = readTableCellText(table, r, c);
+                if (h.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+                    picCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive)) {
+                    explCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
+                    ballsCol = c;
+                    headerRow = r;
+                }
+            }
+        }
+        if (headerRow < 0 || picCol < 0) {
+            continue;
+        }
+        for (int r = headerRow + 1; r < table->rows(); ++r) {
+            const QString stepNo = readTableCellText(table, r, 0).trimmed();
+            bool isNumber = false;
+            stepNo.toInt(&isNumber);
+            if (!isNumber) {
+                continue;
+            }
+            const QString picture = readTableCellText(table, r, picCol);
+            const QString explanation = explCol >= 0 ? readTableCellText(table, r, explCol) : QString();
+            const QString score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
+            body = replace3110ProcessRowCells(body, stepNo, picture, explanation, score);
+        }
+    }
+    return body;
+}
+
+QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty() || !editorDocument) {
+        return storedBody;
+    }
+    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+
+    QList<QTextTable *> tables;
+    collectTables(editorDocument->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table || table->columns() < 3) {
+            continue;
+        }
+        int headerRow = -1;
+        int activityCol = -1;
+        int helpCol = -1;
+        int ballsCol = -1;
+        for (int r = 0; r < table->rows() && headerRow < 0; ++r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                const QString h = readTableCellText(table, r, c);
+                if (h.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+                    headerRow = -2; // не эта таблица
+                    break;
+                }
+                if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                    activityCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    && !h.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
+                    helpCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
+                    ballsCol = c;
+                    headerRow = r;
+                }
+            }
+            if (headerRow == -2) {
+                headerRow = -1;
+                break;
+            }
+        }
+        if (headerRow < 0 || ballsCol < 0 || activityCol < 0 || helpCol < 0) {
+            continue;
+        }
+        for (int r = headerRow + 1; r < table->rows(); ++r) {
+            const QString label = readTableCellText(table, r, 0);
+            if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
+                continue;
+            }
+            const QString activity = readTableCellText(table, r, activityCol);
+            const QString help = readTableCellText(table, r, helpCol);
+            const QString score = readTableCellText(table, r, ballsCol);
+
+            const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
+            if (marker < 0) {
+                continue;
+            }
+            QString head = body.left(marker + QStringLiteral("<!--s-->").size());
+            QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
+            const QRegularExpression rowRe(
+                QStringLiteral(
+                    "(<tr[^>]*>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)"
+                    "([\\s\\S]*?)(</td>\\s*</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            // Берём последнюю строку процесса (не заголовок).
+            QRegularExpressionMatchIterator it = rowRe.globalMatch(tail);
+            QRegularExpressionMatch lastMatch;
+            while (it.hasNext()) {
+                const QRegularExpressionMatch m = it.next();
+                const QString plain = htmlFragmentToPlainText(m.captured(2)).trimmed();
+                if (plain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                    || plain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    || plain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                lastMatch = m;
+            }
+            if (!lastMatch.hasMatch()) {
+                continue;
+            }
+            const QString actInner =
+                QStringLiteral("<div contenteditable='true'>%1</div>").arg(activity.toHtmlEscaped());
+            const QString helpInner =
+                QStringLiteral("<div contenteditable='true'>%1</div>").arg(help.toHtmlEscaped());
+            const QString scoreInner =
+                QStringLiteral("<div id='idballs' contenteditable='true'>%1</div>").arg(score.toHtmlEscaped());
+            const QString newRow = lastMatch.captured(1) + actInner + lastMatch.captured(3) + helpInner
+                + lastMatch.captured(5) + scoreInner + lastMatch.captured(7);
+            tail = tail.left(lastMatch.capturedStart()) + newRow + tail.mid(lastMatch.capturedEnd());
+            body = head + tail;
+            break;
+        }
+    }
+    return body;
+}
+
+QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty() || !editorDocument) {
+        return storedBody;
+    }
+    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+
+    QList<QTextTable *> tables;
+    collectTables(editorDocument->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table || table->columns() < 4) {
+            continue;
+        }
+        int headerRow = -1;
+        int activityCol = -1;
+        int helpCol = -1;
+        int ballsCol = -1;
+        for (int r = 0; r < table->rows() && headerRow < 0; ++r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                const QString h = readTableCellText(table, r, c);
+                if (h.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
+                    || h.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0) {
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                    activityCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    && !h.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
+                    helpCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
+                    ballsCol = c;
+                    headerRow = r;
+                }
+            }
+        }
+        if (headerRow < 0 || ballsCol < 0) {
+            continue;
+        }
+        for (int r = headerRow + 1; r < table->rows(); ++r) {
+            const QString label = readTableCellText(table, r, 0).trimmed();
+            if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
+                const QString sum = readTableCellText(table, r, ballsCol);
+                if (!sum.trimmed().isEmpty()) {
+                    body = replaceDivInnerById(body, QStringLiteral("idsum"), sum);
+                }
+                continue;
+            }
+            bool isNumber = false;
+            label.toInt(&isNumber);
+            if (!isNumber) {
+                continue;
+            }
+            if (activityCol >= 0) {
+                const QString activity = readTableCellText(table, r, activityCol);
+                // Обновляем ячейку OR в строке с этим № через ids-соседние div — только баллы по id.
+                Q_UNUSED(activity);
+            }
+            if (helpCol >= 0) {
+                Q_UNUSED(helpCol);
+            }
+            const QString score = readTableCellText(table, r, ballsCol);
+            if (!score.trimmed().isEmpty()) {
+                body = replaceDivInnerById(body, QStringLiteral("ids") + label, score);
+            }
+        }
+    }
     return body;
 }
 
