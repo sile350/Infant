@@ -107,6 +107,7 @@ private:
     QList<bool> m_answers;
     int m_elapsedSeconds = 0;
     QString m_sessionAdditional;
+    QString m_sessionStepId;
     int m_picturesShown = 0;
     QString m_capturedImagePath;
     bool m_shardPanelVisible = false;

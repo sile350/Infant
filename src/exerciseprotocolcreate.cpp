@@ -341,8 +341,7 @@ QString createExerciseProtocolBodyFallback(
             }
         }
         if (partly) {
-            return ExerciseProtocol::appendFullSessionToStoredBody(
-                base, buildNumberedInitial(userFio, header, rowStep, rowDone, elapsedSeconds, checkboxes));
+            return appendNumberedRow(base, rowStep, rowDone, elapsedSeconds, checkboxes);
         }
         return buildNumberedInitial(userFio, header, rowStep, rowDone, elapsedSeconds, checkboxes);
     }

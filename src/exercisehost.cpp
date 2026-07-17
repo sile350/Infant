@@ -19,6 +19,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDir>
 #include <QEventLoop>
 #include <QFile>
 #include <QFrame>
@@ -27,15 +28,15 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPixmap>
+#include <QPolygonF>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QStandardPaths>
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
-#include <QTimer>
-#include <QTextCursor>
 #include <QTimer>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -60,6 +61,44 @@ constexpr int kScrollWidth = 870;
 constexpr int kScrollBarGutter = 20;
 constexpr int kTemplateTableWidth = 671;
 constexpr int kTemplateViewportPadding = 4;
+
+QString stepComboArrowCss() {
+    static QString cachedPath;
+    if (cachedPath.isEmpty()) {
+        const QStringList roots = {
+            QCoreApplication::applicationDirPath() + QStringLiteral("/../assets/sysImages"),
+            QCoreApplication::applicationDirPath() + QStringLiteral("/../../assets/sysImages"),
+            QDir::currentPath() + QStringLiteral("/assets/sysImages"),
+        };
+        for (const QString &root : roots) {
+            const QString candidate = QDir(root).filePath(QStringLiteral("combo_arrow.png"));
+            if (QFile::exists(candidate)) {
+                cachedPath = QDir::fromNativeSeparators(candidate);
+                break;
+            }
+        }
+        if (cachedPath.isEmpty()) {
+            const QString filePath = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+                                        .filePath(QStringLiteral("infant_step_combo_arrow.png"));
+            if (!QFile::exists(filePath)) {
+                QPixmap pixmap(10, 6);
+                pixmap.fill(Qt::transparent);
+                QPainter painter(&pixmap);
+                painter.setRenderHint(QPainter::Antialiasing);
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(QColor(0x33, 0x33, 0x33));
+                QPolygonF arrow;
+                arrow << QPointF(0.0, 0.0) << QPointF(10.0, 0.0) << QPointF(5.0, 6.0);
+                painter.drawPolygon(arrow);
+                pixmap.save(filePath, "PNG");
+            }
+            cachedPath = QDir::fromNativeSeparators(filePath);
+        }
+    }
+    QString path = cachedPath;
+    path.replace(QLatin1Char('\\'), QLatin1Char('/'));
+    return QStringLiteral("width:10px; height:6px; image:url(\"%1\");").arg(path);
+}
 
 const char *kScrollWhiteStyle =
     "QScrollArea { background-color:#ffffff; border:none; }"
@@ -452,7 +491,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     doneChecksLayout->setContentsMargins(8, 4, 8, 4);
     doneChecksLayout->setSpacing(4);
     doneChecksHost->setStyleSheet(
-        QStringLiteral("QWidget { background:#f0f0f0; border:1px solid #808080; }"));
+        QStringLiteral("QWidget { background:#ffffff; border:1px solid #808080; }"));
     m_doneChecks << makeCheckRow(QStringLiteral("Выполнено"), doneChecksLayout, 220)
                  << makeCheckRow(QStringLiteral("Выполнено частично"), doneChecksLayout, 220)
                  << makeCheckRow(QStringLiteral("Не выполнено"), doneChecksLayout, 220);
@@ -545,15 +584,24 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "QLabel { font: bold 16pt 'Arial'; color: #000000; background: transparent; border: none; }"));
     m_timeResultLabel->hide();
 
-    m_stepCombo = new QComboBox(m_rightPanel);
+    m_stepCombo = new QComboBox(this);
     m_stepCombo->setStyleSheet(
-        "QComboBox { background:#ffffff; color:#000000; border:1px solid #000000; "
-        "font-family:'Microsoft Sans Serif'; font-size:14px; padding:2px 8px; }"
-        "QComboBox QAbstractItemView { background:#ffffff; color:#000000; selection-background-color:#cce8ff; "
-        "outline:0; border:1px solid #808080; }"
-        "QComboBox::drop-down { border:0; width:20px; background:#ffffff; }"
-        "QComboBox::down-arrow { image:none; width:0; height:0; border-left:4px solid transparent; "
-        "border-right:4px solid transparent; border-top:6px solid #000000; margin-right:6px; }");
+        QStringLiteral(
+            "QComboBox {"
+            "  background:#ffffff; color:#000000; border:1px solid #7f9db9;"
+            "  font-family:'Microsoft Sans Serif'; font-size:14px;"
+            "  padding:1px 28px 1px 6px; min-height:20px;"
+            "}"
+            "QComboBox::drop-down {"
+            "  subcontrol-origin: padding; subcontrol-position: top right;"
+            "  width:22px; border:none; border-left:1px solid #b0b0b0; background:#ececec;"
+            "}"
+            "QComboBox::down-arrow { %1 }"
+            "QComboBox QAbstractItemView {"
+            "  background:#ffffff; color:#000000; selection-background-color:#cce8ff;"
+            "  outline:0; border:1px solid #808080;"
+            "}")
+            .arg(stepComboArrowCss()));
     m_stepCombo->hide();
 
     m_exerciseOptionsPanel = new QWidget(m_rightPanel);
@@ -608,7 +656,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         }
     });
     connect(m_stepCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        m_sessionStepId = currentStepId();
         refreshRotateCombos();
+        if (m_exerciseRunning && m_onlyP && m_onlyP->isVisible() && !m_sessionStepId.isEmpty()) {
+            // Смена задания в процессе — подгрузить соответствующую картинку.
+            if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
+                m_onlyP->start(m_exerciseId, definition->onlyPicture, m_sessionStepId);
+            }
+        }
     });
     connect(m_rotateWCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
         if (!m_rotateWCombo || !m_rotateCWCombo) {
@@ -716,10 +771,20 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
 }
 
 void ExerciseHost::updateChromeLayout() {
+    // Селект задания доступен и во время выполнения (как param1 в оригинале).
+    if (m_stepCombo && m_stepCombo->count() > 0) {
+        m_stepCombo->setGeometry(760, 12, 200, 33);
+        m_stepCombo->show();
+        m_stepCombo->raise();
+    }
+
     if (m_exerciseRunning && !m_dualScreen) {
         updateExerciseOverlayGeometry();
         if (m_onlyP && m_onlyP->isVisible()) {
             m_onlyP->raise();
+        }
+        if (m_stepCombo && m_stepCombo->count() > 0) {
+            m_stepCombo->raise();
         }
         return;
     }
@@ -747,10 +812,6 @@ void ExerciseHost::updateChromeLayout() {
         m_beginButton->setGeometry(976, 12, 158, 33);
         m_beginButton->setVisible(!m_exerciseRunning);
         m_beginButton->raise();
-    }
-    if (m_stepCombo) {
-        m_stepCombo->setGeometry(760, 12, 200, 33);
-        m_stepCombo->raise();
     }
     if (m_exerciseOptionsPanel) {
         m_exerciseOptionsPanel->setGeometry(12, 52, qMax(120, m_rightPanel->width() - 24), 220);
@@ -821,6 +882,7 @@ void ExerciseHost::openExercise(
         }
     }
     m_sessionAdditional.clear();
+    m_sessionStepId.clear();
     m_picturesShown = 0;
     m_currentProtocolId.clear();
     m_orOpen1 = false;
@@ -1212,12 +1274,13 @@ void ExerciseHost::runExerciseSession() {
     if (!overlayRoot) {
         return;
     }
+    m_sessionStepId = currentStepId();
     m_sessionRunner->setParent(overlayRoot);
     m_sessionRunner->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
     lower();
     m_sessionRunner->setSessionOptions(buildSessionOptions());
     m_dualScreen = AppSettings::dualScreenEnabled();
-    m_sessionRunner->startSession(m_exerciseId, *definition, currentStepId());
+    m_sessionRunner->startSession(m_exerciseId, *definition, m_sessionStepId);
     m_sessionRunner->show();
     m_sessionRunner->raise();
     syncPatientDisplay();
@@ -1238,7 +1301,8 @@ void ExerciseHost::runOnlyPExercise() {
     const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
     const OnlyPictureSettings settings =
         definition ? definition->onlyPicture : OnlyPictureSettings();
-    const QString stepId = currentStepId();
+    m_sessionStepId = currentStepId();
+    const QString stepId = m_sessionStepId;
 
     if (m_dualScreen) {
         if (m_previewImage) {
@@ -1361,10 +1425,13 @@ int ExerciseHost::nextNumberedProtocolIndex() const {
 }
 
 QString ExerciseHost::currentStepId() const {
-    if (m_stepCombo && m_stepCombo->isVisible()) {
-        return m_stepCombo->currentText();
+    if (m_stepCombo && m_stepCombo->count() > 0) {
+        const QString text = m_stepCombo->currentText().trimmed();
+        if (!text.isEmpty()) {
+            return text;
+        }
     }
-    return QString();
+    return m_sessionStepId;
 }
 
 ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
@@ -1388,8 +1455,11 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
     if (keepRunnerAdditional) {
         session.additional = m_sessionAdditional;
     } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        // № = номер задания из combo (как в оригинале), не порядковый номер сессии.
-        QString step = currentStepId();
+        // № = номер задания из combo (как param1 в оригинале).
+        QString step = m_sessionStepId.trimmed();
+        if (step.isEmpty()) {
+            step = currentStepId();
+        }
         if (step.isEmpty()) {
             step = QStringLiteral("1");
         }
