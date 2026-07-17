@@ -435,6 +435,13 @@ QString extractVernoForPictureRow(const QString &body, int index) {
     return verno;
 }
 
+bool looksLikePictureAnswersResults(const QString &body) {
+    // Таблица процесса упражнения 1.2 — нельзя применять к 1.1 и прочим видам протоколов.
+    return body.contains(QStringLiteral("Бабушка"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("Велосипедист"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive);
+}
+
 QString rebuildResultsTableSection(
     QString body,
     const QList<bool> &answers = {},
@@ -519,6 +526,9 @@ QString replacePictureRow(
 }
 
 QString repairResultsTableBody(QString body, const QList<bool> &answers) {
+    if (!looksLikePictureAnswersResults(body)) {
+        return body;
+    }
     int markerPos = -1;
     int searchFrom = 0;
     while (true) {
@@ -768,6 +778,18 @@ QString replaceRowSecondCell(QString body, const QString &rowLabel, const QStrin
     return body.replace(rowRe, QStringLiteral("\\1") + inner + QStringLiteral("\\3"));
 }
 
+QString replaceResultRowSecondCell(QString body, const QString &plainText) {
+    // У разных методик подписи отличаются: «Результат: вывод…» / «Результат: баллы…» и т.п.
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*Результат[^<]*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
+                              ? QStringLiteral("<div contenteditable='true'>%1</div>").arg(plainText.toHtmlEscaped())
+                              : plainText.toHtmlEscaped();
+    return body.replace(rowRe, QStringLiteral("\\1") + inner + QStringLiteral("\\3"));
+}
+
 QString replaceAnswerInBody(QString body, const QString &description, const QString &verno) {
     const QString escapedDesc = QRegularExpression::escape(description);
     const QRegularExpression rowRe(
@@ -830,13 +852,16 @@ QString applyParsedFieldsToSessionChunk(const QString &sessionChunk, const Parse
         result = replaceRowSecondCell(result, QStringLiteral("Дата/специалист"), parsed.dateSpecialist);
     }
     if (parsed.hasResult) {
-        result = replaceRowSecondCell(result, QStringLiteral("Результат: вывод об уровне развития"), parsed.resultText);
+        result = replaceResultRowSecondCell(result, parsed.resultText);
     }
     if (parsed.hasNote) {
         result = replaceRowSecondCell(result, QStringLiteral("Примечание"), parsed.noteText);
     }
 
-    if (result.contains(QStringLiteral("<!--s-->"))) {
+    // Пересборка таблицы процесса в формате 1.2 допустима только если это уже протокол 1.2.
+    // Иначе при saveProtocolEdits у 1.1/других методик «Процесс выполнения» затирается
+    // строками «Бабушка на диване… / верно|неверно».
+    if (result.contains(QStringLiteral("<!--s-->")) && looksLikePictureAnswersResults(result)) {
         result = rebuildResultsTableSection(result, QList<bool>(), &parsed);
     }
 
