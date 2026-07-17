@@ -34,3 +34,16 @@
 8754	10497	8060069614947032	CMakeFiles/infant.dir/src/protocoleditguard.cpp.obj	7c51dff74c68f3e1
 8205	11363	8060069609455600	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	5c8c0a954535de25
 11363	14294	8060069641030242	infant.exe	8f109e57622b20c3
+7	107	8060071280237869	infant_autogen/timestamp	928c61d4c371ba7e
+7	107	8060071280237869	infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+7	107	8060071280237869	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	928c61d4c371ba7e
+7	107	8060071280237869	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+108	2457	8060071281243517	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	5c8c0a954535de25
+2458	5362	8060071304738987	infant.exe	8f109e57622b20c3
+7	110	8060072186924145	infant_autogen/timestamp	928c61d4c371ba7e
+7	110	8060072186924145	infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+7	110	8060072186924145	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	928c61d4c371ba7e
+7	110	8060072186924145	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+110	1270	8060072187951126	CMakeFiles/infant.dir/src/exerciseprotocolcreate.cpp.obj	bebd1e19f1832396
+112	1514	8060072187970819	CMakeFiles/infant.dir/src/exerciseprotocoltemplates.cpp.obj	1286e22b6e51e200
+1514	4556	8060072201995391	infant.exe	8f109e57622b20c3

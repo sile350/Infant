@@ -447,11 +447,7 @@ QString createExerciseProtocolFromTemplate(
         : buildRow(tmpl, vars, answers, checkboxes, session);
 
     if (partly) {
-        // Numbered (1.17 и т.п.): дописываем строки заданий в таблицу процесса.
-        if (tmpl.kind == QStringLiteral("numbered")) {
-            return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
-        }
-        // Остальные методики — полный блок с новой «Дата/специалист».
+        // Повторный протокол — всегда с новой «Дата/специалист» (в т.ч. numbered 1.17/1.18).
         QString sessionBlock;
         if (!tmpl.dateRow.isEmpty()) {
             sessionBlock += substituteAll(tmpl.dateRow, vars);

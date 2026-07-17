@@ -1262,6 +1262,13 @@ void ExerciseHost::runExerciseSession() {
     if (!definition) {
         return;
     }
+    // Повторный старт — всегда с первого задания в селекте.
+    if (m_stepCombo && m_stepCombo->count() > 0) {
+        m_stepCombo->blockSignals(true);
+        m_stepCombo->setCurrentIndex(0);
+        m_stepCombo->blockSignals(false);
+        m_sessionStepId = m_stepCombo->currentText().trimmed();
+    }
     if (definition->runner == ExerciseRunnerKind::OnlyPicture) {
         runOnlyPExercise();
         return;

@@ -366,9 +366,6 @@ QString createExerciseProtocolBodyFallback(
             return body;
         };
 
-        if (partly) {
-            return appendAllStepRows(base);
-        }
         auto stepTimeOf = [&](const QString &sid) {
             int stepTime = session.stepElapsedSeconds.value(sid, -1);
             if (stepTime < 0) {
@@ -380,13 +377,16 @@ QString createExerciseProtocolBodyFallback(
             }
             return stepTime;
         };
-        QString initial = buildNumberedInitial(
+        QString sessionBody = buildNumberedInitial(
             userFio, header, stepIds.first(), rowDone, stepTimeOf(stepIds.first()), checkboxes);
         for (int i = 1; i < stepIds.size(); ++i) {
             const QString &sid = stepIds.at(i);
-            initial = appendNumberedRow(initial, sid, rowDone, stepTimeOf(sid), checkboxes);
+            sessionBody = appendNumberedRow(sessionBody, sid, rowDone, stepTimeOf(sid), checkboxes);
         }
-        return initial;
+        if (partly) {
+            return ExerciseProtocol::appendFullSessionToStoredBody(base, sessionBody);
+        }
+        return sessionBody;
     }
     case ExerciseProtocolKind::OrHlpRow: {
         const QString header = QStringLiteral(
