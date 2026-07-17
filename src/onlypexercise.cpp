@@ -430,6 +430,10 @@ void OnlyPExercise::start(
     m_index = 0;
     m_picturesShown = 0;
     m_elapsedSeconds = 0;
+    m_stepElapsedSeconds.clear();
+    if (!m_stepId.isEmpty()) {
+        m_stepElapsedSeconds.insert(m_stepId, 0);
+    }
 
     if (m_displayRole != DisplayRole::Headless) {
         initAnswerButtons(exerciseId);
@@ -475,11 +479,21 @@ void OnlyPExercise::start(
     }
 }
 
-void OnlyPExercise::switchStep(const QString &stepId) {
-    if (stepId.trimmed().isEmpty() || stepId == m_stepId) {
+void OnlyPExercise::commitCurrentStepTime() {
+    if (m_stepId.isEmpty()) {
         return;
     }
-    m_stepId = stepId.trimmed();
+    m_stepElapsedSeconds.insert(m_stepId, m_elapsedSeconds);
+}
+
+void OnlyPExercise::switchStep(const QString &stepId) {
+    const QString next = stepId.trimmed();
+    if (next.isEmpty() || next == m_stepId) {
+        return;
+    }
+    commitCurrentStepTime();
+    m_stepId = next;
+    m_elapsedSeconds = m_stepElapsedSeconds.value(m_stepId, 0);
     if (m_settings.dualPicture) {
         return;
     }
@@ -573,9 +587,18 @@ void OnlyPExercise::recordAnswer(bool correct) {
 void OnlyPExercise::finishExercise() {
     m_timer->stop();
     m_advanceTimer->stop();
+    commitCurrentStepTime();
     if (!m_settings.answerButtons) {
         m_picturesShown = qMax(m_picturesShown, 1);
     }
     hide();
+    int totalElapsed = 0;
+    for (auto it = m_stepElapsedSeconds.constBegin(); it != m_stepElapsedSeconds.constEnd(); ++it) {
+        totalElapsed += it.value();
+    }
+    if (totalElapsed <= 0) {
+        totalElapsed = m_elapsedSeconds;
+    }
+    m_elapsedSeconds = totalElapsed;
     emit finished(m_answers, m_elapsedSeconds);
 }

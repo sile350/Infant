@@ -332,18 +332,61 @@ QString createExerciseProtocolBodyFallback(
             "<td width='243' align='center'>Характер деятельности ребенка</td>"
             "<td width='243' align='center'>Виды помощи</td></tr>");
         QString rowDone = doneState;
-        QString rowStep = stepId;
-        if (!session.additional.isEmpty() && session.additional.contains(QLatin1Char(';'))) {
+        QStringList stepIds = session.stepIds;
+        if (stepIds.isEmpty()) {
+            QString rowStep = stepId;
+            if (!session.additional.isEmpty() && session.additional.contains(QLatin1Char(';'))) {
+                const QStringList parts = session.additional.split(QLatin1Char(';'));
+                if (parts.size() >= 2) {
+                    rowStep = parts.at(0);
+                    rowDone = parts.at(1);
+                }
+            }
+            stepIds << (rowStep.isEmpty() ? QStringLiteral("1") : rowStep);
+        } else if (!session.additional.isEmpty() && session.additional.contains(QLatin1Char(';'))) {
             const QStringList parts = session.additional.split(QLatin1Char(';'));
             if (parts.size() >= 2) {
-                rowStep = parts.at(0);
                 rowDone = parts.at(1);
             }
         }
+
+        auto appendAllStepRows = [&](QString body) {
+            for (const QString &sid : stepIds) {
+                int stepTime = session.stepElapsedSeconds.value(sid, -1);
+                if (stepTime < 0) {
+                    if (session.stepElapsedSeconds.isEmpty()
+                        && (stepIds.size() == 1 || sid == session.stepId)) {
+                        stepTime = elapsedSeconds;
+                    } else {
+                        stepTime = 0;
+                    }
+                }
+                body = appendNumberedRow(body, sid, rowDone, stepTime, checkboxes);
+            }
+            return body;
+        };
+
         if (partly) {
-            return appendNumberedRow(base, rowStep, rowDone, elapsedSeconds, checkboxes);
+            return appendAllStepRows(base);
         }
-        return buildNumberedInitial(userFio, header, rowStep, rowDone, elapsedSeconds, checkboxes);
+        auto stepTimeOf = [&](const QString &sid) {
+            int stepTime = session.stepElapsedSeconds.value(sid, -1);
+            if (stepTime < 0) {
+                if (session.stepElapsedSeconds.isEmpty()
+                    && (stepIds.size() == 1 || sid == session.stepId)) {
+                    return elapsedSeconds;
+                }
+                return 0;
+            }
+            return stepTime;
+        };
+        QString initial = buildNumberedInitial(
+            userFio, header, stepIds.first(), rowDone, stepTimeOf(stepIds.first()), checkboxes);
+        for (int i = 1; i < stepIds.size(); ++i) {
+            const QString &sid = stepIds.at(i);
+            initial = appendNumberedRow(initial, sid, rowDone, stepTimeOf(sid), checkboxes);
+        }
+        return initial;
     }
     case ExerciseProtocolKind::OrHlpRow: {
         const QString header = QStringLiteral(

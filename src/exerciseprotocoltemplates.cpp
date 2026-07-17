@@ -384,6 +384,47 @@ QString buildRow(
     return ensureRowWrapped(row);
 }
 
+// Numbered: по строке на каждое задание; TIME — таймер этого задания; DONE/OR/HLP — одинаковые.
+QString buildNumberedProcessRows(
+    const ProtocolTemplate &tmpl,
+    const QMap<QString, QString> &baseVars,
+    const ProtocolSessionInput &session,
+    int fallbackElapsedSeconds) {
+    QStringList stepIds = session.stepIds;
+    if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
+        stepIds << session.stepId.trimmed();
+    }
+    if (stepIds.isEmpty()) {
+        stepIds << QStringLiteral("1");
+    }
+
+    const QString rowTpl = resolveRowTemplate(tmpl, session);
+    if (rowTpl.isEmpty()) {
+        return QString();
+    }
+
+    QString rows;
+    for (const QString &stepId : stepIds) {
+        QMap<QString, QString> vars = baseVars;
+        vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
+        int stepTime = session.stepElapsedSeconds.value(stepId, -1);
+        if (stepTime < 0) {
+            // Задание не запускали — 0:0; если карта пуста и это единственный/текущий шаг — общий таймер.
+            if (session.stepElapsedSeconds.isEmpty()
+                && (stepIds.size() == 1 || stepId == session.stepId)) {
+                stepTime = fallbackElapsedSeconds;
+            } else {
+                stepTime = 0;
+            }
+        }
+        vars.insert(QStringLiteral("{{TIME}}"), formatProtocolTime(stepTime).toHtmlEscaped());
+        QString row = substituteAll(rowTpl, vars);
+        row = substituteTmpIndices(row, session.additional);
+        rows += ensureRowWrapped(row);
+    }
+    return rows;
+}
+
 } // namespace
 
 QString createExerciseProtocolFromTemplate(
@@ -401,10 +442,12 @@ QString createExerciseProtocolFromTemplate(
     }
 
     const QMap<QString, QString> vars = buildVariables(tmpl, userFio, elapsedSeconds, checkboxes, session);
-    const QString row = buildRow(tmpl, vars, answers, checkboxes, session);
+    const QString row = (tmpl.kind == QStringLiteral("numbered"))
+        ? buildNumberedProcessRows(tmpl, vars, session, elapsedSeconds)
+        : buildRow(tmpl, vars, answers, checkboxes, session);
 
     if (partly) {
-        // Numbered (1.17 и т.п.): как в оригинале — только строка в таблицу процесса с № задания.
+        // Numbered (1.17 и т.п.): дописываем строки заданий в таблицу процесса.
         if (tmpl.kind == QStringLiteral("numbered")) {
             return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
         }

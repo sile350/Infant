@@ -12,6 +12,9 @@ struct ProtocolSessionInput {
     QString additional;
     QString doneState;
     QString stepId;
+    // Для NumberedDoneTime: все № заданий и время каждого (одна форма → N строк).
+    QStringList stepIds;
+    QMap<QString, int> stepElapsedSeconds;
     int picturesShown = 0;
     QString capturedImagePath;
     QString orHtml;

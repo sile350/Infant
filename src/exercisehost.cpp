@@ -731,7 +731,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     connect(m_onlyP, &OnlyPExercise::finished, this, [this](const QList<bool> &answers, int elapsedSeconds) {
         m_answers = answers;
         m_elapsedSeconds = elapsedSeconds;
-        m_picturesShown = m_onlyP ? m_onlyP->picturesShown() : m_picturesShown;
+        if (m_onlyP) {
+            m_stepElapsedSeconds = m_onlyP->stepElapsedSeconds();
+            m_picturesShown = m_onlyP->picturesShown();
+        }
         m_exerciseDone = true;
         m_protocolFormed = false;
         m_exerciseRunning = false;
@@ -921,6 +924,7 @@ void ExerciseHost::openExercise(
     m_orOpen3 = false;
     m_answers.clear();
     m_elapsedSeconds = 0;
+    m_stepElapsedSeconds.clear();
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     if (m_timeResultLabel) {
@@ -1265,6 +1269,7 @@ void ExerciseHost::runExerciseSession() {
 
     m_protocolFormed = false;
     m_protocolSavedThisSession = false;
+    m_stepElapsedSeconds.clear();
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     m_exerciseRunning = true;
@@ -1282,6 +1287,10 @@ void ExerciseHost::runExerciseSession() {
             [this](const ExerciseSessionResult &result) {
                 m_answers = result.answers;
                 m_elapsedSeconds = result.elapsedSeconds;
+                const QString step = currentStepId();
+                if (!step.isEmpty()) {
+                    m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
+                }
                 m_sessionAdditional = result.additional;
                 m_picturesShown = result.picturesShown;
                 m_capturedImagePath = result.capturedImagePath;
@@ -1327,6 +1336,7 @@ void ExerciseHost::runExerciseSession() {
 void ExerciseHost::runOnlyPExercise() {
     m_protocolFormed = false;
     m_protocolSavedThisSession = false;
+    m_stepElapsedSeconds.clear();
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     m_dualScreen = AppSettings::dualScreenEnabled();
@@ -1442,27 +1452,23 @@ QString ExerciseHost::selectedDoneState() const {
     return QStringLiteral("не определено");
 }
 
-int ExerciseHost::nextNumberedProtocolIndex() const {
-    if (!m_repository || !m_partly) {
-        return 1;
+QStringList ExerciseHost::numberedStepIds() const {
+    if (m_stepCombo && m_stepCombo->count() > 0) {
+        QStringList ids;
+        for (int i = 0; i < m_stepCombo->count(); ++i) {
+            const QString text = m_stepCombo->itemText(i).trimmed();
+            if (!text.isEmpty()) {
+                ids << text;
+            }
+        }
+        if (!ids.isEmpty()) {
+            return ids;
+        }
     }
-    const QString existing = m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
-    if (existing.isEmpty()) {
-        return 1;
+    if (const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId)) {
+        return definition->onlyPicture.stepIds;
     }
-    // Строки результата после <!--s-->: считаем <tr> с align='center' в первой ячейке №.
-    const int marker = existing.indexOf(QStringLiteral("<!--s-->"));
-    const QString table = marker >= 0 ? existing.mid(marker) : existing;
-    const QRegularExpression rowRe(
-        QStringLiteral("<tr[^>]*>\\s*<td[^>]*align=['\"]center['\"][^>]*>\\s*\\d+"),
-        QRegularExpression::CaseInsensitiveOption);
-    int count = 0;
-    QRegularExpressionMatchIterator it = rowRe.globalMatch(table);
-    while (it.hasNext()) {
-        it.next();
-        ++count;
-    }
-    return count + 1;
+    return {};
 }
 
 QString ExerciseHost::currentStepId() const {
@@ -1496,16 +1502,20 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
     if (keepRunnerAdditional) {
         session.additional = m_sessionAdditional;
     } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        // № = номер задания из combo (как param1 в оригинале).
-        QString step = m_sessionStepId.trimmed();
-        if (step.isEmpty()) {
-            step = currentStepId();
+        // № = номера заданий из селекта (1/2/3…); время — отдельно на каждое в stepElapsedSeconds.
+        session.stepIds = numberedStepIds();
+        session.stepElapsedSeconds = m_stepElapsedSeconds;
+        if (session.stepId.isEmpty()) {
+            session.stepId = QStringLiteral("1");
         }
-        if (step.isEmpty()) {
-            step = QStringLiteral("1");
+        if (session.stepElapsedSeconds.isEmpty() && !session.stepId.isEmpty()) {
+            session.stepElapsedSeconds.insert(session.stepId, m_elapsedSeconds);
         }
-        session.stepId = step;
-        session.additional = step + QLatin1Char(';') + session.doneState;
+        if (session.stepIds.isEmpty()) {
+            session.stepIds << session.stepId;
+        }
+        // Для совместимости с fallback/шаблонами без multi-row.
+        session.additional = session.stepId + QLatin1Char(';') + session.doneState;
     } else if (definition && definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp) {
         session.additional = session.doneState;
     } else if (!m_sessionAdditional.isEmpty()) {
@@ -1693,6 +1703,7 @@ void ExerciseHost::formProtocol() {
     m_protocolFormed = true;
     m_protocolSavedThisSession = true;
     m_partly = true;
+    m_stepElapsedSeconds.clear();
     updateProtocolEditMode();
     emit protocolSaved();
 }

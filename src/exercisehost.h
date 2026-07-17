@@ -6,6 +6,7 @@
 #include "exercisesession.h"
 
 #include <QList>
+#include <QMap>
 #include <QPixmap>
 #include <QTimer>
 #include <QWidget>
@@ -86,7 +87,7 @@ private:
     QString currentStepId() const;
     QString selectedDoneState() const;
     bool needsDoneStatePanel() const;
-    int nextNumberedProtocolIndex() const;
+    QStringList numberedStepIds() const;
 
     QString m_exerciseId;
     QString m_patientId;
@@ -107,6 +108,7 @@ private:
     bool m_orOpen3 = false;
     QList<bool> m_answers;
     int m_elapsedSeconds = 0;
+    QMap<QString, int> m_stepElapsedSeconds;
     QString m_sessionAdditional;
     QString m_sessionStepId;
     int m_picturesShown = 0;
