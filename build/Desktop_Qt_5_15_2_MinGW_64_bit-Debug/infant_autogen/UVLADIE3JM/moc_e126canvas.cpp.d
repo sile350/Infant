@@ -60,11 +60,11 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtcore-config.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtimer.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qtypeinfo.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtCore/qurl.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvariant.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvarlengtharray.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qvector.h \
   D:/Qt/5.15.2/mingw81_64/include/QtCore/qversiontagging.h \
-  D:/Qt/5.15.2/mingw81_64/include/QtGui/QPixmap \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qbrush.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qcolor.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qcursor.h \
@@ -85,6 +85,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qrgb.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qrgba64.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qtextcursor.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtGui/qtextdocument.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qtextformat.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qtextoption.h \
   D:/Qt/5.15.2/mingw81_64/include/QtGui/qtgui-config.h \
@@ -97,11 +98,12 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QGroupBox \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLabel \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QLineEdit \
-  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QPushButton \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QRadioButton \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QTextEdit \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/QWidget \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractbutton.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractitemdelegate.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractscrollarea.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractslider.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qabstractspinbox.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qcombobox.h \
@@ -109,7 +111,6 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qgroupbox.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlabel.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qlineedit.h \
-  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qpushbutton.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qradiobutton.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qrubberband.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qsizepolicy.h \
@@ -118,6 +119,7 @@ D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_au
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qstyleoption.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtabbar.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtabwidget.h \
+  D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtextedit.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtwidgets-config.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qtwidgetsglobal.h \
   D:/Qt/5.15.2/mingw81_64/include/QtWidgets/qwidget.h \

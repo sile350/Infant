@@ -1670,7 +1670,10 @@ public:
         m_canvas->startExercise(exerciseId, stepId);
         m_canvas->show();
         m_canvas->raise();
-        m_stop->move(80, 72);
+        // Оригинал e126/e1272: pstop Left=970 Top=70
+        const double sx = width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
+        const double sy = height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
+        m_stop->move(qRound(970 * sx), qRound(70 * sy));
         m_stop->show();
         m_stop->raise();
         show();
@@ -1685,7 +1688,9 @@ public:
             m_canvas->setGeometry(0, 0, width(), height());
         }
         if (m_stop) {
-            m_stop->move(80, 72);
+            const double sx = width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
+            const double sy = height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
+            m_stop->move(qRound(970 * sx), qRound(70 * sy));
         }
     }
 

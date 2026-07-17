@@ -1,13 +1,12 @@
 #ifndef E126CANVAS_H
 #define E126CANVAS_H
 
-#include <QGroupBox>
 #include <QComboBox>
+#include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPixmap>
-#include <QPushButton>
 #include <QRadioButton>
+#include <QTextEdit>
 #include <QTimer>
 #include <QWidget>
 
@@ -30,38 +29,46 @@ protected:
 
 private:
     QRect designRect(int x, int y, int w, int h) const;
-    QRect localDesignRect(int x, int y, int w, int h) const;
+    QRect localRect(int x, int y, int w, int h) const;
+    void clearUi();
+    void buildDemoMode();
+    void buildStoryMode();
+    void build272Mode();
     void layoutUi();
+    void applyPixmap(QLabel *label, const QString &fileName, bool autoSize = true);
     void showDemoImage();
     void showStoryImage();
-    void toggleEmotionsPanel();
+    void show272Image();
+    void toggleEmotions();
+    void advanceDemo();
+    void advanceStory();
 
     QString m_exerciseId;
     QString m_stepId;
-    QString m_genderPrefix;
+    QString m_genderPrefix = QStringLiteral("d");
     int m_count = 1;
     int m_elapsed = 0;
     QTimer m_timer;
-    QPixmap m_mainImage;
-    QPixmap m_emotionsImage;
-    QLabel *m_questionLabel = nullptr;
-    QLabel *m_imageLabel = nullptr;
-    QLabel *m_emotionsLabel = nullptr;
-    QLineEdit *m_answerEdit = nullptr;
-    QComboBox *m_sceneCombo = nullptr;
-    QComboBox *m_slideCombo = nullptr;
-    QPushButton *m_nextButton = nullptr;
-    QPushButton *m_emotionsToggle = nullptr;
-    QRadioButton *m_girlRadio = nullptr;
-    QRadioButton *m_boyRadio = nullptr;
+    bool m_emotionsVisible = false;
+
     QGroupBox *m_groupBox1 = nullptr;
     QGroupBox *m_groupBox2 = nullptr;
     QGroupBox *m_groupBox3 = nullptr;
+
+    QLabel *m_imageLabel = nullptr;
+    QLabel *m_emotionsLabel = nullptr;
+    QLabel *m_nextButton = nullptr;
+    QLabel *m_showEmotionsButton = nullptr;
     QLabel *m_answerCaption = nullptr;
-    QLabel *m_storyAnswerCaption = nullptr;
+
+    QTextEdit *m_questionEdit = nullptr;
+    QLineEdit *m_answerEdit = nullptr;
+    QComboBox *m_sceneCombo = nullptr;
+    QRadioButton *m_girlRadio = nullptr;
+    QRadioButton *m_boyRadio = nullptr;
+
     QStringList m_answers;
     QStringList m_questions;
-    bool m_emotionsVisible = false;
 };
 
 #endif
