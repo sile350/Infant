@@ -404,10 +404,26 @@ QString createExerciseProtocolFromTemplate(
     const QString row = buildRow(tmpl, vars, answers, checkboxes, session);
 
     if (partly) {
-        // Как в оригинале: к уже сохранённому телу только дописывается строка процесса.
-        // Нельзя конкатенировать «в лоб» — иначе при незакрытых тегах новая строка
-        // оказывается внутри последней ячейки.
-        return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, row);
+        // Повторный протокол — полный блок с новой «Дата/специалист».
+        QString sessionBlock;
+        if (!tmpl.dateRow.isEmpty()) {
+            sessionBlock += substituteAll(tmpl.dateRow, vars);
+        }
+        if (!tmpl.initialBlock.isEmpty()) {
+            sessionBlock += substituteAll(tmpl.initialBlock, vars);
+        }
+        sessionBlock += row;
+        if (!session.capturedImagePath.isEmpty()
+            && (tmpl.kind == QStringLiteral("done_time_scan") || tmpl.kind == QStringLiteral("scan_slots"))) {
+            const QString link = scanLinkHtml(session.capturedImagePath);
+            const QStringList parts = session.additional.split(QLatin1Char(';'));
+            if (!parts.isEmpty() && !parts.at(0).trimmed().isEmpty()) {
+                sessionBlock.replace(QStringLiteral("скачать") + parts.at(0).trimmed(), link);
+            } else {
+                sessionBlock.replace(QStringLiteral("скачать"), link);
+            }
+        }
+        return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, sessionBlock);
     }
 
     QString body;

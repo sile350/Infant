@@ -69,3 +69,16 @@
 367	3737	8060005228601240	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	3ef8f712d46b5b8e
 357	5881	8060005228503592	CMakeFiles/infant.dir/src/infantwindow.cpp.obj	32879ae4a23fc237
 5881	8895	8060005283745872	infant.exe	7680a4bcf93c9c77
+9	388	8060010287338116	infant_autogen/timestamp	b820d94331363c6a
+9	388	8060010287338116	infant_autogen/mocs_compilation.cpp	b820d94331363c6a
+9	388	8060010287338116	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	b820d94331363c6a
+9	388	8060010287338116	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	b820d94331363c6a
+400	2471	8060010287933815	CMakeFiles/infant.dir/src/exerciseprotocolcreate.cpp.obj	359cfbe7cbcd0515
+403	2779	8060010287963100	CMakeFiles/infant.dir/src/exerciseprotocoltemplates.cpp.obj	22969583488e17de
+390	2995	8060010287836144	CMakeFiles/infant.dir/main.cpp.obj	b8cf4ab4133d12d2
+394	3236	8060010287875226	CMakeFiles/infant.dir/src/repository.cpp.obj	1cbd33aff119406d
+388	3398	8060010287816594	CMakeFiles/infant.dir/infant_autogen/mocs_compilation.cpp.obj	357b7586497cea0b
+397	3503	8060010287904578	CMakeFiles/infant.dir/src/exerciseprotocol.cpp.obj	1022e17703f9c740
+405	4089	8060010287992407	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	3ef8f712d46b5b8e
+392	6414	8060010287855668	CMakeFiles/infant.dir/src/infantwindow.cpp.obj	32879ae4a23fc237
+6414	9931	8060010348078019	infant.exe	7680a4bcf93c9c77

@@ -82,13 +82,20 @@ void appendProtocolRecord(
     if (uprid == QStringLiteral("1.2")) {
         record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
             continuation ? QString() : headerForExercise(uprid), protocolBody);
-    } else if (continuation) {
-        record = QStringLiteral(
-                      "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-                      "<colgroup><col width='165'><col width='506'></colgroup>")
-                  + protocolBody;
     } else {
-        record = headerForExercise(uprid) + protocolBody;
+        const QStringList sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(protocolBody);
+        if (sessions.size() > 1) {
+            // Несколько блоков «Дата/специалист» в одном pr — как у 1.2, рендерим по сессиям.
+            record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
+                continuation ? QString() : headerForExercise(uprid), protocolBody);
+        } else if (continuation) {
+            record = QStringLiteral(
+                          "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+                          "<colgroup><col width='165'><col width='506'></colgroup>")
+                      + protocolBody;
+        } else {
+            record = headerForExercise(uprid) + protocolBody;
+        }
     }
     if (uprid != QStringLiteral("1.2")
         && !record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
@@ -758,13 +765,13 @@ QString Repository::loadProtocolViewHtml(
     }
 
     QString body = protocolBody;
-    if (body.contains(QStringLiteral("<!--s-->"))) {
-        body = ExerciseProtocol::extractLastSessionStoredBody(body);
-        if (exerciseId == QStringLiteral("1.2")) {
-            body = ExerciseProtocol::normalizeProtocol12Layout(body);
-            body = ExerciseProtocol::repairResultsTableBody(body);
-            body = ExerciseProtocol::restrictExercisePageEditing(body);
-        }
+    // На странице упражнения показываем только последний сформированный блок
+    // (начиная с его «Дата/специалист»).
+    body = ExerciseProtocol::extractLastSessionStoredBody(body);
+    if (exerciseId == QStringLiteral("1.2")) {
+        body = ExerciseProtocol::normalizeProtocol12Layout(body);
+        body = ExerciseProtocol::repairResultsTableBody(body);
+        body = ExerciseProtocol::restrictExercisePageEditing(body);
     }
 
     QString protocolBlock = exerciseHeaderFragment(exerciseId) + body;

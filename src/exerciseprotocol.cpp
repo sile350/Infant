@@ -1481,3 +1481,49 @@ QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, co
 
     return base + addition;
 }
+
+QString ExerciseProtocol::appendFullSessionToStoredBody(
+    const QString &existingBody,
+    const QString &sessionHtml) {
+    QString session = sessionHtml.trimmed();
+    if (session.isEmpty()) {
+        return existingBody;
+    }
+    if (existingBody.trimmed().isEmpty()) {
+        return session;
+    }
+
+    // Сначала подчистим битый хвост через appendRows с пустой добавкой-нормализацией.
+    QString base = existingBody;
+    const int lastTrEnd = base.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
+    if (lastTrEnd >= 0) {
+        const int afterPos = lastTrEnd + QStringLiteral("</tr>").size();
+        const QString after = base.mid(afterPos);
+        const bool hasCompleteTail =
+            after.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)
+            || after.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)
+            || after.contains(QStringLiteral("<!--"), Qt::CaseInsensitive)
+            || after.contains(QStringLiteral("<table"), Qt::CaseInsensitive);
+        if (!after.trimmed().isEmpty() && !hasCompleteTail) {
+            base = base.left(afterPos);
+        }
+    }
+
+    // Закрываем таблицу процесса предыдущей сессии, если она ещё открыта.
+    const int lastMarker = base.lastIndexOf(QStringLiteral("<!--s-->"));
+    if (lastMarker >= 0) {
+        const int closeAfterMarker =
+            base.indexOf(QStringLiteral("</table>"), lastMarker, Qt::CaseInsensitive);
+        if (closeAfterMarker < 0) {
+            base += QStringLiteral("</table>");
+        }
+    } else if (!base.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+        base += QStringLiteral("</table>");
+    }
+
+    // Повторный блок всегда начинается с новой summary-таблицы и «Дата/специалист».
+    if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+        session.prepend(protocolSummaryTableOpenHtml());
+    }
+    return base + session;
+}

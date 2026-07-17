@@ -293,7 +293,8 @@ QString createExerciseProtocolBodyFallback(
             "<td width='298' align='center'>Виды помощи</td>"
             "<td width='63' align='center'>Баллы</td></tr>");
         if (partly) {
-            return appendTimedBallsRow(base, score, checkboxes);
+            return ExerciseProtocol::appendFullSessionToStoredBody(
+                base, buildTimedBallsInitial(userFio, score, definition.id != QStringLiteral("1.8"), header, checkboxes));
         }
         const bool maxTen = definition.id != QStringLiteral("1.8");
         return buildTimedBallsInitial(userFio, score, maxTen, header, checkboxes);
@@ -306,7 +307,8 @@ QString createExerciseProtocolBodyFallback(
             "<td width='309' align='center'>Виды помощи</td>"
             "<td width='60' align='center'>Баллы</td></tr>");
         if (partly) {
-            return appendTimedBallsRow(base, score, checkboxes);
+            return ExerciseProtocol::appendFullSessionToStoredBody(
+                base, buildTimedBallsInitial(userFio, score, true, header, checkboxes));
         }
         return buildTimedBallsInitial(userFio, score, true, header, checkboxes);
     }
@@ -316,11 +318,11 @@ QString createExerciseProtocolBodyFallback(
             "<tr><td width='134' align='center'>Факт выполнения<br>/ время</td>"
             "<td width='268' align='center'>Характер деятельности ребенка</td>"
             "<td width='267' align='center'>Виды помощи</td></tr>");
-        QString factCell = doneState + QStringLiteral("/") + formatProtocolTime(elapsedSeconds);
         if (partly) {
-            return appendDoneTimeRow(base, factCell, elapsedSeconds, checkboxes);
+            return ExerciseProtocol::appendFullSessionToStoredBody(
+                base, buildDoneTimeInitial(userFio, 3, header, doneState, elapsedSeconds, checkboxes));
         }
-        return buildDoneTimeInitial(userFio, 3, header, factCell, elapsedSeconds, checkboxes);
+        return buildDoneTimeInitial(userFio, 3, header, doneState, elapsedSeconds, checkboxes);
     }
     case ExerciseProtocolKind::NumberedDoneTime: {
         const QString header = QStringLiteral(
@@ -339,7 +341,8 @@ QString createExerciseProtocolBodyFallback(
             }
         }
         if (partly) {
-            return appendNumberedRow(base, rowStep, rowDone, elapsedSeconds, checkboxes);
+            return ExerciseProtocol::appendFullSessionToStoredBody(
+                base, buildNumberedInitial(userFio, header, rowStep, rowDone, elapsedSeconds, checkboxes));
         }
         return buildNumberedInitial(userFio, header, rowStep, rowDone, elapsedSeconds, checkboxes);
     }
@@ -350,7 +353,8 @@ QString createExerciseProtocolBodyFallback(
             "<td width='300' align='center'>Виды помощи</td>"
             "<td width='69' align='center'>Баллы</td></tr>");
         if (partly) {
-            return appendOrHlpRow(base, checkboxes, false);
+            return ExerciseProtocol::appendFullSessionToStoredBody(
+                base, buildOrHlpInitial(userFio, header, checkboxes, false));
         }
         return buildOrHlpInitial(userFio, header, checkboxes, false);
     }
@@ -360,10 +364,8 @@ QString createExerciseProtocolBodyFallback(
             "<tr><td width='300' align='center'>Характер деятельности ребенка</td>"
             "<td width='300' align='center'>Виды помощи</td>"
             "<td width='69' align='center'>Баллы</td></tr>");
-        QString initialHeader = header;
         if (definition.id == QStringLiteral("4.1.2")) {
             const int score = scoreExercise412(elapsedSeconds);
-            // В fallback без шаблона — сразу подставляем баллы/уровень.
             QString body = dateSpecialistRow(userFio, 2);
             body += QStringLiteral(
                 "<tr><td>Результат:баллы (макс.) /<br>вывод об уровне развития</td><td>")
@@ -382,13 +384,13 @@ QString createExerciseProtocolBodyFallback(
                 + QStringLiteral("</td><td align='center'>") + editableCell(QString::number(score))
                 + QStringLiteral("</td></tr>");
             if (partly) {
-                return appendOrHlpRow(base, checkboxes, true);
+                return ExerciseProtocol::appendFullSessionToStoredBody(base, body);
             }
             return body;
         }
-        Q_UNUSED(initialHeader);
         if (partly) {
-            return appendOrHlpRow(base, checkboxes, true);
+            return ExerciseProtocol::appendFullSessionToStoredBody(
+                base, buildOrHlpInitial(userFio, header, checkboxes, true));
         }
         return buildOrHlpInitial(userFio, header, checkboxes, true);
     }
