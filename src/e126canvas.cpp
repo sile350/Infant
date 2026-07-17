@@ -30,14 +30,10 @@ protected:
     }
 };
 
-void stylePlainWhite(QWidget *w) {
-    if (!w) {
-        return;
-    }
-    w->setAutoFillBackground(true);
-    w->setStyleSheet(QStringLiteral(
-        "background-color:#ffffff; color:#000000; border:none;"));
-}
+const char *kPlainChrome =
+    "background-color:#ffffff;"
+    "background-image:none;"
+    "color:#000000;";
 
 } // namespace
 
@@ -45,6 +41,84 @@ E126Canvas::E126Canvas(QWidget *parent) : QWidget(parent) {
     m_timer.setInterval(1000);
     connect(&m_timer, &QTimer::timeout, this, [this]() { ++m_elapsed; });
     setFocusPolicy(Qt::StrongFocus);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setAutoFillBackground(true);
+}
+
+double E126Canvas::scaleX() const {
+    return width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
+}
+
+double E126Canvas::scaleY() const {
+    return height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
+}
+
+QRect E126Canvas::designRect(int x, int y, int w, int h) const {
+    return QRect(
+        qRound(x * scaleX()),
+        qRound(y * scaleY()),
+        qMax(1, qRound(w * scaleX())),
+        qMax(1, qRound(h * scaleY())));
+}
+
+QRect E126Canvas::localRect(int x, int y, int w, int h) const {
+    return designRect(x, y, w, h);
+}
+
+QSize E126Canvas::scaledSize(const QSize &native) const {
+    return QSize(
+        qMax(1, qRound(native.width() * scaleX())),
+        qMax(1, qRound(native.height() * scaleY())));
+}
+
+void E126Canvas::placePixmapLabel(QLabel *label, int designX, int designY, bool localToParent) {
+    if (!label) {
+        return;
+    }
+    const QPixmap px = label->pixmap(Qt::ReturnByValue);
+    QSize sz = px.isNull() ? QSize(100, 30) : px.size();
+    sz = scaledSize(sz);
+    label->setFixedSize(sz);
+    if (!px.isNull() && (sz.width() != px.width() || sz.height() != px.height())) {
+        label->setPixmap(px.scaled(sz, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+    }
+    const QPoint pos = localToParent ? localRect(designX, designY, 1, 1).topLeft()
+                                     : designRect(designX, designY, 1, 1).topLeft();
+    label->move(pos);
+}
+
+void E126Canvas::applyChromeStyles() {
+    setStyleSheet(QStringLiteral(
+        "E126Canvas { background-color:#ffffff; background-image:none; }"
+        "QGroupBox {"
+        "  background-color:#ffffff; background-image:none;"
+        "  border:1px solid #a0a0a0; margin-top:6px; color:#000000;"
+        "}"
+        "QGroupBox::title {"
+        "  subcontrol-origin:margin; left:8px; padding:0 3px;"
+        "  background-color:#ffffff; background-image:none;"
+        "}"
+        "QLabel { background-color:#ffffff; background-image:none; color:#000000; }"
+        "QLineEdit {"
+        "  background-color:#ffffff; background-image:none;"
+        "  color:#000000; border:1px solid #7a7a7a;"
+        "}"
+        "QTextEdit {"
+        "  background-color:#ffffff; background-image:none;"
+        "  color:#000000; border:none;"
+        "}"
+        "QComboBox {"
+        "  background-color:#ffffff; background-image:none;"
+        "  color:#000000; border:1px solid #7a7a7a;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "  background-color:#ffffff; background-image:none;"
+        "  color:#000000; selection-background-color:#cce8ff;"
+        "}"
+        "QRadioButton {"
+        "  background-color:#ffffff; background-image:none; color:#000000;"
+        "}"));
 }
 
 void E126Canvas::clearUi() {
@@ -163,59 +237,7 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
                    "детей. Что они почувствовали? Какая картинка им подходит?");
     }
 
-    setAttribute(Qt::WA_StyledBackground, true);
-    setAttribute(Qt::WA_OpaquePaintEvent, true);
-    setAutoFillBackground(true);
-    setStyleSheet(QStringLiteral(
-        "E126Canvas {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "}"
-        "QGroupBox {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "  border:1px solid #a0a0a0;"
-        "  margin-top:6px;"
-        "  color:#000000;"
-        "}"
-        "QGroupBox::title {"
-        "  subcontrol-origin: margin;"
-        "  left:8px;"
-        "  padding:0 3px;"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "}"
-        "QLabel { background-color:transparent; background-image:none; color:#000000; }"
-        "QLineEdit {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "  color:#000000;"
-        "  border:1px solid #7a7a7a;"
-        "}"
-        "QTextEdit {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "  color:#000000;"
-        "  border:none;"
-        "}"
-        "QComboBox {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "  color:#000000;"
-        "  border:1px solid #7a7a7a;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "  color:#000000;"
-        "  selection-background-color:#cce8ff;"
-        "}"
-        "QRadioButton {"
-        "  background-color:#ffffff;"
-        "  background-image:none;"
-        "  color:#000000;"
-        "}"));
-
+    applyChromeStyles();
     clearUi();
 
     if (exerciseId == QStringLiteral("1.272")) {
@@ -227,26 +249,52 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
     }
 
     layoutUi();
-    m_timer.start();
+    if (!m_timer.isActive()) {
+        m_timer.start();
+    }
     setFocus();
+}
+
+void E126Canvas::switchStep(const QString &stepId) {
+    const QString next = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
+    if (next == m_stepId && ((next == QStringLiteral("1") && m_groupBox1)
+                             || (next != QStringLiteral("1") && m_groupBox2))) {
+        return;
+    }
+    // Сохраняем текущий ответ и пересобираем UI под другое задание.
+    if (m_answerEdit && m_count >= 0 && m_count < m_answers.size()) {
+        m_answers[m_count] = m_answerEdit->text();
+    }
+    const int savedElapsed = m_elapsed;
+    const QStringList savedAnswers = m_answers;
+    const QString gender = m_genderPrefix;
+    startExercise(m_exerciseId, next);
+    m_elapsed = savedElapsed;
+    m_answers = savedAnswers;
+    m_genderPrefix = gender;
+    if (m_girlRadio && m_boyRadio) {
+        const bool girl = m_genderPrefix != QStringLiteral("m");
+        m_girlRadio->blockSignals(true);
+        m_boyRadio->blockSignals(true);
+        m_girlRadio->setChecked(girl);
+        m_boyRadio->setChecked(!girl);
+        m_girlRadio->blockSignals(false);
+        m_boyRadio->blockSignals(false);
+    }
+    if (m_stepId == QStringLiteral("1")) {
+        showDemoImage();
+    } else if (m_exerciseId != QStringLiteral("1.272")) {
+        showStoryImage();
+    }
 }
 
 void E126Canvas::applyPixmap(QLabel *label, const QString &fileName, bool autoSize) {
     if (!label) {
         return;
     }
-    const QString path = ExerciseAssets::exerciseFile(m_exerciseId, fileName);
+    QString path = ExerciseAssets::exerciseFile(m_exerciseId, fileName);
     if (path.isEmpty() && m_exerciseId == QStringLiteral("1.272")) {
-        // 1.272 берёт часть картинок эмоций из 1.26
-        const QString fallback = ExerciseAssets::exerciseFile(QStringLiteral("1.26"), fileName);
-        if (!fallback.isEmpty()) {
-            const QPixmap px(fallback);
-            label->setPixmap(px);
-            if (autoSize && !px.isNull()) {
-                label->setFixedSize(px.size());
-            }
-            return;
-        }
+        path = ExerciseAssets::exerciseFile(QStringLiteral("1.26"), fileName);
     }
     if (path.isEmpty()) {
         label->clear();
@@ -254,26 +302,29 @@ void E126Canvas::applyPixmap(QLabel *label, const QString &fileName, bool autoSi
     }
     const QPixmap px(path);
     label->setPixmap(px);
+    label->setStyleSheet(QString::fromUtf8(kPlainChrome));
     if (autoSize && !px.isNull()) {
-        label->setFixedSize(px.size());
+        label->setFixedSize(scaledSize(px.size()));
+        if (label->width() != px.width() || label->height() != px.height()) {
+            label->setPixmap(px.scaled(label->size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+        }
     }
 }
 
 void E126Canvas::buildDemoMode() {
-    // initEx param=="1": groupBox1 Left=500 Top=200 Height=600
     m_groupBox1 = new QGroupBox(QStringLiteral(" "), this);
+    m_groupBox1->setStyleSheet(QString::fromUtf8(kPlainChrome));
     m_girlRadio = new QRadioButton(QStringLiteral("Девочка"), m_groupBox1);
     m_boyRadio = new QRadioButton(QStringLiteral("Мальчик"), m_groupBox1);
     m_girlRadio->setChecked(true);
     m_answerEdit = new QLineEdit(m_groupBox1);
     m_answerCaption = new QLabel(QStringLiteral("Ответ ребенка"), m_groupBox1);
-    m_answerCaption->setStyleSheet(QStringLiteral("font-weight:bold; background:transparent;"));
+    m_answerCaption->setStyleSheet(QStringLiteral("font-weight:bold; background:#ffffff; background-image:none;"));
     m_imageLabel = new QLabel(m_groupBox1);
-    m_imageLabel->setScaledContents(false);
+    m_imageLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
     m_nextButton = new ClickLabel(m_groupBox1);
     applyPixmap(m_nextButton, QStringLiteral("next.png"));
-    auto *next = static_cast<ClickLabel *>(m_nextButton);
-    next->onClick = [this]() { advanceDemo(); };
+    static_cast<ClickLabel *>(m_nextButton)->onClick = [this]() { advanceDemo(); };
 
     connect(m_girlRadio, &QRadioButton::toggled, this, [this](bool checked) {
         if (checked) {
@@ -291,7 +342,6 @@ void E126Canvas::buildDemoMode() {
 }
 
 void E126Canvas::buildStoryMode() {
-    // initEx param=="2": groupBox2 Left=300 Top=130; groupBox3 visible; pemotions 1300,180
     m_groupBox2 = new QGroupBox(QStringLiteral(" "), this);
     m_questionEdit = new QTextEdit(m_groupBox2);
     m_questionEdit->setReadOnly(true);
@@ -299,13 +349,14 @@ void E126Canvas::buildStoryMode() {
     m_questionEdit->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 10));
     m_answerEdit = new QLineEdit(m_groupBox2);
     m_answerCaption = new QLabel(QStringLiteral("Ответ ребенка"), m_groupBox2);
-    m_answerCaption->setStyleSheet(QStringLiteral("font-weight:bold; background:transparent;"));
+    m_answerCaption->setStyleSheet(QStringLiteral("font-weight:bold; background:#ffffff; background-image:none;"));
     m_imageLabel = new QLabel(m_groupBox2);
-    m_imageLabel->setScaledContents(false);
+    m_imageLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
     m_nextButton = new ClickLabel(m_groupBox2);
     applyPixmap(m_nextButton, QStringLiteral("next.png"));
     static_cast<ClickLabel *>(m_nextButton)->onClick = [this]() { advanceStory(); };
 
+    // groupBox3: пол / сцена / показать эмоции — без наложений.
     m_groupBox3 = new QGroupBox(QStringLiteral(" "), this);
     m_girlRadio = new QRadioButton(QStringLiteral("Девочка"), m_groupBox3);
     m_boyRadio = new QRadioButton(QStringLiteral("Мальчик"), m_groupBox3);
@@ -319,7 +370,7 @@ void E126Canvas::buildStoryMode() {
     static_cast<ClickLabel *>(m_showEmotionsButton)->onClick = [this]() { toggleEmotions(); };
 
     m_emotionsLabel = new QLabel(this);
-    m_emotionsLabel->setScaledContents(false);
+    m_emotionsLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
 
     connect(m_girlRadio, &QRadioButton::toggled, this, [this](bool checked) {
         if (!checked) {
@@ -350,7 +401,6 @@ void E126Canvas::buildStoryMode() {
     });
 
     showStoryImage();
-    // Как в оригинале: сразу показываем эмоции (pshow_Click при старте).
     toggleEmotions();
 }
 
@@ -359,23 +409,22 @@ void E126Canvas::build272Mode() {
     m_questionEdit->setReadOnly(true);
     m_questionEdit->setFrameShape(QFrame::NoFrame);
     m_questionEdit->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 14));
-    stylePlainWhite(m_questionEdit);
+    m_questionEdit->setStyleSheet(QString::fromUtf8(kPlainChrome));
 
     m_imageLabel = new QLabel(this);
-    m_imageLabel->setScaledContents(false);
-
+    m_imageLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
     m_emotionsLabel = new QLabel(this);
-    m_emotionsLabel->setScaledContents(false);
-
+    m_emotionsLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
     m_showEmotionsButton = new ClickLabel(this);
-    applyPixmap(m_showEmotionsButton, QStringLiteral("pshow.png"));
-    // 1.272: pshow лежит в папке 1.272
     {
         const QString path = ExerciseAssets::exerciseFile(QStringLiteral("1.272"), QStringLiteral("pshow.png"));
         if (!path.isEmpty()) {
             const QPixmap px(path);
             m_showEmotionsButton->setPixmap(px);
-            m_showEmotionsButton->setFixedSize(px.size());
+            m_showEmotionsButton->setFixedSize(scaledSize(px.size()));
+            m_showEmotionsButton->setStyleSheet(QString::fromUtf8(kPlainChrome));
+        } else {
+            applyPixmap(m_showEmotionsButton, QStringLiteral("pshow.png"));
         }
     }
     static_cast<ClickLabel *>(m_showEmotionsButton)->onClick = [this]() { toggleEmotions(); };
@@ -394,7 +443,6 @@ void E126Canvas::showDemoImage() {
 }
 
 void E126Canvas::showStoryImage() {
-    // Картинки сцен: 1.png … 12.png / 10.PNG (ExerciseAssets обычно case-insensitive на Windows)
     applyPixmap(m_imageLabel, QString::number(m_count) + QStringLiteral(".png"));
     if (m_questionEdit && m_count >= 1 && m_count <= m_questions.size()) {
         m_questionEdit->setPlainText(m_questions.at(m_count - 1));
@@ -413,19 +461,19 @@ void E126Canvas::toggleEmotions() {
     }
     if (!m_emotionsVisible) {
         if (m_exerciseId == QStringLiteral("1.272")) {
-            // Оригинал всегда грузит mem.png из 1.26
             const QString path = ExerciseAssets::exerciseFile(QStringLiteral("1.26"), QStringLiteral("mem.png"));
             if (!path.isEmpty()) {
                 const QPixmap px(path);
                 m_emotionsLabel->setPixmap(px);
-                m_emotionsLabel->setFixedSize(px.size());
+                m_emotionsLabel->setFixedSize(scaledSize(px.size()));
+                m_emotionsLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
             }
             const QString hidePath =
                 ExerciseAssets::exerciseFile(QStringLiteral("1.272"), QStringLiteral("phide.png"));
             if (!hidePath.isEmpty()) {
                 const QPixmap px(hidePath);
                 m_showEmotionsButton->setPixmap(px);
-                m_showEmotionsButton->setFixedSize(px.size());
+                m_showEmotionsButton->setFixedSize(scaledSize(px.size()));
             }
         } else {
             applyPixmap(
@@ -441,12 +489,12 @@ void E126Canvas::toggleEmotions() {
         if (m_exerciseId == QStringLiteral("1.272")) {
             const QString showPath =
                 ExerciseAssets::exerciseFile(QStringLiteral("1.272"), QStringLiteral("pshow.png"));
-            if (showPath.isEmpty()) {
-                applyPixmap(m_showEmotionsButton, QStringLiteral("pshow.png"));
-            } else {
+            if (!showPath.isEmpty()) {
                 const QPixmap px(showPath);
                 m_showEmotionsButton->setPixmap(px);
-                m_showEmotionsButton->setFixedSize(px.size());
+                m_showEmotionsButton->setFixedSize(scaledSize(px.size()));
+            } else {
+                applyPixmap(m_showEmotionsButton, QStringLiteral("pshow.png"));
             }
         } else {
             applyPixmap(m_showEmotionsButton, QStringLiteral("pshow.png"));
@@ -491,17 +539,6 @@ void E126Canvas::advanceStory() {
     showStoryImage();
 }
 
-QRect E126Canvas::designRect(int x, int y, int w, int h) const {
-    const double sx = width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
-    const double sy = height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
-    return QRect(qRound(x * sx), qRound(y * sy), qMax(1, qRound(w * sx)), qMax(1, qRound(h * sy)));
-}
-
-QRect E126Canvas::localRect(int x, int y, int w, int h) const {
-    // Локальные координаты внутри GroupBox — тот же масштаб 1920×1080.
-    return designRect(x, y, w, h);
-}
-
 void E126Canvas::layoutUi() {
     if (width() <= 0 || height() <= 0) {
         return;
@@ -511,65 +548,41 @@ void E126Canvas::layoutUi() {
         if (m_questionEdit) {
             m_questionEdit->setGeometry(designRect(273, 118, 719, 123));
         }
-        if (m_imageLabel) {
-            const QPixmap px = m_imageLabel->pixmap(Qt::ReturnByValue);
-            const QSize sz = px.isNull() ? QSize(147, 128) : px.size();
-            m_imageLabel->setFixedSize(sz);
-            m_imageLabel->move(designRect(273, 266, 1, 1).topLeft());
-        }
+        placePixmapLabel(m_imageLabel, 273, 266, false);
         if (m_emotionsLabel && m_emotionsVisible) {
-            const QPixmap px = m_emotionsLabel->pixmap(Qt::ReturnByValue);
-            const QSize sz = px.isNull() ? QSize(100, 50) : px.size();
-            m_emotionsLabel->setFixedSize(sz);
-            m_emotionsLabel->move(designRect(1320, 118, 1, 1).topLeft());
+            placePixmapLabel(m_emotionsLabel, 1320, 118, false);
             m_emotionsLabel->show();
+            m_emotionsLabel->raise();
         } else if (m_emotionsLabel) {
             m_emotionsLabel->hide();
         }
-        if (m_showEmotionsButton) {
-            const QPixmap px = m_showEmotionsButton->pixmap(Qt::ReturnByValue);
-            const QSize sz = px.isNull() ? QSize(134, 29) : px.size();
-            m_showEmotionsButton->setFixedSize(sz);
-            m_showEmotionsButton->move(designRect(1345, 27, 1, 1).topLeft());
-        }
+        // bshowe: 1345,27 — не пересекается со стопом (970,70)
+        placePixmapLabel(m_showEmotionsButton, 1345, 70, false);
         return;
     }
 
     if (m_stepId == QStringLiteral("1")) {
-        // Runtime: Left=500 Top=200 Height=600 Width=943
         if (m_groupBox1) {
             m_groupBox1->setGeometry(designRect(500, 200, 943, 600));
         }
         if (m_girlRadio) {
-            m_girlRadio->setGeometry(localRect(617, 41, 90, 20));
+            m_girlRadio->setGeometry(localRect(20, 30, 100, 22));
         }
         if (m_boyRadio) {
-            m_boyRadio->setGeometry(localRect(716, 41, 90, 20));
+            m_boyRadio->setGeometry(localRect(130, 30, 100, 22));
         }
         if (m_answerEdit) {
-            m_answerEdit->setGeometry(localRect(93, 81, 516, 20));
+            m_answerEdit->setGeometry(localRect(93, 81, 516, 24));
         }
         if (m_answerCaption) {
-            m_answerCaption->setGeometry(localRect(273, 103, 120, 16));
+            m_answerCaption->setGeometry(localRect(273, 110, 140, 18));
         }
-        if (m_nextButton) {
-            const QSize sz = m_nextButton->pixmap(Qt::ReturnByValue).isNull()
-                ? QSize(104, 25)
-                : m_nextButton->pixmap(Qt::ReturnByValue).size();
-            m_nextButton->setFixedSize(sz);
-            m_nextButton->move(localRect(681, 75, 1, 1).topLeft());
-        }
-        if (m_imageLabel) {
-            const QSize sz = m_imageLabel->pixmap(Qt::ReturnByValue).isNull()
-                ? QSize(147, 128)
-                : m_imageLabel->pixmap(Qt::ReturnByValue).size();
-            m_imageLabel->setFixedSize(sz);
-            m_imageLabel->move(localRect(624, 167, 1, 1).topLeft());
-        }
+        placePixmapLabel(m_nextButton, 681, 75, true);
+        placePixmapLabel(m_imageLabel, 624, 167, true);
         return;
     }
 
-    // Step 2 — сказка
+    // Задание 2: как initEx — groupBox2 (300,130), groupBox3 слева от правого края без наложений.
     if (m_groupBox2) {
         m_groupBox2->setGeometry(designRect(300, 130, 901, 788));
     }
@@ -577,50 +590,32 @@ void E126Canvas::layoutUi() {
         m_questionEdit->setGeometry(localRect(27, 32, 713, 71));
     }
     if (m_answerEdit) {
-        m_answerEdit->setGeometry(localRect(26, 109, 714, 20));
+        m_answerEdit->setGeometry(localRect(26, 109, 714, 24));
     }
     if (m_answerCaption) {
-        m_answerCaption->setGeometry(localRect(136, 132, 120, 16));
+        m_answerCaption->setGeometry(localRect(136, 138, 140, 18));
     }
-    if (m_nextButton) {
-        const QSize sz = m_nextButton->pixmap(Qt::ReturnByValue).isNull()
-            ? QSize(104, 25)
-            : m_nextButton->pixmap(Qt::ReturnByValue).size();
-        m_nextButton->setFixedSize(sz);
-        m_nextButton->move(localRect(765, 104, 1, 1).topLeft());
-    }
-    if (m_imageLabel) {
-        const QSize sz = m_imageLabel->pixmap(Qt::ReturnByValue).isNull()
-            ? QSize(147, 128)
-            : m_imageLabel->pixmap(Qt::ReturnByValue).size();
-        m_imageLabel->setFixedSize(sz);
-        m_imageLabel->move(localRect(38, 162, 1, 1).topLeft());
-    }
+    placePixmapLabel(m_nextButton, 765, 104, true);
+    placePixmapLabel(m_imageLabel, 38, 162, true);
+
+    // groupBox3: шире и ниже, чтобы phide/pshow (до 254px) не наезжали на радио.
+    // Оригинал: 1396,12,445,147 — сдвигаем левее и разводим кнопки по вертикали.
     if (m_groupBox3) {
-        m_groupBox3->setGeometry(designRect(1396, 12, 445, 147));
+        m_groupBox3->setGeometry(designRect(1280, 12, 520, 170));
     }
     if (m_girlRadio) {
-        m_girlRadio->setGeometry(localRect(6, 41, 90, 20));
+        m_girlRadio->setGeometry(localRect(12, 28, 100, 22));
     }
     if (m_boyRadio) {
-        m_boyRadio->setGeometry(localRect(105, 41, 90, 20));
+        m_boyRadio->setGeometry(localRect(120, 28, 100, 22));
     }
+    // Кнопка эмоций ПОД радио, чтобы не пересекалась с «Мальчик» и с селектом задания справа.
+    placePixmapLabel(m_showEmotionsButton, 12, 58, true);
     if (m_sceneCombo) {
-        m_sceneCombo->setGeometry(localRect(67, 114, 55, 21));
-    }
-    if (m_showEmotionsButton) {
-        const QSize sz = m_showEmotionsButton->pixmap(Qt::ReturnByValue).isNull()
-            ? QSize(104, 25)
-            : m_showEmotionsButton->pixmap(Qt::ReturnByValue).size();
-        m_showEmotionsButton->setFixedSize(sz);
-        m_showEmotionsButton->move(localRect(180, 36, 1, 1).topLeft());
+        m_sceneCombo->setGeometry(localRect(12, 105, 70, 24));
     }
     if (m_emotionsLabel && m_emotionsVisible) {
-        const QSize sz = m_emotionsLabel->pixmap(Qt::ReturnByValue).isNull()
-            ? QSize(100, 50)
-            : m_emotionsLabel->pixmap(Qt::ReturnByValue).size();
-        m_emotionsLabel->setFixedSize(sz);
-        m_emotionsLabel->move(designRect(1300, 180, 1, 1).topLeft());
+        placePixmapLabel(m_emotionsLabel, 1300, 200, false);
         m_emotionsLabel->show();
         m_emotionsLabel->raise();
     } else if (m_emotionsLabel) {

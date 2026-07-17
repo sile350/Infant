@@ -16,6 +16,8 @@ public:
     explicit E126Canvas(QWidget *parent = nullptr);
 
     void startExercise(const QString &exerciseId, const QString &stepId);
+    // Смена задания 1↔2 без полного рестарта таймера с нуля (время продолжается).
+    void switchStep(const QString &stepId);
     int elapsedSeconds() const { return m_elapsed; }
     QString answersSnapshot() const;
 
@@ -28,9 +30,14 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    double scaleX() const;
+    double scaleY() const;
     QRect designRect(int x, int y, int w, int h) const;
     QRect localRect(int x, int y, int w, int h) const;
+    QSize scaledSize(const QSize &native) const;
+    void placePixmapLabel(QLabel *label, int designX, int designY, bool localToParent);
     void clearUi();
+    void applyChromeStyles();
     void buildDemoMode();
     void buildStoryMode();
     void build272Mode();

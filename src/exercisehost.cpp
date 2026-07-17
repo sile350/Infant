@@ -664,10 +664,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         refreshRotateCombos();
         reloadPreviewForCurrentStep();
         if (m_exerciseRunning && m_onlyP && m_onlyP->isVisible() && !m_sessionStepId.isEmpty()) {
-            // Только смена картинки — без raise() всего оверлея поверх селекта.
             m_onlyP->switchStep(m_sessionStepId);
         }
-        // Селект должен оставаться видимым всегда, когда есть задания.
+        if (m_exerciseRunning && m_sessionRunner
+            && (m_sessionRunnerKind == ExerciseRunnerKind::E126
+                || m_sessionRunnerKind == ExerciseRunnerKind::E1272)
+            && !m_sessionStepId.isEmpty()) {
+            m_sessionRunner->switchStep(m_sessionStepId);
+        }
         layoutStepCombo();
         QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
     });
@@ -856,8 +860,20 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kComboH = 33;
     constexpr int kComboY = 12;
     constexpr int kRightMargin = 24;
-    const int comboX = qMax(0, host->width() - kComboW - kRightMargin);
+    int comboX = qMax(0, host->width() - kComboW - kRightMargin);
+    // 1.26 задание 2: справа groupBox3 с кнопками — селект не кладём поверх них.
+    if (m_exerciseRunning
+        && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))) {
+        comboX = qMax(0, qMin(comboX, 1120));
+    }
     const int comboY = (host == this) ? kComboY : (y() + kComboY);
+    m_stepCombo->setStyleSheet(
+        QStringLiteral(
+            "QComboBox { background-color:#ffffff; background-image:none; color:#000000;"
+            " border:1px solid #808080; padding-left:6px; }"
+            "QComboBox QAbstractItemView { background-color:#ffffff; background-image:none; color:#000000; }"
+            "%1")
+            .arg(stepComboArrowCss()));
     m_stepCombo->setGeometry(comboX, comboY, kComboW, kComboH);
     m_stepCombo->setVisible(true);
     m_stepCombo->raise();

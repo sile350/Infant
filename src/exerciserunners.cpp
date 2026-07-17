@@ -1647,15 +1647,15 @@ public:
         setAttribute(Qt::WA_StyledBackground, true);
         setAttribute(Qt::WA_OpaquePaintEvent, true);
         setAutoFillBackground(true);
-        // Явно гасим наследуемый fone.jpg с корневого окна.
         setStyleSheet(QStringLiteral(
-            "EmotionsRunner, QWidget {"
+            "EmotionsRunner {"
             "  background-color:#ffffff;"
             "  background-image:none;"
             "}"));
         m_canvas = new E126Canvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
+        m_stop->setStyleSheet(QStringLiteral("background-color:#ffffff; background-image:none;"));
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {
             m_stop->setPixmap(QPixmap(stopPath));
@@ -1669,6 +1669,13 @@ public:
         QPainter painter(this);
         painter.fillRect(rect(), Qt::white);
         ExerciseRunnerWidget::paintEvent(event);
+    }
+
+    void switchStep(const QString &stepId) override {
+        m_stepId = stepId;
+        if (m_canvas) {
+            m_canvas->switchStep(stepId);
+        }
     }
 
     void startSession(

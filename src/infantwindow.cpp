@@ -1764,7 +1764,11 @@ void InfantWindow::buildSlidePanels() {
 }
 
 void InfantWindow::applyLegacyStyle() {
-    m_root->setStyleSheet("background-image: url('" + imagePath("fone.jpg") + "');");
+    m_root->setObjectName(QStringLiteral("rootPanel"));
+    // Только на сам root — иначе fone.jpg наследуется всеми дочерними виджетами (кнопки/радио/поля).
+    m_root->setStyleSheet(
+        QStringLiteral("QWidget#rootPanel { background-image: url('%1'); background-repeat: no-repeat; }")
+            .arg(imagePath("fone.jpg")));
     QFont formFont("Microsoft Sans Serif", 10);
     setFont(formFont);
 
