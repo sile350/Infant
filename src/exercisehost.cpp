@@ -1582,11 +1582,94 @@ void ExerciseHost::restoreExerciseOverlay() {
 void ExerciseHost::setDualScreenEnabled(bool enabled) {
     const bool wasDual = m_dualScreen;
     m_dualScreen = enabled;
-    if (!enabled && m_patientDisplay) {
-        m_patientDisplay->hideDisplay();
+
+    if (!m_exerciseRunning) {
+        if (!enabled && m_patientDisplay) {
+            m_patientDisplay->hideDisplay();
+        }
+        return;
     }
-    if (enabled && !wasDual && m_exerciseRunning) {
+
+    // Обычные сессии: только зеркало на втором мониторе.
+    if (m_sessionRunner && m_sessionRunner->isVisible()) {
+        if (enabled) {
+            syncPatientDisplay();
+        } else if (m_patientDisplay) {
+            m_patientDisplay->hideDisplay();
+        }
+        return;
+    }
+
+    if (!m_onlyP) {
+        if (enabled) {
+            syncPatientDisplay();
+        } else if (m_patientDisplay) {
+            m_patientDisplay->hideDisplay();
+        }
+        return;
+    }
+
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    const OnlyPictureSettings settings =
+        definition ? definition->onlyPicture : OnlyPictureSettings();
+    const QString stepId = m_sessionStepId.trimmed().isEmpty()
+        ? currentStepId()
+        : m_sessionStepId;
+    const int pictureIndex = qMax(1, m_onlyP->picturesShown());
+
+    if (enabled && !wasDual) {
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        m_onlyP->setParent(this);
+        m_onlyP->setGeometry(0, 0, width(), height());
+        m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Headless);
+
+        setExerciseChromeVisible(true);
+        raise();
+
+        if (m_patientDisplay) {
+            m_patientDisplay->attachExercise(m_onlyP);
+        }
+        if (m_specialistExercise && m_rightPanel) {
+            m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
+            m_specialistExercise->setMirrorMode(true);
+            m_specialistExercise->prepareMirrorUi(m_exerciseId);
+            m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+            m_specialistExercise->show();
+            m_specialistExercise->raise();
+            m_specialistExercise->syncMirrorSession(m_exerciseId, settings, stepId);
+            if (m_exerciseId != QStringLiteral("3.2.3")) {
+                m_specialistExercise->showPicture(pictureIndex);
+            }
+        }
         syncPatientDisplay();
+        updateChromeLayout();
+        layoutStepCombo();
+        emit exerciseOverlayChanged(false);
+        return;
+    }
+
+    if (!enabled && wasDual) {
+        if (m_patientDisplay) {
+            m_patientDisplay->hideDisplay();
+        }
+        if (m_specialistExercise) {
+            m_specialistExercise->hide();
+        }
+        m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
+        setExerciseChromeVisible(false);
+        showExerciseOverlay();
+        m_onlyP->show();
+        m_onlyP->raise();
+        layoutStepCombo();
+        return;
+    }
+
+    if (enabled) {
+        syncPatientDisplay();
+    } else if (m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
     }
 }
 
