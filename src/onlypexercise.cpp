@@ -451,7 +451,8 @@ void OnlyPExercise::updateWidgetLayout() {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - display.width());
             }
             pictureX = qMax(pictureMargin, pictureX);
-            const int pictureY = qMax(pictureMargin, (height() - display.height()) / 2 + extraY);
+            // Не залезать на кнопки Стоп (extraY=-200 у 3.1.11 и др. иначе перекрывал клики).
+            const int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
             if (m_picture2) {
@@ -519,6 +520,15 @@ void OnlyPExercise::updateWidgetLayout() {
         }
     }
 
+    if (m_wordLabel && m_wordLabel->isVisible()) {
+        m_wordLabel->raise();
+    } else if (m_picture) {
+        m_picture->raise();
+    }
+    if (m_picture2 && m_picture2->isVisible()) {
+        m_picture2->raise();
+    }
+    // Кнопки поверх картинки — иначе Стоп не кликается (3.1.11 dual и др.).
     m_stopButton->raise();
     m_rightButton->raise();
     m_wrongButton->raise();
@@ -527,11 +537,6 @@ void OnlyPExercise::updateWidgetLayout() {
     }
     if (m_navNextButton) {
         m_navNextButton->raise();
-    }
-    if (m_wordLabel && m_wordLabel->isVisible()) {
-        m_wordLabel->raise();
-    } else {
-        m_picture->raise();
     }
     updateOvertimeTimer();
 }
