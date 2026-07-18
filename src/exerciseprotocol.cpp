@@ -2685,6 +2685,51 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
     if (addition.isEmpty()) {
         return existingBody;
     }
+
+    QString base = existingBody;
+    if (base.trimmed().isEmpty()) {
+        return addition;
+    }
+
+    // 1.26: задание 2 приходит уже как полный <table>...</table>.
+    // НЕ вставлять перед последним </table> — это вкладывало продолжение в ячейку «Виды помощи».
+    const bool isCompleteTable = addition.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)
+        && addition.contains(QStringLiteral("</table>"), Qt::CaseInsensitive);
+    if (isCompleteTable || looksLikeProtocol126Body(base) || looksLikeProtocol126Body(addition)) {
+        base = closeDanglingTables(base);
+        // Дописываем после последней закрытой таблицы секции процесса.
+        const int marker = base.lastIndexOf(QStringLiteral("<!--s-->"));
+        int appendAt = base.size();
+        if (marker >= 0) {
+            int pos = marker;
+            int lastClose = -1;
+            while (true) {
+                const int close = base.indexOf(QStringLiteral("</table>"), pos, Qt::CaseInsensitive);
+                if (close < 0) {
+                    break;
+                }
+                lastClose = close;
+                pos = close + QStringLiteral("</table>").size();
+            }
+            if (lastClose >= 0) {
+                appendAt = lastClose + QStringLiteral("</table>").size();
+            }
+        } else {
+            const int lastClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+            if (lastClose >= 0) {
+                appendAt = lastClose + QStringLiteral("</table>").size();
+            }
+        }
+        QString wrapped = addition;
+        if (!isCompleteTable && addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
+            wrapped = QStringLiteral(
+                          "<table border='1' style='table-layout:fixed' cellspacing='0' "
+                          "width='674' cellpadding='0'>")
+                + addition + QStringLiteral("</table>");
+        }
+        return base.left(appendAt) + wrapped + base.mid(appendAt);
+    }
+
     if (!addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
         && addition.startsWith(QStringLiteral("<td"), Qt::CaseInsensitive)) {
         addition.prepend(QStringLiteral("<tr>"));
@@ -2692,11 +2737,6 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
     if (addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
         && !addition.contains(QStringLiteral("</tr>"), Qt::CaseInsensitive)) {
         addition.append(QStringLiteral("</tr>"));
-    }
-
-    QString base = existingBody;
-    if (base.trimmed().isEmpty()) {
-        return addition;
     }
 
     // Обрезаем «хвост» после последнего полного </tr>, если там остались незакрытые теги

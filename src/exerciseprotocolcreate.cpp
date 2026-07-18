@@ -463,9 +463,11 @@ QString buildProtocol126(
             "<tr><td  width='24%'  >Виды помощи</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true' >")
             + hlpText + QStringLiteral("</div></td></tr>");
-        block += QStringLiteral("</table> ");
+        // Закрываем таблицу «характер/помощь» ДО таблицы баллов — иначе QTextDocument
+        // вкладывает следующую <table> в ячейку «Виды помощи».
+        block += QStringLiteral("</table>");
         block += QStringLiteral(
-            "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='676' cellpadding='0'  > ");
+            "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='676' cellpadding='0'  >");
         block += QStringLiteral(
             "<tr><td  width='24%'   align='center'  > Портретная картинка </td>"
             "<td  align='center'  > Ответ ребенка </td>"
@@ -485,7 +487,12 @@ QString buildProtocol126(
         block += QStringLiteral(
             "<tr><td align='left' colspan='2'   >Итоговая оценка</td>  <td  >"
             "<div  align='center' id='sum1' contenteditable='true'   ></div></td></tr>");
+        // Закрываем таблицу баллов — задание 2 дописывается отдельной таблицей, не внутрь.
+        block += QStringLiteral("</table>");
     } else if (step == QStringLiteral("2")) {
+        // Отдельная таблица задания 2 (не строки внутри таблицы баллов задания 1).
+        block += QStringLiteral(
+            "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='674' cellpadding='0'  >");
         block += QStringLiteral("<tr><td colspan='3' align='center'><b>Задание 2</b></td></tr>");
         block += QStringLiteral(
             "<tr><td   >Характер деятельности ребенка</td>"
@@ -511,12 +518,13 @@ QString buildProtocol126(
         block += QStringLiteral(
             "<tr><td colspan='2'  align='left'    >Индекс успешности по двум сериям</td>  "
             "<td    align='center'><div id='sum3' contenteditable='true'></div></td></tr>");
+        block += QStringLiteral("</table>");
     } else {
         return QString();
     }
 
     if (partly) {
-        // Как в оригинале: только строки задания дописываются в уже сохранённый протокол.
+        // Как в оригинале по смыслу дописка, но отдельной таблицей — без вложения в «Виды помощи».
         return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, block);
     }
 
@@ -528,12 +536,14 @@ QString buildProtocol126(
         "<tr><td  >Примечание </td><td    ><div contenteditable='true' ></div> </td> </tr>");
     add += QStringLiteral(
         "<tr><td align='center' colspan='2'>Процесс выполнения диагностического задания</td></tr>"
-        "</table><!--s-->"
-        "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='674' cellpadding='0'  > ");
-    add += block;
-    if (!add.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-        add += QStringLiteral("</table>");
+        "</table><!--s-->");
+    // Задание 1: строки характера/помощи идут в новую таблицу (закрывается внутри block).
+    // Задание 2: block уже полный <table>...</table>.
+    if (step == QStringLiteral("1")) {
+        add += QStringLiteral(
+            "<table border='1'  style='table-layout:fixed' cellspacing='0'  width='674' cellpadding='0'  >");
     }
+    add += block;
     return add;
 }
 
