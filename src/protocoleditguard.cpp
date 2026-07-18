@@ -156,11 +156,12 @@ public:
     }
 
     void setMode(ProtocolEditGuard::Mode mode) {
-        if (m_mode == mode) {
-            return;
+        // После setHtml документ новый — режим мог не смениться, но флаги редактора
+        // нужно применить снова (иначе после «Подвести итог» ячейки недоступны).
+        if (m_mode != mode) {
+            m_mode = mode;
+            m_lastEditablePos = -1;
         }
-        m_mode = mode;
-        m_lastEditablePos = -1;
         applyModeToEditor();
         enforceCursor();
     }

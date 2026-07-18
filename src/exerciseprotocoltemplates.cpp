@@ -572,19 +572,27 @@ QString createExerciseProtocolFromTemplate(
             const QString prefix = (tmpl.kind == QStringLiteral("or_hlp_balls"))
                 ? QStringLiteral("ids")
                 : QStringLiteral("idb");
+            // Смотрим только последнюю сессию по «Дата/специалист» — иначе ids/idb
+            // из предыдущих повторных протоколов дают ложный «уже есть» и плодят
+            // лишние блоки с новой датой вместо дописки строк в текущий.
+            const QString lastSessionHtml =
+                ExerciseProtocol::extractLastProtocol126Session(existingProtocolHtml);
+            const QString scopeHtml = lastSessionHtml.trimmed().isEmpty()
+                ? existingProtocolHtml
+                : lastSessionHtml;
             QStringList newSteps;
             for (const QString &sid : stepIds) {
                 const QString idToken = prefix + sid;
                 const bool present =
-                    existingProtocolHtml.contains(
+                    scopeHtml.contains(
                         QStringLiteral("id='%1'").arg(idToken), Qt::CaseInsensitive)
-                    || existingProtocolHtml.contains(
+                    || scopeHtml.contains(
                         QStringLiteral("id=\"%1\"").arg(idToken), Qt::CaseInsensitive);
                 if (!present) {
                     newSteps << sid;
                 }
             }
-            // Все шаги уже были — повторный протокол с новой «Дата/специалист».
+            // Все шаги уже в последней сессии — повторный протокол с новой «Дата/специалист».
             if (newSteps.isEmpty()) {
                 ProtocolSessionInput repeatSession = session;
                 repeatSession.stepIds = stepIds;

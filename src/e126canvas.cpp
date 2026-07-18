@@ -308,9 +308,13 @@ void E126Canvas::switchStep(const QString &stepId) {
         m_girlRadio->blockSignals(false);
         m_boyRadio->blockSignals(false);
     }
+    // 1.272 уже отрисован в startExercise → build272Mode/show272Image.
+    if (m_exerciseId == QStringLiteral("1.272")) {
+        return;
+    }
     if (m_stepId == QStringLiteral("1")) {
         showDemoImage();
-    } else if (m_exerciseId != QStringLiteral("1.272")) {
+    } else {
         showStoryImage();
     }
 }
@@ -494,6 +498,12 @@ void E126Canvas::show272Image() {
     // Как e1272.initEx: Image.FromFile(...\1.272\{param}.png).
     const int n = qBound(1, m_stepId.toInt(), 6);
     m_count = n;
+    // Сбрасываем кэш размера — иначе placePixmapLabel может оставить прошлый кадр.
+    if (m_imageLabel) {
+        m_imageLabel->setProperty("nativeW", 0);
+        m_imageLabel->setProperty("nativeH", 0);
+        m_imageLabel->setProperty("sourcePath", QString());
+    }
     applyPixmap(m_imageLabel, QString::number(n) + QStringLiteral(".png"));
     if (m_questionEdit && n >= 1 && n <= m_questions.size()) {
         m_questionEdit->setPlainText(m_questions.at(n - 1));

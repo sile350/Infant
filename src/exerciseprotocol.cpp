@@ -2471,6 +2471,10 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
     }
     QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
 
+    QStringList sessions = extractProtocol126SessionsByDate(body);
+    const bool multiSession = sessions.size() > 1;
+    QString target = multiSession ? sessions.last() : body;
+
     QList<QTextTable *> tables;
     collectTables(editorDocument->rootFrame(), tables);
     for (QTextTable *table : tables) {
@@ -2511,7 +2515,7 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
             if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
                 const QString sum = readTableCellText(table, r, ballsCol);
                 if (!sum.trimmed().isEmpty()) {
-                    body = replaceDivInnerById(body, QStringLiteral("idsum"), sum);
+                    target = replaceDivInnerById(target, QStringLiteral("idsum"), sum);
                 }
                 continue;
             }
@@ -2520,21 +2524,20 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
             if (!isNumber) {
                 continue;
             }
-            if (activityCol >= 0) {
-                const QString activity = readTableCellText(table, r, activityCol);
-                // Обновляем ячейку OR в строке с этим № через ids-соседние div — только баллы по id.
-                Q_UNUSED(activity);
-            }
-            if (helpCol >= 0) {
-                Q_UNUSED(helpCol);
-            }
+            Q_UNUSED(activityCol);
+            Q_UNUSED(helpCol);
             const QString score = readTableCellText(table, r, ballsCol);
             if (!score.trimmed().isEmpty()) {
-                body = replaceDivInnerById(body, QStringLiteral("ids") + label, score);
+                target = replaceDivInnerById(target, QStringLiteral("ids") + label, score);
             }
         }
     }
-    return body;
+
+    if (multiSession) {
+        sessions[sessions.size() - 1] = target;
+        return joinProtocol126Sessions(sessions);
+    }
+    return target;
 }
 
 QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
@@ -2556,7 +2559,7 @@ QString ExerciseProtocol::mergeEditorHtmlIntoStoredBody(
     return applyParsedFieldsToStoredBody(storedBody, parsed);
 }
 
-QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml) {
+QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QString &rowsHtml) {
     QString addition = rowsHtml.trimmed();
     if (addition.isEmpty()) {
         return existingBody;
@@ -2592,7 +2595,8 @@ QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, co
     }
 
     // Если таблица результатов после <!--s--> уже закрыта — вставляем строки перед </table>.
-    const int marker = base.indexOf(QStringLiteral("<!--s-->"));
+    // Берём последний <!--s--> — при нескольких сессиях дописываем в текущую, не в первую.
+    const int marker = base.lastIndexOf(QStringLiteral("<!--s-->"));
     if (marker >= 0) {
         const int tableClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
         if (tableClose > marker) {
@@ -2603,6 +2607,25 @@ QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, co
     return base + addition;
 }
 
+QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml) {
+    if (rowsHtml.trimmed().isEmpty()) {
+        return existingBody;
+    }
+
+    // 1.26: при нескольких «Дата/специалист» дописываем только в последнюю сессию,
+    // иначе первый <!--s--> + последний </table> ломают границы.
+    if (looksLikeProtocol126Body(existingBody) || looksLikeProtocol126Body(rowsHtml)) {
+        QStringList sessions = extractProtocol126SessionsByDate(existingBody);
+        if (sessions.size() > 1) {
+            sessions[sessions.size() - 1] =
+                appendRowsIntoSingleProtocolBody(sessions.last(), rowsHtml);
+            return joinProtocol126Sessions(sessions);
+        }
+    }
+
+    return appendRowsIntoSingleProtocolBody(existingBody, rowsHtml);
+}
+
 QString ExerciseProtocol::appendFullSessionToStoredBody(
     const QString &existingBody,
     const QString &sessionHtml) {
@@ -2611,15 +2634,15 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
         return existingBody;
     }
 
-    // 1.26: не ensureClosed/joinClosed — иначе срезаются таблицы баллов.
+    // 1.26: плоская дописка со строки «Дата/специалист» (без ensureClosed — срезает баллы).
+    // Пересборка по датам чинит уже вложенные тела и не даёт вложить новую сессию в таблицу.
     if (looksLikeProtocol126Body(existingBody) || looksLikeProtocol126Body(session)) {
-        if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
-            session.prepend(protocolSummaryTableOpenHtml());
+        QStringList sessions = extractProtocol126SessionsByDate(existingBody);
+        if (sessions.isEmpty() && !existingBody.trimmed().isEmpty()) {
+            sessions.append(stripLeadingSummaryTableWrapper(existingBody));
         }
-        if (existingBody.trimmed().isEmpty()) {
-            return stripLeadingSummaryTableWrapper(session);
-        }
-        return existingBody + session;
+        sessions.append(stripLeadingSummaryTableWrapper(session));
+        return joinProtocol126Sessions(sessions);
     }
 
     session = ensureClosedProtocolSession(session);

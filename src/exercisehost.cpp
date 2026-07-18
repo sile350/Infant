@@ -780,6 +780,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             return;
         }
         // 1.26: оставляем на вкладке последний протокол; при полном цикле — старт с №1.
+        // 1.272: повторный старт всегда с задания 1.
         if (m_exerciseId == QStringLiteral("1.26")) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
@@ -808,6 +809,18 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 } else {
                     m_stepCombo->setCurrentIndex(0);
                 }
+                m_stepCombo->blockSignals(false);
+                m_sessionStepId = m_stepCombo->currentText().trimmed();
+                reloadPreviewForCurrentStep();
+            }
+            showLastProtocolInTemplate();
+        } else if (m_exerciseId == QStringLiteral("1.272")) {
+            m_sessionAdditional.clear();
+            m_additionalByStep.clear();
+            m_protocolSavedThisSession = false;
+            if (m_stepCombo && m_stepCombo->count() > 0) {
+                m_stepCombo->blockSignals(true);
+                m_stepCombo->setCurrentIndex(0);
                 m_stepCombo->blockSignals(false);
                 m_sessionStepId = m_stepCombo->currentText().trimmed();
                 reloadPreviewForCurrentStep();
