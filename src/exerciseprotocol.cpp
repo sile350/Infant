@@ -1734,10 +1734,14 @@ QString replaceDivInnerById(QString html, const QString &divId, const QString &i
         QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
             .arg(QRegularExpression::escape(divId)),
         QRegularExpression::CaseInsensitiveOption);
-    if (!re.match(html).hasMatch()) {
+    const QRegularExpressionMatch match = re.match(html);
+    if (!match.hasMatch()) {
         return html;
     }
-    return html.replace(re, QStringLiteral("\\1") + innerHtml + QStringLiteral("\\3"));
+    // Только первое вхождение: при повторных сессиях id дублируются (col11, sum1, …).
+    return html.left(match.capturedStart())
+        + match.captured(1) + innerHtml + match.captured(3)
+        + html.mid(match.capturedEnd());
 }
 
 QString extractDivInnerById(const QString &html, const QString &divId) {
@@ -2029,77 +2033,87 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
 
     QString body = storedBody;
 
-    // Без «Подвести итог» — только перенос вручную введённых баллов из редактора в HTML.
-    if (!computeSums) {
-        if (editorDocument) {
-            QList<QTextTable *> tables;
-            collectTables(editorDocument->rootFrame(), tables);
-            for (QTextTable *table : tables) {
-                if (!table || table->columns() < 2) {
+    auto applyManualScoresFromEditor = [&](QString chunk) -> QString {
+        if (!editorDocument) {
+            return chunk;
+        }
+        QList<QTextTable *> tables;
+        collectTables(editorDocument->rootFrame(), tables);
+        for (QTextTable *table : tables) {
+            if (!table || table->columns() < 2) {
+                continue;
+            }
+            int ballsCol = -1;
+            int headerRow = -1;
+            for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
+                for (int c = 0; c < table->columns(); ++c) {
+                    const QString header = readTableCellText(table, r, c);
+                    if (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                        && header.length() <= 12) {
+                        ballsCol = c;
+                        headerRow = r;
+                        break;
+                    }
+                }
+            }
+            if (ballsCol < 0) {
+                continue;
+            }
+            for (int r = headerRow + 1; r < table->rows(); ++r) {
+                const QString label = readTableCellText(table, r, 0);
+                const QString score = readTableCellText(table, r, ballsCol);
+                if (label.isEmpty()
+                    || label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
                     continue;
                 }
-                int ballsCol = -1;
-                int headerRow = -1;
-                for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
-                    for (int c = 0; c < table->columns(); ++c) {
-                        const QString header = readTableCellText(table, r, c);
-                        if (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
-                            && header.length() <= 12) {
-                            ballsCol = c;
-                            headerRow = r;
-                            break;
-                        }
-                    }
-                }
-                if (ballsCol < 0) {
+                if (score.trimmed().isEmpty()) {
                     continue;
                 }
-                for (int r = headerRow + 1; r < table->rows(); ++r) {
-                    const QString label = readTableCellText(table, r, 0);
-                    const QString score = readTableCellText(table, r, ballsCol);
-                    if (label.isEmpty()
-                        || label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
-                        || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)) {
-                        continue;
-                    }
-                    if (score.trimmed().isEmpty()) {
-                        continue;
-                    }
-                    // Предпочитаем id col1N/col2N — не трогаем разметку строки.
-                    bool wrote = false;
-                    for (int n = 1; n <= 16 && !wrote; ++n) {
-                        const QString id1 = QStringLiteral("col1%1").arg(n);
-                        const QString id2 = QStringLiteral("col2%1").arg(n);
-                        if (body.contains(QStringLiteral("id='%1'").arg(id1))
-                            || body.contains(QStringLiteral("id=\"%1\"").arg(id1))) {
-                            // Сопоставить строку по подписи задачи 1.
-                            static const QStringList kTask1 = {
-                                QStringLiteral("Радость"), QStringLiteral("Злость"),
-                                QStringLiteral("Грусть"), QStringLiteral("Страх"),
-                                QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
-                            };
-                            if (n <= kTask1.size() && label.compare(kTask1.at(n - 1), Qt::CaseInsensitive) == 0) {
-                                body = replaceDivInnerById(body, id1, score);
-                                wrote = true;
-                            }
-                        }
-                        if (!wrote && label == QString::number(n)
-                            && (body.contains(QStringLiteral("id='%1'").arg(id2))
-                                || body.contains(QStringLiteral("id=\"%1\"").arg(id2)))) {
-                            body = replaceDivInnerById(body, id2, score);
+                bool wrote = false;
+                for (int n = 1; n <= 16 && !wrote; ++n) {
+                    const QString id1 = QStringLiteral("col1%1").arg(n);
+                    const QString id2 = QStringLiteral("col2%1").arg(n);
+                    if (chunk.contains(QStringLiteral("id='%1'").arg(id1))
+                        || chunk.contains(QStringLiteral("id=\"%1\"").arg(id1))) {
+                        static const QStringList kTask1 = {
+                            QStringLiteral("Радость"), QStringLiteral("Злость"),
+                            QStringLiteral("Грусть"), QStringLiteral("Страх"),
+                            QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
+                        };
+                        if (n <= kTask1.size()
+                            && label.compare(kTask1.at(n - 1), Qt::CaseInsensitive) == 0) {
+                            chunk = replaceDivInnerById(chunk, id1, score);
                             wrote = true;
                         }
+                    }
+                    if (!wrote && label == QString::number(n)
+                        && (chunk.contains(QStringLiteral("id='%1'").arg(id2))
+                            || chunk.contains(QStringLiteral("id=\"%1\"").arg(id2)))) {
+                        chunk = replaceDivInnerById(chunk, id2, score);
+                        wrote = true;
                     }
                 }
             }
         }
-        return body;
+        return chunk;
+    };
+
+    // Редактор показывает только последнюю сессию — писать баллы/суммы только в неё.
+    QStringList sessions = extractProtocol126SessionsByDate(body);
+    const bool multiSession = sessions.size() > 1;
+
+    // Без «Подвести итог» — только перенос вручную введённых баллов из редактора в HTML.
+    if (!computeSums) {
+        if (multiSession) {
+            sessions[sessions.size() - 1] = applyManualScoresFromEditor(sessions.last());
+            return joinProtocol126Sessions(sessions);
+        }
+        return applyManualScoresFromEditor(body);
     }
 
     Q_UNUSED(editorDocument);
-    // Подвести итог только для последней сессии (при повторных протоколах в одном теле).
-    QStringList sessions = extractProtocol126SessionsByDate(body);
-    if (sessions.size() > 1) {
+    if (multiSession) {
         QString last = sessions.last();
         last = fillProtocol126RowScores(last);
         const double sum1 = sumDivPrefix(last, QStringLiteral("col1"));

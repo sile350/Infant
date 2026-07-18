@@ -4,6 +4,7 @@
 #include "e15canvas.h"
 #include "exerciseassets.h"
 #include "onlypexercise.h"
+#include "patientdisplay.h"
 #include "puzzlecanvas.h"
 #include "puzzlelayout.h"
 #include "remembercanvas.h"
@@ -2241,6 +2242,12 @@ public:
         connect(m_canvas, &E126Canvas::stopRequested, this, [this]() { finishSession(); });
     }
 
+    void bindPatientDisplay(PatientDisplay *display) override {
+        if (display && m_canvas) {
+            display->attachEmotionsCanvas(m_canvas);
+        }
+    }
+
     void paintEvent(QPaintEvent *event) override {
         QPainter painter(this);
         painter.fillRect(rect(), Qt::white);
@@ -2384,6 +2391,12 @@ public:
 
 ExerciseRunnerWidget::ExerciseRunnerWidget(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_OpaquePaintEvent, true);
+}
+
+void ExerciseRunnerWidget::bindPatientDisplay(PatientDisplay *display) {
+    if (display) {
+        display->attachMirrorWidget(this);
+    }
 }
 
 void ExerciseRunnerWidget::emitFinished(const ExerciseSessionResult &result) {

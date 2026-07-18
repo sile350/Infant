@@ -6,6 +6,8 @@
 
 #include <QWidget>
 
+class PatientDisplay;
+
 class ExerciseRunnerWidget : public QWidget {
     Q_OBJECT
 public:
@@ -19,6 +21,8 @@ public:
     virtual void switchStep(const QString &stepId) { Q_UNUSED(stepId); }
     // Текущие данные сессии без завершения (для 1.26 при смене задания).
     virtual QString currentAdditionalSnapshot() const { return {}; }
+    // Dual-screen: по умолчанию зеркало всего окна; EmotionsRunner — patient-view.
+    virtual void bindPatientDisplay(PatientDisplay *display);
 
     void setSessionOptions(const ExerciseSessionOptions &options) { m_sessionOptions = options; }
     const ExerciseSessionOptions &sessionOptions() const { return m_sessionOptions; }

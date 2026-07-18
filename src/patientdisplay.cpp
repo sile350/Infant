@@ -1,5 +1,6 @@
 #include "patientdisplay.h"
 
+#include "e126canvas.h"
 #include "exerciseconfig.h"
 #include "onlypexercise.h"
 
@@ -32,6 +33,11 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     m_mirrorExercise->setMirrorMode(true);
     m_mirrorExercise->setGeometry(0, 0, 1920, 1080);
 
+    m_patientEmotions = new E126Canvas(this);
+    m_patientEmotions->setDisplayRole(E126Canvas::DisplayRole::Patient);
+    m_patientEmotions->setGeometry(0, 0, 1920, 1080);
+    m_patientEmotions->hide();
+
     m_mirrorLabel = new QLabel(this);
     m_mirrorLabel->setAlignment(Qt::AlignCenter);
     m_mirrorLabel->setScaledContents(true);
@@ -44,12 +50,16 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
 
 void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
     m_exercise = exercise;
+    m_emotionsSource = nullptr;
     m_mirrorSource = nullptr;
     if (m_mirrorTimer) {
         m_mirrorTimer->stop();
     }
     if (m_mirrorLabel) {
         m_mirrorLabel->hide();
+    }
+    if (m_patientEmotions) {
+        m_patientEmotions->hide();
     }
     if (!m_exercise || !m_mirrorExercise) {
         return;
@@ -68,6 +78,42 @@ void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
         &PatientDisplay::onSourceBrowseStateChanged,
         Qt::UniqueConnection);
     connect(m_exercise, &OnlyPExercise::finished, this, &PatientDisplay::hideDisplay, Qt::UniqueConnection);
+}
+
+void PatientDisplay::attachEmotionsCanvas(E126Canvas *source) {
+    m_emotionsSource = source;
+    m_exercise = nullptr;
+    m_mirrorSource = nullptr;
+    if (m_mirrorTimer) {
+        m_mirrorTimer->stop();
+    }
+    if (m_mirrorLabel) {
+        m_mirrorLabel->hide();
+    }
+    if (m_mirrorExercise) {
+        m_mirrorExercise->hide();
+    }
+    if (!m_emotionsSource || !m_patientEmotions) {
+        return;
+    }
+    connect(
+        m_emotionsSource,
+        &E126Canvas::patientContentChanged,
+        this,
+        &PatientDisplay::onEmotionsContentChanged,
+        Qt::UniqueConnection);
+    onEmotionsContentChanged();
+    m_patientEmotions->show();
+    m_patientEmotions->raise();
+}
+
+void PatientDisplay::onEmotionsContentChanged() {
+    if (!m_emotionsSource || !m_patientEmotions) {
+        return;
+    }
+    m_patientEmotions->syncPatientFrom(m_emotionsSource);
+    m_patientEmotions->show();
+    m_patientEmotions->raise();
 }
 
 void PatientDisplay::onSourcePictureChanged(int index) {
@@ -98,6 +144,10 @@ void PatientDisplay::onSourceBrowseStateChanged(int index) {
 }
 
 void PatientDisplay::switchStep(const QString &stepId) {
+    if (m_patientEmotions && m_emotionsSource) {
+        m_patientEmotions->switchStep(stepId);
+        return;
+    }
     if (!m_mirrorExercise || stepId.trimmed().isEmpty()) {
         return;
     }
@@ -107,8 +157,12 @@ void PatientDisplay::switchStep(const QString &stepId) {
 void PatientDisplay::attachMirrorWidget(QWidget *source) {
     m_mirrorSource = source;
     m_exercise = nullptr;
+    m_emotionsSource = nullptr;
     if (m_mirrorExercise) {
         m_mirrorExercise->hide();
+    }
+    if (m_patientEmotions) {
+        m_patientEmotions->hide();
     }
     if (m_mirrorLabel) {
         m_mirrorLabel->show();
@@ -144,10 +198,17 @@ void PatientDisplay::showOnSecondaryScreen() {
     if (m_mirrorExercise) {
         m_mirrorExercise->setGeometry(0, 0, geometry.width(), geometry.height());
     }
+    if (m_patientEmotions) {
+        m_patientEmotions->setGeometry(0, 0, geometry.width(), geometry.height());
+    }
     if (m_mirrorLabel) {
         m_mirrorLabel->setGeometry(0, 0, geometry.width(), geometry.height());
     }
-    if (m_exercise && m_mirrorExercise) {
+    if (m_emotionsSource && m_patientEmotions) {
+        onEmotionsContentChanged();
+        m_patientEmotions->show();
+        m_patientEmotions->raise();
+    } else if (m_exercise && m_mirrorExercise) {
         const QString exerciseId = m_exercise->property("exerciseId").toString();
         if (!exerciseId.isEmpty()) {
             m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
@@ -178,9 +239,13 @@ void PatientDisplay::hideDisplay() {
     if (m_mirrorExercise) {
         m_mirrorExercise->hide();
     }
+    if (m_patientEmotions) {
+        m_patientEmotions->hide();
+    }
     if (m_mirrorLabel) {
         m_mirrorLabel->hide();
     }
     m_mirrorSource = nullptr;
+    m_emotionsSource = nullptr;
     hide();
 }

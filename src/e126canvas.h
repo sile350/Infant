@@ -13,17 +13,31 @@
 class E126Canvas final : public QWidget {
     Q_OBJECT
 public:
+    enum class DisplayRole {
+        Specialist,
+        Patient
+    };
+
     explicit E126Canvas(QWidget *parent = nullptr);
+
+    void setDisplayRole(DisplayRole role);
+    DisplayRole displayRole() const { return m_displayRole; }
 
     void startExercise(const QString &exerciseId, const QString &stepId);
     // Смена задания 1↔2 без полного рестарта таймера с нуля (время продолжается).
     void switchStep(const QString &stepId);
+    // Зеркало пациента: скопировать кадр/текст/подсказку со специалиста.
+    void syncPatientFrom(const E126Canvas *source);
     int elapsedSeconds() const { return m_elapsed; }
     QString stepId() const { return m_stepId; }
     QString answersSnapshot() const;
+    bool emotionsVisible() const { return m_emotionsVisible; }
+    QString genderPrefix() const { return m_genderPrefix; }
+    int currentCount() const { return m_count; }
 
 signals:
     void stopRequested();
+    void patientContentChanged();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -43,15 +57,20 @@ private:
     void buildDemoMode();
     void buildStoryMode();
     void build272Mode();
+    void buildPatientMode();
     void layoutUi();
+    void layoutPatientUi();
     void applyPixmap(QLabel *label, const QString &fileName, bool autoSize = true);
     void showDemoImage();
     void showStoryImage();
     void show272Image();
+    void refreshPatientContent();
     void toggleEmotions();
     void advanceDemo();
     void advanceStory();
+    void notifyPatientContentChanged();
 
+    DisplayRole m_displayRole = DisplayRole::Specialist;
     QString m_exerciseId;
     QString m_stepId;
     QString m_genderPrefix = QStringLiteral("d");

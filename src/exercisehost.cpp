@@ -817,17 +817,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             if (m_repository && m_partly) {
                 const QString existingBody =
                     m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
-                QString lastSessionHtml = existingBody;
-                const int lastDate = existingBody.lastIndexOf(QStringLiteral("Дата/специалист"));
-                if (lastDate >= 0) {
-                    const int rowStart = existingBody.lastIndexOf(QStringLiteral("<tr"), lastDate);
-                    if (rowStart >= 0) {
-                        lastSessionHtml = existingBody.mid(rowStart);
-                    }
-                }
+                const QString lastSessionHtml =
+                    ExerciseProtocol::extractLastProtocol126Session(existingBody);
                 continueTask2 = lastSessionHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
                     && !lastSessionHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
             }
+            // Полный повтор (оба задания уже были) → следующая «Дата/специалист».
+            m_forceNewProtocolSession = !continueTask2 && m_partly;
             if (m_stepCombo && m_stepCombo->count() > 0) {
                 m_stepCombo->blockSignals(true);
                 if (continueTask2) {
@@ -1706,7 +1702,7 @@ void ExerciseHost::syncPatientDisplay() {
         return;
     }
     if (m_sessionRunner && m_sessionRunner->isVisible()) {
-        m_patientDisplay->attachMirrorWidget(m_sessionRunner);
+        m_sessionRunner->bindPatientDisplay(m_patientDisplay);
         m_patientDisplay->showOnSecondaryScreen();
     }
 }
@@ -2619,18 +2615,11 @@ void ExerciseHost::formProtocol() {
             ? QStringLiteral("1")
             : parts.at(0).trimmed();
 
-        // Хвост с последней «Дата/специалист» до конца (без обрезки вложенных таблиц).
-        QString lastSessionHtml = existingBody;
-        {
-            const int lastDate = existingBody.lastIndexOf(QStringLiteral("Дата/специалист"));
-            if (lastDate >= 0) {
-                const int rowStart = existingBody.lastIndexOf(QStringLiteral("<tr"), lastDate);
-                if (rowStart >= 0) {
-                    lastSessionHtml = existingBody.mid(rowStart);
-                }
-            }
-        }
+        const QString lastSessionHtml = saveAsPartly
+            ? ExerciseProtocol::extractLastProtocol126Session(existingBody)
+            : QString();
         const bool continueTask2 = saveAsPartly
+            && !m_forceNewProtocolSession
             && stepKey == QStringLiteral("2")
             && lastSessionHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
             && !lastSessionHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
@@ -2658,6 +2647,7 @@ void ExerciseHost::formProtocol() {
                 checkboxValues(),
                 session);
             saveAsPartly = true;
+            m_forceNewProtocolSession = false;
         } else if (needBothTasks) {
             const QString task2Additional = !add2.trimmed().isEmpty() ? add2 : session.additional;
             QString newSession = ExerciseProtocol::createProtocolHtml(
@@ -2686,6 +2676,7 @@ void ExerciseHost::formProtocol() {
                 protocolBody = newSession;
                 saveAsPartly = false;
             }
+            m_forceNewProtocolSession = false;
         } else if (saveAsPartly) {
             // Повтор: новый блок с даты, не затирая предыдущие сессии.
             const QString newSession = ExerciseProtocol::createProtocolHtml(
@@ -2699,6 +2690,7 @@ void ExerciseHost::formProtocol() {
                 session);
             protocolBody = ExerciseProtocol::appendFullSessionToStoredBody(existingBody, newSession);
             saveAsPartly = true;
+            m_forceNewProtocolSession = false;
         } else {
             protocolBody = ExerciseProtocol::createProtocolHtml(
                 m_exerciseId,
@@ -2710,6 +2702,7 @@ void ExerciseHost::formProtocol() {
                 checkboxValues(),
                 session);
             saveAsPartly = false;
+            m_forceNewProtocolSession = false;
         }
     } else if (m_forceNewProtocolSession && saveAsPartly) {
         // После Begin (3.1.11/12/17/18): новый блок со строки «Дата/специалист».
@@ -2792,7 +2785,9 @@ void ExerciseHost::formProtocol() {
     m_protocolSavedThisSession = true;
     m_partly = true;
     m_stepElapsedSeconds.clear();
-    if (m_exerciseId == QStringLiteral("1.272") || m_exerciseId == QStringLiteral("3.1.10")) {
+    if (m_exerciseId == QStringLiteral("1.26")
+        || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("3.1.10")) {
         // Строки уже попали в протокол — не дублировать при следующем формировании.
         m_additionalByStep.clear();
     }

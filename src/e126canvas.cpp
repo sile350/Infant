@@ -47,6 +47,19 @@ E126Canvas::E126Canvas(QWidget *parent) : QWidget(parent) {
     setAutoFillBackground(true);
 }
 
+void E126Canvas::setDisplayRole(DisplayRole role) {
+    m_displayRole = role;
+    if (role == DisplayRole::Patient) {
+        setFocusPolicy(Qt::NoFocus);
+    }
+}
+
+void E126Canvas::notifyPatientContentChanged() {
+    if (m_displayRole == DisplayRole::Specialist) {
+        emit patientContentChanged();
+    }
+}
+
 double E126Canvas::scaleX() const {
     return width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
 }
@@ -268,6 +281,12 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
     applyChromeStyles();
     clearUi();
 
+    if (m_displayRole == DisplayRole::Patient) {
+        buildPatientMode();
+        refreshPatientContent();
+        return;
+    }
+
     if (exerciseId == QStringLiteral("1.272")) {
         build272Mode();
     } else if (m_stepId == QStringLiteral("1")) {
@@ -281,9 +300,18 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
         m_timer.start();
     }
     setFocus();
+    notifyPatientContentChanged();
 }
 
 void E126Canvas::switchStep(const QString &stepId) {
+    if (m_displayRole == DisplayRole::Patient) {
+        const QString next = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
+        if (next == m_stepId) {
+            return;
+        }
+        startExercise(m_exerciseId, next);
+        return;
+    }
     const QString next = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
     if (next == m_stepId && ((next == QStringLiteral("1") && m_groupBox1)
                              || (next != QStringLiteral("1") && m_groupBox2))) {
@@ -310,6 +338,7 @@ void E126Canvas::switchStep(const QString &stepId) {
     }
     // 1.272 уже отрисован в startExercise → build272Mode/show272Image.
     if (m_exerciseId == QStringLiteral("1.272")) {
+        notifyPatientContentChanged();
         return;
     }
     if (m_stepId == QStringLiteral("1")) {
@@ -317,6 +346,27 @@ void E126Canvas::switchStep(const QString &stepId) {
     } else {
         showStoryImage();
     }
+}
+
+void E126Canvas::syncPatientFrom(const E126Canvas *source) {
+    if (!source || m_displayRole != DisplayRole::Patient) {
+        return;
+    }
+    const bool needRebuild = m_exerciseId != source->m_exerciseId
+        || m_stepId != source->m_stepId
+        || !m_imageLabel;
+    m_exerciseId = source->m_exerciseId;
+    m_stepId = source->m_stepId;
+    m_genderPrefix = source->m_genderPrefix;
+    m_count = source->m_count;
+    m_emotionsVisible = source->m_emotionsVisible;
+    m_questions = source->m_questions;
+    if (needRebuild) {
+        applyChromeStyles();
+        clearUi();
+        buildPatientMode();
+    }
+    refreshPatientContent();
 }
 
 void E126Canvas::applyPixmap(QLabel *label, const QString &fileName, bool autoSize) {
@@ -413,6 +463,7 @@ void E126Canvas::buildStoryMode() {
             applyPixmap(m_emotionsLabel, QStringLiteral("dem.png"));
             layoutUi();
         }
+        notifyPatientContentChanged();
     });
     connect(m_boyRadio, &QRadioButton::toggled, this, [this](bool checked) {
         if (!checked) {
@@ -423,6 +474,7 @@ void E126Canvas::buildStoryMode() {
             applyPixmap(m_emotionsLabel, QStringLiteral("mem.png"));
             layoutUi();
         }
+        notifyPatientContentChanged();
     });
     connect(m_sceneCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
         if (m_answerEdit && m_count >= 0 && m_count < m_answers.size()) {
@@ -475,9 +527,123 @@ void E126Canvas::build272Mode() {
     show272Image();
 }
 
+void E126Canvas::buildPatientMode() {
+    // Только стимульный материал: без stop/next/radio/ввода ответов.
+    m_imageLabel = new QLabel(this);
+    m_imageLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
+    m_emotionsLabel = new QLabel(this);
+    m_emotionsLabel->setStyleSheet(QString::fromUtf8(kPlainChrome));
+    m_emotionsLabel->hide();
+
+    const bool showText = m_exerciseId == QStringLiteral("1.272")
+        || m_stepId == QStringLiteral("2");
+    if (showText) {
+        m_questionEdit = new QTextEdit(this);
+        m_questionEdit->setReadOnly(true);
+        m_questionEdit->setFrameShape(QFrame::NoFrame);
+        m_questionEdit->setFont(QFont(
+            QStringLiteral("Microsoft Sans Serif"),
+            m_exerciseId == QStringLiteral("1.272") ? 14 : 12));
+        m_questionEdit->setStyleSheet(QString::fromUtf8(kPlainChrome));
+        m_questionEdit->setFocusPolicy(Qt::NoFocus);
+    }
+}
+
+void E126Canvas::refreshPatientContent() {
+    if (m_displayRole != DisplayRole::Patient) {
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.272")) {
+        const int n = qBound(1, m_stepId.toInt(), 6);
+        m_count = n;
+        applyPixmap(m_imageLabel, QString::number(n) + QStringLiteral(".png"));
+        if (m_questionEdit && n >= 1 && n <= m_questions.size()) {
+            m_questionEdit->setPlainText(m_questions.at(n - 1));
+            m_questionEdit->show();
+        }
+    } else if (m_stepId == QStringLiteral("1")) {
+        applyPixmap(m_imageLabel, m_genderPrefix + QString::number(m_count) + QStringLiteral(".png"));
+        if (m_questionEdit) {
+            m_questionEdit->hide();
+        }
+    } else {
+        applyPixmap(m_imageLabel, QString::number(m_count) + QStringLiteral(".png"));
+        if (m_imageLabel && m_imageLabel->property("sourcePath").toString().isEmpty()) {
+            applyPixmap(m_imageLabel, QString::number(m_count) + QStringLiteral(".PNG"));
+        }
+        if (m_questionEdit && m_count >= 1 && m_count <= m_questions.size()) {
+            m_questionEdit->setPlainText(m_questions.at(m_count - 1));
+            m_questionEdit->show();
+        }
+    }
+
+    if (m_emotionsLabel) {
+        if (m_emotionsVisible
+            && (m_exerciseId == QStringLiteral("1.272") || m_stepId == QStringLiteral("2"))) {
+            if (m_exerciseId == QStringLiteral("1.272")) {
+                const QString path =
+                    ExerciseAssets::exerciseFile(QStringLiteral("1.26"), QStringLiteral("mem.png"));
+                if (!path.isEmpty()) {
+                    setScaledPixmap(m_emotionsLabel, QPixmap(path));
+                }
+            } else {
+                applyPixmap(
+                    m_emotionsLabel,
+                    m_genderPrefix == QStringLiteral("m") ? QStringLiteral("mem.png")
+                                                          : QStringLiteral("dem.png"));
+            }
+            m_emotionsLabel->show();
+        } else {
+            m_emotionsLabel->clear();
+            m_emotionsLabel->setProperty("nativeW", 0);
+            m_emotionsLabel->setProperty("nativeH", 0);
+            m_emotionsLabel->setFixedSize(0, 0);
+            m_emotionsLabel->hide();
+        }
+    }
+    layoutPatientUi();
+}
+
+void E126Canvas::layoutPatientUi() {
+    if (width() <= 0 || height() <= 0 || !m_imageLabel) {
+        return;
+    }
+
+    const bool showText = m_questionEdit && m_questionEdit->isVisible();
+    const bool showEmotions = m_emotionsLabel && m_emotionsVisible && m_emotionsLabel->isVisible();
+
+    if (showText) {
+        m_questionEdit->setGeometry(designRect(200, 80, 1000, 140));
+        m_questionEdit->show();
+        placePixmapLabel(m_imageLabel, 200, 250, false);
+    } else {
+        // Задание 1: только портрет по центру.
+        const int nw = m_imageLabel->property("nativeW").toInt();
+        const int nh = m_imageLabel->property("nativeH").toInt();
+        if (nw > 0 && nh > 0) {
+            const QSize sz = scaledSize(QSize(nw, nh));
+            m_imageLabel->setFixedSize(sz);
+            m_imageLabel->move(
+                qMax(0, (width() - sz.width()) / 2),
+                qMax(0, (height() - sz.height()) / 2));
+            m_imageLabel->show();
+        } else {
+            placePixmapLabel(m_imageLabel, 700, 300, false);
+        }
+    }
+
+    if (showEmotions) {
+        placePixmapLabel(m_emotionsLabel, 1300, 180, false);
+        m_emotionsLabel->raise();
+    } else if (m_emotionsLabel) {
+        m_emotionsLabel->hide();
+    }
+}
+
 void E126Canvas::showDemoImage() {
     applyPixmap(m_imageLabel, m_genderPrefix + QString::number(m_count) + QStringLiteral(".png"));
     layoutUi();
+    notifyPatientContentChanged();
 }
 
 void E126Canvas::showStoryImage() {
@@ -492,6 +658,7 @@ void E126Canvas::showStoryImage() {
         m_questionEdit->setPlainText(m_questions.at(m_count - 1));
     }
     layoutUi();
+    notifyPatientContentChanged();
 }
 
 void E126Canvas::show272Image() {
@@ -509,6 +676,7 @@ void E126Canvas::show272Image() {
         m_questionEdit->setPlainText(m_questions.at(n - 1));
     }
     layoutUi();
+    notifyPatientContentChanged();
 }
 
 void E126Canvas::toggleEmotions() {
@@ -553,6 +721,7 @@ void E126Canvas::toggleEmotions() {
         m_emotionsVisible = false;
     }
     layoutUi();
+    notifyPatientContentChanged();
 }
 
 void E126Canvas::advanceDemo() {
@@ -601,6 +770,10 @@ void E126Canvas::advanceStory() {
 
 void E126Canvas::layoutUi() {
     if (width() <= 0 || height() <= 0) {
+        return;
+    }
+    if (m_displayRole == DisplayRole::Patient) {
+        layoutPatientUi();
         return;
     }
 
@@ -718,6 +891,10 @@ void E126Canvas::paintEvent(QPaintEvent *event) {
 }
 
 void E126Canvas::keyPressEvent(QKeyEvent *event) {
+    if (m_displayRole == DisplayRole::Patient) {
+        QWidget::keyPressEvent(event);
+        return;
+    }
     if (event->key() == Qt::Key_Space) {
         emit stopRequested();
         return;
