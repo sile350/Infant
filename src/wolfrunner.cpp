@@ -16,6 +16,25 @@
 
 namespace {
 
+void markPatientControl(QWidget *widget) {
+    if (widget) {
+        widget->setProperty("dokitPatientControl", true);
+    }
+}
+
+void setButtonImage(QLabel *button, const QString &path) {
+    if (!button || path.isEmpty()) {
+        return;
+    }
+    if (auto *imageButton = qobject_cast<ImageButton *>(button)) {
+        imageButton->setImagePath(path);
+    }
+    const QPixmap pix(path);
+    if (!pix.isNull()) {
+        button->setFixedSize(pix.size());
+    }
+}
+
 const QStringList &wolfQuestions() {
     static const QStringList questions = {
         QStringLiteral("О чем эта сказка?"),
@@ -43,17 +62,21 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
 
     auto *stopButton = new ImageButton(this);
     m_stop = stopButton;
-    stopButton->setImagePath(ExerciseAssets::sysImage(QStringLiteral("stop.png")));
+    markPatientControl(m_stop);
+    setButtonImage(m_stop, ExerciseAssets::sysImage(QStringLiteral("stop.png")));
     connect(stopButton, &ImageButton::clicked, this, [this]() { finishSession(); });
 
     auto *template1 = new ImageButton(this);
     m_templateBtn1 = template1;
+    markPatientControl(m_templateBtn1);
     connect(template1, &ImageButton::clicked, this, [this]() { toggleTemplate1(); });
 
     auto *template2 = new ImageButton(this);
     m_templateBtn2 = template2;
+    markPatientControl(m_templateBtn2);
     connect(template2, &ImageButton::clicked, this, [this]() { toggleTemplate2(); });
 
+    // Сказка и сюжетные картинки — видны пациенту (не markPatientControl).
     m_taleImage = new QLabel(this);
     m_taleImage->setScaledContents(true);
     m_taleImage->setStyleSheet(QStringLiteral("background:transparent;"));
@@ -65,17 +88,24 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
 
     m_helpToLabel = new QLabel(QStringLiteral("Помощь к"), this);
     m_helpTypeLabel = new QLabel(QStringLiteral("Виды помощи"), this);
+    markPatientControl(m_helpToLabel);
+    markPatientControl(m_helpTypeLabel);
     const QFont labelFont(QStringLiteral("Microsoft Sans Serif"), 8);
     m_helpToLabel->setFont(labelFont);
     m_helpTypeLabel->setFont(labelFont);
     m_helpToLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
     m_helpTypeLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
 
-    // table.html: № | Вопросы | Ответы | Помощь, bgcolor #f8f8f8
-    m_table = new QTableWidget(7, 3, this);
-    m_table->setHorizontalHeaderLabels(
-        {QStringLiteral("Вопросы"), QStringLiteral("Ответы"), QStringLiteral("Помощь")});
-    m_table->verticalHeader()->setVisible(true);
+    // table.html: № | Вопросы | Ответы | Помощь (ширины 76+284+284+284), без verticalHeader.
+    m_table = new QTableWidget(7, 4, this);
+    markPatientControl(m_table);
+    m_table->setHorizontalHeaderLabels({
+        QStringLiteral("№"),
+        QStringLiteral("Вопросы"),
+        QStringLiteral("Ответы"),
+        QStringLiteral("Помощь"),
+    });
+    m_table->verticalHeader()->setVisible(false);
     m_table->setWordWrap(true);
     m_table->setEditTriggers(QAbstractItemView::AllEditTriggers);
     m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -86,34 +116,46 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
         "  border:1px solid #000000;"
         "}"
         "QHeaderView::section {"
-        "  background-color:#f8f8f8; color:#000000; padding:4px;"
+        "  background-color:#f8f8f8; color:#000000; padding:2px;"
         "  border:1px solid #000000;"
         "}"
-        "QTableWidget::item { padding:4px; }"));
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_table->verticalHeader()->setDefaultSectionSize(72);
-    m_table->verticalHeader()->setMinimumWidth(40);
+        "QTableWidget::item { padding:2px; }"));
+    m_table->horizontalHeader()->setStretchLastSection(false);
+    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    m_table->setColumnWidth(0, 50);
+    m_table->setColumnWidth(1, 250);
+    m_table->setColumnWidth(2, 250);
+    m_table->setColumnWidth(3, 250);
+    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    m_table->verticalHeader()->setDefaultSectionSize(96);
     for (int i = 0; i < 7; ++i) {
-        m_table->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
+        auto *num = new QTableWidgetItem(QString::number(i + 1));
+        num->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        num->setTextAlignment(Qt::AlignCenter | Qt::AlignVCenter);
+        m_table->setItem(i, 0, num);
+
         auto *q = new QTableWidgetItem(wolfQuestions().at(i));
         q->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
         q->setTextAlignment(Qt::AlignLeft | Qt::AlignTop);
-        m_table->setItem(i, 0, q);
+        m_table->setItem(i, 1, q);
+
         auto *a = new QTableWidgetItem;
         a->setTextAlignment(Qt::AlignLeft | Qt::AlignTop);
         a->setFlags(a->flags() | Qt::ItemIsEditable);
-        m_table->setItem(i, 1, a);
+        m_table->setItem(i, 2, a);
+
         auto *h = new QTableWidgetItem;
         h->setTextAlignment(Qt::AlignLeft | Qt::AlignTop);
         h->setFlags(h->flags() | Qt::ItemIsEditable);
-        m_table->setItem(i, 2, h);
+        m_table->setItem(i, 3, h);
+
+        m_table->setRowHeight(i, 96);
     }
 
     m_episodeCombo = new QComboBox(this);
     m_helpCombo = new QComboBox(this);
+    markPatientControl(m_episodeCombo);
+    markPatientControl(m_helpCombo);
     m_episodeCombo->setStyleSheet(QStringLiteral(
         "QComboBox { background:#ffffff; color:#000000; border:1px solid #7f9db9; }"));
     m_helpCombo->setStyleSheet(m_episodeCombo->styleSheet());
@@ -141,7 +183,7 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
 
 void WolfRunner::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
-    // WinForms Form BackColor = Control (~#F0F0F0); без заливки при WA_OpaquePaintEvent фон пустой.
+    // WinForms Form BackColor = Control (~#F0F0F0).
     QPainter painter(this);
     painter.fillRect(rect(), QColor(0xf0, 0xf0, 0xf0));
 }
@@ -158,10 +200,10 @@ void WolfRunner::startSession(
     m_template2Visible = false;
 
     for (int i = 0; i < m_table->rowCount(); ++i) {
-        if (QTableWidgetItem *a = m_table->item(i, 1)) {
+        if (QTableWidgetItem *a = m_table->item(i, 2)) {
             a->setText(QString());
         }
-        if (QTableWidgetItem *h = m_table->item(i, 2)) {
+        if (QTableWidgetItem *h = m_table->item(i, 3)) {
             h->setText(QString());
         }
     }
@@ -174,12 +216,10 @@ void WolfRunner::startSession(
             tale.scaled(805, 248, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     }
 
-    if (auto *btn1 = qobject_cast<ImageButton *>(m_templateBtn1)) {
-        btn1->setImagePath(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("shows.png")));
-    }
-    if (auto *btn2 = qobject_cast<ImageButton *>(m_templateBtn2)) {
-        btn2->setImagePath(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("showe.png")));
-    }
+    setButtonImage(
+        m_templateBtn1, ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("shows.png")));
+    setButtonImage(
+        m_templateBtn2, ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("showe.png")));
 
     m_episodeCombo->setCurrentIndex(-1);
     m_helpCombo->setCurrentIndex(-1);
@@ -206,19 +246,13 @@ void WolfRunner::toggleTemplate1() {
             m_templateImage->setFixedSize(pix.size());
             m_templateImage->show();
         }
-        if (auto *btn1 = qobject_cast<ImageButton *>(m_templateBtn1)) {
-            btn1->setImagePath(hidePath);
-        }
-        if (auto *btn2 = qobject_cast<ImageButton *>(m_templateBtn2)) {
-            btn2->setImagePath(showePath);
-        }
+        setButtonImage(m_templateBtn1, hidePath);
+        setButtonImage(m_templateBtn2, showePath);
         m_template2Visible = false;
         m_template1Visible = true;
     } else {
         m_templateImage->hide();
-        if (auto *btn1 = qobject_cast<ImageButton *>(m_templateBtn1)) {
-            btn1->setImagePath(showsPath);
-        }
+        setButtonImage(m_templateBtn1, showsPath);
         m_template1Visible = false;
     }
     layoutUi();
@@ -237,19 +271,13 @@ void WolfRunner::toggleTemplate2() {
             m_templateImage->setFixedSize(pix.size());
             m_templateImage->show();
         }
-        if (auto *btn2 = qobject_cast<ImageButton *>(m_templateBtn2)) {
-            btn2->setImagePath(hidePath);
-        }
-        if (auto *btn1 = qobject_cast<ImageButton *>(m_templateBtn1)) {
-            btn1->setImagePath(showsPath);
-        }
+        setButtonImage(m_templateBtn2, hidePath);
+        setButtonImage(m_templateBtn1, showsPath);
         m_template1Visible = false;
         m_template2Visible = true;
     } else {
         m_templateImage->hide();
-        if (auto *btn2 = qobject_cast<ImageButton *>(m_templateBtn2)) {
-            btn2->setImagePath(showePath);
-        }
+        setButtonImage(m_templateBtn2, showePath);
         m_template2Visible = false;
     }
     layoutUi();
@@ -261,10 +289,10 @@ void WolfRunner::appendHelpText() {
     if (episode < 1 || episode > 7 || text.isEmpty() || !m_table) {
         return;
     }
-    QTableWidgetItem *item = m_table->item(episode - 1, 2);
+    QTableWidgetItem *item = m_table->item(episode - 1, 3);
     if (!item) {
         item = new QTableWidgetItem;
-        m_table->setItem(episode - 1, 2, item);
+        m_table->setItem(episode - 1, 3, item);
     }
     const QString prev = item->text().trimmed();
     // Как в wolf.cs: новая строка с отступом при повторной помощи.
@@ -288,23 +316,24 @@ void WolfRunner::layoutUi() {
     m_helpTypeLabel->adjustSize();
     m_helpCombo->setGeometry(313, 278, 467, 21);
 
-    // webBrowser1 @ (12,316,805,752)
-    m_table->setGeometry(12, 316, 805, qMin(752, qMax(200, height() - 316 - 8)));
+    // webBrowser1 @ (12,316,805,752) — фиксированный прямоугольник как в оригинале
+    m_table->setGeometry(12, 316, 805, 752);
+    m_table->setColumnWidth(0, 50);
+    m_table->setColumnWidth(1, 250);
+    m_table->setColumnWidth(2, 250);
+    m_table->setColumnWidth(3, 250);
 
-    // pictureBox1 @ (964,243), AutoSize
-    if (m_templateImage->isVisible()) {
-        m_templateImage->move(964, 243);
-    }
+    // pictureBox1 @ (964,243), AutoSize — справа от таблицы (таблица до x=817)
+    m_templateImage->move(964, 243);
 
+    // Z-order как Controls.Add в Designer: сказка → комбо → таблица → сюжет → кнопки сверху
     m_taleImage->raise();
     m_helpToLabel->raise();
     m_helpTypeLabel->raise();
     m_episodeCombo->raise();
     m_helpCombo->raise();
     m_table->raise();
-    if (m_templateImage->isVisible()) {
-        m_templateImage->raise();
-    }
+    m_templateImage->raise();
     m_stop->raise();
     m_templateBtn1->raise();
     m_templateBtn2->raise();
@@ -320,8 +349,8 @@ void WolfRunner::finishSession() {
     QStringList helps;
     QStringList answers;
     for (int i = 0; i < 7; ++i) {
-        const QTableWidgetItem *answer = m_table ? m_table->item(i, 1) : nullptr;
-        const QTableWidgetItem *help = m_table ? m_table->item(i, 2) : nullptr;
+        const QTableWidgetItem *answer = m_table ? m_table->item(i, 2) : nullptr;
+        const QTableWidgetItem *help = m_table ? m_table->item(i, 3) : nullptr;
         answers << (answer ? answer->text().trimmed() : QString());
         helps << (help ? help->text().trimmed() : QString());
     }
