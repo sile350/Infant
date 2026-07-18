@@ -363,31 +363,74 @@ void OnlyPExercise::updateWidgetLayout() {
         }
 
         if (m_settings.dualPicture) {
-            // 1.13: 200/950 @300; 2.9: 200/1000 @240
-            const int leftX = 200;
-            const int rightX = (m_exerciseId == QStringLiteral("2.9")) ? 1000 : 950;
-            const int dualY = (m_exerciseId == QStringLiteral("2.9")) ? 240 : 300;
-            const int halfW = qMax(40, (availableW - 40) / 2);
-            QPixmap leftDisplay = display;
-            if (leftDisplay.width() > halfW || leftDisplay.height() > availableH) {
-                leftDisplay = m_pictureSource.scaled(
-                    halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                m_picture->setPixmap(leftDisplay);
-                m_picture->setFixedSize(leftDisplay.size());
-            }
-            m_picture->move(qRound(leftX * sx) + extraX, qRound(dualY * sy) + extraY);
-            m_picture->show();
-            if (!m_picture2Source.isNull() && m_picture2) {
-                QPixmap display2 = m_picture2Source;
-                if (display2.width() > halfW || display2.height() > availableH) {
-                    display2 = m_picture2Source.scaled(
+            // 1.13: 200/950 @300; 2.9: 200/1000 @240 — на полном экране.
+            // На панели специалиста (узкий rightPanel) абсолютные координаты
+            // сжимаются и картинки накладываются — раскладываем рядом по ширине панели.
+            if (m_displayRole == DisplayRole::Specialist) {
+                constexpr int kGap = 24;
+                const int halfW = qMax(40, (availableW - kGap) / 2);
+                QPixmap leftDisplay = m_pictureSource;
+                if (leftDisplay.width() > halfW || leftDisplay.height() > availableH) {
+                    leftDisplay = m_pictureSource.scaled(
                         halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
                 }
-                m_picture2->setPixmap(display2);
-                m_picture2->setFixedSize(display2.size());
-                m_picture2->move(qRound(rightX * sx) + extraX, qRound(dualY * sy) + extraY);
-                m_picture2->show();
-                m_picture2->raise();
+                m_picture->setPixmap(leftDisplay);
+                m_picture->setFixedSize(leftDisplay.size());
+                m_picture->show();
+
+                int maxH = leftDisplay.height();
+                QPixmap rightDisplay;
+                if (!m_picture2Source.isNull() && m_picture2) {
+                    rightDisplay = m_picture2Source;
+                    if (rightDisplay.width() > halfW || rightDisplay.height() > availableH) {
+                        rightDisplay = m_picture2Source.scaled(
+                            halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    }
+                    m_picture2->setPixmap(rightDisplay);
+                    m_picture2->setFixedSize(rightDisplay.size());
+                    maxH = qMax(maxH, rightDisplay.height());
+                }
+
+                const int pictureY =
+                    contentTop + qMax(0, (availableH - maxH) / 2) + extraY;
+                const int leftX =
+                    pictureMargin + qMax(0, (halfW - leftDisplay.width()) / 2) + extraX;
+                m_picture->move(qMax(pictureMargin, leftX), qMax(contentTop, pictureY));
+                m_picture->raise();
+
+                if (!rightDisplay.isNull() && m_picture2) {
+                    const int rightX = pictureMargin + halfW + kGap
+                        + qMax(0, (halfW - rightDisplay.width()) / 2) + extraX;
+                    m_picture2->move(qMax(pictureMargin, rightX), qMax(contentTop, pictureY));
+                    m_picture2->show();
+                    m_picture2->raise();
+                }
+            } else {
+                const int leftX = 200;
+                const int rightX = (m_exerciseId == QStringLiteral("2.9")) ? 1000 : 950;
+                const int dualY = (m_exerciseId == QStringLiteral("2.9")) ? 240 : 300;
+                const int halfW = qMax(40, (availableW - 40) / 2);
+                QPixmap leftDisplay = display;
+                if (leftDisplay.width() > halfW || leftDisplay.height() > availableH) {
+                    leftDisplay = m_pictureSource.scaled(
+                        halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    m_picture->setPixmap(leftDisplay);
+                    m_picture->setFixedSize(leftDisplay.size());
+                }
+                m_picture->move(qRound(leftX * sx) + extraX, qRound(dualY * sy) + extraY);
+                m_picture->show();
+                if (!m_picture2Source.isNull() && m_picture2) {
+                    QPixmap display2 = m_picture2Source;
+                    if (display2.width() > halfW || display2.height() > availableH) {
+                        display2 = m_picture2Source.scaled(
+                            halfW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    }
+                    m_picture2->setPixmap(display2);
+                    m_picture2->setFixedSize(display2.size());
+                    m_picture2->move(qRound(rightX * sx) + extraX, qRound(dualY * sy) + extraY);
+                    m_picture2->show();
+                    m_picture2->raise();
+                }
             }
         } else if (m_displayRole == DisplayRole::Patient) {
             int pictureX = pictureMargin + qMax(0, (width() - display.width()) / 2) + kPatientPictureShiftRight
