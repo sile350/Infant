@@ -437,8 +437,11 @@ QString tmpAt(const QStringList &parts, int index) {
 }
 
 // Порт protocols.cs createP("1.26"): additional = №задания;answers[0..12]
-// Важно: QTextDocument вкладывает соседнюю <table> в последнюю ячейку предыдущей.
-// Поэтому задание 1 — ОДНА таблица (характер/помощь + портреты/баллы), без </table><table>.
+//
+// QTextDocument вкладывает следующую <table> в последнюю ячейку предыдущей.
+// Поэтому:
+//  - «Процесс…» — обычный <p> после закрытой шапки (не ячейка таблицы);
+//  - задания 1 и 2 — строки ОДНОЙ таблицы процесса (не соседние <table>).
 QString buildProtocol126(
     const QString &userFio,
     bool partly,
@@ -455,62 +458,64 @@ QString buildProtocol126(
 
     const QString tableOpen = QStringLiteral(
         "<table border='1' style='table-layout:fixed' cellspacing='0' width='674' cellpadding='0'>");
+    const QString processHeading = QStringLiteral(
+        "<p align='center'><b>Процесс выполнения диагностического задания</b></p>");
 
-    QString block;
+    QString rows;
     if (step == QStringLiteral("1")) {
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td colspan='3' align='center'> Задание 1 </td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td width='24%'>Характер деятельности ребенка</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td width='24%'>Виды помощи</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td width='24%' align='center'>Портретная картинка</td>"
             "<td align='center'>Ответ ребенка</td>"
             "<td align='center' width='10%'>Баллы</td></tr>");
-        block += QStringLiteral("<tr><td>Радость</td><td align='left'>") + tmpAt(tmp, 2)
+        rows += QStringLiteral("<tr><td>Радость</td><td align='left'>") + tmpAt(tmp, 2)
             + QStringLiteral("</td><td align='center'><div id='col11' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral("<tr><td>Злость</td><td align='left'>") + tmpAt(tmp, 3)
+        rows += QStringLiteral("<tr><td>Злость</td><td align='left'>") + tmpAt(tmp, 3)
             + QStringLiteral("</td><td align='center'><div id='col12' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral("<tr><td>Грусть</td><td align='left'>") + tmpAt(tmp, 4)
+        rows += QStringLiteral("<tr><td>Грусть</td><td align='left'>") + tmpAt(tmp, 4)
             + QStringLiteral("</td><td align='center'><div id='col13' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral("<tr><td>Страх</td><td align='left'>") + tmpAt(tmp, 5)
+        rows += QStringLiteral("<tr><td>Страх</td><td align='left'>") + tmpAt(tmp, 5)
             + QStringLiteral("</td><td align='center'><div id='col14' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral("<tr><td>Удивление</td><td align='left'>") + tmpAt(tmp, 6)
+        rows += QStringLiteral("<tr><td>Удивление</td><td align='left'>") + tmpAt(tmp, 6)
             + QStringLiteral("</td><td align='center'><div id='col15' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral("<tr><td>Спокойствие</td><td align='left'>") + tmpAt(tmp, 7)
+        rows += QStringLiteral("<tr><td>Спокойствие</td><td align='left'>") + tmpAt(tmp, 7)
             + QStringLiteral("</td><td align='center'><div id='col16' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td align='left' colspan='2'>Итоговая оценка</td>"
             "<td align='center'><div id='sum1' contenteditable='true'></div></td></tr>");
     } else if (step == QStringLiteral("2")) {
-        block += QStringLiteral("<tr><td colspan='3' align='center'><b>Задание 2</b></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral("<tr><td colspan='3' align='center'><b>Задание 2</b></td></tr>");
+        rows += QStringLiteral(
             "<tr><td>Характер деятельности ребенка</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td>Виды помощи</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td align='center'><b>№ рассказа</b></td>"
             "<td align='center'><b>Ответ ребенка</b></td>"
             "<td align='center'><b>Баллы</b></td></tr>");
         for (int i = 1; i <= 12; ++i) {
-            block += QStringLiteral("<tr><td align='center'>") + QString::number(i)
+            rows += QStringLiteral("<tr><td align='center'>") + QString::number(i)
                 + QStringLiteral("</td><td align='left'>") + tmpAt(tmp, i + 1)
                 + QStringLiteral("</td><td align='center'><div id='col2") + QString::number(i)
                 + QStringLiteral("' contenteditable='true'></div></td></tr>");
         }
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td colspan='2' align='left'>Итоговая оценка</td>"
             "<td align='center'><div id='sum2' contenteditable='true'></div></td></tr>");
-        block += QStringLiteral(
+        rows += QStringLiteral(
             "<tr><td colspan='2' align='left'>Индекс успешности по двум сериям</td>"
             "<td align='center'><div id='sum3' contenteditable='true'></div></td></tr>");
     } else {
@@ -518,26 +523,20 @@ QString buildProtocol126(
     }
 
     if (partly) {
-        // Дописка задания 2: новая таблица ПОСЛЕ закрытой таблицы задания 1.
-        // <br> между таблицами — чтобы QTextDocument не вложил вторую в первую.
-        const QString addition = QStringLiteral("<br>") + tableOpen + block + QStringLiteral("</table>");
+        // Дописка задания 2 строками в ту же таблицу процесса (не новой <table>).
         return ExerciseProtocol::canonicalizeProtocol126StoredBody(
-            ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, addition));
+            ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, rows));
     }
 
-    // Шапка header.html — 2 колонки; без лишних colspan, иначе Qt ломает закрытие таблицы.
     QString add = dateSpecialistRow(userFio, 1);
     add += QStringLiteral(
         "<tr><td>Результат: : баллы (макс.)/вывод об уровне развития</td>"
         "<td><div id='idvivod' contenteditable='true'>(36)</div></td></tr>");
     add += QStringLiteral(
         "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>");
-    // Закрываем summary ДО таблиц заданий + <br> — иначе QTextDocument кладёт
-    // «Задание N» внутрь ячейки «Процесс выполнения…».
-    add += QStringLiteral(
-        "<tr><td align='center' colspan='2'>Процесс выполнения диагностического задания</td></tr>"
-        "</table><!--s--><br>");
-    add += tableOpen + block + QStringLiteral("</table>");
+    add += QStringLiteral("</table><!--s-->");
+    add += processHeading;
+    add += tableOpen + rows + QStringLiteral("</table>");
     return add;
 }
 

@@ -1098,6 +1098,8 @@ QString cleanProtocol126SummaryRows(QString summary);
 QString canonicalizeProtocol126Session(QString session);
 QStringList extractProtocol126SessionsByDate(const QString &body);
 QString joinProtocol126Sessions(const QStringList &sessions);
+QString extractTableInnerRows(const QString &tableHtml);
+QStringList extractProtocol126TaskTables(QString *htmlInOut);
 
 QString replaceDivInnerById(QString html, const QString &divId, const QString &innerHtml);
 
@@ -1231,6 +1233,11 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
         sessions = QStringList{canonicalizeProtocol126Session(canonical)};
     }
 
+    const QString processHeading = QStringLiteral(
+        "<p align='center'><b>Процесс выполнения диагностического задания</b></p>");
+    const QString tableOpen = QStringLiteral(
+        "<table border='1' style='table-layout:fixed' cellspacing='0' width='674' cellpadding='0'>");
+
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
         QString session = sessions.at(i);
@@ -1241,12 +1248,22 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
 
         summaryRows = cleanProtocol126SummaryRows(summaryRows);
         resultsBlock = resultsBlock.trimmed();
-        while (resultsBlock.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
-            const int gt = resultsBlock.indexOf(QLatin1Char('>'));
-            if (gt < 0) {
-                break;
-            }
-            resultsBlock = resultsBlock.mid(gt + 1).trimmed();
+        // Убрать старый <p>Процесс…</p> — добавим заново.
+        resultsBlock.replace(
+            QRegularExpression(
+                QStringLiteral("<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания\\s*(?:</b>)?\\s*</p>\\s*"),
+                QRegularExpression::CaseInsensitiveOption),
+            QString());
+
+        QString taskRows;
+        QStringList taskTables = extractProtocol126TaskTables(&resultsBlock);
+        for (const QString &table : taskTables) {
+            taskRows += extractTableInnerRows(table);
+        }
+        // Хвост resultsBlock может содержать голые <tr> без обёртки.
+        resultsBlock = resultsBlock.trimmed();
+        if (resultsBlock.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
+            taskRows += resultsBlock;
         }
 
         if (i == 0) {
@@ -1256,14 +1273,16 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
                 result += protocolSummaryTableOpenHtml();
             }
         } else {
+            result += QStringLiteral("<p>&nbsp;</p>");
             result += protocolSummaryTableOpenHtml();
         }
         if (!summaryRows.isEmpty()) {
             result += summaryRows;
         }
         result += QStringLiteral("</table>");
-        if (!resultsBlock.isEmpty()) {
-            result += QStringLiteral("<br>") + resultsBlock;
+        result += processHeading;
+        if (!taskRows.trimmed().isEmpty()) {
+            result += tableOpen + taskRows + QStringLiteral("</table>");
         }
     }
     return result;
@@ -1719,9 +1738,8 @@ QString joinProtocol126Sessions(const QStringList &sessions) {
         if (i == 0) {
             session = stripLeadingSummaryTableWrapper(session);
         } else {
-            // Закрываем незакрытые <table> предыдущей сессии — иначе новая
-            // «Дата/специалист» оказывается внутри таблицы и ломает вёрстку.
             result = closeDanglingTables(result);
+            result += QStringLiteral("<p>&nbsp;</p>");
             if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
                 session.prepend(protocolSummaryTableOpenHtml());
             }
@@ -1813,19 +1831,36 @@ QString cleanProtocol126SummaryRows(QString summary) {
     summary.replace(
         QRegularExpression(QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption),
         QString());
-    // Если задание оказалось внутри ячейки «Процесс…» — оставляем только подпись.
+    // Старая разметка: строка «Процесс…» в таблице — убираем (заголовок теперь <p>).
     summary.replace(
         QRegularExpression(
             QStringLiteral(
-                "(<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания)"
-                "([\\s\\S]*?)(</td>\\s*</tr>)"),
+                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания"
+                "[\\s\\S]*?</tr>"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
-        QStringLiteral("\\1\\3"));
-    // Убрать пустые хвосты после извлечения вложенных таблиц.
+        QString());
+    summary.replace(
+        QRegularExpression(
+            QStringLiteral(
+                "<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания\\s*(?:</b>)?\\s*</p>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
     summary.replace(
         QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*)+$"), QRegularExpression::CaseInsensitiveOption),
         QString());
     return summary.trimmed();
+}
+
+QString extractTableInnerRows(const QString &tableHtml) {
+    const int openEnd = tableHtml.indexOf(QLatin1Char('>'));
+    if (openEnd < 0) {
+        return {};
+    }
+    int close = tableHtml.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+    if (close < 0) {
+        close = tableHtml.size();
+    }
+    return tableHtml.mid(openEnd + 1, close - (openEnd + 1)).trimmed();
 }
 
 QString canonicalizeProtocol126Session(QString session) {
@@ -1836,17 +1871,42 @@ QString canonicalizeProtocol126Session(QString session) {
 
     QString work = session;
     const QStringList taskTables = extractProtocol126TaskTables(&work);
-    QString summary = cleanProtocol126SummaryRows(work);
 
-    // Если маркера/строки процесса нет — добавим, чтобы summary закрывался явно.
-    if (!summary.contains(QStringLiteral("Процесс выполнения диагностического задания"), Qt::CaseInsensitive)) {
-        summary += QStringLiteral(
-            "<tr><td align='center' colspan='2'>Процесс выполнения диагностического задания</td></tr>");
+    // work без task-<table>: summary + возможно <p>Процесс + голые <tr> задания 2.
+    QString afterMarker;
+    const int marker = work.indexOf(QStringLiteral("<!--s-->"));
+    QString beforeMarker = marker >= 0 ? work.left(marker) : work;
+    if (marker >= 0) {
+        afterMarker = work.mid(marker + QStringLiteral("<!--s-->").size());
+    }
+    afterMarker.replace(
+        QRegularExpression(
+            QStringLiteral(
+                "<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания\\s*(?:</b>)?\\s*</p>\\s*"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    afterMarker.replace(
+        QRegularExpression(QStringLiteral("^(?:<br\\s*/?>\\s*)+"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+
+    QString summary = cleanProtocol126SummaryRows(beforeMarker);
+    QString taskRows;
+    for (const QString &table : taskTables) {
+        taskRows += extractTableInnerRows(table);
+    }
+    const QString bareRows = afterMarker.trimmed();
+    if (bareRows.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
+        taskRows += bareRows;
     }
 
     QString result = summary + QStringLiteral("</table><!--s-->");
-    if (!taskTables.isEmpty()) {
-        result += QStringLiteral("<br>") + taskTables.join(QStringLiteral("<br>"));
+    result += QStringLiteral(
+        "<p align='center'><b>Процесс выполнения диагностического задания</b></p>");
+    if (!taskRows.trimmed().isEmpty()) {
+        result += QStringLiteral(
+                      "<table border='1' style='table-layout:fixed' cellspacing='0' "
+                      "width='674' cellpadding='0'>")
+            + taskRows + QStringLiteral("</table>");
     }
     return result;
 }
@@ -2885,55 +2945,50 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
         return addition;
     }
 
-    // 1.26: задание 2 приходит как <br><table>...</table> (или <table>...</table>).
-    // НЕ вставлять перед последним </table> — QTextDocument вложит продолжение в ячейку.
-    QString trimmedAddition = addition;
-    while (trimmedAddition.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
-        const int gt = trimmedAddition.indexOf(QLatin1Char('>'));
-        if (gt < 0) {
-            break;
-        }
-        trimmedAddition = trimmedAddition.mid(gt + 1).trimmed();
-    }
-    const bool isCompleteTable = trimmedAddition.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)
-        && trimmedAddition.contains(QStringLiteral("</table>"), Qt::CaseInsensitive);
-    if (isCompleteTable || looksLikeProtocol126Body(base) || looksLikeProtocol126Body(addition)) {
-        base = closeDanglingTables(base);
-        // Дописываем после последней закрытой таблицы секции процесса.
-        const int marker = base.lastIndexOf(QStringLiteral("<!--s-->"));
-        int appendAt = base.size();
-        if (marker >= 0) {
-            int pos = marker;
-            int lastClose = -1;
-            while (true) {
-                const int close = base.indexOf(QStringLiteral("</table>"), pos, Qt::CaseInsensitive);
-                if (close < 0) {
-                    break;
-                }
-                lastClose = close;
-                pos = close + QStringLiteral("</table>").size();
+    // 1.26: строки задания 2 вставляем ПЕРЕД </table> таблицы процесса
+    // (одна таблица на оба задания — иначе Qt вложит соседнюю <table>).
+    if (looksLikeProtocol126Body(base) || looksLikeProtocol126Body(addition)
+        || addition.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+        || addition.contains(QStringLiteral("id='col2"), Qt::CaseInsensitive)
+        || addition.contains(QStringLiteral("id=\"col2"), Qt::CaseInsensitive)) {
+        QString rowsToInsert = addition;
+        while (rowsToInsert.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
+            const int gt = rowsToInsert.indexOf(QLatin1Char('>'));
+            if (gt < 0) {
+                break;
             }
-            if (lastClose >= 0) {
-                appendAt = lastClose + QStringLiteral("</table>").size();
+            rowsToInsert = rowsToInsert.mid(gt + 1).trimmed();
+        }
+        if (rowsToInsert.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+            rowsToInsert = extractTableInnerRows(rowsToInsert);
+        }
+        if (!rowsToInsert.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
+            && rowsToInsert.startsWith(QStringLiteral("<td"), Qt::CaseInsensitive)) {
+            rowsToInsert.prepend(QStringLiteral("<tr>"));
+        }
+
+        const int marker = base.lastIndexOf(QStringLiteral("<!--s-->"));
+        int tableClose = -1;
+        if (marker >= 0) {
+            tableClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+            if (tableClose < marker) {
+                tableClose = -1;
             }
         } else {
-            const int lastClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
-            if (lastClose >= 0) {
-                appendAt = lastClose + QStringLiteral("</table>").size();
-            }
+            tableClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
         }
-        QString wrapped = addition;
-        if (!addition.contains(QStringLiteral("<table"), Qt::CaseInsensitive)
-            && trimmedAddition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-            wrapped = QStringLiteral("<br>")
-                + QStringLiteral(
-                      "<table border='1' style='table-layout:fixed' cellspacing='0' "
-                      "width='674' cellpadding='0'>")
-                + trimmedAddition + QStringLiteral("</table>");
-        } else if (isCompleteTable && !addition.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
-            wrapped = QStringLiteral("<br>") + trimmedAddition;
+        if (tableClose >= 0) {
+            return base.left(tableClose) + rowsToInsert + base.mid(tableClose);
         }
-        return base.left(appendAt) + wrapped + base.mid(appendAt);
+        // Нет закрытой таблицы процесса — дописать целиком.
+        if (!base.contains(QStringLiteral("Процесс выполнения диагностического задания"), Qt::CaseInsensitive)) {
+            base += QStringLiteral("</table><!--s-->"
+                                   "<p align='center'><b>Процесс выполнения диагностического задания</b></p>"
+                                   "<table border='1' style='table-layout:fixed' cellspacing='0' "
+                                   "width='674' cellpadding='0'>");
+            return base + rowsToInsert + QStringLiteral("</table>");
+        }
+        return base + rowsToInsert;
     }
 
     if (!addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
