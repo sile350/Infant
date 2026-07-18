@@ -7,6 +7,7 @@
 # Prerequisites on BUILD machine only:
 #   sudo apt install qt5-qmake qtbase5-dev patchelf wget
 #   Release build in build-astra/
+#   (qmlimportscanner optional — script provides a stub for Widgets-only apps)
 #
 # Usage:
 #   cd ~/DokitLab/Infant
@@ -94,6 +95,19 @@ fi
 
 echo "Bundling Qt libraries ..."
 export QMAKE="$(command -v qmake)"
+# Infant is Qt Widgets only. On Astra, platforminputcontexts pulls
+# Qt Virtual Keyboard → QML/Quick, and linuxdeploy-plugin-qt then runs
+# qmlimportscanner. That binary is often missing (needs
+# qtdeclarative5-dev-tools). Provide a PATH stub that returns no imports.
+STUB_BIN="$TOOLS_CACHE/bin"
+mkdir -p "$STUB_BIN"
+cat > "$STUB_BIN/qmlimportscanner" <<'EOF'
+#!/bin/sh
+# No QML sources in Infant — empty import list for linuxdeploy-plugin-qt.
+echo '[]'
+EOF
+chmod +x "$STUB_BIN/qmlimportscanner"
+export PATH="$STUB_BIN:$PATH"
 export QML_SOURCES_PATHS=""
 "$LINUXDEPLOY" --appdir "$APPDIR" --plugin qt --output appimage >/dev/null 2>&1 || \
 "$LINUXDEPLOY" --appdir "$APPDIR" --plugin qt
