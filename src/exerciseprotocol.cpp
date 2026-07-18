@@ -2788,7 +2788,7 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
             for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
                 for (int c = 0; c < table->columns(); ++c) {
                     const QString h = readTableCellText(table, r, c);
-                    if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
+                    if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 24) {
                         ballsCol = c;
                         headerRow = r;
                         break;
@@ -2812,8 +2812,20 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
         }
     }
 
+    // «8», «8 баллов», «8,5» → число.
     bool ok = false;
-    const double value = ballsPlain.trimmed().replace(QLatin1Char(','), QLatin1Char('.')).toDouble(&ok);
+    double value = 0;
+    {
+        const QString cleaned = ballsPlain.trimmed().replace(QLatin1Char(','), QLatin1Char('.'));
+        value = cleaned.toDouble(&ok);
+        if (!ok) {
+            const QRegularExpression numRe(QStringLiteral("(-?\\d+(?:\\.\\d+)?)"));
+            const QRegularExpressionMatch m = numRe.match(cleaned);
+            if (m.hasMatch()) {
+                value = m.captured(1).toDouble(&ok);
+            }
+        }
+    }
     if (!ok) {
         if (multi) {
             sessions[sessions.size() - 1] = chunk;
@@ -2824,7 +2836,9 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
     const int scoreInt = qBound(0, qRound(value), 10);
     const QString resultText = QStringLiteral("%1(10)/%2")
                                    .arg(formatBallsNumber(scoreInt), developmentLevelFromBalls(scoreInt));
-    chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
+    if (chunk.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)) {
+        chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
+    }
     if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
         chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
     } else {

@@ -149,6 +149,31 @@ int scoreExercise412(int time) {
     return 0;
 }
 
+// 4.1.4 «Запомни рисунки» (or.html): диапазоны времени → баллы.
+// Число узнанных картинок в ПО не фиксируется — шкала по времени сессии
+// (как типичный профиль в правиле: <45→10, 45–55→8–9, …, ≥90→0).
+int scoreExercise414(int time) {
+    if (time < 45) {
+        return 10;
+    }
+    if (time <= 55) {
+        return time <= 50 ? 9 : 8;
+    }
+    if (time <= 65) {
+        return time <= 60 ? 7 : 6;
+    }
+    if (time <= 75) {
+        return time <= 70 ? 5 : 4;
+    }
+    if (time <= 85) {
+        return time <= 80 ? 3 : 2;
+    }
+    if (time < 90) {
+        return 1;
+    }
+    return 0;
+}
+
 int scoreExercise18(int time) {
     if (time <= 20) return 10;
     if (time <= 25) return 9;
@@ -319,7 +344,9 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
 
     double score = 0;
-    if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
+    if (tmpl.id == QStringLiteral("4.1.4") || tmpl.scoreKind == QStringLiteral("timed414_result")) {
+        score = scoreExercise414(elapsedSeconds);
+    } else if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
         // timed11_result в шаблонах: для 4.1.2 — шкала 45с; для прочих открытых — та же.
         if (tmpl.id == QStringLiteral("4.1.2")) {
             score = scoreExercise412(elapsedSeconds);

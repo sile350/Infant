@@ -2221,7 +2221,7 @@ void ExerciseHost::updateSumButtonVisibility() {
     const bool show = m_protocolSavedThisSession
         && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("3.1.18")
-            || m_exerciseId == QStringLiteral("4.1.4") || m_exerciseId == QStringLiteral("4.1.8"));
+            || m_exerciseId == QStringLiteral("4.1.8"));
     m_sumButton->setVisible(show);
 }
 
@@ -2229,7 +2229,8 @@ bool ExerciseHost::usesLastProtocolSessionView() const {
     return m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
         || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("3.1.11")
         || m_exerciseId == QStringLiteral("3.1.12") || m_exerciseId == QStringLiteral("3.1.17")
-        || m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.8");
+        || m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.4")
+        || m_exerciseId == QStringLiteral("4.1.8");
 }
 
 bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
@@ -2284,7 +2285,7 @@ void ExerciseHost::sumProtocolScores() {
         sumProtocol3110();
         return;
     }
-    if (m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.4")) {
+    if (m_exerciseId == QStringLiteral("3.1.18")) {
         sumProtocol318();
         return;
     }
@@ -2486,7 +2487,7 @@ void ExerciseHost::sumProtocol1272() {
 }
 
 void ExerciseHost::sumProtocol318() {
-    if ((m_exerciseId != QStringLiteral("3.1.18") && m_exerciseId != QStringLiteral("4.1.4"))
+    if (m_exerciseId != QStringLiteral("3.1.18")
         || !m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
         return;
     }

@@ -781,7 +781,8 @@ QString Repository::loadProtocolViewHtml(
     if (exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
         || exerciseId == QStringLiteral("3.1.10") || exerciseId == QStringLiteral("3.1.11")
         || exerciseId == QStringLiteral("3.1.12") || exerciseId == QStringLiteral("3.1.17")
-        || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("4.1.8")) {
+        || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("4.1.4")
+        || exerciseId == QStringLiteral("4.1.8")) {
         // Разрез только по дате — вложенные таблицы баллов/строк не срезают предыдущие сессии.
         body = ExerciseProtocol::extractLastProtocol126Session(body);
     } else {
