@@ -945,8 +945,20 @@ public:
         m_row1.clear();
         m_row2.clear();
 
-        // Как в digits.Designer: две группы рядов цифр.
-        static const QStringList kLeft = {
+        if (m_picture) {
+            m_picture->hide();
+        }
+        if (m_group1) {
+            m_group1->deleteLater();
+            m_group1 = nullptr;
+        }
+        if (m_group2) {
+            m_group2->deleteLater();
+            m_group2 = nullptr;
+        }
+
+        // digits.Designer.cs: groupBox «1»/«2», колонка А — radio, колонка Б — label (другие ряды).
+        static const QStringList kGroup1A = {
             QStringLiteral("9"),
             QStringLiteral("2 4"),
             QStringLiteral("3 8 6"),
@@ -956,7 +968,18 @@ public:
             QStringLiteral("5 1 7 4 2 3 8"),
             QStringLiteral("1 4 2 5 9 7 6 3"),
         };
-        static const QStringList kRight = {
+        static const QStringList kGroup1B = {
+            QStringLiteral("3"),
+            QStringLiteral("7 9"),
+            QStringLiteral("1 5 4"),
+            QStringLiteral("6 8 5 2"),
+            QStringLiteral("3 5 9 6 1"),
+            QStringLiteral("7 9 6 4 8 3"),
+            QStringLiteral("9 8 5 2 1 6 3"),
+            QStringLiteral("4 2 7 0 1 8 9 5"),
+        };
+        // groupBox2: сверху длинный ряд (radio16=8) → снизу «3» (radio9=1)
+        static const QStringList kGroup2A = {
             QStringLiteral("4 9 1 6 3 2 5 8"),
             QStringLiteral("8 5 9 2 3 4 6"),
             QStringLiteral("1 6 5 2 9 8"),
@@ -966,39 +989,86 @@ public:
             QStringLiteral("2 5"),
             QStringLiteral("3"),
         };
+        static const QStringList kGroup2B = {
+            QStringLiteral("4 5 7 1 9 2 8 3"),
+            QStringLiteral("1 7 9 5 8 4 6"),
+            QStringLiteral("3 1 7 6 9 2"),
+            QStringLiteral("2 8 5 9 1"),
+            QStringLiteral("4 9 3 7"),
+            QStringLiteral("1 5 2"),
+            QStringLiteral("8 3"),
+            QStringLiteral("6"),
+        };
+        // Y радиокнопок / подписей Б из Designer
+        static const int kRadioY[] = {70, 104, 138, 172, 206, 240, 274, 308};
+        static const int kLabelBY[] = {70, 104, 138, 172, 206, 244, 278, 308};
 
-        auto *host = new QWidget(this);
-        host->setGeometry(200, 140, 1200, 800);
-        auto *layout = new QHBoxLayout(host);
-        layout->setSpacing(80);
+        const QFont groupFont(QStringLiteral("Microsoft Sans Serif"), 16);
+        const QFont itemFont(QStringLiteral("Microsoft Sans Serif"), 20);
+        const QString boxStyle = QStringLiteral(
+            "QGroupBox {"
+            "  color:#000000; background-color:#f0f0f0;"
+            "  border:1px solid #a0a0a0; margin-top:12px;"
+            "}"
+            "QGroupBox::title { subcontrol-origin: margin; left:10px; padding:0 4px; }"
+            "QRadioButton { color:#000000; background:transparent; spacing:8px; }"
+            "QRadioButton::indicator { width:18px; height:18px; }"
+            "QLabel { color:#000000; background:transparent; }");
 
-        auto *group1 = new QGroupBox(QStringLiteral("Ряд 1"), host);
-        auto *row1Layout = new QVBoxLayout(group1);
-        auto *group1Exclusive = new QButtonGroup(this);
-        for (int i = 0; i < kLeft.size(); ++i) {
-            auto *radio = new QRadioButton(kLeft.at(i), group1);
+        m_group1 = new QGroupBox(QStringLiteral("1"), this);
+        m_group1->setFont(groupFont);
+        m_group1->setStyleSheet(boxStyle);
+        auto *headerA1 = new QLabel(QStringLiteral("А"), m_group1);
+        headerA1->setFont(itemFont);
+        headerA1->move(28, 28);
+        auto *headerB1 = new QLabel(QStringLiteral("Б"), m_group1);
+        headerB1->setFont(itemFont);
+        headerB1->move(387, 28);
+        auto *excl1 = new QButtonGroup(m_group1);
+        for (int i = 0; i < 8; ++i) {
+            auto *radio = new QRadioButton(kGroup1A.at(i), m_group1);
+            radio->setFont(itemFont);
+            radio->move(32, kRadioY[i]);
+            radio->adjustSize();
             radio->setProperty("digitValue", i + 1);
-            group1Exclusive->addButton(radio);
+            excl1->addButton(radio);
             m_row1 << radio;
-            row1Layout->addWidget(radio);
-        }
-        layout->addWidget(group1);
 
-        auto *group2 = new QGroupBox(QStringLiteral("Ряд 2"), host);
-        auto *row2Layout = new QVBoxLayout(group2);
-        auto *group2Exclusive = new QButtonGroup(this);
-        for (int i = 0; i < kRight.size(); ++i) {
-            auto *radio = new QRadioButton(kRight.at(i), group2);
-            // В оригинале radio16=8 … radio9=1
+            auto *label = new QLabel(kGroup1B.at(i), m_group1);
+            label->setFont(itemFont);
+            label->move(390, kLabelBY[i]);
+            label->adjustSize();
+        }
+
+        m_group2 = new QGroupBox(QStringLiteral("2"), this);
+        m_group2->setFont(groupFont);
+        m_group2->setStyleSheet(boxStyle);
+        auto *headerA2 = new QLabel(QStringLiteral("А"), m_group2);
+        headerA2->setFont(itemFont);
+        headerA2->move(28, 28);
+        auto *headerB2 = new QLabel(QStringLiteral("Б"), m_group2);
+        headerB2->setFont(itemFont);
+        headerB2->move(387, 28);
+        auto *excl2 = new QButtonGroup(m_group2);
+        for (int i = 0; i < 8; ++i) {
+            auto *radio = new QRadioButton(kGroup2A.at(i), m_group2);
+            radio->setFont(itemFont);
+            radio->move(32, kRadioY[i]);
+            radio->adjustSize();
+            // radio16=8 … radio9=1
             radio->setProperty("digitValue", 8 - i);
-            group2Exclusive->addButton(radio);
+            excl2->addButton(radio);
             m_row2 << radio;
-            row2Layout->addWidget(radio);
-        }
-        layout->addWidget(group2);
 
-        m_host = host;
-        m_stop->move(970, 70);
+            auto *label = new QLabel(kGroup2B.at(i), m_group2);
+            label->setFont(itemFont);
+            label->move(368, kLabelBY[i]);
+            label->adjustSize();
+        }
+
+        setFocusPolicy(Qt::StrongFocus);
+        setFocus();
+        layoutUi();
         m_stop->show();
         m_stop->raise();
         m_timer->start();
@@ -1007,43 +1077,192 @@ public:
     }
 
     void finish() override {
-        QString first;
-        QString second;
+        // digits.cs pstop_Click: results = N; затем results = results + "/" + M
+        QString results;
         for (QRadioButton *radio : m_row1) {
-            if (radio->isChecked()) {
-                first = radio->property("digitValue").toString();
+            if (radio && radio->isChecked()) {
+                results = radio->property("digitValue").toString();
                 break;
             }
         }
         for (QRadioButton *radio : m_row2) {
-            if (radio->isChecked()) {
-                second = radio->property("digitValue").toString();
+            if (radio && radio->isChecked()) {
+                results = results + QLatin1Char('/') + radio->property("digitValue").toString();
                 break;
             }
         }
         ExerciseSessionResult result;
         result.elapsedSeconds = m_elapsed;
-        if (!first.isEmpty() && !second.isEmpty()) {
-            result.additional = first + QLatin1Char('/') + second;
-        } else if (!first.isEmpty()) {
-            result.additional = first;
-        }
+        result.additional = results;
         m_timer->stop();
         hide();
         emitFinished(result);
     }
 
     void layoutUi() override {
+        // digits.Designer: groupBox1 (1257,117,571,405), groupBox2 (1257,545,571,405);
+        // digits_Load: pstop @ (970,70)
+        if (m_group1) {
+            m_group1->setGeometry(1257, 117, 571, 405);
+            m_group1->show();
+            m_group1->raise();
+        }
+        if (m_group2) {
+            m_group2->setGeometry(1257, 545, 571, 405);
+            m_group2->show();
+            m_group2->raise();
+        }
         m_stop->move(970, 70);
         m_stop->raise();
-        if (m_host) {
-            m_host->setGeometry(200, 140, qMax(400, width() - 400), qMax(300, height() - 200));
+    }
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Space) {
+            finish();
+            return;
         }
+        TimedSessionRunner::keyPressEvent(event);
     }
 
     QList<QRadioButton *> m_row1;
     QList<QRadioButton *> m_row2;
-    QWidget *m_host = nullptr;
+    QGroupBox *m_group1 = nullptr;
+    QGroupBox *m_group2 = nullptr;
+};
+
+class WordsLearningRunner final : public TimedSessionRunner {
+public:
+    using TimedSessionRunner::TimedSessionRunner;
+
+    void startSession(
+        const QString &exerciseId,
+        const ExerciseDefinition &definition,
+        const QString &stepId) override {
+        Q_UNUSED(definition);
+        Q_UNUSED(stepId);
+        m_exerciseId = exerciseId;
+        m_elapsed = 0;
+
+        if (m_picture) {
+            m_picture->hide();
+        }
+        if (m_wordsLabel) {
+            m_wordsLabel->deleteLater();
+            m_wordsLabel = nullptr;
+        }
+        if (m_table) {
+            m_table->deleteLater();
+            m_table = nullptr;
+        }
+
+        // _4.Designer: label1 @ (984,122), webBrowser1 table2 @ (1306,170,406,334)
+        m_wordsLabel = new QLabel(
+            QStringLiteral(
+                "дерево, кукла, вилка, цветок, телефон, стакан, птица, пальто, лампочка, картина, "
+                "человек, книга."),
+            this);
+        m_wordsLabel->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 14));
+        m_wordsLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+        m_wordsLabel->setWordWrap(true);
+
+        m_table = new QTableWidget(6, 1, this);
+        m_table->setHorizontalHeaderLabels({QStringLiteral("Кол-во правильно названных слов")});
+        m_table->verticalHeader()->setVisible(true);
+        m_table->verticalHeader()->setDefaultSectionSize(36);
+        m_table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+        m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        m_table->horizontalHeader()->setFixedHeight(40);
+        m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        m_table->setShowGrid(true);
+        m_table->setEditTriggers(
+            QAbstractItemView::AllEditTriggers);
+        m_table->setStyleSheet(QStringLiteral(
+            "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
+            "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
+        for (int i = 0; i < 6; ++i) {
+            m_table->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
+            auto *item = new QTableWidgetItem;
+            item->setTextAlignment(Qt::AlignCenter);
+            item->setFlags(item->flags() | Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            m_table->setItem(i, 0, item);
+        }
+        // Высота строго по строкам (без пустого растягивания).
+        const int tableH = m_table->horizontalHeader()->height()
+            + m_table->verticalHeader()->defaultSectionSize() * 6
+            + 2 * m_table->frameWidth() + 2;
+        m_table->setFixedSize(360, tableH);
+
+        setFocusPolicy(Qt::StrongFocus);
+        layoutUi();
+        m_table->show();
+        m_wordsLabel->show();
+        m_stop->move(970, 70);
+        m_stop->show();
+        m_stop->raise();
+        m_timer->start();
+        show();
+        raise();
+        m_table->setCurrentCell(0, 0);
+        m_table->editItem(m_table->item(0, 0));
+    }
+
+    void finish() override {
+        // Зафиксировать редактор ячейки перед чтением.
+        if (m_table) {
+            if (QWidget *editor = m_table->indexWidget(m_table->currentIndex())) {
+                Q_UNUSED(editor);
+            }
+            m_table->setCurrentItem(nullptr);
+            m_table->clearFocus();
+        }
+        ExerciseSessionResult result;
+        result.elapsedSeconds = m_elapsed;
+        result.additional = collectAdditional();
+        m_timer->stop();
+        hide();
+        emitFinished(result);
+    }
+
+    QString collectAdditional() const {
+        if (!m_table) {
+            return {};
+        }
+        QStringList parts;
+        for (int r = 0; r < m_table->rowCount(); ++r) {
+            const QTableWidgetItem *item = m_table->item(r, 0);
+            parts << (item ? item->text().trimmed() : QString());
+        }
+        // Как в оригинале: всегда 6 значений через ';' (включая хвостовой из results += ...+";").
+        return parts.join(QLatin1Char(';')) + QLatin1Char(';');
+    }
+
+    void layoutUi() override {
+        if (m_wordsLabel) {
+            m_wordsLabel->setGeometry(984, 122, 886, 48);
+            m_wordsLabel->raise();
+        }
+        if (m_table) {
+            // Компактная таблица у правого края, как webBrowser1.
+            m_table->move(1306, 170);
+            m_table->raise();
+        }
+        m_stop->move(970, 70);
+        m_stop->raise();
+    }
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Space) {
+            finish();
+            return;
+        }
+        TimedSessionRunner::keyPressEvent(event);
+    }
+
+    QLabel *m_wordsLabel = nullptr;
+    QTableWidget *m_table = nullptr;
 };
 
 class HtmlTableRunner final : public TimedSessionRunner {
@@ -1142,15 +1361,6 @@ public:
                 m_stimulusLabel->setPixmap(QPixmap(picPath));
             }
             m_stimulusLabel->show();
-        } else if (exerciseId == QStringLiteral("4.2.2")) {
-            m_table->setColumnCount(1);
-            m_table->setRowCount(6);
-            m_table->setHorizontalHeaderLabels({QStringLiteral("Кол-во правильно названных слов")});
-            for (int i = 0; i < 6; ++i) {
-                m_table->setVerticalHeaderItem(
-                    i, new QTableWidgetItem(QStringLiteral("%1").arg(i + 1)));
-                m_table->setItem(i, 0, new QTableWidgetItem);
-            }
         } else {
             m_table->setColumnCount(1);
             m_table->setRowCount(1);
@@ -1203,6 +1413,10 @@ public:
     }
 
     void finish() override {
+        if (m_table) {
+            m_table->setCurrentItem(nullptr);
+            m_table->clearFocus();
+        }
         ExerciseSessionResult result;
         result.elapsedSeconds = m_elapsed;
         result.additional = collectAdditional();
@@ -1664,25 +1878,28 @@ private:
             m_panel418 = new QGroupBox(this);
             m_panel418->setTitle(QString());
             m_panel418->setStyleSheet(QStringLiteral(
-                "QGroupBox { background-color:#f0f0f0; border:1px solid #a0a0a0; }"));
+                "QGroupBox { background-color:#f0f0f0; border:1px solid #a0a0a0; }"
+                "QLabel { color:#000000; background:transparent; }"
+                "QComboBox { color:#000000; background:#ffffff; }"));
 
-            auto *helpWordLabel = new QLabel(QStringLiteral("Помощь к слову"), m_panel418);
-            helpWordLabel->move(144, 28);
+            const QFont labelFont(QStringLiteral("Microsoft Sans Serif"), 8);
+            m_helpWordLabel = new QLabel(QStringLiteral("Помощь к слову"), m_panel418);
+            m_helpWordLabel->setFont(labelFont);
             m_wordCombo = new QComboBox(m_panel418);
+            m_wordCombo->setFont(labelFont);
             m_wordCombo->addItems(stimulusWords());
-            m_wordCombo->setGeometry(241, 24, 121, 24);
             m_wordCombo->setCurrentIndex(-1);
 
-            auto *helpTypeLabel = new QLabel(QStringLiteral("Виды помощи"), m_panel418);
-            helpTypeLabel->move(364, 28);
+            m_helpTypeLabel = new QLabel(QStringLiteral("Виды помощи"), m_panel418);
+            m_helpTypeLabel->setFont(labelFont);
             m_helpCombo = new QComboBox(m_panel418);
+            m_helpCombo->setFont(labelFont);
             m_helpCombo->addItems({
                 QStringLiteral("Повтор более подробной инструкции"),
                 QStringLiteral(
                     "Направляющая помощь \"подумай какая карточка сможете тебе напомнить слово\""),
                 QStringLiteral("Показ способа выполнения задания с просьбой повторить это действие"),
             });
-            m_helpCombo->setGeometry(448, 25, 467, 24);
             m_helpCombo->setCurrentIndex(-1);
             connect(m_wordCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
                     [this](int) { m_helpCombo->setCurrentIndex(-1); });
@@ -1709,7 +1926,6 @@ private:
                     });
 
             m_table418 = new QTableWidget(5, 6, m_panel418);
-            m_table418->setGeometry(6, 52, 933, 354);
             m_table418->setHorizontalHeaderLabels({
                 QStringLiteral("Выбранная картинка"),
                 QStringLiteral("Объяснение выбора"),
@@ -1719,6 +1935,9 @@ private:
                 QStringLiteral("Баллы"),
             });
             m_table418->verticalHeader()->setVisible(true);
+            m_table418->verticalHeader()->setMinimumWidth(90);
+            m_table418->verticalHeader()->setDefaultSectionSize(56);
+            m_table418->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
             for (int r = 0; r < 5; ++r) {
                 m_table418->setVerticalHeaderItem(r, new QTableWidgetItem(stimulusWords().at(r)));
                 for (int c = 0; c < 6; ++c) {
@@ -1726,7 +1945,6 @@ private:
                 }
             }
             m_table418->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-            m_table418->verticalHeader()->setSectionResizeMode(QHeaderView::Stretch);
             m_table418->setWordWrap(true);
         }
 
@@ -1744,10 +1962,27 @@ private:
         if (!m_panel418) {
             return;
         }
-        // cards.Designer: groupBox1 @ (12,12,945,421), phide @ (1339,29)
+        // cards.Designer: groupBox1 @ (12,12,945,421) — опускаем на 200px по ТЗ.
         const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
         const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
-        m_panel418->setGeometry(qRound(12 * sx), qRound(12 * sy), qRound(945 * sx), qRound(421 * sy));
+        const int panelX = qRound(12 * sx);
+        const int panelY = qRound((12 + 200) * sy);
+        const int panelW = qRound(945 * sx);
+        const int panelH = qRound(421 * sy);
+        m_panel418->setGeometry(panelX, panelY, panelW, panelH);
+
+        // Подписи и селекты без наложений (WinForms: gap ~6px при 8pt).
+        if (m_helpWordLabel && m_wordCombo && m_helpTypeLabel && m_helpCombo) {
+            m_helpWordLabel->setGeometry(qRound(10 * sx), qRound(28 * sy), qRound(120 * sx), qRound(20 * sy));
+            m_wordCombo->setGeometry(qRound(135 * sx), qRound(24 * sy), qRound(130 * sx), qRound(24 * sy));
+            m_helpTypeLabel->setGeometry(qRound(275 * sx), qRound(28 * sy), qRound(90 * sx), qRound(20 * sy));
+            m_helpCombo->setGeometry(qRound(370 * sx), qRound(25 * sy), qRound(560 * sx), qRound(24 * sy));
+        }
+        if (m_table418) {
+            m_table418->setGeometry(
+                qRound(6 * sx), qRound(52 * sy), qRound(933 * sx), qRound(354 * sy));
+            m_table418->verticalHeader()->setMinimumWidth(qRound(90 * sx));
+        }
         if (m_hideButton) {
             m_hideButton->move(qRound(1339 * sx), qRound(29 * sy));
             m_hideButton->raise();
@@ -1816,6 +2051,8 @@ private:
     ClickableLabel *m_stop = nullptr;
     ImageButton *m_hideButton = nullptr;
     QGroupBox *m_panel418 = nullptr;
+    QLabel *m_helpWordLabel = nullptr;
+    QLabel *m_helpTypeLabel = nullptr;
     QComboBox *m_wordCombo = nullptr;
     QComboBox *m_helpCombo = nullptr;
     QTableWidget *m_table418 = nullptr;
@@ -2169,8 +2406,9 @@ ExerciseRunnerWidget *createExerciseRunner(ExerciseRunnerKind kind, QWidget *par
         return new DigitsRunner(parent);
     case ExerciseRunnerKind::E511:
     case ExerciseRunnerKind::E521:
-    case ExerciseRunnerKind::WordsLearning:
         return new HtmlTableRunner(parent);
+    case ExerciseRunnerKind::WordsLearning:
+        return new WordsLearningRunner(parent);
     case ExerciseRunnerKind::Wolf:
         return new WolfRunner(parent);
     case ExerciseRunnerKind::Puzzles:

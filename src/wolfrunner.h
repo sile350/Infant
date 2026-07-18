@@ -4,7 +4,9 @@
 #include "exerciserunnerwidget.h"
 
 class QComboBox;
+class QKeyEvent;
 class QLabel;
+class QPaintEvent;
 class QTableWidget;
 class QTimer;
 
@@ -20,6 +22,10 @@ public:
     void stopSession() override;
     void resizeEvent(QResizeEvent *event) override;
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+
 private:
     void finishSession();
     void toggleTemplate1();
@@ -32,6 +38,8 @@ private:
     QLabel *m_templateBtn2 = nullptr;
     QLabel *m_taleImage = nullptr;
     QLabel *m_templateImage = nullptr;
+    QLabel *m_helpToLabel = nullptr;
+    QLabel *m_helpTypeLabel = nullptr;
     QTableWidget *m_table = nullptr;
     QComboBox *m_episodeCombo = nullptr;
     QComboBox *m_helpCombo = nullptr;

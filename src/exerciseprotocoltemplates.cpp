@@ -513,6 +513,72 @@ QString buildOrHlpBallsProcessRows(
     return rows;
 }
 
+// 5.2.1 «Расскажи по картинке»: на каждое задание — таблица фрагментов речи + OR/HLP/Баллы.
+QString buildSpeechTasksOrHlpBlocks(
+    const ProtocolTemplate &tmpl,
+    const QMap<QString, QString> &baseVars,
+    const ProtocolSessionInput &session) {
+    QStringList stepIds = session.stepIds;
+    if (stepIds.isEmpty()) {
+        QString step = session.stepId.trimmed();
+        if (step.isEmpty() && !session.additional.trimmed().isEmpty()) {
+            step = session.additional.split(QLatin1Char(';')).value(0).trimmed();
+        }
+        if (step.isEmpty()) {
+            step = QStringLiteral("1");
+        }
+        stepIds << step;
+    }
+
+    const QString rowTpl = tmpl.rowTemplate;
+    if (rowTpl.isEmpty()) {
+        return QString();
+    }
+
+    QString blocks;
+    for (const QString &stepId : stepIds) {
+        QString additional = session.additionalByStep.value(stepId);
+        if (additional.trimmed().isEmpty()) {
+            // Один текущий шаг — берём session.additional целиком (уже с № задания).
+            if (stepIds.size() == 1
+                || stepId == session.stepId
+                || session.additional.startsWith(stepId + QLatin1Char(';'))) {
+                additional = session.additional;
+            } else {
+                additional = stepId + QLatin1Char(';');
+            }
+        }
+        if (!additional.startsWith(stepId + QLatin1Char(';'))
+            && additional.split(QLatin1Char(';')).value(0).trimmed() != stepId) {
+            additional = stepId + QLatin1Char(';') + additional;
+        }
+
+        QMap<QString, QString> vars = baseVars;
+        vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
+        vars.insert(QStringLiteral("{{ADDITIONAL}}"), additional.toHtmlEscaped());
+        const QStringList tmpParts = additional.split(QLatin1Char(';'));
+        for (int i = 0; i < 11; ++i) {
+            vars.insert(
+                QStringLiteral("{{TMP%1}}").arg(i),
+                i < tmpParts.size() ? tmpParts.at(i).toHtmlEscaped() : QString());
+        }
+        QString block = substituteAll(rowTpl, vars);
+        block = substituteTmpIndices(block, additional);
+        blocks += block;
+    }
+    return blocks;
+}
+
+bool speechTaskPresentInHtml(const QString &html, const QString &stepId) {
+    const QString sid = stepId.trimmed();
+    if (sid.isEmpty() || html.isEmpty()) {
+        return false;
+    }
+    // protocols.cs: "Задание №"+tmp[0]
+    return html.contains(QStringLiteral("Задание №") + sid, Qt::CaseInsensitive)
+        || html.contains(QStringLiteral("Задание № ") + sid, Qt::CaseInsensitive);
+}
+
 } // namespace
 
 QString trimTrailingSummaryRow(QString body) {
@@ -546,6 +612,8 @@ QString createExerciseProtocolFromTemplate(
     QString row;
     if (tmpl.kind == QStringLiteral("numbered")) {
         row = buildNumberedProcessRows(tmpl, vars, session, elapsedSeconds);
+    } else if (tmpl.kind == QStringLiteral("speech_tasks_or_hlp")) {
+        row = buildSpeechTasksOrHlpBlocks(tmpl, vars, session);
     } else if (tmpl.kind == QStringLiteral("or_hlp_balls")
                || tmpl.kind == QStringLiteral("or_hlp_balls_row")) {
         row = buildOrHlpBallsProcessRows(tmpl, vars, session);
@@ -554,6 +622,52 @@ QString createExerciseProtocolFromTemplate(
     }
 
     if (partly) {
+        // 5.2.1: дописываем таблицу «Задание №N» в конец текущего протокола (как getLastP+таблицы).
+        if (tmpl.kind == QStringLiteral("speech_tasks_or_hlp")) {
+            QStringList stepIds = session.stepIds;
+            if (stepIds.isEmpty()) {
+                QString stepKey = session.stepId.trimmed();
+                if (stepKey.isEmpty()) {
+                    stepKey = session.additional.split(QLatin1Char(';')).value(0).trimmed();
+                }
+                if (stepKey.isEmpty()) {
+                    stepKey = QStringLiteral("1");
+                }
+                stepIds << stepKey;
+            }
+            const QString lastSessionHtml =
+                ExerciseProtocol::extractLastProtocol126Session(existingProtocolHtml);
+            const QString scopeHtml = lastSessionHtml.trimmed().isEmpty()
+                ? existingProtocolHtml
+                : lastSessionHtml;
+            QStringList newSteps;
+            for (const QString &sid : stepIds) {
+                if (!speechTaskPresentInHtml(scopeHtml, sid)) {
+                    newSteps << sid;
+                }
+            }
+            if (newSteps.isEmpty()) {
+                // Все задания уже в последней сессии — повторный протокол с новой датой.
+                ProtocolSessionInput repeatSession = session;
+                repeatSession.stepIds = stepIds;
+                const QString repeatBlocks = buildSpeechTasksOrHlpBlocks(tmpl, vars, repeatSession);
+                QString sessionBlock;
+                if (!tmpl.dateRow.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.dateRow, vars);
+                }
+                if (!tmpl.initialBlock.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.initialBlock, vars);
+                }
+                sessionBlock += repeatBlocks;
+                return ExerciseProtocol::appendFullSessionToStoredBody(
+                    existingProtocolHtml, sessionBlock);
+            }
+            ProtocolSessionInput appendSession = session;
+            appendSession.stepIds = newSteps;
+            const QString appendBlocks = buildSpeechTasksOrHlpBlocks(tmpl, vars, appendSession);
+            // Не вставлять внутрь последней </table> — блоки это самостоятельные <table>.
+            return existingProtocolHtml + appendBlocks;
+        }
         // 1.26/tmp0_variants, 3.1.10, 1.27/1.272: дописка строк задания в текущий протокол.
         if (tmpl.kind == QStringLiteral("tmp0_variants")
             || tmpl.kind == QStringLiteral("or_hlp_balls_row")
@@ -616,6 +730,12 @@ QString createExerciseProtocolFromTemplate(
             return ExerciseProtocol::appendRowsToStoredBody(
                 trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
+        // done_time / additional_time: повторный протокол — всегда новая сессия
+        // со строки «Дата/специалист» (ТЗ 14.2). Дописка только process-row без даты
+        // ломала повторные визиты (1.6, 1.13, 4.1.1, …). Multi-step continue
+        // для numbered идёт через kind=numbered → appendFullSession ниже.
+        // Падение в общий блок appendFullSession.
+        // 1.26/tmp0_variants уже обработаны выше.
         // Повторный протокол (ТЗ 14.2): всегда новая сессия со строки «Дата/специалист».
         // Для numbered (1.17/1.18/2.10/…) нельзя дописывать только строки процесса —
         // иначе повторная сессия сливается с предыдущей без новой даты.
@@ -656,7 +776,8 @@ QString createExerciseProtocolFromTemplate(
         body += substituteAll(tmpl.initialBlock, vars);
     }
     body += row;
-    if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+    if (tmpl.kind != QStringLiteral("speech_tasks_or_hlp")
+        && !body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
         body += QStringLiteral("</table>");
     }
 

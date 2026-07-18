@@ -1624,6 +1624,17 @@ QString ExerciseProtocol::extractLastProtocol126Session(const QString &protocolB
     return stripLeadingSummaryTableWrapper(sessions.last());
 }
 
+QString closeDanglingTables(QString html) {
+    const int opens = html.count(
+        QRegularExpression(QStringLiteral("<table\\b"), QRegularExpression::CaseInsensitiveOption));
+    const int closes = html.count(
+        QRegularExpression(QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption));
+    for (int i = closes; i < opens; ++i) {
+        html += QStringLiteral("</table>");
+    }
+    return html;
+}
+
 QString joinProtocol126Sessions(const QStringList &sessions) {
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
@@ -1633,8 +1644,13 @@ QString joinProtocol126Sessions(const QStringList &sessions) {
         }
         if (i == 0) {
             session = stripLeadingSummaryTableWrapper(session);
-        } else if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
-            session.prepend(protocolSummaryTableOpenHtml());
+        } else {
+            // Закрываем незакрытые <table> предыдущей сессии — иначе новая
+            // «Дата/специалист» оказывается внутри таблицы и ломает вёрстку.
+            result = closeDanglingTables(result);
+            if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+                session.prepend(protocolSummaryTableOpenHtml());
+            }
         }
         result += session;
     }
@@ -2463,6 +2479,97 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     return body;
 }
 
+QString developmentLevelFromBalls(int score) {
+    if (score >= 10) {
+        return QStringLiteral("очень высокий");
+    }
+    if (score >= 8) {
+        return QStringLiteral("высокий");
+    }
+    if (score >= 4) {
+        return QStringLiteral("средний");
+    }
+    if (score >= 2) {
+        return QStringLiteral("низкий");
+    }
+    return QStringLiteral("очень низкий");
+}
+
+QString ExerciseProtocol::applyProtocol318SumFromDocument(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty()) {
+        return storedBody;
+    }
+    QString body = mergeOrHlpBallsEditorIntoStoredBody(storedBody, editorDocument);
+
+    QStringList sessions = extractProtocol126SessionsByDate(body);
+    const bool multi = sessions.size() > 1;
+    QString chunk = multi ? sessions.last() : body;
+
+    QString ballsPlain = extractDivInnerById(chunk, QStringLiteral("idballs"));
+    if (ballsPlain.trimmed().isEmpty() && editorDocument) {
+        QList<QTextTable *> tables;
+        collectTables(editorDocument->rootFrame(), tables);
+        for (QTextTable *table : tables) {
+            if (!table || table->columns() < 3) {
+                continue;
+            }
+            int ballsCol = -1;
+            int headerRow = -1;
+            for (int r = 0; r < table->rows() && ballsCol < 0; ++r) {
+                for (int c = 0; c < table->columns(); ++c) {
+                    const QString h = readTableCellText(table, r, c);
+                    if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
+                        ballsCol = c;
+                        headerRow = r;
+                        break;
+                    }
+                }
+            }
+            if (ballsCol < 0) {
+                continue;
+            }
+            for (int r = table->rows() - 1; r > headerRow; --r) {
+                const QString score = readTableCellText(table, r, ballsCol).trimmed();
+                if (!score.isEmpty()
+                    && !score.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                    ballsPlain = score;
+                    break;
+                }
+            }
+            if (!ballsPlain.isEmpty()) {
+                break;
+            }
+        }
+    }
+
+    bool ok = false;
+    const double value = ballsPlain.trimmed().replace(QLatin1Char(','), QLatin1Char('.')).toDouble(&ok);
+    if (!ok) {
+        if (multi) {
+            sessions[sessions.size() - 1] = chunk;
+            return joinProtocol126Sessions(sessions);
+        }
+        return body;
+    }
+    const int scoreInt = qBound(0, qRound(value), 10);
+    const QString resultText = QStringLiteral("%1(10)/%2")
+                                   .arg(formatBallsNumber(scoreInt), developmentLevelFromBalls(scoreInt));
+    chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
+    if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+        chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
+    } else {
+        chunk = replaceResultRowSecondCell(chunk, resultText);
+    }
+
+    if (multi) {
+        sessions[sessions.size() - 1] = chunk;
+        return joinProtocol126Sessions(sessions);
+    }
+    return chunk;
+}
+
 QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
     const QString &storedBody,
     QTextDocument *editorDocument) {
@@ -2634,38 +2741,14 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
         return existingBody;
     }
 
-    // 1.26: плоская дописка со строки «Дата/специалист» (без ensureClosed — срезает баллы).
-    // Пересборка по датам чинит уже вложенные тела и не даёт вложить новую сессию в таблицу.
-    if (looksLikeProtocol126Body(existingBody) || looksLikeProtocol126Body(session)) {
-        QStringList sessions = extractProtocol126SessionsByDate(existingBody);
-        if (sessions.isEmpty() && !existingBody.trimmed().isEmpty()) {
-            sessions.append(stripLeadingSummaryTableWrapper(existingBody));
-        }
-        sessions.append(stripLeadingSummaryTableWrapper(session));
-        return joinProtocol126Sessions(sessions);
+    // Плоская дописка по «Дата/специалист» для всех методик (1.26, 3.1.x, …).
+    // Не ensureClosed — срезает вложенные таблицы баллов у 1.26.
+    QStringList sessions = extractProtocol126SessionsByDate(existingBody);
+    if (sessions.isEmpty() && !existingBody.trimmed().isEmpty()) {
+        sessions.append(stripLeadingSummaryTableWrapper(existingBody));
     }
-
-    session = ensureClosedProtocolSession(session);
-    if (session.isEmpty()) {
-        return existingBody;
-    }
-    if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
-        session.prepend(protocolSummaryTableOpenHtml());
-    }
-
-    if (existingBody.trimmed().isEmpty()) {
-        // Первая сессия в БД хранится без обёртки <table> (её даёт header.html).
-        return ensureClosedProtocolSession(stripLeadingSummaryTableWrapper(session));
-    }
-
-    // Пересобираем все уже сохранённые сессии в плоский список закрытых блоков —
-    // иначе 3-й+ протокол вкладывается в незакрытую таблицу после merge/QTextDocument.
-    QStringList sessions = extractProtocolBodiesByDateRows(existingBody);
-    if (sessions.isEmpty()) {
-        sessions.append(existingBody);
-    }
-    QString base = joinClosedProtocolSessions(sessions);
-    return base + session;
+    sessions.append(stripLeadingSummaryTableWrapper(session));
+    return joinProtocol126Sessions(sessions);
 }
 
 QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {

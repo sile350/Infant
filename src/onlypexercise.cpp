@@ -107,23 +107,6 @@ void applyButtonPixmap(QLabel *label, const QPixmap &source, int maxWidth, int m
     setWhiteBackedPixmap(label, pixmap);
 }
 
-// onlyp.cs: cword[] для 3.2.3, задание 2.
-const QStringList &combineWordsList() {
-    static const QStringList words = {
-        QStringLiteral("Василий, Федер, Семен, Иванов, Николай"),
-        QStringLiteral("Молоко, сливки, сыр, сало, сметана"),
-        QStringLiteral("Береза, сосна, дуб, ель, дерево"),
-        QStringLiteral("Нос, уши, глаза, рот, очки"),
-        QStringLiteral("Лист, почка, кора, дерево, сук"),
-        QStringLiteral("Щетка, ботинки, сапоги, тапочки, валенки"),
-        QStringLiteral("Минута, секунда, час, вечер, сутки"),
-        QStringLiteral("Глубокий, высокий, светлый, низкий, мелкий"),
-        QStringLiteral("Смелый, злой, храбрый, отважный, бесстрашный"),
-        QStringLiteral("Молоток, гвоздь, клещи, топор, пила"),
-    };
-    return words;
-}
-
 } // namespace
 
 OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
@@ -579,6 +562,7 @@ void OnlyPExercise::start(
         m_stepId = m_settings.stepIds.first();
     }
     setProperty("exerciseId", exerciseId);
+    setProperty("stepId", m_stepId);
     m_answers.clear();
     const int answerCount = qMax(1, m_settings.pictureCount);
     for (int i = 0; i < answerCount; ++i) {
@@ -625,6 +609,8 @@ void OnlyPExercise::start(
         if (m_picture2) {
             m_picture2->raise();
         }
+        // Чтобы dual-зеркала (Specialist/Patient) подхватили кадр после connect.
+        emit pictureChanged(1);
     } else if (isCombineWordsExercise()) {
         m_browseIndex = 0;
         ensureCombineWordsUi();
@@ -658,6 +644,7 @@ void OnlyPExercise::switchStep(const QString &stepId) {
     }
     commitCurrentStepTime();
     m_stepId = next;
+    setProperty("stepId", m_stepId);
     m_elapsedSeconds = m_stepElapsedSeconds.value(m_stepId, 0);
     if (m_settings.dualPicture) {
         return;
@@ -687,8 +674,11 @@ QString OnlyPExercise::imageFileName(int index) const {
         }
         return QStringLiteral("1.png");
     }
-    // 3.2.3: задание 1 → 1.png/2.png (листание), задание 2 → слова (без картинки).
-    if (isCombineWordsExercise() && m_stepId == QStringLiteral("1")) {
+    // 3.2.3: задание 1 → 1.png/2.png (листание), задание 2 → 3.png (картинка со словами).
+    if (isCombineWordsExercise()) {
+        if (m_stepId == QStringLiteral("2")) {
+            return QStringLiteral("3.png");
+        }
         return QStringLiteral("%1.png").arg(m_browseIndex + 1);
     }
     if (!m_stepId.isEmpty()) {
@@ -702,7 +692,8 @@ bool OnlyPExercise::isCombineWordsExercise() const {
 }
 
 bool OnlyPExercise::combineWordsUsesText() const {
-    return isCombineWordsExercise() && m_stepId == QStringLiteral("2");
+    // Задание 2 — картинка 3.png со словами (не текстовая метка cWord).
+    return false;
 }
 
 void OnlyPExercise::ensureCombineWordsUi() {
@@ -728,12 +719,14 @@ void OnlyPExercise::updateCombineWordsNavVisibility() {
         return;
     }
     if (!isCombineWordsExercise() || m_displayRole == DisplayRole::Headless
-        || m_displayRole == DisplayRole::Patient) {
+        || m_displayRole == DisplayRole::Patient
+        || m_stepId == QStringLiteral("2")) {
+        // Задание 2 — одна картинка со всеми словами, листание не нужно.
         m_navBackButton->hide();
         m_navNextButton->hide();
         return;
     }
-    const int maxIndex = combineWordsUsesText() ? (combineWordsList().size() - 1) : 1;
+    const int maxIndex = 1;
     m_navBackButton->setVisible(m_browseIndex > 0 && !m_navBackSource.isNull());
     m_navNextButton->setVisible(m_browseIndex < maxIndex && !m_navNextSource.isNull());
 }
@@ -742,28 +735,28 @@ void OnlyPExercise::refreshCombineWordsStimulus(bool notifyMirrors) {
     if (!isCombineWordsExercise()) {
         return;
     }
-    if (combineWordsUsesText()) {
-        const QStringList &words = combineWordsList();
-        m_browseIndex = qBound(0, m_browseIndex, words.size() - 1);
-        m_pictureSource = QPixmap();
-        if (m_picture) {
-            m_picture->hide();
-            m_picture->clear();
-        }
-        if (m_wordLabel) {
-            m_wordLabel->setText(words.at(m_browseIndex));
-            m_wordLabel->adjustSize();
-        }
-        m_picturesShown = qMax(m_picturesShown, 1);
-        updateWidgetLayout();
-        if (notifyMirrors) {
-            emit browseStateChanged(m_browseIndex);
-        }
-        return;
-    }
     if (m_wordLabel) {
         m_wordLabel->hide();
         m_wordLabel->clear();
+    }
+    if (m_stepId == QStringLiteral("2")) {
+        m_browseIndex = 0;
+        const QString path = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("3.png"));
+        if (!path.isEmpty()) {
+            m_pictureSource.load(path);
+        } else {
+            m_pictureSource = QPixmap();
+        }
+        m_picturesShown = qMax(m_picturesShown, 1);
+        updateWidgetLayout();
+        if (m_picture) {
+            m_picture->raise();
+        }
+        if (notifyMirrors) {
+            emit pictureChanged(3);
+            emit browseStateChanged(0);
+        }
+        return;
     }
     m_browseIndex = qBound(0, m_browseIndex, 1);
     const QString path = ExerciseAssets::exerciseFile(
@@ -787,10 +780,10 @@ void OnlyPExercise::browseNext() {
         emit mirrorBrowseNextRequested();
         return;
     }
-    if (!isCombineWordsExercise()) {
+    if (!isCombineWordsExercise() || m_stepId == QStringLiteral("2")) {
         return;
     }
-    const int maxIndex = combineWordsUsesText() ? (combineWordsList().size() - 1) : 1;
+    const int maxIndex = 1;
     if (m_browseIndex >= maxIndex) {
         return;
     }
@@ -803,7 +796,7 @@ void OnlyPExercise::browseBack() {
         emit mirrorBrowseBackRequested();
         return;
     }
-    if (!isCombineWordsExercise() || m_browseIndex <= 0) {
+    if (!isCombineWordsExercise() || m_stepId == QStringLiteral("2") || m_browseIndex <= 0) {
         return;
     }
     --m_browseIndex;
@@ -811,11 +804,10 @@ void OnlyPExercise::browseBack() {
 }
 
 void OnlyPExercise::applyBrowseIndex(int index) {
-    if (!isCombineWordsExercise()) {
+    if (!isCombineWordsExercise() || m_stepId == QStringLiteral("2")) {
         return;
     }
-    const int maxIndex = combineWordsUsesText() ? (combineWordsList().size() - 1) : 1;
-    m_browseIndex = qBound(0, index, maxIndex);
+    m_browseIndex = qBound(0, index, 1);
     refreshCombineWordsStimulus(false);
 }
 
@@ -830,10 +822,36 @@ void OnlyPExercise::syncMirrorSession(
         : stepId.trimmed();
     m_browseIndex = 0;
     setProperty("exerciseId", exerciseId);
+    setProperty("stepId", m_stepId);
+    if (m_settings.dualPicture) {
+        const QString leftName = m_settings.imagePattern.isEmpty()
+            ? QStringLiteral("p2.png")
+            : m_settings.imagePattern;
+        const QString rightName = m_settings.secondImagePattern.isEmpty()
+            ? QStringLiteral("p1.png")
+            : m_settings.secondImagePattern;
+        const QString leftPath = ExerciseAssets::exerciseFile(exerciseId, leftName);
+        const QString rightPath = ExerciseAssets::exerciseFile(exerciseId, rightName);
+        if (!leftPath.isEmpty()) {
+            m_pictureSource.load(leftPath);
+        }
+        if (!rightPath.isEmpty()) {
+            m_picture2Source.load(rightPath);
+        }
+        m_picturesShown = 1;
+        updateWidgetLayout();
+        if (m_displayRole != DisplayRole::Headless) {
+            show();
+            raise();
+        }
+        return;
+    }
     if (isCombineWordsExercise()) {
         ensureCombineWordsUi();
         refreshCombineWordsStimulus(false);
+        return;
     }
+    loadPicture(1);
 }
 
 void OnlyPExercise::loadPicture(int index) {
@@ -850,6 +868,27 @@ void OnlyPExercise::loadPicture(int index) {
 
 void OnlyPExercise::showPicture(int index) {
     if (m_settings.dualPicture) {
+        // Зеркало: заново применить dual-картинки (Headless эмитит pictureChanged после start).
+        const QString leftName = m_settings.imagePattern.isEmpty()
+            ? QStringLiteral("p2.png")
+            : m_settings.imagePattern;
+        const QString rightName = m_settings.secondImagePattern.isEmpty()
+            ? QStringLiteral("p1.png")
+            : m_settings.secondImagePattern;
+        const QString leftPath = ExerciseAssets::exerciseFile(m_exerciseId, leftName);
+        const QString rightPath = ExerciseAssets::exerciseFile(m_exerciseId, rightName);
+        if (!leftPath.isEmpty()) {
+            m_pictureSource.load(leftPath);
+        }
+        if (!rightPath.isEmpty()) {
+            m_picture2Source.load(rightPath);
+        }
+        m_picturesShown = 1;
+        updateWidgetLayout();
+        if (m_displayRole != DisplayRole::Headless) {
+            show();
+            raise();
+        }
         return;
     }
     if (isCombineWordsExercise()) {

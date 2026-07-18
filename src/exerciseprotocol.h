@@ -15,6 +15,8 @@ struct ProtocolSessionInput {
     // Для NumberedDoneTime: все № заданий и время каждого (одна форма → N строк).
     QStringList stepIds;
     QMap<QString, int> stepElapsedSeconds;
+    // 5.2.1: данные таблицы по каждому № задания (step → "N;d1;…;d10").
+    QMap<QString, QString> additionalByStep;
     int picturesShown = 0;
     QString capturedImagePath;
     QString orHtml;
@@ -107,6 +109,11 @@ public:
 
     // or_hlp_balls (3.1.18 и др.): OR/HLP/Баллы из редактора без пересборки таблиц.
     static QString mergeOrHlpBallsEditorIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
+    // 3.1.18 «Времена года»: idballs → Результат N(10)/уровень (последняя сессия).
+    static QString applyProtocol318SumFromDocument(
         const QString &storedBody,
         QTextDocument *editorDocument);
 

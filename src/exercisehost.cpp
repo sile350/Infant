@@ -25,15 +25,18 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFrame>
+#include <QHeaderView>
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QPen>
 #include <QPixmap>
 #include <QPolygonF>
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QStandardPaths>
+#include <QTableWidget>
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
@@ -48,6 +51,7 @@
 #include <QScrollBar>
 #include <QSizePolicy>
 #include <QStyleOption>
+#include <QVBoxLayout>
 #include <QStyle>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -781,6 +785,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         }
         // 1.26: оставляем на вкладке последний протокол; при полном цикле — старт с №1.
         // 1.272: повторный старт всегда с задания 1.
+        // 3.1.11/12/17/18: последний протокол; следующий form — с новой «Дата/специалист».
         if (m_exerciseId == QStringLiteral("1.26")) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
@@ -814,10 +819,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 reloadPreviewForCurrentStep();
             }
             showLastProtocolInTemplate();
-        } else if (m_exerciseId == QStringLiteral("1.272")) {
+        } else if (m_exerciseId == QStringLiteral("1.272") || forceNewProtocolSessionOnBegin()) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
             m_protocolSavedThisSession = false;
+            m_forceNewProtocolSession = forceNewProtocolSessionOnBegin();
             if (m_stepCombo && m_stepCombo->count() > 0) {
                 m_stepCombo->blockSignals(true);
                 m_stepCombo->setCurrentIndex(0);
@@ -1032,6 +1038,7 @@ void ExerciseHost::openExercise(
     m_protocolFormed = true;
     m_protocolSavedThisSession = false;
     m_partly = false;
+    m_forceNewProtocolSession = false;
     if (m_repository && !patientId.trimmed().isEmpty()) {
         const QString existingBody = m_repository->loadLastExerciseProtocolBody(patientId, exerciseId);
         if (!existingBody.trimmed().isEmpty()) {
@@ -1073,7 +1080,183 @@ void ExerciseHost::openExercise(
     raise();
 }
 
+void ExerciseHost::ensureWords422Panel() {
+    if (m_words422Panel || !m_rightPanel) {
+        return;
+    }
+    m_words422Panel = new QWidget(m_rightPanel);
+    m_words422Panel->setStyleSheet(QStringLiteral("background:transparent;"));
+
+    m_words422Label = new QLabel(
+        QStringLiteral(
+            "дерево, кукла, вилка, цветок, телефон, стакан, птица, пальто, лампочка, картина, "
+            "человек, книга."),
+        m_words422Panel);
+    m_words422Label->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 14));
+    m_words422Label->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+    m_words422Label->setWordWrap(true);
+
+    m_words422Table = new QTableWidget(6, 1, m_words422Panel);
+    m_words422Table->setHorizontalHeaderLabels({QStringLiteral("Кол-во правильно названных слов")});
+    m_words422Table->verticalHeader()->setVisible(true);
+    m_words422Table->verticalHeader()->setDefaultSectionSize(32);
+    m_words422Table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    m_words422Table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_words422Table->horizontalHeader()->setFixedHeight(36);
+    m_words422Table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_words422Table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_words422Table->setEditTriggers(QAbstractItemView::AllEditTriggers);
+    m_words422Table->setStyleSheet(QStringLiteral(
+        "QTableWidget { background:#f8f8f8; gridline-color:#000000; color:#000000; }"
+        "QHeaderView::section { background:#f8f8f8; color:#000000; padding:4px; }"));
+    for (int i = 0; i < 6; ++i) {
+        m_words422Table->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
+        auto *item = new QTableWidgetItem;
+        item->setTextAlignment(Qt::AlignCenter);
+        item->setFlags(item->flags() | Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        m_words422Table->setItem(i, 0, item);
+    }
+    const int tableH = m_words422Table->horizontalHeader()->height()
+        + m_words422Table->verticalHeader()->defaultSectionSize() * 6
+        + 2 * m_words422Table->frameWidth() + 2;
+    m_words422Table->setFixedSize(380, tableH);
+
+    m_words422Graph = new QLabel(m_words422Panel);
+    m_words422Graph->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_words422Graph->setStyleSheet(QStringLiteral("background:transparent;"));
+    const QString graphPath =
+        ExerciseAssets::exerciseFile(QStringLiteral("4.2.2"), QStringLiteral("graph.png"));
+    if (!graphPath.isEmpty()) {
+        m_words422GraphBase.load(graphPath);
+        m_words422Graph->setPixmap(m_words422GraphBase);
+        m_words422Graph->setFixedSize(m_words422GraphBase.size());
+    }
+
+    connect(m_words422Table, &QTableWidget::cellChanged, this, [this](int, int) {
+        if (m_exerciseId != QStringLiteral("4.2.2")) {
+            return;
+        }
+        syncWords422AdditionalFromPanel();
+        updateWords422Panel(m_sessionAdditional);
+    });
+}
+
+void ExerciseHost::layoutWords422Panel() {
+    if (m_exerciseId != QStringLiteral("4.2.2") || !m_rightPanel) {
+        if (m_words422Panel) {
+            m_words422Panel->hide();
+        }
+        return;
+    }
+    ensureWords422Panel();
+    // UserControl1 @ (900,150) относительно формы; правая панель начинается с kPanelX+kScrollWidth.
+    constexpr int kUcAbsLeft = 900;
+    constexpr int kUcAbsTop = 150;
+    const int rightPanelLeft = kPanelX + kScrollWidth;
+    const int localX = qMax(0, kUcAbsLeft - rightPanelLeft);
+    const int localY = kUcAbsTop;
+    const int panelW = qMax(400, m_rightPanel->width() - localX - 8);
+    const int panelH = qMax(500, m_rightPanel->height() - localY - 8);
+    m_words422Panel->setGeometry(localX, localY, panelW, panelH);
+    if (m_words422Label) {
+        m_words422Label->setGeometry(26, 16, qMin(886, panelW - 40), 48);
+    }
+    if (m_words422Table) {
+        // UserControl1.webBrowser1 @ (190,60) внутри UC
+        m_words422Table->move(190, 60);
+    }
+    if (m_words422Graph) {
+        // pictureBox1 @ (160,361)
+        m_words422Graph->move(160, 361);
+    }
+    m_words422Panel->show();
+    m_words422Panel->raise();
+    if (m_previewImage) {
+        m_previewImage->hide();
+    }
+}
+
+void ExerciseHost::syncWords422AdditionalFromPanel() {
+    if (!m_words422Table) {
+        return;
+    }
+    QStringList parts;
+    for (int r = 0; r < 6; ++r) {
+        const QTableWidgetItem *item = m_words422Table->item(r, 0);
+        parts << (item ? item->text().trimmed() : QString());
+    }
+    m_sessionAdditional = parts.join(QLatin1Char(';')) + QLatin1Char(';');
+}
+
+void ExerciseHost::updateWords422Panel(const QString &additional) {
+    ensureWords422Panel();
+    if (!m_words422Table) {
+        return;
+    }
+
+    const QStringList parts = additional.split(QLatin1Char(';'));
+    m_words422Table->blockSignals(true);
+    for (int r = 0; r < 6; ++r) {
+        QTableWidgetItem *item = m_words422Table->item(r, 0);
+        if (!item) {
+            item = new QTableWidgetItem;
+            item->setTextAlignment(Qt::AlignCenter);
+            m_words422Table->setItem(r, 0, item);
+        }
+        item->setText(r < parts.size() ? parts.at(r).trimmed() : QString());
+    }
+    m_words422Table->blockSignals(false);
+
+    // exbegin.cs: линия по graph.png, coordByValue(value) при шкале 0..12.
+    if (m_words422Graph && !m_words422GraphBase.isNull()) {
+        QPixmap canvas = m_words422GraphBase;
+        QPainter painter(&canvas);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QPen pen(QColor(239, 71, 227), 5);
+        painter.setPen(pen);
+
+        auto coordByValue = [](double value) -> int {
+            const double x = value * 100.0 / 12.0;
+            double xx = 215.0 * x / 100.0;
+            xx = xx + 70.0;
+            xx = 313.0 - xx;
+            return qRound(xx);
+        };
+        auto readValue = [&parts](int index) -> double {
+            if (index < 0 || index >= parts.size()) {
+                return 0.0;
+            }
+            bool ok = false;
+            const double v = parts.at(index).trimmed().toDouble(&ok);
+            return ok ? v : 0.0;
+        };
+
+        const int xs[] = {110, 146, 184, 221, 256, 291};
+        QPoint prev(xs[0], coordByValue(readValue(0)));
+        for (int i = 1; i < 6; ++i) {
+            const QPoint next(xs[i], coordByValue(readValue(i)));
+            // Рисуем сегмент только если есть хотя бы одно ненулевое/введённое значение в паре.
+            const bool hasData = (i - 1 < parts.size() && !parts.at(i - 1).trimmed().isEmpty())
+                || (i < parts.size() && !parts.at(i).trimmed().isEmpty());
+            if (hasData || readValue(i - 1) > 0 || readValue(i) > 0) {
+                painter.drawLine(prev, next);
+            }
+            prev = next;
+        }
+        painter.end();
+        m_words422Graph->setPixmap(canvas);
+    }
+    layoutWords422Panel();
+}
+
 void ExerciseHost::updatePreviewLayout() {
+    if (m_exerciseId == QStringLiteral("4.2.2")) {
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        layoutWords422Panel();
+        return;
+    }
     if (!m_previewImage) {
         return;
     }
@@ -1120,6 +1303,15 @@ void ExerciseHost::updatePreviewLayout() {
 }
 
 void ExerciseHost::reloadPreviewForCurrentStep() {
+    if (m_exerciseId == QStringLiteral("4.2.2")) {
+        m_previewSource = QPixmap();
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        ensureWords422Panel();
+        layoutWords422Panel();
+        return;
+    }
     m_previewSource = QPixmap();
     const QString step = currentStepId();
     QStringList candidates;
@@ -1194,6 +1386,14 @@ void ExerciseHost::loadExercise() {
 
     m_previewSource = QPixmap();
     reloadPreviewForCurrentStep();
+
+    if (m_exerciseId == QStringLiteral("4.2.2")) {
+        ensureWords422Panel();
+        updateWords422Panel(QString());
+        layoutWords422Panel();
+    } else if (m_words422Panel) {
+        m_words422Panel->hide();
+    }
 
     if (m_stepCombo) {
         m_stepCombo->blockSignals(true);
@@ -1398,6 +1598,13 @@ void ExerciseHost::syncPatientDisplay() {
         m_patientDisplay->hideDisplay();
         return;
     }
+    // OnlyPicture dual: Headless m_onlyP скрыт — нельзя требовать isVisible().
+    if (m_onlyP
+        && m_onlyP->displayRole() == OnlyPExercise::DisplayRole::Headless) {
+        m_patientDisplay->attachExercise(m_onlyP);
+        m_patientDisplay->showOnSecondaryScreen();
+        return;
+    }
     if (m_onlyP && m_onlyP->isVisible()) {
         m_patientDisplay->attachExercise(m_onlyP);
         m_patientDisplay->showOnSecondaryScreen();
@@ -1456,6 +1663,20 @@ void ExerciseHost::runExerciseSession() {
                     m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
                 }
                 m_sessionAdditional = result.additional;
+                if (m_exerciseId == QStringLiteral("4.2.2")) {
+                    updateWords422Panel(result.additional);
+                }
+                if (m_exerciseId == QStringLiteral("5.2.1")) {
+                    const QString stepKey = currentStepId().trimmed().isEmpty()
+                        ? QStringLiteral("1")
+                        : currentStepId().trimmed();
+                    QString payload = result.additional.trimmed();
+                    if (!payload.startsWith(stepKey + QLatin1Char(';'))) {
+                        payload = stepKey + QLatin1Char(';') + payload;
+                    }
+                    m_additionalByStep.insert(stepKey, payload);
+                    m_sessionAdditional = payload;
+                }
                 if (m_exerciseId == QStringLiteral("1.26")) {
                     const QStringList parts = result.additional.split(QLatin1Char(';'));
                     const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
@@ -1533,23 +1754,27 @@ void ExerciseHost::runOnlyPExercise() {
             m_previewImage->hide();
         }
         m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Headless);
-        m_onlyP->start(m_exerciseId, settings, stepId);
 
+        // Сначала подключаем зеркала, затем start — чтобы не потерять pictureChanged.
+        if (m_patientDisplay) {
+            m_patientDisplay->attachExercise(m_onlyP);
+        }
         if (m_specialistExercise && m_rightPanel) {
             m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
             m_specialistExercise->setMirrorMode(true);
             m_specialistExercise->prepareMirrorUi(m_exerciseId);
-            m_specialistExercise->syncMirrorSession(m_exerciseId, settings, stepId);
-            if (m_exerciseId != QStringLiteral("3.2.3")) {
-                m_specialistExercise->showPicture(1);
-            }
             m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
             m_specialistExercise->show();
             m_specialistExercise->raise();
         }
 
-        if (m_patientDisplay) {
-            m_patientDisplay->attachExercise(m_onlyP);
+        m_onlyP->start(m_exerciseId, settings, stepId);
+
+        if (m_specialistExercise) {
+            m_specialistExercise->syncMirrorSession(m_exerciseId, settings, stepId);
+            if (m_exerciseId != QStringLiteral("3.2.3")) {
+                m_specialistExercise->showPicture(1);
+            }
         }
         syncPatientDisplay();
         updateChromeLayout();
@@ -1700,13 +1925,27 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
         }
     } else if (keepRunnerAdditional) {
         session.additional = m_sessionAdditional;
-        // 5.2.1: оригинал createP получает param1 + ";" + data1..data10
+        // 5.2.1: оригинал createP получает param1 + ";" + data1..data10; таблица на каждое №.
         if (m_exerciseId == QStringLiteral("5.2.1")) {
             const QString step = session.stepId.trimmed().isEmpty()
                 ? QStringLiteral("1")
                 : session.stepId.trimmed();
             if (!session.additional.startsWith(step + QLatin1Char(';'))) {
                 session.additional = step + QLatin1Char(';') + session.additional;
+            }
+            session.additionalByStep = m_additionalByStep;
+            if (!session.additionalByStep.contains(step) && !session.additional.trimmed().isEmpty()) {
+                session.additionalByStep.insert(step, session.additional);
+            }
+            const QStringList order = numberedStepIds();
+            session.stepIds.clear();
+            for (const QString &sid : order) {
+                if (session.additionalByStep.contains(sid) || m_stepElapsedSeconds.contains(sid)) {
+                    session.stepIds << sid;
+                }
+            }
+            if (session.stepIds.isEmpty()) {
+                session.stepIds << step;
             }
         }
     } else if (m_exerciseId == QStringLiteral("1.26")) {
@@ -1890,8 +2129,39 @@ void ExerciseHost::updateSumButtonVisibility() {
     }
     const bool show = m_protocolSavedThisSession
         && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
-            || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("4.1.8"));
+            || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("3.1.18")
+            || m_exerciseId == QStringLiteral("4.1.4") || m_exerciseId == QStringLiteral("4.1.8"));
     m_sumButton->setVisible(show);
+}
+
+bool ExerciseHost::usesLastProtocolSessionView() const {
+    return m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("3.1.11")
+        || m_exerciseId == QStringLiteral("3.1.12") || m_exerciseId == QStringLiteral("3.1.17")
+        || m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.8");
+}
+
+bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
+    // После Begin повторный form должен начинаться с «Дата/специалист».
+    // Исключения с допиской строк внутри сессии (1.26 task2, 5.2.1, multi or_hlp)
+    // обрабатываются в createExerciseProtocolFromTemplate / formProtocol.
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (!definition) {
+        return false;
+    }
+    // Numbered / multi-step or_hlp: новая сессия после Begin, если шаги уже были в протоколе.
+    if (definition->protocol == ExerciseProtocolKind::NumberedDoneTime
+        || definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp
+        || definition->protocol == ExerciseProtocolKind::OrHlpBallsRow
+        || definition->protocol == ExerciseProtocolKind::TimedBalls
+        || definition->protocol == ExerciseProtocolKind::TimedBallsWithPictureCount) {
+        return true;
+    }
+    return m_exerciseId == QStringLiteral("3.1.11") || m_exerciseId == QStringLiteral("3.1.12")
+        || m_exerciseId == QStringLiteral("3.1.17") || m_exerciseId == QStringLiteral("3.1.18")
+        || m_exerciseId == QStringLiteral("4.1.8") || m_exerciseId == QStringLiteral("4.2.1")
+        || m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
+        || m_exerciseId == QStringLiteral("5.2.1") || m_exerciseId == QStringLiteral("5.4.2");
 }
 
 namespace {
@@ -1921,6 +2191,10 @@ void ExerciseHost::sumProtocolScores() {
     }
     if (m_exerciseId == QStringLiteral("3.1.10")) {
         sumProtocol3110();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.4")) {
+        sumProtocol318();
         return;
     }
     if (m_exerciseId == QStringLiteral("4.1.8")) {
@@ -2120,6 +2394,43 @@ void ExerciseHost::sumProtocol1272() {
     emit protocolSaved();
 }
 
+void ExerciseHost::sumProtocol318() {
+    if ((m_exerciseId != QStringLiteral("3.1.18") && m_exerciseId != QStringLiteral("4.1.4"))
+        || !m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
+        return;
+    }
+    commitTextEditChanges(m_templateBrowser, true);
+    QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
+        return;
+    }
+    storedBody = ExerciseProtocol::applyProtocol318SumFromDocument(
+        storedBody, m_templateBrowser->document());
+
+    QString error;
+    if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
+        CustomMessageBox::showError(this, error);
+        return;
+    }
+    if (m_protocolSaveTimer) {
+        m_protocolSaveTimer->stop();
+    }
+    m_suppressProtocolAutosave = true;
+
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    applyCompactLineHeight(m_templateBrowser->document());
+    if (QTextDocument *doc = m_templateBrowser->document()) {
+        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+    updateContentHeights();
+    updateProtocolEditMode();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
+    emit protocolSaved();
+}
+
 void ExerciseHost::saveProtocolEdits() {
     if (!m_protocolSavedThisSession || m_suppressProtocolAutosave) {
         return;
@@ -2151,7 +2462,10 @@ void ExerciseHost::saveProtocolEdits() {
     } else if (m_exerciseId == QStringLiteral("3.1.10")) {
         body = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
-    } else if (m_exerciseId == QStringLiteral("3.1.18")) {
+    } else if (m_exerciseId == QStringLiteral("3.1.18")
+               || m_exerciseId == QStringLiteral("4.1.4")
+               || m_exerciseId == QStringLiteral("4.2.2")
+               || m_exerciseId == QStringLiteral("5.2.1")) {
         body = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
     } else {
@@ -2166,6 +2480,9 @@ void ExerciseHost::saveProtocolEdits() {
 void ExerciseHost::formProtocol() {
     if (!m_repository) {
         return;
+    }
+    if (m_exerciseId == QStringLiteral("4.2.2")) {
+        syncWords422AdditionalFromPanel();
     }
     if (!m_exerciseDone) {
         CustomMessageBox::showError(
@@ -2299,6 +2616,20 @@ void ExerciseHost::formProtocol() {
                 session);
             saveAsPartly = false;
         }
+    } else if (m_forceNewProtocolSession && saveAsPartly) {
+        // После Begin (3.1.11/12/17/18): новый блок со строки «Дата/специалист».
+        const QString newSession = ExerciseProtocol::createProtocolHtml(
+            m_exerciseId,
+            m_specialistFio,
+            m_elapsedSeconds,
+            false,
+            QString(),
+            m_answers,
+            checkboxValues(),
+            session);
+        protocolBody = ExerciseProtocol::appendFullSessionToStoredBody(existingBody, newSession);
+        saveAsPartly = true;
+        m_forceNewProtocolSession = false;
     } else {
         protocolBody = ExerciseProtocol::createProtocolHtml(
             m_exerciseId,
@@ -2309,6 +2640,7 @@ void ExerciseHost::formProtocol() {
             m_answers,
             checkboxValues(),
             session);
+        m_forceNewProtocolSession = false;
     }
 
     QString error;

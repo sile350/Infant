@@ -31,6 +31,7 @@ public:
     void submitAnswer(bool correct);
     void setMirrorMode(bool enabled);
     void setDisplayRole(DisplayRole role);
+    DisplayRole displayRole() const { return m_displayRole; }
     void prepareMirrorUi(const QString &exerciseId);
     void stopExercise();
     void browseNext();

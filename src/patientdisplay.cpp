@@ -44,6 +44,12 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
 void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
     m_exercise = exercise;
     m_mirrorSource = nullptr;
+    if (m_mirrorTimer) {
+        m_mirrorTimer->stop();
+    }
+    if (m_mirrorLabel) {
+        m_mirrorLabel->hide();
+    }
     if (!m_exercise || !m_mirrorExercise) {
         return;
     }
@@ -106,15 +112,20 @@ void PatientDisplay::showOnSecondaryScreen() {
     if (m_mirrorLabel) {
         m_mirrorLabel->setGeometry(0, 0, geometry.width(), geometry.height());
     }
-    if (m_exercise) {
+    if (m_exercise && m_mirrorExercise) {
         const QString exerciseId = m_exercise->property("exerciseId").toString();
-        if (!exerciseId.isEmpty() && m_mirrorExercise) {
+        if (!exerciseId.isEmpty()) {
             m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
             m_mirrorExercise->prepareMirrorUi(exerciseId);
+            OnlyPictureSettings settings;
             if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
-                m_mirrorExercise->syncMirrorSession(
-                    exerciseId, definition->onlyPicture, QStringLiteral("1"));
-            } else {
+                settings = definition->onlyPicture;
+            }
+            // Текущий шаг с Headless-источника (не всегда «1»).
+            const QString stepId = m_exercise->property("stepId").toString();
+            m_mirrorExercise->syncMirrorSession(
+                exerciseId, settings, stepId.isEmpty() ? QStringLiteral("1") : stepId);
+            if (!settings.dualPicture && exerciseId != QStringLiteral("3.2.3")) {
                 m_mirrorExercise->showPicture(1);
             }
             m_mirrorExercise->show();
@@ -122,7 +133,6 @@ void PatientDisplay::showOnSecondaryScreen() {
     }
     showFullScreen();
     raise();
-    activateWindow();
 }
 
 void PatientDisplay::hideDisplay() {
