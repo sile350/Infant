@@ -6,6 +6,7 @@
 
 #include <QGuiApplication>
 #include <QLabel>
+#include <QPainter>
 #include <QPixmap>
 #include <QScreen>
 #include <QTimer>
@@ -44,7 +45,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     m_mirrorLabel->hide();
 
     m_mirrorTimer = new QTimer(this);
-    m_mirrorTimer->setInterval(100);
+    m_mirrorTimer->setInterval(200);
     connect(m_mirrorTimer, &QTimer::timeout, this, &PatientDisplay::updateMirrorPixmap);
 }
 
@@ -174,36 +175,34 @@ void PatientDisplay::updateMirrorPixmap() {
     if (!m_mirrorSource || !m_mirrorLabel) {
         return;
     }
+    if (!m_mirrorSource->isVisible() || m_mirrorSource->size().isEmpty()) {
+        return;
+    }
 
-    // Скрыть управляющие элементы только на время grab — без мигания у специалиста.
-    QList<QWidget *> hiddenControls;
-    m_mirrorSource->setUpdatesEnabled(false);
-    const QList<QWidget *> children =
+    // Не трогаем UI специалиста (hide/setUpdatesEnabled давали зависания в 2.8 и др.).
+    // Берём полный кадр и закрашиваем области управляющих элементов белым.
+    QPixmap pixmap = m_mirrorSource->grab();
+    if (pixmap.isNull()) {
+        return;
+    }
+
+    QPainter painter(&pixmap);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    const QList<QWidget *> widgets =
         m_mirrorSource->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
-    for (QWidget *widget : children) {
-        if (!widget || widget == m_mirrorSource) {
-            continue;
-        }
-        if (!widget->property("dokitPatientControl").toBool()) {
+    for (QWidget *widget : widgets) {
+        if (!widget || !widget->property("dokitPatientControl").toBool()) {
             continue;
         }
         if (!widget->isVisible()) {
             continue;
         }
-        widget->setVisible(false);
-        hiddenControls.append(widget);
+        const QPoint topLeft = widget->mapTo(m_mirrorSource, QPoint(0, 0));
+        painter.fillRect(QRect(topLeft, widget->size()), Qt::white);
     }
+    painter.end();
 
-    const QPixmap pixmap = m_mirrorSource->grab();
-
-    for (QWidget *widget : hiddenControls) {
-        widget->setVisible(true);
-    }
-    m_mirrorSource->setUpdatesEnabled(true);
-
-    if (!pixmap.isNull()) {
-        m_mirrorLabel->setPixmap(pixmap);
-    }
+    m_mirrorLabel->setPixmap(pixmap);
 }
 
 void PatientDisplay::showOnSecondaryScreen() {
