@@ -218,6 +218,13 @@ protected:
     }
 };
 
+// Кнопки Стоп/Далее/Показать и т.п. — не зеркалить на экран пациента.
+void markPatientControl(QWidget *widget) {
+    if (widget) {
+        widget->setProperty("dokitPatientControl", true);
+    }
+}
+
 class TimedSessionRunner : public ExerciseRunnerWidget {
 public:
     explicit TimedSessionRunner(QWidget *parent = nullptr) : ExerciseRunnerWidget(parent) {
@@ -227,6 +234,7 @@ public:
         connect(m_timer, &QTimer::timeout, this, [this]() { ++m_elapsed; });
 
         m_stop = new ClickableLabel(this);
+        markPatientControl(m_stop);
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {
             m_stop->setPixmap(QPixmap(stopPath));
@@ -512,6 +520,7 @@ public:
         };
 
         m_continueButton = new ClickableLabel(this);
+        markPatientControl(m_continueButton);
         m_continueButton->hide();
         m_continueButton->onClick = [this]() {
             ++m_cycles;
@@ -679,6 +688,8 @@ public:
         }
         m_showA = new ClickableLabel(this);
         m_showB = new ClickableLabel(this);
+        markPatientControl(m_showA);
+        markPatientControl(m_showB);
         const QString hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
         const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
         if (!hidePath.isEmpty()) {
@@ -796,6 +807,8 @@ public:
         m_task = new QLabel(this);
         m_next = new ClickableLabel(this);
         m_toggle = new ClickableLabel(this);
+        markPatientControl(m_next);
+        markPatientControl(m_toggle);
         m_reference->hide();
         m_task->hide();
         m_next->hide();
@@ -1478,6 +1491,7 @@ public:
         m_canvas->hide();
 
         m_stop = new ClickableLabel(this);
+        markPatientControl(m_stop);
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {
             m_stop->setPixmap(QPixmap(stopPath));
@@ -1722,6 +1736,7 @@ public:
         m_canvas = new FlipCardCanvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
+        markPatientControl(m_stop);
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {
             m_stop->setPixmap(QPixmap(stopPath));
@@ -1877,6 +1892,7 @@ private:
     void ensure418Ui() {
         if (!m_panel418) {
             m_panel418 = new QGroupBox(this);
+            markPatientControl(m_panel418);
             m_panel418->setTitle(QString());
             m_panel418->setStyleSheet(QStringLiteral(
                 "QGroupBox { background-color:#f0f0f0; border:1px solid #a0a0a0; }"
@@ -1951,6 +1967,7 @@ private:
 
         if (!m_hideButton) {
             m_hideButton = new ImageButton(this);
+            markPatientControl(m_hideButton);
             connect(m_hideButton, &ImageButton::clicked, this, [this]() { toggle418Words(); });
         }
         m_hideButton->setImagePath(
@@ -2066,6 +2083,7 @@ public:
         m_canvas = new E15Canvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
+        markPatientControl(m_stop);
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {
             m_stop->setPixmap(QPixmap(stopPath));
@@ -2127,6 +2145,7 @@ public:
         m_canvas = new RememberCanvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
+        markPatientControl(m_stop);
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {
             m_stop->setPixmap(QPixmap(stopPath));
@@ -2134,6 +2153,7 @@ public:
         }
         m_stop->onClick = [this]() { finishSession(); };
         m_removek = new ClickableLabel(this);
+        markPatientControl(m_removek);
         m_removek->hide();
         m_removek->onClick = [this]() {
             if (m_canvas) {
@@ -2232,6 +2252,7 @@ public:
         m_canvas = new E126Canvas(this);
         m_canvas->hide();
         m_stop = new ClickableLabel(this);
+        markPatientControl(m_stop);
         m_stop->setStyleSheet(QStringLiteral("background-color:#ffffff; background-image:none;"));
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         if (!stopPath.isEmpty()) {

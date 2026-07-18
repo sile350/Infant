@@ -174,7 +174,33 @@ void PatientDisplay::updateMirrorPixmap() {
     if (!m_mirrorSource || !m_mirrorLabel) {
         return;
     }
+
+    // Скрыть управляющие элементы только на время grab — без мигания у специалиста.
+    QList<QWidget *> hiddenControls;
+    m_mirrorSource->setUpdatesEnabled(false);
+    const QList<QWidget *> children =
+        m_mirrorSource->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
+    for (QWidget *widget : children) {
+        if (!widget || widget == m_mirrorSource) {
+            continue;
+        }
+        if (!widget->property("dokitPatientControl").toBool()) {
+            continue;
+        }
+        if (!widget->isVisible()) {
+            continue;
+        }
+        widget->setVisible(false);
+        hiddenControls.append(widget);
+    }
+
     const QPixmap pixmap = m_mirrorSource->grab();
+
+    for (QWidget *widget : hiddenControls) {
+        widget->setVisible(true);
+    }
+    m_mirrorSource->setUpdatesEnabled(true);
+
     if (!pixmap.isNull()) {
         m_mirrorLabel->setPixmap(pixmap);
     }
