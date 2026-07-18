@@ -679,10 +679,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         if (index < 0) {
             return;
         }
-        // 1.26: перед сменой задания сохраняем ответы текущего, иначе при Стоп останется только №2.
+        // Перед сменой задания сохраняем данные текущего (1.26 / 1.272 / 5.2.1).
         if (m_exerciseRunning && m_sessionRunner
             && (m_sessionRunnerKind == ExerciseRunnerKind::E126
-                || m_sessionRunnerKind == ExerciseRunnerKind::E1272)) {
+                || m_sessionRunnerKind == ExerciseRunnerKind::E1272
+                || m_sessionRunnerKind == ExerciseRunnerKind::E521)) {
             const QString snap = m_sessionRunner->currentAdditionalSnapshot();
             if (!snap.trimmed().isEmpty()) {
                 const QStringList parts = snap.split(QLatin1Char(';'));
@@ -1767,6 +1768,21 @@ void ExerciseHost::runExerciseSession() {
                     }
                     m_additionalByStep.insert(stepKey, payload);
                     m_sessionAdditional = payload;
+                    // Все задания, по которым заполняли таблицу при смене №.
+                    if (m_sessionRunner) {
+                        const QMap<QString, QString> byStep = m_sessionRunner->stepAdditionalMap();
+                        for (auto it = byStep.constBegin(); it != byStep.constEnd(); ++it) {
+                            const QString sid = it.key().trimmed();
+                            if (sid.isEmpty()) {
+                                continue;
+                            }
+                            QString val = it.value();
+                            if (!val.startsWith(sid + QLatin1Char(';'))) {
+                                val = sid + QLatin1Char(';') + val;
+                            }
+                            m_additionalByStep.insert(sid, val);
+                        }
+                    }
                 }
                 if (m_exerciseId == QStringLiteral("1.26")) {
                     const QStringList parts = result.additional.split(QLatin1Char(';'));
@@ -2028,10 +2044,35 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
             if (!session.additionalByStep.contains(step) && !session.additional.trimmed().isEmpty()) {
                 session.additionalByStep.insert(step, session.additional);
             }
+            auto stepPayloadHasData = [](const QString &payload, const QString &sid) {
+                QStringList parts = payload.split(QLatin1Char(';'));
+                if (!parts.isEmpty() && parts.at(0).trimmed() == sid) {
+                    parts.removeFirst();
+                }
+                for (const QString &part : parts) {
+                    if (!part.trimmed().isEmpty()) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            // Гарантируем префикс «N;» у каждой записи.
+            for (auto it = session.additionalByStep.begin(); it != session.additionalByStep.end(); ++it) {
+                const QString sid = it.key();
+                QString val = it.value();
+                if (!val.startsWith(sid + QLatin1Char(';'))
+                    && val.split(QLatin1Char(';')).value(0).trimmed() != sid) {
+                    it.value() = sid + QLatin1Char(';') + val;
+                }
+            }
+            // В протокол — задания с данными в таблице; текущее — всегда (как Form после Стоп).
             const QStringList order = numberedStepIds();
             session.stepIds.clear();
             for (const QString &sid : order) {
-                if (session.additionalByStep.contains(sid) || m_stepElapsedSeconds.contains(sid)) {
+                if (!session.additionalByStep.contains(sid)) {
+                    continue;
+                }
+                if (stepPayloadHasData(session.additionalByStep.value(sid), sid) || sid == step) {
                     session.stepIds << sid;
                 }
             }

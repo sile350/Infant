@@ -4,6 +4,7 @@
 #include "exerciseconfig.h"
 #include "exercisesession.h"
 
+#include <QMap>
 #include <QWidget>
 
 class PatientDisplay;
@@ -19,8 +20,10 @@ public:
         const QString &stepId) = 0;
     virtual void stopSession() = 0;
     virtual void switchStep(const QString &stepId) { Q_UNUSED(stepId); }
-    // Текущие данные сессии без завершения (для 1.26 при смене задания).
+    // Текущие данные сессии без завершения (для 1.26 / 5.2.1 при смене задания).
     virtual QString currentAdditionalSnapshot() const { return {}; }
+    // 5.2.1: снимок таблицы по каждому № задания (после Стоп / смены шагов).
+    virtual QMap<QString, QString> stepAdditionalMap() const { return {}; }
     // Dual-screen: по умолчанию зеркало всего окна; EmotionsRunner — patient-view.
     virtual void bindPatientDisplay(PatientDisplay *display);
 

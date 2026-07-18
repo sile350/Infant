@@ -27,6 +27,7 @@
 #include <QLabel>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -1359,6 +1360,7 @@ public:
                 QStringLiteral("Предлоги"),
                 QStringLiteral("Сложные предложения и конструкции"),
             };
+            m_dataByStep.clear();
             m_table->setColumnCount(1);
             m_table->setRowCount(fragments.size());
             m_table->setHorizontalHeaderLabels({QStringLiteral("Частота употребления")});
@@ -1398,6 +1400,23 @@ public:
         if (next.isEmpty() || next == m_stepId) {
             return;
         }
+        // 5.2.1: запомнить таблицу текущего задания, очистить/восстановить для следующего.
+        if (m_exerciseId == QStringLiteral("5.2.1") && m_table) {
+            m_dataByStep.insert(m_stepId, collectAdditional());
+            m_stepId = next;
+            applyTableData(m_dataByStep.value(m_stepId));
+            if (m_stimulusLabel) {
+                const QString picPath =
+                    ExerciseAssets::exerciseFile(m_exerciseId, m_stepId + QStringLiteral(".png"));
+                if (!picPath.isEmpty()) {
+                    m_stimulusLabel->setPixmap(QPixmap(picPath));
+                } else {
+                    m_stimulusLabel->clear();
+                }
+            }
+            layoutTableUi();
+            return;
+        }
         m_stepId = next;
         if (m_exerciseId == QStringLiteral("5.2.1") && m_stimulusLabel) {
             const QString picPath =
@@ -1409,6 +1428,23 @@ public:
             }
             layoutTableUi();
         }
+    }
+
+    QString currentAdditionalSnapshot() const override {
+        if (m_exerciseId != QStringLiteral("5.2.1")) {
+            return {};
+        }
+        const QString step = m_stepId.trimmed().isEmpty() ? QStringLiteral("1") : m_stepId.trimmed();
+        return step + QLatin1Char(';') + collectAdditional();
+    }
+
+    QMap<QString, QString> stepAdditionalMap() const override {
+        QMap<QString, QString> out = m_dataByStep;
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
+            const QString step = m_stepId.trimmed().isEmpty() ? QStringLiteral("1") : m_stepId.trimmed();
+            out.insert(step, collectAdditional());
+        }
+        return out;
     }
 
     QString collectAdditional() const {
@@ -1426,10 +1462,29 @@ public:
         return parts.join(QLatin1Char(';'));
     }
 
+    void applyTableData(const QString &joined) {
+        if (!m_table) {
+            return;
+        }
+        const QStringList parts = joined.split(QLatin1Char(';'));
+        for (int r = 0; r < m_table->rowCount(); ++r) {
+            QTableWidgetItem *item = m_table->item(r, 0);
+            if (!item) {
+                item = new QTableWidgetItem;
+                m_table->setItem(r, 0, item);
+            }
+            item->setText(r < parts.size() ? parts.at(r) : QString());
+        }
+    }
+
     void finish() override {
         if (m_table) {
             m_table->setCurrentItem(nullptr);
             m_table->clearFocus();
+        }
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
+            const QString step = m_stepId.trimmed().isEmpty() ? QStringLiteral("1") : m_stepId.trimmed();
+            m_dataByStep.insert(step, collectAdditional());
         }
         ExerciseSessionResult result;
         result.elapsedSeconds = m_elapsed;
@@ -1482,6 +1537,7 @@ public:
     QLabel *m_stimulusLabel = nullptr;
     QLabel *m_overtimeLabel = nullptr;
     QMetaObject::Connection m_overtimeConnection;
+    QMap<QString, QString> m_dataByStep;
 };
 
 class PuzzlesRunner : public ExerciseRunnerWidget {
