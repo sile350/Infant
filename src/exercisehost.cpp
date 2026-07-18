@@ -1272,13 +1272,7 @@ void ExerciseHost::updatePreviewLayout() {
     const int maxW = qMax(120, width() - kPreviewAbsLeft - 16);
     const int maxH = qMax(120, height() - kPreviewAbsTop - 16);
     QPixmap display = m_previewSource;
-    if (m_exerciseId == QStringLiteral("1.1")) {
-        display = m_previewSource.scaled(
-            qMax(1, m_previewSource.width() / 2),
-            qMax(1, m_previewSource.height() / 2),
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation);
-    } else if (display.width() > maxW || display.height() > maxH) {
+    if (display.width() > maxW || display.height() > maxH) {
         display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
     m_previewImage->setPixmap(display);
