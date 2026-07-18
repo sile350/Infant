@@ -715,6 +715,11 @@ ParsedProtocolFields parseProtocolFieldsFromDocument(QTextDocument *document, in
             if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive)) {
                 fields.hasNote = true;
                 fields.noteText = secondCell;
+                // Qt мог вложить таблицу стимулов 4.1.8 в ячейку «Примечание».
+                if (fields.noteText.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)
+                    || fields.noteText.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+                    fields.noteText.clear();
+                }
                 continue;
             }
 
@@ -1102,6 +1107,7 @@ QString extractTableInnerRows(const QString &tableHtml);
 QStringList extractProtocol126TaskTables(QString *htmlInOut);
 
 QString replaceDivInnerById(QString html, const QString &divId, const QString &innerHtml);
+QString extractDivInnerById(const QString &html, const QString &divId);
 
 QString ExerciseProtocol::patientProtocolBody(const QString &protocolBody) {
     if (protocolBody.trimmed().isEmpty()) {
@@ -1213,6 +1219,136 @@ QString ExerciseProtocol::canonicalizeProtocol126StoredBody(const QString &proto
     flat.reserve(sessions.size());
     for (const QString &session : sessions) {
         const QString cleaned = canonicalizeProtocol126Session(session);
+        if (!cleaned.isEmpty()) {
+            flat.append(cleaned);
+        }
+    }
+    return joinProtocol126Sessions(flat);
+}
+
+namespace {
+
+QString plainNoteWithoutNestedTables(const QString &html) {
+    // Если Qt вложил таблицу стимулов в «Примечание» — не сохраняем её как текст заметки.
+    QString note = html;
+    const int tablePos = note.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+    if (tablePos >= 0) {
+        note = note.left(tablePos);
+    }
+    note.remove(QRegularExpression(QStringLiteral("<[^>]+>")));
+    note.replace(QStringLiteral("&nbsp;"), QStringLiteral(" "));
+    note.replace(QChar(0x00A0), QLatin1Char(' '));
+    note = note.trimmed();
+    if (note.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)
+        || note.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+        return {};
+    }
+    return note;
+}
+
+QString canonicalizeProtocol418Session(QString session) {
+    session = stripLeadingSummaryTableWrapper(session.trimmed());
+    if (session.isEmpty()) {
+        return session;
+    }
+    // Уже плоская разметка с маркером и стимульной таблицей снаружи.
+    if (session.contains(QStringLiteral("<!--s-->"))
+        && session.contains(QStringLiteral("id='sel1'"), Qt::CaseInsensitive)
+        && !session.contains(QRegularExpression(
+               QStringLiteral("Примечание[\\s\\S]{0,400}<table"),
+               QRegularExpression::CaseInsensitiveOption))) {
+        // Убедимся, что стимульная таблица закрыта.
+        if (!session.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            session += QStringLiteral("</table>");
+        }
+        return session;
+    }
+
+    static const char *kWords[] = {"Школа", "Обед", "Утро", "Красота", "Прогулка"};
+    static const char *kPrefixes[] = {"sel", "ex", "re", "hlp", "rea", "b"};
+
+    const QString idspc = extractDivInnerById(session, QStringLiteral("idspc"));
+    const QString idvivod = extractDivInnerById(session, QStringLiteral("idvivod"));
+    const QString cidd = extractDivInnerById(session, QStringLiteral("cidd"));
+    const QString idsum = extractDivInnerById(session, QStringLiteral("idsum"));
+
+    QString noteText;
+    {
+        const auto noteCell = extractSecondCellPlain(session, QStringLiteral("Примечание"));
+        if (noteCell.first) {
+            noteText = plainNoteWithoutNestedTables(noteCell.second);
+        }
+    }
+
+    QString body;
+    body += QStringLiteral(
+        "<tr><td width='200' valign='top'><p>Дата / специалист</p></td>"
+        "<td width='471' valign='top'><div contenteditable='true' id='idspc'>%1</div></td></tr>")
+                .arg(idspc);
+    body += QStringLiteral(
+        "<tr><td width='200' valign='top'><p>Результат: баллы (макс.) /<br /> вывод об уровне развития </p></td>"
+        "<td width='471' valign='top'><div contenteditable='true' id='idvivod'>%1</div></td></tr>")
+                .arg(idvivod);
+    body += QStringLiteral(
+        "<tr><td width='200' valign='top'><p>Примечание</p></td>"
+        "<td width='471' valign='top'><div contenteditable='true'>%1</div></td></tr>")
+                .arg(noteText.toHtmlEscaped());
+    body += QStringLiteral("</table><!--s-->");
+    body += QStringLiteral(
+        "<p align='center'><b>Процесс выполнения диагностической методики</b></p>");
+    body += QStringLiteral(
+        "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr><td width='200' valign='top'><p>Характер деятельности ребенка</p></td>"
+        "<td width='471' valign='top'><div contenteditable='true' id='cidd'>%1</div></td></tr>"
+        "</table>")
+                .arg(cidd);
+    body += QStringLiteral(
+        "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr>"
+        "<td width='85' valign='top'><p align='center'>Стимульные слова</p></td>"
+        "<td width='70' valign='top'><p align='center'>Выбранная картинка</p></td>"
+        "<td width='110' valign='top'><p align='center'>Объяснение выбора</p></td>"
+        "<td width='100' valign='top'><p align='center'>Воспроизв. слово до предъявления помощи</p></td>"
+        "<td width='140' valign='top'><p align='center'>Виды помощи</p></td>"
+        "<td width='110' valign='top'><p align='center'>Воспроизв. слово после предъявления помощи</p></td>"
+        "<td width='56' valign='top'><p align='center'>Баллы</p></td>"
+        "</tr>");
+    for (int r = 0; r < 5; ++r) {
+        body += QStringLiteral("<tr><td width='85' valign='top'><div id='word%1'>%2</div></td>")
+                    .arg(r + 1)
+                    .arg(QString::fromUtf8(kWords[r]));
+        for (int c = 0; c < 6; ++c) {
+            const QString id = QString::fromUtf8(kPrefixes[c]) + QString::number(r + 1);
+            const QString val = extractDivInnerById(session, id);
+            const QString align = (c == 5) ? QStringLiteral(" align='center'") : QString();
+            body += QStringLiteral(
+                        "<td%1 valign='top'><div id='%2' contenteditable='true'>%3</div></td>")
+                        .arg(align, id, val);
+        }
+        body += QStringLiteral("</tr>");
+    }
+    body += QStringLiteral(
+        "<tr><td colspan='6' valign='top'><p>Итоговая оценка</p></td>"
+        "<td align='center' width='56' valign='top'><div id='idsum' contenteditable='true'>%1</div></td></tr>"
+        "</table>")
+                .arg(idsum);
+    return body;
+}
+
+} // namespace
+
+QString ExerciseProtocol::canonicalizeProtocol418StoredBody(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
+    if (sessions.isEmpty()) {
+        return canonicalizeProtocol418Session(protocolBody);
+    }
+    QStringList flat;
+    flat.reserve(sessions.size());
+    for (const QString &session : sessions) {
+        const QString cleaned = canonicalizeProtocol418Session(session);
         if (!cleaned.isEmpty()) {
             flat.append(cleaned);
         }
@@ -3086,6 +3222,10 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
     const QString joined = joinProtocol126Sessions(sessions);
     if (looksLikeProtocol126Body(joined) || looksLikeProtocol126Body(session)) {
         return ExerciseProtocol::canonicalizeProtocol126StoredBody(joined);
+    }
+    if (joined.contains(QStringLiteral("sel1"), Qt::CaseInsensitive)
+        && joined.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)) {
+        return ExerciseProtocol::canonicalizeProtocol418StoredBody(joined);
     }
     return joined;
 }

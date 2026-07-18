@@ -706,7 +706,9 @@ bool Repository::saveExerciseProtocol(
             ? ExerciseProtocol::canonicalizeProtocol12StoredBody(protocolHtml)
             : (exerciseId == QStringLiteral("1.26")
                    ? ExerciseProtocol::canonicalizeProtocol126StoredBody(protocolHtml)
-                   : protocolHtml));
+                   : (exerciseId == QStringLiteral("4.1.8")
+                          ? ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolHtml)
+                          : protocolHtml)));
     if (partly) {
         const QString lastId = m_local.queryScalar(
             "SELECT id FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
@@ -798,6 +800,12 @@ QString Repository::loadProtocolViewHtml(
     if (exerciseId == QStringLiteral("1.26")) {
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
+    } else if (exerciseId == QStringLiteral("4.1.8")) {
+        body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
+        protocolBlock = exerciseHeaderFragment(exerciseId) + body;
+        if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            protocolBlock += QStringLiteral("</table>");
+        }
     } else {
         protocolBlock = exerciseHeaderFragment(exerciseId) + body;
         if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
@@ -872,6 +880,8 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("1.26")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol126StoredBody(normalizedBody);
+    } else if (uprid == QStringLiteral("4.1.8")) {
+        normalizedBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(normalizedBody);
     }
     if (!m_local.exec(
             "UPDATE protocols SET pr='"

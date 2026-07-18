@@ -1801,6 +1801,7 @@ public:
             m_canvas->setCanvasBackground(Qt::white);
         } else if (exerciseId == QStringLiteral("4.1.8")) {
             ensure418Ui();
+            clear418Table();
             m_canvas->setCanvasBackground(QColor(240, 240, 240));
 
             int count = 1;
@@ -1974,6 +1975,28 @@ private:
             ExerciseAssets::exerciseFile(QStringLiteral("4.1.8"), QStringLiteral("hide.png")));
         m_wordsHidden = false;
         apply418WordHeaderVisibility();
+    }
+
+    void clear418Table() {
+        if (!m_table418) {
+            return;
+        }
+        for (int r = 0; r < m_table418->rowCount(); ++r) {
+            for (int c = 0; c < m_table418->columnCount(); ++c) {
+                QTableWidgetItem *item = m_table418->item(r, c);
+                if (!item) {
+                    item = new QTableWidgetItem;
+                    m_table418->setItem(r, c, item);
+                }
+                item->setText(QString());
+            }
+        }
+        if (m_wordCombo) {
+            m_wordCombo->setCurrentIndex(-1);
+        }
+        if (m_helpCombo) {
+            m_helpCombo->setCurrentIndex(-1);
+        }
     }
 
     void layout418Ui() {

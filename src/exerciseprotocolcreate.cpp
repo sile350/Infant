@@ -540,51 +540,54 @@ QString buildProtocol126(
     return add;
 }
 
-QString replaceDiv418(QString html, const QString &divId, const QString &innerHtml) {
-    const QRegularExpression re(
-        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
-            .arg(QRegularExpression::escape(divId)),
-        QRegularExpression::CaseInsensitiveOption);
-    const QRegularExpressionMatch match = re.match(html);
-    if (!match.hasMatch()) {
-        return html;
-    }
-    // Только первое вхождение (у template два idvivod).
-    html.replace(
-        match.capturedStart(0),
-        match.capturedLength(0),
-        match.captured(1) + innerHtml + match.captured(3));
-    return html;
-}
-
-// Порт exbegin.cs 4.1.8: заполнение template.html полями sel/ex/re/hlp/rea/b + cidd + idspc.
+// Порт exbegin.cs 4.1.8: заполнение полей sel/ex/re/hlp/rea/b + cidd + idspc.
+// Разметка плоская: summary </table><!--s--> + характер + таблица слов
+// (иначе Qt вкладывает таблицу стимулов в ячейку «Примечание»).
 QString buildProtocol418(
     const QString &userFio,
     bool partly,
     const QString &existingProtocolHtml,
     const ExerciseProtocol::CheckboxValues &checkboxes,
     const ProtocolSessionInput &session) {
-    const QString templatePath =
-        ExerciseAssets::exerciseFile(QStringLiteral("4.1.8"), QStringLiteral("template.html"));
-    if (templatePath.isEmpty()) {
-        return {};
-    }
-    QFile file(templatePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return {};
-    }
-    QString html = QString::fromUtf8(file.readAll());
-    const QString startMarker = QStringLiteral("<!--body-->");
-    const QString endMarker = QStringLiteral("<!--ebody-->");
-    const int start = html.indexOf(startMarker);
-    const int end = html.indexOf(endMarker);
-    if (start < 0 || end <= start) {
-        return {};
-    }
-    QString body = html.mid(start + startMarker.size(), end - (start + startMarker.size()));
+    static const char *kWords[] = {"Школа", "Обед", "Утро", "Красота", "Прогулка"};
+    static const char *kPrefixes[] = {"sel", "ex", "re", "hlp", "rea", "b"};
 
     const QStringList rows = session.additional.split(QLatin1Char('|'));
-    static const char *kPrefixes[] = {"sel", "ex", "re", "hlp", "rea", "b"};
+    const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd/MM/yyyy hh:mm"));
+
+    QString body;
+    body += QStringLiteral(
+        "<tr><td width='200' valign='top'><p>Дата / специалист</p></td>"
+        "<td width='471' valign='top'><div contenteditable='true' id='idspc'>%1   %2</div></td></tr>")
+                .arg(now, userFio.toHtmlEscaped());
+    body += QStringLiteral(
+        "<tr><td width='200' valign='top'><p>Результат: баллы (макс.) /<br /> вывод об уровне развития </p></td>"
+        "<td width='471' valign='top'><div contenteditable='true' id='idvivod'></div></td></tr>");
+    body += QStringLiteral(
+        "<tr><td width='200' valign='top'><p>Примечание</p></td>"
+        "<td width='471' valign='top'><div contenteditable='true'></div></td></tr>");
+    body += QStringLiteral("</table><!--s-->");
+    body += QStringLiteral(
+        "<p align='center'><b>Процесс выполнения диагностической методики</b></p>");
+    body += QStringLiteral(
+        "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr><td width='200' valign='top'><p>Характер деятельности ребенка</p></td>"
+        "<td width='471' valign='top'><div contenteditable='true' id='cidd'>%1</div></td></tr>"
+        "</table>")
+                .arg(formatProtocolCellText(checkboxes.activity));
+
+    body += QStringLiteral(
+        "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr>"
+        "<td width='85' valign='top'><p align='center'>Стимульные слова</p></td>"
+        "<td width='70' valign='top'><p align='center'>Выбранная картинка</p></td>"
+        "<td width='110' valign='top'><p align='center'>Объяснение выбора</p></td>"
+        "<td width='100' valign='top'><p align='center'>Воспроизв. слово до предъявления помощи</p></td>"
+        "<td width='140' valign='top'><p align='center'>Виды помощи</p></td>"
+        "<td width='110' valign='top'><p align='center'>Воспроизв. слово после предъявления помощи</p></td>"
+        "<td width='56' valign='top'><p align='center'>Баллы</p></td>"
+        "</tr>");
+
     for (int r = 0; r < 5; ++r) {
         QStringList cells;
         if (r < rows.size()) {
@@ -593,18 +596,22 @@ QString buildProtocol418(
         while (cells.size() < 6) {
             cells.append(QString());
         }
+        body += QStringLiteral("<tr><td width='85' valign='top'><div id='word%1'>%2</div></td>")
+                    .arg(r + 1)
+                    .arg(QString::fromUtf8(kWords[r]));
         for (int c = 0; c < 6; ++c) {
             const QString id = QString::fromUtf8(kPrefixes[c]) + QString::number(r + 1);
-            body = replaceDiv418(body, id, cells.at(c).toHtmlEscaped());
+            const QString align = (c == 5) ? QStringLiteral(" align='center'") : QString();
+            body += QStringLiteral(
+                        "<td%1 valign='top'><div id='%2' contenteditable='true'>%3</div></td>")
+                        .arg(align, id, cells.at(c).toHtmlEscaped());
         }
+        body += QStringLiteral("</tr>");
     }
-
-    body = replaceDiv418(body, QStringLiteral("cidd"), formatProtocolCellText(checkboxes.activity));
-    const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd/MM/yyyy hh:mm"));
-    body = replaceDiv418(
-        body,
-        QStringLiteral("idspc"),
-        QStringLiteral("%1   %2").arg(now, userFio.toHtmlEscaped()));
+    body += QStringLiteral(
+        "<tr><td colspan='6' valign='top'><p>Итоговая оценка</p></td>"
+        "<td align='center' width='56' valign='top'><div id='idsum' contenteditable='true'></div></td></tr>"
+        "</table>");
 
     if (partly && !existingProtocolHtml.trimmed().isEmpty()) {
         return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, body);

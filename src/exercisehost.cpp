@@ -2554,6 +2554,42 @@ void ExerciseHost::saveProtocolEdits() {
     } else if (m_exerciseId == QStringLiteral("3.1.10")) {
         body = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
+    } else if (m_exerciseId == QStringLiteral("4.1.8")) {
+        body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+            storedBody, m_templateBrowser->document());
+        // Подтянуть ячейки стимульной таблицы по id (если Qt их сохранил).
+        if (m_templateBrowser->document()) {
+            const QString editorHtml = m_templateBrowser->document()->toHtml();
+            static const char *kIds[] = {
+                "b1", "b2", "b3", "b4", "b5", "sel1", "sel2", "sel3", "sel4", "sel5",
+                "ex1", "ex2", "ex3", "ex4", "ex5", "re1", "re2", "re3", "re4", "re5",
+                "hlp1", "hlp2", "hlp3", "hlp4", "hlp5", "rea1", "rea2", "rea3", "rea4", "rea5",
+                "cidd", "idspc", "idsum", "idvivod"};
+            for (const char *idRaw : kIds) {
+                const QString id = QString::fromUtf8(idRaw);
+                const QRegularExpression re(
+                    QStringLiteral("<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>([\\s\\S]*?)</div>")
+                        .arg(QRegularExpression::escape(id)),
+                    QRegularExpression::CaseInsensitiveOption);
+                const QRegularExpressionMatch match = re.match(editorHtml);
+                if (!match.hasMatch()) {
+                    continue;
+                }
+                const QRegularExpression targetRe(
+                    QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
+                        .arg(QRegularExpression::escape(id)),
+                    QRegularExpression::CaseInsensitiveOption);
+                const QRegularExpressionMatch target = targetRe.match(body);
+                if (!target.hasMatch()) {
+                    continue;
+                }
+                body.replace(
+                    target.capturedStart(0),
+                    target.capturedLength(0),
+                    target.captured(1) + match.captured(1) + target.captured(3));
+            }
+        }
+        body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
     } else if (m_exerciseId == QStringLiteral("3.1.18")
                || m_exerciseId == QStringLiteral("4.1.4")
                || m_exerciseId == QStringLiteral("4.2.2")

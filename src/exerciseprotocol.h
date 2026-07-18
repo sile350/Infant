@@ -60,6 +60,8 @@ public:
     static QString canonicalizeProtocol12StoredBody(const QString &protocolBody);
     // 1.26: плоская пересборка сессий (summary </table><!--s--><br> + таблицы заданий).
     static QString canonicalizeProtocol126StoredBody(const QString &protocolBody);
+    // 4.1.8: summary </table><!--s--> + характер + таблица стимульных слов (без вложения в Примечание).
+    static QString canonicalizeProtocol418StoredBody(const QString &protocolBody);
     static QString buildProtocol126ViewRecord(
         const QString &headerFragment,
         const QString &storedBody);
