@@ -2691,10 +2691,18 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
         return addition;
     }
 
-    // 1.26: задание 2 приходит уже как полный <table>...</table>.
-    // НЕ вставлять перед последним </table> — это вкладывало продолжение в ячейку «Виды помощи».
-    const bool isCompleteTable = addition.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)
-        && addition.contains(QStringLiteral("</table>"), Qt::CaseInsensitive);
+    // 1.26: задание 2 приходит как <br><table>...</table> (или <table>...</table>).
+    // НЕ вставлять перед последним </table> — QTextDocument вложит продолжение в ячейку.
+    QString trimmedAddition = addition;
+    while (trimmedAddition.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
+        const int gt = trimmedAddition.indexOf(QLatin1Char('>'));
+        if (gt < 0) {
+            break;
+        }
+        trimmedAddition = trimmedAddition.mid(gt + 1).trimmed();
+    }
+    const bool isCompleteTable = trimmedAddition.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)
+        && trimmedAddition.contains(QStringLiteral("</table>"), Qt::CaseInsensitive);
     if (isCompleteTable || looksLikeProtocol126Body(base) || looksLikeProtocol126Body(addition)) {
         base = closeDanglingTables(base);
         // Дописываем после последней закрытой таблицы секции процесса.
@@ -2721,11 +2729,15 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
             }
         }
         QString wrapped = addition;
-        if (!isCompleteTable && addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-            wrapped = QStringLiteral(
-                          "<table border='1' style='table-layout:fixed' cellspacing='0' "
-                          "width='674' cellpadding='0'>")
-                + addition + QStringLiteral("</table>");
+        if (!addition.contains(QStringLiteral("<table"), Qt::CaseInsensitive)
+            && trimmedAddition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
+            wrapped = QStringLiteral("<br>")
+                + QStringLiteral(
+                      "<table border='1' style='table-layout:fixed' cellspacing='0' "
+                      "width='674' cellpadding='0'>")
+                + trimmedAddition + QStringLiteral("</table>");
+        } else if (isCompleteTable && !addition.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
+            wrapped = QStringLiteral("<br>") + trimmedAddition;
         }
         return base.left(appendAt) + wrapped + base.mid(appendAt);
     }
