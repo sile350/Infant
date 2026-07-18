@@ -16,9 +16,12 @@ public:
     void attachMirrorWidget(QWidget *source);
     void showOnSecondaryScreen();
     void hideDisplay();
+    void switchStep(const QString &stepId);
 
 private:
     void updateMirrorPixmap();
+    void onSourcePictureChanged(int index);
+    void onSourceBrowseStateChanged(int index);
 
     OnlyPExercise *m_exercise = nullptr;
     OnlyPExercise *m_mirrorExercise = nullptr;

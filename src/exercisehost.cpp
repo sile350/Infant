@@ -701,6 +701,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             if (m_specialistExercise) {
                 m_specialistExercise->switchStep(m_sessionStepId);
             }
+            if (m_patientDisplay) {
+                m_patientDisplay->switchStep(m_sessionStepId);
+            }
         }
         if (m_exerciseRunning && m_sessionRunner
             && (m_sessionRunnerKind == ExerciseRunnerKind::E126
@@ -708,6 +711,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 || m_sessionRunnerKind == ExerciseRunnerKind::E521)
             && !m_sessionStepId.isEmpty()) {
             m_sessionRunner->switchStep(m_sessionStepId);
+            // Dual: session-runner зеркалится grab'ом — обновить кадр сразу после смены шага.
+            if (m_patientDisplay && m_dualScreen) {
+                syncPatientDisplay();
+            }
         }
         layoutStepCombo();
         QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
@@ -744,13 +751,29 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
     m_specialistExercise->setMirrorMode(true);
     m_specialistExercise->hide();
-    connect(m_onlyP, &OnlyPExercise::pictureChanged, m_specialistExercise, &OnlyPExercise::showPicture, Qt::UniqueConnection);
-    connect(
-        m_onlyP,
-        &OnlyPExercise::browseStateChanged,
-        m_specialistExercise,
-        &OnlyPExercise::applyBrowseIndex,
-        Qt::UniqueConnection);
+    connect(m_onlyP, &OnlyPExercise::pictureChanged, this, [this](int index) {
+        if (!m_specialistExercise || !m_onlyP) {
+            return;
+        }
+        const QString stepId = m_onlyP->property("stepId").toString();
+        const QString mirrorStep = m_specialistExercise->property("stepId").toString();
+        if (!stepId.isEmpty() && stepId != mirrorStep) {
+            m_specialistExercise->switchStep(stepId);
+            return;
+        }
+        m_specialistExercise->showPicture(index);
+    });
+    connect(m_onlyP, &OnlyPExercise::browseStateChanged, this, [this](int index) {
+        if (!m_specialistExercise || !m_onlyP) {
+            return;
+        }
+        const QString stepId = m_onlyP->property("stepId").toString();
+        const QString mirrorStep = m_specialistExercise->property("stepId").toString();
+        if (!stepId.isEmpty() && stepId != mirrorStep) {
+            m_specialistExercise->switchStep(stepId);
+        }
+        m_specialistExercise->applyBrowseIndex(index);
+    });
     connect(
         m_specialistExercise,
         &OnlyPExercise::mirrorBrowseNextRequested,

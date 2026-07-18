@@ -29,6 +29,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     setStyleSheet(QStringLiteral("background-color: #ffffff;"));
     m_mirrorExercise = new OnlyPExercise(this);
     m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
+    m_mirrorExercise->setMirrorMode(true);
     m_mirrorExercise->setGeometry(0, 0, 1920, 1080);
 
     m_mirrorLabel = new QLabel(this);
@@ -57,16 +58,50 @@ void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
     connect(
         m_exercise,
         &OnlyPExercise::pictureChanged,
-        m_mirrorExercise,
-        &OnlyPExercise::showPicture,
+        this,
+        &PatientDisplay::onSourcePictureChanged,
         Qt::UniqueConnection);
     connect(
         m_exercise,
         &OnlyPExercise::browseStateChanged,
-        m_mirrorExercise,
-        &OnlyPExercise::applyBrowseIndex,
+        this,
+        &PatientDisplay::onSourceBrowseStateChanged,
         Qt::UniqueConnection);
     connect(m_exercise, &OnlyPExercise::finished, this, &PatientDisplay::hideDisplay, Qt::UniqueConnection);
+}
+
+void PatientDisplay::onSourcePictureChanged(int index) {
+    if (!m_mirrorExercise || !m_exercise) {
+        return;
+    }
+    // pictureChanged(1) при смене задания идёт с новым stepId у источника —
+    // зеркало должно сначала переключить шаг, иначе снова загрузится старая картинка.
+    const QString stepId = m_exercise->property("stepId").toString();
+    const QString mirrorStep = m_mirrorExercise->property("stepId").toString();
+    if (!stepId.isEmpty() && stepId != mirrorStep) {
+        m_mirrorExercise->switchStep(stepId);
+        return;
+    }
+    m_mirrorExercise->showPicture(index);
+}
+
+void PatientDisplay::onSourceBrowseStateChanged(int index) {
+    if (!m_mirrorExercise || !m_exercise) {
+        return;
+    }
+    const QString stepId = m_exercise->property("stepId").toString();
+    const QString mirrorStep = m_mirrorExercise->property("stepId").toString();
+    if (!stepId.isEmpty() && stepId != mirrorStep) {
+        m_mirrorExercise->switchStep(stepId);
+    }
+    m_mirrorExercise->applyBrowseIndex(index);
+}
+
+void PatientDisplay::switchStep(const QString &stepId) {
+    if (!m_mirrorExercise || stepId.trimmed().isEmpty()) {
+        return;
+    }
+    m_mirrorExercise->switchStep(stepId);
 }
 
 void PatientDisplay::attachMirrorWidget(QWidget *source) {
@@ -116,6 +151,7 @@ void PatientDisplay::showOnSecondaryScreen() {
         const QString exerciseId = m_exercise->property("exerciseId").toString();
         if (!exerciseId.isEmpty()) {
             m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
+            m_mirrorExercise->setMirrorMode(true);
             m_mirrorExercise->prepareMirrorUi(exerciseId);
             OnlyPictureSettings settings;
             if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
