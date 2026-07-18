@@ -783,13 +783,12 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // 1.26: оставляем на вкладке последний протокол; при полном цикле — старт с №1.
-        // 1.272: повторный старт всегда с задания 1.
-        // 3.1.11/12/17/18: последний протокол; следующий form — с новой «Дата/специалист».
+        // 1.26: при полном цикле — старт с №1; если в последней сессии только задание 1 — продолжить с №2.
+        // 1.272 / multi-step: повторный старт с задания 1; следующий form — с новой «Дата/специалист».
+        // Во всех случаях отображаемый протокол сбрасывается в пустой template.
         if (m_exerciseId == QStringLiteral("1.26")) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
-            m_protocolSavedThisSession = false;
 
             bool continueTask2 = false;
             if (m_repository && m_partly) {
@@ -818,11 +817,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 m_sessionStepId = m_stepCombo->currentText().trimmed();
                 reloadPreviewForCurrentStep();
             }
-            showLastProtocolInTemplate();
         } else if (m_exerciseId == QStringLiteral("1.272") || forceNewProtocolSessionOnBegin()) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
-            m_protocolSavedThisSession = false;
             m_forceNewProtocolSession = forceNewProtocolSessionOnBegin();
             if (m_stepCombo && m_stepCombo->count() > 0) {
                 m_stepCombo->blockSignals(true);
@@ -831,10 +828,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 m_sessionStepId = m_stepCombo->currentText().trimmed();
                 reloadPreviewForCurrentStep();
             }
-            showLastProtocolInTemplate();
-        } else {
-            resetProtocolToInitialTemplate();
         }
+        resetProtocolToInitialTemplate();
         runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
@@ -2766,6 +2761,13 @@ void ExerciseHost::formProtocol() {
     for (const ExerciseCheckRow &row : m_helpChecks) {
         if (row.box) {
             row.box->setChecked(false);
+        }
+    }
+    for (const ExerciseCheckRow &row : m_doneChecks) {
+        if (row.box) {
+            row.box->blockSignals(true);
+            row.box->setChecked(false);
+            row.box->blockSignals(false);
         }
     }
 
