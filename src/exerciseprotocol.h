@@ -58,6 +58,11 @@ public:
         const QString &headerFragment,
         const QString &storedBody);
     static QString canonicalizeProtocol12StoredBody(const QString &protocolBody);
+    // 1.26: плоская пересборка сессий (summary </table><!--s--><br> + таблицы заданий).
+    static QString canonicalizeProtocol126StoredBody(const QString &protocolBody);
+    static QString buildProtocol126ViewRecord(
+        const QString &headerFragment,
+        const QString &storedBody);
     static QString restrictExercisePageEditing(const QString &protocolHtml);
     static QString stripMethodologyFillForDocExport(const QString &protocolHtml);
     static QString stripProtocolRecordHeader(const QString &recordHtml, const QString &headerFragment);

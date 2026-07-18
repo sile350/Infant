@@ -1094,6 +1094,11 @@ QString ensureProtocol12SummaryTableOpens(QString body) {
 
 } // namespace
 
+QString cleanProtocol126SummaryRows(QString summary);
+QString canonicalizeProtocol126Session(QString session);
+QStringList extractProtocol126SessionsByDate(const QString &body);
+QString joinProtocol126Sessions(const QStringList &sessions);
+
 QString replaceDivInnerById(QString html, const QString &divId, const QString &innerHtml);
 
 QString ExerciseProtocol::patientProtocolBody(const QString &protocolBody) {
@@ -1192,6 +1197,76 @@ QString ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
 
 QString ExerciseProtocol::canonicalizeProtocol12StoredBody(const QString &protocolBody) {
     return formatProtocol12BodyForHeaderView(protocolBody);
+}
+
+QString ExerciseProtocol::canonicalizeProtocol126StoredBody(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
+    if (sessions.isEmpty()) {
+        return canonicalizeProtocol126Session(protocolBody);
+    }
+    QStringList flat;
+    flat.reserve(sessions.size());
+    for (const QString &session : sessions) {
+        const QString cleaned = canonicalizeProtocol126Session(session);
+        if (!cleaned.isEmpty()) {
+            flat.append(cleaned);
+        }
+    }
+    return joinProtocol126Sessions(flat);
+}
+
+QString ExerciseProtocol::buildProtocol126ViewRecord(
+    const QString &headerFragment,
+    const QString &storedBody) {
+    if (storedBody.trimmed().isEmpty()) {
+        return headerFragment;
+    }
+
+    const QString canonical = canonicalizeProtocol126StoredBody(storedBody);
+    QStringList sessions = extractProtocol126SessionsByDate(canonical);
+    if (sessions.isEmpty()) {
+        sessions = QStringList{canonicalizeProtocol126Session(canonical)};
+    }
+
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = sessions.at(i);
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryRows = marker >= 0 ? session.left(marker) : session;
+        QString resultsBlock =
+            marker >= 0 ? session.mid(marker + QStringLiteral("<!--s-->").size()) : QString();
+
+        summaryRows = cleanProtocol126SummaryRows(summaryRows);
+        resultsBlock = resultsBlock.trimmed();
+        while (resultsBlock.startsWith(QStringLiteral("<br"), Qt::CaseInsensitive)) {
+            const int gt = resultsBlock.indexOf(QLatin1Char('>'));
+            if (gt < 0) {
+                break;
+            }
+            resultsBlock = resultsBlock.mid(gt + 1).trimmed();
+        }
+
+        if (i == 0) {
+            if (!headerFragment.trimmed().isEmpty()) {
+                result += headerFragment;
+            } else {
+                result += protocolSummaryTableOpenHtml();
+            }
+        } else {
+            result += protocolSummaryTableOpenHtml();
+        }
+        if (!summaryRows.isEmpty()) {
+            result += summaryRows;
+        }
+        result += QStringLiteral("</table>");
+        if (!resultsBlock.isEmpty()) {
+            result += QStringLiteral("<br>") + resultsBlock;
+        }
+    }
+    return result;
 }
 
 QString ExerciseProtocol::stripProtocolRecordHeader(
@@ -1575,15 +1650,14 @@ QString ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
 }
 
 bool looksLikeProtocol126Body(const QString &body) {
-    // Таблицы заданий 1/2 с div id — ensureClosed/joinClosed их срезает.
-    return body.contains(QStringLiteral("id='idvivod'"), Qt::CaseInsensitive)
-        || body.contains(QStringLiteral("id=\"idvivod\""), Qt::CaseInsensitive)
-        || body.contains(QStringLiteral("id='col11'"), Qt::CaseInsensitive)
+    // Строго 1.26 (эмоции): не путать с другими методиками, где тоже есть idvivod.
+    return body.contains(QStringLiteral("id='col11'"), Qt::CaseInsensitive)
         || body.contains(QStringLiteral("id=\"col11\""), Qt::CaseInsensitive)
         || body.contains(QStringLiteral("id='sum1'"), Qt::CaseInsensitive)
         || body.contains(QStringLiteral("id=\"sum1\""), Qt::CaseInsensitive)
-        || body.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
-        || body.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
+        || body.contains(QStringLiteral("id='col21'"), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("id=\"col21\""), Qt::CaseInsensitive)
+        || body.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive);
 }
 
 // Только по «Дата/специалист», без обрезки вложенных <table> (баллы 1.26).
@@ -1653,6 +1727,126 @@ QString joinProtocol126Sessions(const QStringList &sessions) {
             }
         }
         result += session;
+    }
+    return result;
+}
+
+int findMatchingTableEnd(const QString &html, int tableStart) {
+    if (tableStart < 0 || tableStart >= html.size()) {
+        return -1;
+    }
+    static const QRegularExpression openRe(
+        QStringLiteral("<table\\b"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression closeRe(
+        QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption);
+    int depth = 0;
+    int pos = tableStart;
+    while (pos < html.size()) {
+        const QRegularExpressionMatch openMatch = openRe.match(html, pos);
+        const QRegularExpressionMatch closeMatch = closeRe.match(html, pos);
+        const int openPos = openMatch.hasMatch() ? openMatch.capturedStart() : -1;
+        const int closePos = closeMatch.hasMatch() ? closeMatch.capturedStart() : -1;
+        if (closePos < 0) {
+            return -1;
+        }
+        if (openPos >= 0 && openPos < closePos) {
+            ++depth;
+            pos = openMatch.capturedEnd();
+            continue;
+        }
+        --depth;
+        pos = closeMatch.capturedEnd();
+        if (depth == 0) {
+            return pos;
+        }
+    }
+    return -1;
+}
+
+bool isProtocol126TaskTable(const QString &tableHtml) {
+    return tableHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("id='col11'"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("id=\"col11\""), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("id='col21'"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("id=\"col21\""), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("id='sum1'"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("id=\"sum1\""), Qt::CaseInsensitive);
+}
+
+QStringList extractProtocol126TaskTables(QString *htmlInOut) {
+    QStringList tables;
+    if (!htmlInOut) {
+        return tables;
+    }
+    QString &work = *htmlInOut;
+    bool extracted = true;
+    while (extracted) {
+        extracted = false;
+        int searchFrom = 0;
+        while (searchFrom < work.size()) {
+            const int start = work.indexOf(QStringLiteral("<table"), searchFrom, Qt::CaseInsensitive);
+            if (start < 0) {
+                break;
+            }
+            const int end = findMatchingTableEnd(work, start);
+            if (end < 0) {
+                break;
+            }
+            const QString table = work.mid(start, end - start);
+            if (isProtocol126TaskTable(table)) {
+                tables.append(table);
+                work = work.left(start) + work.mid(end);
+                extracted = true;
+                break;
+            }
+            searchFrom = start + 6;
+        }
+    }
+    return tables;
+}
+
+QString cleanProtocol126SummaryRows(QString summary) {
+    summary = stripLeadingSummaryTableWrapper(summary.trimmed());
+    summary.replace(QStringLiteral("<!--s-->"), QString());
+    summary.replace(
+        QRegularExpression(QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+    // Если задание оказалось внутри ячейки «Процесс…» — оставляем только подпись.
+    summary.replace(
+        QRegularExpression(
+            QStringLiteral(
+                "(<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания)"
+                "([\\s\\S]*?)(</td>\\s*</tr>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+        QStringLiteral("\\1\\3"));
+    // Убрать пустые хвосты после извлечения вложенных таблиц.
+    summary.replace(
+        QRegularExpression(QStringLiteral("(<br\\s*/?>\\s*)+$"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+    return summary.trimmed();
+}
+
+QString canonicalizeProtocol126Session(QString session) {
+    session = stripLeadingSummaryTableWrapper(session.trimmed());
+    if (session.isEmpty()) {
+        return session;
+    }
+
+    QString work = session;
+    const QStringList taskTables = extractProtocol126TaskTables(&work);
+    QString summary = cleanProtocol126SummaryRows(work);
+
+    // Если маркера/строки процесса нет — добавим, чтобы summary закрывался явно.
+    if (!summary.contains(QStringLiteral("Процесс выполнения диагностического задания"), Qt::CaseInsensitive)) {
+        summary += QStringLiteral(
+            "<tr><td align='center' colspan='2'>Процесс выполнения диагностического задания</td></tr>");
+    }
+
+    QString result = summary + QStringLiteral("</table><!--s-->");
+    if (!taskTables.isEmpty()) {
+        result += QStringLiteral("<br>") + taskTables.join(QStringLiteral("<br>"));
     }
     return result;
 }
@@ -2792,8 +2986,11 @@ QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, co
         if (sessions.size() > 1) {
             sessions[sessions.size() - 1] =
                 appendRowsIntoSingleProtocolBody(sessions.last(), rowsHtml);
-            return joinProtocol126Sessions(sessions);
+            return ExerciseProtocol::canonicalizeProtocol126StoredBody(
+                joinProtocol126Sessions(sessions));
         }
+        return ExerciseProtocol::canonicalizeProtocol126StoredBody(
+            appendRowsIntoSingleProtocolBody(existingBody, rowsHtml));
     }
 
     return appendRowsIntoSingleProtocolBody(existingBody, rowsHtml);
@@ -2804,6 +3001,9 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
     const QString &sessionHtml) {
     QString session = sessionHtml.trimmed();
     if (session.isEmpty()) {
+        if (looksLikeProtocol126Body(existingBody)) {
+            return ExerciseProtocol::canonicalizeProtocol126StoredBody(existingBody);
+        }
         return existingBody;
     }
 
@@ -2814,7 +3014,11 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
         sessions.append(stripLeadingSummaryTableWrapper(existingBody));
     }
     sessions.append(stripLeadingSummaryTableWrapper(session));
-    return joinProtocol126Sessions(sessions);
+    const QString joined = joinProtocol126Sessions(sessions);
+    if (looksLikeProtocol126Body(joined) || looksLikeProtocol126Body(session)) {
+        return ExerciseProtocol::canonicalizeProtocol126StoredBody(joined);
+    }
+    return joined;
 }
 
 QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {

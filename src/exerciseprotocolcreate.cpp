@@ -521,18 +521,22 @@ QString buildProtocol126(
         // Дописка задания 2: новая таблица ПОСЛЕ закрытой таблицы задания 1.
         // <br> между таблицами — чтобы QTextDocument не вложил вторую в первую.
         const QString addition = QStringLiteral("<br>") + tableOpen + block + QStringLiteral("</table>");
-        return ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, addition);
+        return ExerciseProtocol::canonicalizeProtocol126StoredBody(
+            ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, addition));
     }
 
-    QString add = dateSpecialistRow(userFio, 2);
+    // Шапка header.html — 2 колонки; без лишних colspan, иначе Qt ломает закрытие таблицы.
+    QString add = dateSpecialistRow(userFio, 1);
     add += QStringLiteral(
         "<tr><td>Результат: : баллы (макс.)/вывод об уровне развития</td>"
-        "<td colspan='2'><div id='idvivod' contenteditable='true'>(36)</div></td></tr>");
+        "<td><div id='idvivod' contenteditable='true'>(36)</div></td></tr>");
     add += QStringLiteral(
-        "<tr><td>Примечание</td><td colspan='2'><div contenteditable='true'></div></td></tr>");
+        "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>");
+    // Закрываем summary ДО таблиц заданий + <br> — иначе QTextDocument кладёт
+    // «Задание N» внутрь ячейки «Процесс выполнения…».
     add += QStringLiteral(
         "<tr><td align='center' colspan='2'>Процесс выполнения диагностического задания</td></tr>"
-        "</table><!--s-->");
+        "</table><!--s--><br>");
     add += tableOpen + block + QStringLiteral("</table>");
     return add;
 }

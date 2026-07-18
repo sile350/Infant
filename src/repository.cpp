@@ -83,19 +83,9 @@ void appendProtocolRecord(
         record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
             continuation ? QString() : headerForExercise(uprid), protocolBody);
     } else if (uprid == QStringLiteral("1.26")) {
-        // Не flatten/ensureClosed: там срезаются вложенные таблицы баллов (col*/sum*).
-        const QString rawBody = protocolBody;
-        if (continuation) {
-            record = QStringLiteral(
-                          "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-                          "<colgroup><col width='165'><col width='506'></colgroup>")
-                      + rawBody;
-        } else {
-            record = headerForExercise(uprid) + rawBody;
-        }
-        if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            record += QStringLiteral("</table>");
-        }
+        // Плоская сборка: summary </table> + <br> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
+        record = ExerciseProtocol::buildProtocol126ViewRecord(
+            continuation ? QString() : headerForExercise(uprid), protocolBody);
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
         const QString flatBody = ExerciseProtocol::flattenStoredProtocolBody(protocolBody);
@@ -714,7 +704,9 @@ bool Repository::saveExerciseProtocol(
     const QString escapedHtml = LocalDatabase::escape(
         exerciseId == QStringLiteral("1.2")
             ? ExerciseProtocol::canonicalizeProtocol12StoredBody(protocolHtml)
-            : protocolHtml);
+            : (exerciseId == QStringLiteral("1.26")
+                   ? ExerciseProtocol::canonicalizeProtocol126StoredBody(protocolHtml)
+                   : protocolHtml));
     if (partly) {
         const QString lastId = m_local.queryScalar(
             "SELECT id FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
@@ -801,9 +793,15 @@ QString Repository::loadProtocolViewHtml(
         body = ExerciseProtocol::restrictExercisePageEditing(body);
     }
 
-    QString protocolBlock = exerciseHeaderFragment(exerciseId) + body;
-    if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-        protocolBlock += QStringLiteral("</table>");
+    QString protocolBlock;
+    if (exerciseId == QStringLiteral("1.26")) {
+        protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
+            exerciseHeaderFragment(exerciseId), body);
+    } else {
+        protocolBlock = exerciseHeaderFragment(exerciseId) + body;
+        if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            protocolBlock += QStringLiteral("</table>");
+        }
     }
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
@@ -871,6 +869,8 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         "SELECT uprid FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
     if (uprid == QStringLiteral("1.2")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
+    } else if (uprid == QStringLiteral("1.26")) {
+        normalizedBody = ExerciseProtocol::canonicalizeProtocol126StoredBody(normalizedBody);
     }
     if (!m_local.exec(
             "UPDATE protocols SET pr='"
