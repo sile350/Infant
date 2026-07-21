@@ -97,6 +97,8 @@ QString summaryRowHtml(const QString &label, const QString &valueHtml) {
         .arg(label, valueHtml);
 }
 
+QString normalizeSummaryColumnWidthsHtml(QString body);
+
 QString resultsTableHeaderHtml() {
     return QStringLiteral(
         "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
@@ -3356,6 +3358,8 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
     }
     return normalizeSummaryColumnWidthsHtml(joined);
 }
+
+QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {
     if (protocolBody.trimmed().isEmpty()) {
         return {};
     }

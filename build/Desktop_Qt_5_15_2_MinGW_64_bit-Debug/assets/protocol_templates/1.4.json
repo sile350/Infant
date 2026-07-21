@@ -2,7 +2,7 @@
   "id": "1.4",
   "kind": "or_hlp_balls",
   "scoreKind": "timed14",
-  "dateRow": "<tr><td >Дата/специалист</td><td >{{DATE}}   {{USER}}</td></tr>",
-  "initialBlock": "<tr><td>Результат: баллы (макс.)/ вывод об уровне развития</ td><td   > <div contenteditable='true' >{{SCORE}}(10)/{{LEVEL}}</div></td></tr><tr><td  >Примечание </td><td   c   ><div contenteditable='true' ></div> </td> </tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table border='1' cellspacing='0' cellpadding='0' style='table-layout:fixed' width='671'  ><tr> <td   width='300' align='center'    > Характер деятельности ребенка </td><td  width='309'   align='center'    > Виды помощи</td><td    width='60' align='center'   > Баллы</td> </tr>",
-  "rowTemplate": "<td  valign='top'  ><div  contenteditable='true' >{{OR}}</div></td><td  ><div contenteditable='true' >{{HLP}}</div></td><td  align='center' ><div contenteditable='true' >{{SCORE}}</div></td>  </tr>"
+  "dateRow": "<tr><td width='200'>Дата/специалист</td><td width='471'>{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td width='200'>Результат: баллы (макс.) / вывод об уровне развития</td><td width='471'><div>{{SCORE}}(10)/{{LEVEL}}</div></td></tr><tr><td width='200'>Примечание</td><td width='471'><div contenteditable='true'></div></td></tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table border='1' cellspacing='0' cellpadding='0' style='table-layout:fixed' width='671'><tr><td width='308' align='center'>Характер деятельности ребенка</td><td width='298' align='center'>Виды помощи</td><td width='65' align='center'>Баллы</td></tr>",
+  "rowTemplate": "<td valign='top' width='308' align='left'><div contenteditable='true' style='text-align:left'>{{OR}}</div></td><td valign='top' width='298' align='left'><div contenteditable='true' style='text-align:left'>{{HLP}}</div></td><td width='65' align='center'><div contenteditable='true'>{{SCORE}}</div></td></tr>"
 }
