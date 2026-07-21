@@ -326,8 +326,7 @@ ExerciseCheckRow makeDoneTableOption(
     int optionWidth) {
     ExerciseCheckRow rowData;
     auto *cell = new QWidget(tableHost);
-    cell->setStyleSheet(QStringLiteral(
-        "QWidget { background:#ffffff; border:1px solid #000000; }"));
+    cell->setStyleSheet(QStringLiteral("QWidget { background:#ffffff; }"));
     auto *rowLayout = new QHBoxLayout(cell);
     rowLayout->setContentsMargins(8, 4, 8, 4);
     rowLayout->setSpacing(8);
@@ -541,29 +540,24 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     doneOuter->addStretch(1);
 
     auto *doneTable = new QWidget(m_donePanel);
+    doneTable->setStyleSheet(QStringLiteral(
+        "QWidget { background:#ffffff; border:1px solid #000000; }"));
     auto *doneGrid = new QGridLayout(doneTable);
     doneGrid->setContentsMargins(0, 0, 0, 0);
     doneGrid->setSpacing(0);
 
-    const auto addDoneLeftCell = [&](const QString &text, int row) {
-        auto *cell = new QWidget(doneTable);
-        cell->setFixedWidth(100);
-        cell->setStyleSheet(QStringLiteral(
-            "QWidget { background:#ffffff; border:1px solid #000000; }"));
-        auto *cellLayout = new QVBoxLayout(cell);
-        cellLayout->setContentsMargins(4, 4, 4, 4);
-        if (!text.isEmpty()) {
-            auto *label = new WhiteLabel(text, cell);
-            label->setAlignment(Qt::AlignCenter);
-            label->setStyleSheet(QStringLiteral(
-                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
-            cellLayout->addWidget(label, 0, Qt::AlignCenter);
-        }
-        doneGrid->addWidget(cell, row, 0);
-    };
-    addDoneLeftCell(QStringLiteral("Выполнение"), 0);
-    addDoneLeftCell(QString(), 1);
-    addDoneLeftCell(QString(), 2);
+    auto *doneTitleCell = new QWidget(doneTable);
+    doneTitleCell->setFixedWidth(100);
+    auto *doneTitleLayout = new QVBoxLayout(doneTitleCell);
+    doneTitleLayout->setContentsMargins(4, 4, 4, 4);
+    auto *doneTitleLabel = new WhiteLabel(QStringLiteral("Выполнение"), doneTitleCell);
+    doneTitleLabel->setAlignment(Qt::AlignCenter);
+    doneTitleLabel->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
+    doneTitleLayout->addStretch(1);
+    doneTitleLayout->addWidget(doneTitleLabel, 0, Qt::AlignCenter);
+    doneTitleLayout->addStretch(1);
+    doneGrid->addWidget(doneTitleCell, 0, 0, 3, 1);
 
     constexpr int kDoneOptionWidth = 280;
     m_doneChecks << makeDoneTableOption(
