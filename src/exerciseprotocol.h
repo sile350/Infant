@@ -49,6 +49,8 @@ public:
     static QString wrapProtocolRecord(const QString &protocolId, const QString &protocolBody);
     static QString normalizeStoredProtocolBody(const QString &protocolBody);
     static QString normalizeProtocol12Layout(const QString &protocolBody);
+    // Дата/Результат/Примечание → 200/471 как в header.html (все методики).
+    static QString normalizeSummaryColumnWidths(const QString &protocolBody);
     static QString patientProtocolBody(const QString &protocolBody);
     static QString extractLastSessionStoredBody(const QString &protocolBody);
     // 1.26: последняя сессия по «Дата/специалист» без обрезки вложенных таблиц баллов.

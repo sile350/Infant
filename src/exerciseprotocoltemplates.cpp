@@ -786,7 +786,9 @@ QString createExerciseProtocolFromTemplate(
         } else {
             // Защита: шаблон без dateRow — всё равно начинаем с даты.
             const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
-            sessionBlock += QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
+            sessionBlock += QStringLiteral(
+                                "<tr><td width='200'>Дата/специалист</td>"
+                                "<td width='471'>%1   %2</td></tr>")
                                 .arg(now, userFio.toHtmlEscaped());
         }
         if (!tmpl.initialBlock.isEmpty()) {
@@ -832,5 +834,5 @@ QString createExerciseProtocolFromTemplate(
             body.replace(QStringLiteral("скачать"), link);
         }
     }
-    return body;
+    return ExerciseProtocol::normalizeSummaryColumnWidths(body);
 }

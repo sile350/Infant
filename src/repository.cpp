@@ -92,7 +92,7 @@ void appendProtocolRecord(
         if (continuation) {
             record = QStringLiteral(
                           "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-                          "<colgroup><col width='165'><col width='506'></colgroup>")
+                          "<colgroup><col width='200'><col width='471'></colgroup>")
                       + flatBody;
         } else {
             record = headerForExercise(uprid) + flatBody;
@@ -701,14 +701,16 @@ bool Repository::saveExerciseProtocol(
         }
         return false;
     }
-    const QString escapedHtml = LocalDatabase::escape(
-        exerciseId == QStringLiteral("1.2")
-            ? ExerciseProtocol::canonicalizeProtocol12StoredBody(protocolHtml)
-            : (exerciseId == QStringLiteral("1.26")
-                   ? ExerciseProtocol::canonicalizeProtocol126StoredBody(protocolHtml)
-                   : (exerciseId == QStringLiteral("4.1.8")
-                          ? ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolHtml)
-                          : protocolHtml)));
+    QString storedHtml = protocolHtml;
+    if (exerciseId == QStringLiteral("1.2")) {
+        storedHtml = ExerciseProtocol::canonicalizeProtocol12StoredBody(storedHtml);
+    } else if (exerciseId == QStringLiteral("1.26")) {
+        storedHtml = ExerciseProtocol::canonicalizeProtocol126StoredBody(storedHtml);
+    } else if (exerciseId == QStringLiteral("4.1.8")) {
+        storedHtml = ExerciseProtocol::canonicalizeProtocol418StoredBody(storedHtml);
+    }
+    storedHtml = ExerciseProtocol::normalizeSummaryColumnWidths(storedHtml);
+    const QString escapedHtml = LocalDatabase::escape(storedHtml);
     if (partly) {
         const QString lastId = m_local.queryScalar(
             "SELECT id FROM protocols WHERE userid='" + LocalDatabase::escape(patientId) + "' AND uprid='"
@@ -899,6 +901,8 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
     } else if (uprid == QStringLiteral("4.1.8")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(normalizedBody);
     }
+    // Все методики: Дата/Результат/Примечание как у первой сессии (шапка 200/471).
+    normalizedBody = ExerciseProtocol::normalizeSummaryColumnWidths(normalizedBody);
     if (!m_local.exec(
             "UPDATE protocols SET pr='"
             + LocalDatabase::escape(normalizedBody)

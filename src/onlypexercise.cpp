@@ -334,6 +334,10 @@ void OnlyPExercise::updateWidgetLayout() {
         if (m_exerciseId == QStringLiteral("1.1")) {
             extraX = 100;
             extraY = -200;
+            if (m_displayRole == DisplayRole::Patient) {
+                // Ниже на 80px относительно общей позиции на экране пациента.
+                extraY = -120;
+            }
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             if (m_displayRole == DisplayRole::Primary) {
                 // Один экран: по центру по вертикали (опустить чуть ниже).

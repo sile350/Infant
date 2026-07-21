@@ -123,7 +123,7 @@ QString dateSpecialistRow(const QString &userFio, int colspan = 2) {
             .arg(colspan)
             .arg(now, userFio.toHtmlEscaped());
     }
-    return QStringLiteral("<tr><td>Дата/специалист</td><td>%1   %2</td></tr>")
+    return QStringLiteral("<tr><td width='200'>Дата/специалист</td><td width='471'>%1   %2</td></tr>")
         .arg(now, userFio.toHtmlEscaped());
 }
 

@@ -77,9 +77,11 @@ QString formatProtocolCellText(const QString &text) {
 }
 
 QString protocolSummaryTableOpenHtml() {
+    // Как в header.html методик: 200/471 — иначе 2-я сессия (новая <table>)
+    // с 165/506 визуально не совпадает с первой (продолжает шапку).
     return QStringLiteral(
         "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-        "<colgroup><col width='165'><col width='506'></colgroup>");
+        "<colgroup><col width='200'><col width='471'></colgroup>");
 }
 
 QString stripLeadingSummaryTableWrapper(QString chunk) {
@@ -91,7 +93,7 @@ QString stripLeadingSummaryTableWrapper(QString chunk) {
 }
 
 QString summaryRowHtml(const QString &label, const QString &valueHtml) {
-    return QStringLiteral("<tr><td width='165' valign='top'>%1</td><td width='506' valign='top'>%2</td></tr>")
+    return QStringLiteral("<tr><td width='200' valign='top'>%1</td><td width='471' valign='top'>%2</td></tr>")
         .arg(label, valueHtml);
 }
 
@@ -979,7 +981,7 @@ QString joinClosedProtocolSessions(const QStringList &sessions) {
         }
         result += session;
     }
-    return result;
+    return normalizeSummaryColumnWidthsHtml(result);
 }
 
 QString reassembleProtocolSessions(const QString &originalBody, const QStringList &sessions) {
@@ -1089,13 +1091,61 @@ QString stripSpecialistSections(QString body) {
     return body;
 }
 
+QString normalizeSummaryColumnWidthsHtml(QString body) {
+    // Как header.html: первая сессия наследует 200/471; повторные таблицы — те же.
+    body.replace(QStringLiteral("<col width='165'>"), QStringLiteral("<col width='200'>"));
+    body.replace(QStringLiteral("<col width=\"165\">"), QStringLiteral("<col width=\"200\">"));
+    body.replace(QStringLiteral("<col width='192'>"), QStringLiteral("<col width='200'>"));
+    body.replace(QStringLiteral("<col width=\"192\">"), QStringLiteral("<col width=\"200\">"));
+    body.replace(QStringLiteral("<col width='506'>"), QStringLiteral("<col width='471'>"));
+    body.replace(QStringLiteral("<col width=\"506\">"), QStringLiteral("<col width=\"471\">"));
+    body.replace(QStringLiteral("<col width='479'>"), QStringLiteral("<col width='471'>"));
+    body.replace(QStringLiteral("<col width=\"479\">"), QStringLiteral("<col width=\"471\">"));
+
+    const QRegularExpression summaryRowRe(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td\\b)([^>]*>)\\s*"
+            "(Дата\\s*/\\s*специалист|Результат[^<]*|Примечание)\\s*"
+            "(</td>\\s*<td\\b)([^>]*>)"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString out;
+    out.reserve(body.size() + 64);
+    int last = 0;
+    QRegularExpressionMatchIterator it = summaryRowRe.globalMatch(body);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        out += body.mid(last, m.capturedStart() - last);
+        // Не трогаем строки с colspan (многоколоночные таблицы).
+        if (m.captured(2).contains(QStringLiteral("colspan"), Qt::CaseInsensitive)
+            || m.captured(5).contains(QStringLiteral("colspan"), Qt::CaseInsensitive)) {
+            out += m.captured(0);
+        } else {
+            QString td1Attrs = m.captured(2);
+            QString td2Attrs = m.captured(5);
+            auto setWidth = [](QString attrs, const QString &w) {
+                const QRegularExpression widthRe(
+                    QStringLiteral("\\s*width\\s*=\\s*['\"][^'\"]*['\"]"),
+                    QRegularExpression::CaseInsensitiveOption);
+                attrs.remove(widthRe);
+                return QStringLiteral(" width='%1'%2").arg(w, attrs);
+            };
+            td1Attrs = setWidth(td1Attrs, QStringLiteral("200"));
+            td2Attrs = setWidth(td2Attrs, QStringLiteral("471"));
+            out += m.captured(1) + td1Attrs + m.captured(3) + m.captured(4) + td2Attrs;
+        }
+        last = m.capturedEnd();
+    }
+    out += body.mid(last);
+    return out;
+}
+
 QString ensureProtocol12SummaryTableOpens(QString body) {
     const QString tableOpen = protocolSummaryTableOpenHtml();
     const QRegularExpression orphanRowRe(
         QStringLiteral("</table>\\s*(<tr[^>]*>\\s*<td[^>]*>\\s*Дата/специалист)"),
         QRegularExpression::CaseInsensitiveOption);
     body.replace(orphanRowRe, QStringLiteral("</table>") + tableOpen + QStringLiteral("\\1"));
-    return body;
+    return normalizeSummaryColumnWidthsHtml(body);
 }
 
 } // namespace
@@ -1205,7 +1255,7 @@ QString ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
 }
 
 QString ExerciseProtocol::canonicalizeProtocol12StoredBody(const QString &protocolBody) {
-    return formatProtocol12BodyForHeaderView(protocolBody);
+    return normalizeProtocol12Layout(formatProtocol12BodyForHeaderView(protocolBody));
 }
 
 QString ExerciseProtocol::canonicalizeProtocol126StoredBody(const QString &protocolBody) {
@@ -1485,6 +1535,13 @@ QString ExerciseProtocol::normalizeProtocol12Layout(const QString &protocolBody)
         return {};
     }
     return ensureProtocol12SummaryTableOpens(protocolBody);
+}
+
+QString ExerciseProtocol::normalizeSummaryColumnWidths(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+    return normalizeSummaryColumnWidthsHtml(protocolBody);
 }
 
 QString ExerciseProtocol::createProtocolHtml(
@@ -1883,7 +1940,7 @@ QString joinProtocol126Sessions(const QStringList &sessions) {
         }
         result += session;
     }
-    return result;
+    return normalizeSummaryColumnWidthsHtml(result);
 }
 
 int findMatchingTableEnd(const QString &html, int tableStart) {
@@ -3297,16 +3354,14 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
         && joined.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)) {
         return ExerciseProtocol::canonicalizeProtocol418StoredBody(joined);
     }
-    return joined;
+    return normalizeSummaryColumnWidthsHtml(joined);
 }
-
-QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {
     if (protocolBody.trimmed().isEmpty()) {
         return {};
     }
     QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
     if (sessions.isEmpty()) {
-        return ensureClosedProtocolSession(protocolBody);
+        return normalizeSummaryColumnWidthsHtml(ensureClosedProtocolSession(protocolBody));
     }
     // Первая сессия без ведущего <table> — шапка методики уже открывает таблицу.
     QString result;
@@ -3323,5 +3378,5 @@ QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody)
         }
         result += session;
     }
-    return result;
+    return normalizeSummaryColumnWidthsHtml(result);
 }
