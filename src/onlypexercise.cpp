@@ -367,13 +367,13 @@ void OnlyPExercise::updateWidgetLayout() {
             }
             if (m_stepId == QStringLiteral("3")) {
                 if (m_displayRole == DisplayRole::Primary) {
-                    extraY = 30;
+                    extraY = -70; // было +30; поднять на 100px
                 } else if (m_displayRole == DisplayRole::Patient) {
                     extraX = -40;
-                    extraY = 40;
+                    extraY = -10; // было +40; поднять на 50px
                 } else if (m_displayRole == DisplayRole::Specialist) {
                     extraX = -20;
-                    extraY = 40;
+                    extraY = -10; // было +40; поднять на 50px
                 }
             }
         } else if (m_exerciseId == QStringLiteral("2.10")

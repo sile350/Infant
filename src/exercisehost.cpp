@@ -1454,7 +1454,7 @@ void ExerciseHost::updatePreviewLayout() {
         int extraY = 0;
         if (m_exerciseId == QStringLiteral("1.18") && currentStepId() == QStringLiteral("3")) {
             extraX = -20;
-            extraY = 40;
+            extraY = -10; // было +40; поднять на 50px (как Specialist при dual)
         }
 
         int contentTop = kButtonMargin;
