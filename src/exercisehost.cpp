@@ -951,9 +951,23 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             }
         } else if (m_exerciseId == QStringLiteral("1.17")
                    || m_exerciseId == QStringLiteral("1.18")) {
-            // Дописываем строки заданий в текущий протокол; выбор № уважаем.
-            m_forceNewProtocolSession = false;
-            m_sessionStepId = currentStepId();
+            const QString step = currentStepId();
+            bool newSession = false;
+            if (m_repository && m_partly && !step.isEmpty()) {
+                const QString existingBody =
+                    m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
+                const QString lastSession =
+                    ExerciseProtocol::extractLastProtocol126Session(existingBody);
+                if (!lastSession.trimmed().isEmpty()
+                    && ExerciseProtocol::numberedStepPresentInSessionHtml(lastSession, step)) {
+                    newSession = true;
+                }
+            }
+            m_forceNewProtocolSession = newSession;
+            if (newSession) {
+                resetProtocolToInitialTemplate();
+            }
+            m_sessionStepId = step;
             reloadPreviewForCurrentStep();
             runExerciseSession();
             return;
@@ -1429,11 +1443,19 @@ void ExerciseHost::updatePreviewLayout() {
     int localY = 0;
     QPixmap display = m_previewSource;
 
-    if (m_exerciseId == QStringLiteral("1.8")) {
+    if (m_exerciseId == QStringLiteral("1.8")
+        || m_exerciseId == QStringLiteral("1.17")
+        || m_exerciseId == QStringLiteral("1.18")) {
         // Как OnlyPExercise::Specialist при dual: та же область, масштаб и центрирование.
         constexpr int kPictureMargin = 12;
         constexpr int kSpecialistPictureShiftLeft = 15;
         constexpr int kButtonMargin = 12;
+        int extraX = 0;
+        int extraY = 0;
+        if (m_exerciseId == QStringLiteral("1.18") && currentStepId() == QStringLiteral("3")) {
+            extraX = -20;
+            extraY = 40;
+        }
 
         int contentTop = kButtonMargin;
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
@@ -1451,22 +1473,19 @@ void ExerciseHost::updatePreviewLayout() {
                 availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
 
-        localX = kPictureMargin + qMax(0, (panelW - display.width()) / 2) - kSpecialistPictureShiftLeft;
+        localX = kPictureMargin + qMax(0, (panelW - display.width()) / 2) - kSpecialistPictureShiftLeft
+            + extraX;
         if (localX + display.width() > panelW - kPictureMargin) {
             localX = qMax(kPictureMargin, panelW - kPictureMargin - display.width());
         }
         localX = qMax(kPictureMargin, localX);
-        localY = qMax(contentTop, (panelH - display.height()) / 2);
+        localY = qMax(contentTop, (panelH - display.height()) / 2 + extraY);
     } else {
         constexpr int kPreviewAbsLeft = 1100;
         constexpr int kPreviewAbsTop = 75;
         int previewAbsLeft = kPreviewAbsLeft;
         int previewAbsTop = kPreviewAbsTop;
-        if (m_exerciseId == QStringLiteral("1.17")
-            || m_exerciseId == QStringLiteral("1.18")) {
-            previewAbsLeft = 1180;
-            previewAbsTop = 180;
-        } else if (m_exerciseId == QStringLiteral("1.25")) {
+        if (m_exerciseId == QStringLiteral("1.25")) {
             previewAbsTop = 140;
         }
         localX = previewAbsLeft - rightPanelLeft;
@@ -1524,6 +1543,14 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
     } else if (m_exerciseId == QStringLiteral("1.8")) {
         // Тот же файл, что OnlyPExercise (single → p%1.png).
         candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
+    } else if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")) {
+        if (!step.isEmpty()) {
+            candidates << QStringLiteral("p") + step + QStringLiteral(".png")
+                       << step + QStringLiteral(".png")
+                       << QStringLiteral("f") + step + QStringLiteral(".png");
+        } else {
+            candidates << QStringLiteral("p1.png") << QStringLiteral("1.png") << QStringLiteral("f1.png");
+        }
     } else if (!step.isEmpty()) {
         candidates << QStringLiteral("f") + step + QStringLiteral(".png")
                    << step + QStringLiteral(".png")
@@ -3105,9 +3132,23 @@ void ExerciseHost::formProtocol() {
     }
     m_currentProtocolId = protocolId;
 
-    const QString viewHtml = m_repository->loadProtocolViewHtml(
-        m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
-    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")) {
+        const QString lastSession = ExerciseProtocol::extractLastProtocol126Session(protocolBody);
+        if (!lastSession.trimmed().isEmpty()) {
+            const QString header = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("header.html"));
+            const QString viewHtml =
+                ExerciseProtocol::buildProtocol126ViewRecord(header, lastSession);
+            m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+        } else {
+            const QString viewHtml = m_repository->loadProtocolViewHtml(
+                m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
+            m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+        }
+    } else {
+        const QString viewHtml = m_repository->loadProtocolViewHtml(
+            m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
+        m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    }
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
         doc->setDocumentMargin(kTemplateViewportPadding / 2);

@@ -696,18 +696,51 @@ QString createExerciseProtocolFromTemplate(
             // Не вставлять внутрь последней </table> — блоки это самостоятельные <table>.
             return existingProtocolHtml + appendBlocks;
         }
-        // 1.17/1.18 numbered: к существующему протоколу добавляем только строку задания.
+        // 1.17/1.18 numbered: дописка строк в текущую сессию или новая «Дата/специалист».
         if (tmpl.kind == QStringLiteral("numbered")
             && (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18"))) {
-            QString appendRow = row;
-            if (!appendRow.trimmed().startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-                appendRow = QStringLiteral("<tr>") + appendRow;
+            QStringList stepIds = session.stepIds;
+            if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
+                stepIds << session.stepId.trimmed();
             }
-            if (!appendRow.trimmed().endsWith(QStringLiteral("</tr>"), Qt::CaseInsensitive)) {
-                appendRow += QStringLiteral("</tr>");
+            if (stepIds.isEmpty()) {
+                stepIds << QStringLiteral("1");
             }
+            const QString lastSessionHtml =
+                ExerciseProtocol::extractLastProtocol126Session(existingProtocolHtml);
+            const QString scopeHtml = lastSessionHtml.trimmed().isEmpty()
+                ? existingProtocolHtml
+                : lastSessionHtml;
+            QStringList newSteps;
+            for (const QString &sid : stepIds) {
+                if (!ExerciseProtocol::numberedStepPresentInSessionHtml(scopeHtml, sid)) {
+                    newSteps << sid;
+                }
+            }
+            if (newSteps.isEmpty()) {
+                ProtocolSessionInput repeatSession = session;
+                repeatSession.stepIds = stepIds;
+                const QString repeatRows =
+                    buildNumberedProcessRows(tmpl, vars, repeatSession, elapsedSeconds);
+                QString sessionBlock;
+                if (!tmpl.dateRow.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.dateRow, vars);
+                }
+                if (!tmpl.initialBlock.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.initialBlock, vars);
+                }
+                sessionBlock += repeatRows;
+                if (!sessionBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                    sessionBlock += QStringLiteral("</table>");
+                }
+                return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, sessionBlock);
+            }
+            ProtocolSessionInput appendSession = session;
+            appendSession.stepIds = newSteps;
+            const QString appendRows =
+                buildNumberedProcessRows(tmpl, vars, appendSession, elapsedSeconds);
             return ExerciseProtocol::appendRowsToStoredBody(
-                trimTrailingSummaryRow(existingProtocolHtml), appendRow);
+                trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
         // 1.26/tmp0_variants, 3.1.10, 1.27/1.272: дописка строк задания в текущий протокол.
         if (tmpl.kind == QStringLiteral("tmp0_variants")

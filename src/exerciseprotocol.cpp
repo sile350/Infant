@@ -1913,6 +1913,21 @@ QString ExerciseProtocol::extractLastProtocol126Session(const QString &protocolB
     return stripLeadingSummaryTableWrapper(sessions.last());
 }
 
+bool ExerciseProtocol::numberedStepPresentInSessionHtml(
+    const QString &sessionHtml,
+    const QString &stepId) {
+    const QString sid = stepId.trimmed();
+    if (sid.isEmpty() || sessionHtml.trimmed().isEmpty()) {
+        return false;
+    }
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*align\\s*=\\s*['\"]center['\"][^>]*>\\s*%1\\s*</td>")
+            .arg(QRegularExpression::escape(sid)),
+        QRegularExpression::CaseInsensitiveOption);
+    return rowRe.match(sessionHtml).hasMatch();
+}
+
 QString closeDanglingTables(QString html) {
     const int opens = html.count(
         QRegularExpression(QStringLiteral("<table\\b"), QRegularExpression::CaseInsensitiveOption));

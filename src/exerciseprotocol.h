@@ -55,6 +55,7 @@ public:
     static QString extractLastSessionStoredBody(const QString &protocolBody);
     // 1.26: последняя сессия по «Дата/специалист» без обрезки вложенных таблиц баллов.
     static QString extractLastProtocol126Session(const QString &protocolBody);
+    static bool numberedStepPresentInSessionHtml(const QString &sessionHtml, const QString &stepId);
     static QString formatProtocol12BodyForHeaderView(const QString &protocolBody);
     static QString buildProtocol12ProtocolsTabRecord(
         const QString &headerFragment,
