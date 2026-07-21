@@ -335,7 +335,7 @@ void OnlyPExercise::updateWidgetLayout() {
             extraX = 100;
             // Primary/Specialist: поднять. Patient — отдельно (см. ветку Patient).
             if (m_displayRole != DisplayRole::Patient) {
-                extraY = -200;
+                extraY = -280;
             }
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             if (m_displayRole == DisplayRole::Primary) {
@@ -481,11 +481,11 @@ void OnlyPExercise::updateWidgetLayout() {
             int pictureY = qMax(
                 pictureMargin,
                 (height() - display.height()) / 2 + kPatientPictureShiftDown + extraY);
-            // 1.1: +80 от базовой (уже зажатой) позиции — иначе extraY=-200 давал тот же верхний край.
+            // 1.1: базовая patient-позиция (extraY=-280 упирается в pictureMargin).
             if (m_exerciseId == QStringLiteral("1.1")) {
                 pictureY = qMax(
                     pictureMargin,
-                    (height() - display.height()) / 2 + kPatientPictureShiftDown) + 80;
+                    (height() - display.height()) / 2 + kPatientPictureShiftDown);
             }
             m_picture->move(pictureX, pictureY);
             m_picture->show();

@@ -1325,29 +1325,63 @@ void ExerciseHost::updatePreviewLayout() {
         return;
     }
 
-    constexpr int kPreviewAbsLeft = 1100;
-    constexpr int kPreviewAbsTop = 75;
-    int previewAbsLeft = kPreviewAbsLeft;
-    int previewAbsTop = kPreviewAbsTop;
-    // Превью как при dual-выполнении: чуть ниже / правее.
-    if (m_exerciseId == QStringLiteral("1.8")) {
-        previewAbsTop = 160;
-    } else if (m_exerciseId == QStringLiteral("1.17")
-               || m_exerciseId == QStringLiteral("1.18")) {
-        previewAbsLeft = 1180;
-        previewAbsTop = 180;
-    } else if (m_exerciseId == QStringLiteral("1.25")) {
-        previewAbsTop = 140;
-    }
     const int rightPanelLeft = kPanelX + kScrollWidth;
-    const int localX = previewAbsLeft - rightPanelLeft;
-    const int localY = previewAbsTop;
-    const int maxW = qMax(120, width() - previewAbsLeft - 16);
-    const int maxH = qMax(120, height() - previewAbsTop - 16);
+    const int panelW = m_rightPanel ? m_rightPanel->width() : qMax(120, width() - rightPanelLeft);
+    const int panelH = m_rightPanel ? m_rightPanel->height() : height();
+
+    int localX = 0;
+    int localY = 0;
     QPixmap display = m_previewSource;
-    if (display.width() > maxW || display.height() > maxH) {
-        display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+    if (m_exerciseId == QStringLiteral("1.8")) {
+        // Как OnlyPExercise::Specialist при dual: та же область, масштаб и центрирование.
+        constexpr int kPictureMargin = 12;
+        constexpr int kSpecialistPictureShiftLeft = 15;
+        constexpr int kButtonMargin = 12;
+
+        int contentTop = kButtonMargin;
+        const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
+        QPixmap stopPixmap;
+        if (!stopPath.isEmpty() && stopPixmap.load(stopPath)) {
+            contentTop += stopPixmap.height() + kButtonMargin;
+        } else {
+            contentTop += kButtonMargin;
+        }
+
+        const int availableW = qMax(40, panelW - 2 * kPictureMargin);
+        const int availableH = qMax(40, panelH - contentTop - kPictureMargin);
+        if (display.width() > availableW || display.height() > availableH) {
+            display = m_previewSource.scaled(
+                availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+
+        localX = kPictureMargin + qMax(0, (panelW - display.width()) / 2) - kSpecialistPictureShiftLeft;
+        if (localX + display.width() > panelW - kPictureMargin) {
+            localX = qMax(kPictureMargin, panelW - kPictureMargin - display.width());
+        }
+        localX = qMax(kPictureMargin, localX);
+        localY = qMax(contentTop, (panelH - display.height()) / 2);
+    } else {
+        constexpr int kPreviewAbsLeft = 1100;
+        constexpr int kPreviewAbsTop = 75;
+        int previewAbsLeft = kPreviewAbsLeft;
+        int previewAbsTop = kPreviewAbsTop;
+        if (m_exerciseId == QStringLiteral("1.17")
+            || m_exerciseId == QStringLiteral("1.18")) {
+            previewAbsLeft = 1180;
+            previewAbsTop = 180;
+        } else if (m_exerciseId == QStringLiteral("1.25")) {
+            previewAbsTop = 140;
+        }
+        localX = previewAbsLeft - rightPanelLeft;
+        localY = previewAbsTop;
+        const int maxW = qMax(120, width() - previewAbsLeft - 16);
+        const int maxH = qMax(120, height() - previewAbsTop - 16);
+        if (display.width() > maxW || display.height() > maxH) {
+            display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
     }
+
     m_previewImage->setPixmap(display);
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
@@ -1391,6 +1425,9 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         } else {
             candidates << QStringLiteral("1.png") << QStringLiteral("f1.png");
         }
+    } else if (m_exerciseId == QStringLiteral("1.8")) {
+        // Тот же файл, что OnlyPExercise (single → p%1.png).
+        candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
     } else if (!step.isEmpty()) {
         candidates << QStringLiteral("f") + step + QStringLiteral(".png")
                    << step + QStringLiteral(".png")
