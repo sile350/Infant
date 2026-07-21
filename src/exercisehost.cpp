@@ -25,6 +25,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFrame>
+#include <QGridLayout>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
@@ -317,6 +318,37 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     return row;
 }
 
+ExerciseCheckRow makeDoneTableOption(
+    const QString &text,
+    QWidget *tableHost,
+    QGridLayout *grid,
+    int row,
+    int optionWidth) {
+    ExerciseCheckRow rowData;
+    auto *cell = new QWidget(tableHost);
+    cell->setStyleSheet(QStringLiteral(
+        "QWidget { background:#ffffff; border:1px solid #000000; }"));
+    auto *rowLayout = new QHBoxLayout(cell);
+    rowLayout->setContentsMargins(8, 4, 8, 4);
+    rowLayout->setSpacing(8);
+
+    rowData.box = new WhiteCheckBox(cell);
+    rowData.box->setFixedSize(18, 18);
+
+    rowData.label = new WhiteLabel(text, cell);
+    rowData.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    if (optionWidth > 40) {
+        resizeCheckLabel(rowData.label, optionWidth - 34);
+    }
+    rowData.label->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
+
+    rowLayout->addWidget(rowData.box, 0, Qt::AlignVCenter);
+    rowLayout->addWidget(rowData.label, 1);
+    grid->addWidget(cell, row, 1);
+    return rowData;
+}
+
 class ExerciseOrBrowser final : public QTextBrowser {
 public:
     explicit ExerciseOrBrowser(QWidget *parent = nullptr) : QTextBrowser(parent) {
@@ -407,7 +439,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     activityTitle->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:15px; font-weight:bold; padding:0;"));
-    evaluationLayout->addWidget(activityTitle);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
     m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -506,20 +537,41 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_donePanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
     auto *doneOuter = new QHBoxLayout(m_donePanel);
-    doneOuter->setContentsMargins(0, 8, 0, 0);
-    doneOuter->setSpacing(16);
-    auto *doneTitle = new WhiteLabel(QStringLiteral("Выполнение"), m_donePanel);
-    doneTitle->setStyleSheet(QStringLiteral("font: 10pt 'Microsoft Sans Serif'; color:#000000;"));
-    doneOuter->addWidget(doneTitle, 0, Qt::AlignTop);
-    auto *doneChecksHost = new QWidget(m_donePanel);
-    auto *doneChecksLayout = new QVBoxLayout(doneChecksHost);
-    doneChecksLayout->setContentsMargins(8, 4, 8, 4);
-    doneChecksLayout->setSpacing(4);
-    doneChecksHost->setStyleSheet(
-        QStringLiteral("QWidget { background:#ffffff; border:1px solid #808080; }"));
-    m_doneChecks << makeCheckRow(QStringLiteral("Выполнено"), doneChecksLayout, 220)
-                 << makeCheckRow(QStringLiteral("Выполнено частично"), doneChecksLayout, 220)
-                 << makeCheckRow(QStringLiteral("Не выполнено"), doneChecksLayout, 220);
+    doneOuter->setContentsMargins(0, 8, 0, 12);
+    doneOuter->addStretch(1);
+
+    auto *doneTable = new QWidget(m_donePanel);
+    auto *doneGrid = new QGridLayout(doneTable);
+    doneGrid->setContentsMargins(0, 0, 0, 0);
+    doneGrid->setSpacing(0);
+
+    const auto addDoneLeftCell = [&](const QString &text, int row) {
+        auto *cell = new QWidget(doneTable);
+        cell->setFixedWidth(100);
+        cell->setStyleSheet(QStringLiteral(
+            "QWidget { background:#ffffff; border:1px solid #000000; }"));
+        auto *cellLayout = new QVBoxLayout(cell);
+        cellLayout->setContentsMargins(4, 4, 4, 4);
+        if (!text.isEmpty()) {
+            auto *label = new WhiteLabel(text, cell);
+            label->setAlignment(Qt::AlignCenter);
+            label->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
+            cellLayout->addWidget(label, 0, Qt::AlignCenter);
+        }
+        doneGrid->addWidget(cell, row, 0);
+    };
+    addDoneLeftCell(QStringLiteral("Выполнение"), 0);
+    addDoneLeftCell(QString(), 1);
+    addDoneLeftCell(QString(), 2);
+
+    constexpr int kDoneOptionWidth = 280;
+    m_doneChecks << makeDoneTableOption(
+                      QStringLiteral("Выполнено"), doneTable, doneGrid, 0, kDoneOptionWidth)
+                 << makeDoneTableOption(
+                      QStringLiteral("Выполнено частично"), doneTable, doneGrid, 1, kDoneOptionWidth)
+                 << makeDoneTableOption(
+                      QStringLiteral("Не выполнено"), doneTable, doneGrid, 2, kDoneOptionWidth);
     for (const ExerciseCheckRow &row : m_doneChecks) {
         connect(row.box, &QCheckBox::toggled, this, [this, row](bool checked) {
             if (!checked) {
@@ -532,11 +584,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             }
         });
     }
-    doneOuter->addWidget(doneChecksHost, 0, Qt::AlignLeft | Qt::AlignTop);
+
+    doneOuter->addWidget(doneTable, 0, Qt::AlignHCenter | Qt::AlignTop);
     doneOuter->addStretch(1);
     m_donePanel->hide();
-    evaluationLayout->addWidget(m_donePanel);
 
+    evaluationLayout->addWidget(m_donePanel);
+    evaluationLayout->addWidget(activityTitle);
     evaluationLayout->addWidget(m_checkboxPanel);
 
     m_templatePanel = new OpaquePanel(kDocumentBg, m_scrollContent);
