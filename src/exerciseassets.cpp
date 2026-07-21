@@ -209,9 +209,23 @@ QString ExerciseAssets::prepareOrHtml(
 
     const int hrPos = result.indexOf(QStringLiteral("<hr"), 0, Qt::CaseInsensitive);
     if (hrPos > 0) {
+        // Оставляем заголовок «Оценка результатов» и текст разделов, убираем input-контролы
+        // (галочки/радио живут в Qt-панели).
+        QString afterHr = result.mid(hrPos);
+        afterHr.remove(QRegularExpression(
+            QStringLiteral("<hr\\b[^>]*>\\s*(</hr>)?"),
+            QRegularExpression::CaseInsensitiveOption));
+        afterHr.replace(
+            QRegularExpression(
+                QStringLiteral("<input\\b[^>]*>"),
+                QRegularExpression::CaseInsensitiveOption),
+            QString());
+        // Таблица «Выполнение» без radio — оставляем подписи ячеек.
         const int bodyEnd = result.indexOf(QStringLiteral("</body>"), hrPos, Qt::CaseInsensitive);
         if (bodyEnd > hrPos) {
-            result = result.left(hrPos).trimmed() + QStringLiteral("\n</body></html>");
+            result = result.left(hrPos).trimmed() + QStringLiteral("\n")
+                + afterHr.left(afterHr.indexOf(QStringLiteral("</body>"), 0, Qt::CaseInsensitive))
+                + QStringLiteral("\n</body></html>");
         }
     }
 
@@ -241,7 +255,7 @@ QString ExerciseAssets::prepareOrHtml(
         "<style>"
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
         ".or-strip { background-color:#f8f8f8; margin:0; padding:16px 0 4px 0; }"
-        "a { color:#000000; text-decoration:underline; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 12px 0; padding:2px 0; line-height:130%; white-space:nowrap; }"
+        "a { color:#000000; text-decoration:underline; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 12px 0; padding:2px 0; line-height:130%; white-space:normal; }"
         "#analis { white-space:normal; }"
         "a:last-of-type { margin-bottom:0; }"
         "a:hover { text-decoration:underline; }"
@@ -273,11 +287,13 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; "
         "font-family:'Times New Roman',serif; font-size:11pt; }"
         ".protocol-export-header { font-size:18pt; line-height:1.35; text-align:center; }"
-        "table { table-layout:fixed; width:671px; max-width:671px; border-collapse:collapse; "
-        "border:1px solid #000000; background-color:#ffffff; box-sizing:border-box; }"
-        "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; background-color:#ffffff; "
+        "table { table-layout:fixed; width:671px; max-width:671px; min-width:671px; "
+        "border-collapse:collapse; border:1px solid #000000; background-color:#ffffff; "
         "box-sizing:border-box; }"
-        "div[contenteditable='true'] { min-height:1.2em; }"
+        "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; "
+        "background-color:#ffffff; box-sizing:border-box; text-align:left; vertical-align:top; }"
+        "td[align='center'], th[align='center'] { text-align:center; }"
+        "div[contenteditable='true'] { min-height:1.2em; text-align:left; }"
         ".protocol-page-break { page-break-before:always; break-before:page; height:0; margin:24px 0; }"
         "@media print { .protocol-page-break { page-break-before:always; break-before:page; } }"
         "</style>");

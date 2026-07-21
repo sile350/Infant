@@ -21,8 +21,9 @@ constexpr int kPictureLeft = 700;
 constexpr int kPictureTop = 240;
 constexpr int kPictureTopOffset = 50;
 constexpr int kPictureShiftLeft = 150;
-constexpr int kPatientPictureShiftRight = 50;
-constexpr int kPatientSecondScreenShiftLeft = 50;
+constexpr int kPatientPictureShiftRight = 0;
+constexpr int kPatientSecondScreenShiftLeft = 80;
+constexpr int kPatientPictureShiftDown = 40;
 constexpr int kSpecialistPictureShiftLeft = 15;
 constexpr int kStopLeft = 80;
 constexpr int kStopTop = 72;
@@ -330,9 +331,46 @@ void OnlyPExercise::updateWidgetLayout() {
 
         int extraX = 0;
         int extraY = 0;
-        if (m_exerciseId == QStringLiteral("1.1") || m_exerciseId == QStringLiteral("1.25")) {
+        if (m_exerciseId == QStringLiteral("1.1")) {
             extraX = 100;
             extraY = -200;
+        } else if (m_exerciseId == QStringLiteral("1.25")) {
+            if (m_displayRole == DisplayRole::Primary) {
+                // Один экран: по центру по вертикали (опустить чуть ниже).
+                extraY = 40;
+            } else if (m_displayRole == DisplayRole::Specialist) {
+                // Dual: как превью до старта (выше центра правой панели).
+                extraY = -120;
+            } else if (m_displayRole == DisplayRole::Patient) {
+                extraX = -30;
+                extraY = 30;
+            }
+        } else if (m_exerciseId == QStringLiteral("1.4")) {
+            // Один экран: по центру по вертикали (чуть поднять).
+            if (m_displayRole == DisplayRole::Primary) {
+                extraY = -40;
+            }
+        } else if (m_exerciseId == QStringLiteral("1.8")) {
+            // Один экран: по центру по вертикали (опустить чуть ниже).
+            if (m_displayRole == DisplayRole::Primary) {
+                extraY = 40;
+            }
+        } else if (m_exerciseId == QStringLiteral("1.18")) {
+            // Один экран: чуть правее по центру.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+            }
+            if (m_stepId == QStringLiteral("3")) {
+                if (m_displayRole == DisplayRole::Primary) {
+                    extraY = 30;
+                } else if (m_displayRole == DisplayRole::Patient) {
+                    extraX = -40;
+                    extraY = 40;
+                } else if (m_displayRole == DisplayRole::Specialist) {
+                    extraX = -20;
+                    extraY = 40;
+                }
+            }
         } else if (m_exerciseId == QStringLiteral("2.10")
                    || m_exerciseId == QStringLiteral("3.1.1")
                    || m_exerciseId == QStringLiteral("3.1.2")
@@ -347,9 +385,6 @@ void OnlyPExercise::updateWidgetLayout() {
             extraY = -200;
         } else if (m_exerciseId == QStringLiteral("3.2.11") && m_stepId == QStringLiteral("2")) {
             // «Существенные признаки…» — поднять картинку во 2-м задании.
-            extraY = -200;
-        } else if (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")) {
-            extraX = 100;
             extraY = -200;
         } else if (m_exerciseId == QStringLiteral("4.1.2")) {
             // onlyp.cs: Пример → (1300,500), «1» → (1300,170)
@@ -438,7 +473,9 @@ void OnlyPExercise::updateWidgetLayout() {
             if (pictureX + display.width() > width() - pictureMargin) {
                 pictureX = qMax(pictureMargin, width() - pictureMargin - display.width());
             }
-            const int pictureY = qMax(pictureMargin, (height() - display.height()) / 2 + extraY);
+            const int pictureY = qMax(
+                pictureMargin,
+                (height() - display.height()) / 2 + kPatientPictureShiftDown + extraY);
             m_picture->move(pictureX, pictureY);
             m_picture->show();
             if (m_picture2) {

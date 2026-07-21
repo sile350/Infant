@@ -852,9 +852,25 @@ bool Repository::updateProtocolsFromEditedDocument(
             QTextDocument sectionDocument;
             sectionDocument.setHtml(
                 ExerciseAssets::buildProtocolDocumentHtml(sectionBody));
-            // Только Результат/Примечание своей секции — без сопоставления чужих дат.
-            mergedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
-                storedBody, &sectionDocument);
+            // OR/HLP/Баллы для методик с таблицей процесса; иначе — Результат/Примечание.
+            if (uprid == QStringLiteral("1.1")
+                || uprid == QStringLiteral("1.2")
+                || uprid == QStringLiteral("1.4")
+                || uprid == QStringLiteral("1.8")
+                || uprid == QStringLiteral("1.13")
+                || uprid == QStringLiteral("1.17")
+                || uprid == QStringLiteral("1.18")
+                || uprid == QStringLiteral("1.25")
+                || uprid == QStringLiteral("3.1.18")
+                || uprid == QStringLiteral("4.1.4")
+                || uprid == QStringLiteral("4.2.2")
+                || uprid == QStringLiteral("5.2.1")) {
+                mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+                    storedBody, &sectionDocument);
+            } else {
+                mergedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+                    storedBody, &sectionDocument);
+            }
         } else {
             // Маркеры id потеряны после QTextDocument — не пишем i-ю дату чужой методики.
             continue;

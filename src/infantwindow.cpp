@@ -1389,9 +1389,9 @@ void InfantWindow::buildUi() {
         "font-size:9pt; background: transparent;"));
 
     m_protocolsView = new QTextEdit(m_panelProtocols);
-    m_protocolsView->setReadOnly(true);
-    m_protocolsView->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    m_protocolsView->setFocusPolicy(Qt::NoFocus);
+    m_protocolsView->setReadOnly(false);
+    m_protocolsView->setTextInteractionFlags(Qt::TextEditorInteraction);
+    m_protocolsView->setFocusPolicy(Qt::StrongFocus);
     m_protocolsView->setGeometry(100, 99, 760, 889);
     m_protocolsView->setFrameShape(QFrame::NoFrame);
     m_protocolsView->setLineWidth(0);
@@ -1420,8 +1420,17 @@ void InfantWindow::buildUi() {
     m_protocolsSaveTimer = new QTimer(this);
     m_protocolsSaveTimer->setSingleShot(true);
     m_protocolsSaveTimer->setInterval(700);
-    ProtocolEditGuard::install(m_protocolsView, ProtocolEditGuard::Mode::ReadOnly);
-    // Сохранённые протоколы только для просмотра — автосохранение правок отключено.
+    connect(m_protocolsSaveTimer, &QTimer::timeout, this, [this]() { saveProtocolsEdits(false); });
+    connect(m_protocolsView->document(), &QTextDocument::contentsChanged, this, [this]() {
+        if (m_protocolsSuppressDirty) {
+            return;
+        }
+        m_protocolsViewDirty = true;
+        if (m_protocolsSaveTimer) {
+            m_protocolsSaveTimer->start();
+        }
+    });
+    ProtocolEditGuard::install(m_protocolsView, ProtocolEditGuard::Mode::LimitedEdit);
 
     m_panelExercises = new WhitePanelWidget(m_workStack);
     m_panelExercises->setObjectName(QStringLiteral("exercisesPanel"));
@@ -2793,7 +2802,12 @@ void InfantWindow::styleProtocolsView() {
         m_protocolsView->document()->setDefaultStyleSheet(
             QStringLiteral(
                 "body { background-color: #ffffff; color: #000000; }"
-                "table, td, th { background-color: #ffffff; }")
+                "table { table-layout:fixed; width:671px; max-width:671px; min-width:671px; "
+                "border-collapse:collapse; border:1px solid #000000; }"
+                "td, th { background-color: #ffffff; border:1px solid #000000; "
+                "text-align:left; vertical-align:top; }"
+                "td[align='center'], th[align='center'] { text-align:center; }"
+                "div[contenteditable='true'] { min-height:1.2em; text-align:left; }")
         );
     }
     if (QWidget *corner = m_protocolsView->cornerWidget()) {
@@ -4373,6 +4387,7 @@ void InfantWindow::refreshProtocolsView() {
     }
     m_protocolsSuppressDirty = false;
     m_protocolsViewDirty = false;
+    ProtocolEditGuard::setMode(m_protocolsView, ProtocolEditGuard::Mode::LimitedEdit);
     if (QScrollBar *scrollBar = m_protocolsView->verticalScrollBar()) {
         scrollBar->setValue(0);
         scrollBar->setStyleSheet(QStringLiteral(

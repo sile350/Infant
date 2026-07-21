@@ -12,6 +12,7 @@
 #include <QTextFrame>
 #include <QTextTable>
 #include <QtMath>
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -2795,7 +2796,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     QList<QTextTable *> tables;
     collectTables(editorDocument->rootFrame(), tables);
     for (QTextTable *table : tables) {
-        if (!table || table->columns() < 3) {
+        if (!table || table->columns() < 2) {
             continue;
         }
         int headerRow = -1;
@@ -2806,7 +2807,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             for (int c = 0; c < table->columns(); ++c) {
                 const QString h = readTableCellText(table, r, c);
                 if (h.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
-                    headerRow = -2; // не эта таблица
+                    headerRow = -2;
                     break;
                 }
                 if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
@@ -2828,57 +2829,126 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                 break;
             }
         }
-        if (headerRow < 0 || ballsCol < 0 || activityCol < 0 || helpCol < 0) {
+        if (headerRow < 0 || activityCol < 0 || helpCol < 0) {
             continue;
         }
+
+        const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
+        if (marker < 0) {
+            continue;
+        }
+        const QString head = body.left(marker + QStringLiteral("<!--s-->").size());
+        QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
+
+        const QRegularExpression trRe(
+            QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        struct RowPos {
+            int start = 0;
+            int len = 0;
+            QString open;
+            QString inner;
+            QString close;
+        };
+        QList<RowPos> dataRows;
+        QRegularExpressionMatchIterator it = trRe.globalMatch(tail);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            const QString plain = htmlFragmentToPlainText(m.captured(2)).trimmed();
+            if (plain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                || (plain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && plain.length() < 40)
+                || plain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                || plain == QStringLiteral("№")) {
+                continue;
+            }
+            RowPos row;
+            row.start = m.capturedStart();
+            row.len = m.capturedLength();
+            row.open = m.captured(1);
+            row.inner = m.captured(2);
+            row.close = m.captured(3);
+            dataRows.append(row);
+        }
+        if (dataRows.isEmpty()) {
+            continue;
+        }
+
+        auto makeEditable = [](const QString &text, bool emptyNbsp) {
+            const QString value = text.trimmed().isEmpty() && emptyNbsp
+                ? QStringLiteral("&nbsp;")
+                : text.toHtmlEscaped();
+            return QStringLiteral("<div contenteditable='true' style='text-align:left'>%1</div>")
+                .arg(value);
+        };
+
+        QList<int> editorDataRows;
         for (int r = headerRow + 1; r < table->rows(); ++r) {
             const QString label = readTableCellText(table, r, 0);
-            if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
+            if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                || label.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
                 continue;
             }
-            const QString activity = readTableCellText(table, r, activityCol);
-            const QString help = readTableCellText(table, r, helpCol);
-            const QString score = readTableCellText(table, r, ballsCol);
+            editorDataRows.append(r);
+        }
+        const int pairCount = qMin(editorDataRows.size(), dataRows.size());
+        for (int i = pairCount - 1; i >= 0; --i) {
+            const int editorRow = editorDataRows.at(editorDataRows.size() - pairCount + i);
+            RowPos &htmlRow = dataRows[dataRows.size() - pairCount + i];
+            const QString activity = readTableCellText(table, editorRow, activityCol);
+            const QString help = readTableCellText(table, editorRow, helpCol);
+            const QString score = ballsCol >= 0
+                ? readTableCellText(table, editorRow, ballsCol)
+                : QString();
 
-            const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
-            if (marker < 0) {
+            const QRegularExpression tdRe(
+                QStringLiteral("(<td[^>]*>)([\\s\\S]*?)(</td>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QList<QRegularExpressionMatch> tds;
+            QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(htmlRow.inner);
+            while (tdIt.hasNext()) {
+                tds.append(tdIt.next());
+            }
+            if (tds.size() <= qMax(activityCol, helpCol)) {
                 continue;
             }
-            QString head = body.left(marker + QStringLiteral("<!--s-->").size());
-            QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
-            const QRegularExpression rowRe(
-                QStringLiteral(
-                    "(<tr[^>]*>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)"
-                    "([\\s\\S]*?)(</td>\\s*</tr>)"),
-                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-            // Берём последнюю строку процесса (не заголовок).
-            QRegularExpressionMatchIterator it = rowRe.globalMatch(tail);
-            QRegularExpressionMatch lastMatch;
-            while (it.hasNext()) {
-                const QRegularExpressionMatch m = it.next();
-                const QString plain = htmlFragmentToPlainText(m.captured(2)).trimmed();
-                if (plain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
-                    || plain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
-                    || plain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+
+            QList<QPair<int, QString>> replacements;
+            replacements.append(qMakePair(activityCol, makeEditable(activity, false)));
+            replacements.append(qMakePair(helpCol, makeEditable(help, true)));
+            if (ballsCol >= 0 && ballsCol < tds.size()) {
+                replacements.append(qMakePair(
+                    ballsCol,
+                    QStringLiteral("<div id='idballs' contenteditable='true'>%1</div>")
+                        .arg(score.toHtmlEscaped())));
+            }
+            std::sort(replacements.begin(), replacements.end(),
+                      [](const QPair<int, QString> &a, const QPair<int, QString> &b) {
+                          return a.first > b.first;
+                      });
+
+            QString inner = htmlRow.inner;
+            for (const auto &rep : replacements) {
+                tds.clear();
+                tdIt = tdRe.globalMatch(inner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (rep.first < 0 || rep.first >= tds.size()) {
                     continue;
                 }
-                lastMatch = m;
+                const QRegularExpressionMatch &td = tds.at(rep.first);
+                inner.replace(
+                    td.capturedStart(),
+                    td.capturedLength(),
+                    td.captured(1) + rep.second + td.captured(3));
             }
-            if (!lastMatch.hasMatch()) {
-                continue;
-            }
-            const QString actInner =
-                QStringLiteral("<div contenteditable='true'>%1</div>").arg(activity.toHtmlEscaped());
-            const QString helpInner =
-                QStringLiteral("<div contenteditable='true'>%1</div>").arg(help.toHtmlEscaped());
-            const QString scoreInner =
-                QStringLiteral("<div id='idballs' contenteditable='true'>%1</div>").arg(score.toHtmlEscaped());
-            const QString newRow = lastMatch.captured(1) + actInner + lastMatch.captured(3) + helpInner
-                + lastMatch.captured(5) + scoreInner + lastMatch.captured(7);
-            tail = tail.left(lastMatch.capturedStart()) + newRow + tail.mid(lastMatch.capturedEnd());
-            body = head + tail;
-            break;
+            const QString newRow = htmlRow.open + inner + htmlRow.close;
+            tail.replace(htmlRow.start, htmlRow.len, newRow);
         }
+        body = head + tail;
+        break;
     }
     return body;
 }

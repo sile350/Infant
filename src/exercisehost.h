@@ -92,6 +92,8 @@ private:
     void showExerciseOverlay();
     void restoreExerciseOverlay();
     void updateExerciseOverlayGeometry();
+    void presentOverlayWidget(QWidget *overlayWidget);
+    void reparentOverlayWidget(QWidget *overlayWidget);
     void syncPatientDisplay();
     void updateExerciseOptionsPanel();
     void refreshRotateCombos();

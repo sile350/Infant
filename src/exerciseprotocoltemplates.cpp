@@ -325,7 +325,13 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{DATE}}"), now);
     vars.insert(QStringLiteral("{{USER}}"), userFio.toHtmlEscaped());
     vars.insert(QStringLiteral("{{OR}}"), formatProtocolCellText(checkboxes.activity));
-    vars.insert(QStringLiteral("{{HLP}}"), formatProtocolCellText(checkboxes.help));
+    {
+        const QString helpHtml = formatProtocolCellText(checkboxes.help);
+        // Пустая ячейка «Виды помощи» — невидимый якорь слева (как у «Характер деятельности»).
+        vars.insert(
+            QStringLiteral("{{HLP}}"),
+            helpHtml.isEmpty() ? QStringLiteral("&nbsp;") : helpHtml);
+    }
     vars.insert(QStringLiteral("{{TIME}}"), formatProtocolTime(elapsedSeconds).toHtmlEscaped());
 
     QString stepId = session.stepId.trimmed().isEmpty() ? QStringLiteral("1") : session.stepId;
@@ -694,6 +700,19 @@ QString createExerciseProtocolFromTemplate(
             const QString appendBlocks = buildSpeechTasksOrHlpBlocks(tmpl, vars, appendSession);
             // Не вставлять внутрь последней </table> — блоки это самостоятельные <table>.
             return existingProtocolHtml + appendBlocks;
+        }
+        // 1.17/1.18 numbered: к существующему протоколу добавляем только строку задания.
+        if (tmpl.kind == QStringLiteral("numbered")
+            && (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18"))) {
+            QString appendRow = row;
+            if (!appendRow.trimmed().startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
+                appendRow = QStringLiteral("<tr>") + appendRow;
+            }
+            if (!appendRow.trimmed().endsWith(QStringLiteral("</tr>"), Qt::CaseInsensitive)) {
+                appendRow += QStringLiteral("</tr>");
+            }
+            return ExerciseProtocol::appendRowsToStoredBody(
+                trimTrailingSummaryRow(existingProtocolHtml), appendRow);
         }
         // 1.26/tmp0_variants, 3.1.10, 1.27/1.272: дописка строк задания в текущий протокол.
         if (tmpl.kind == QStringLiteral("tmp0_variants")

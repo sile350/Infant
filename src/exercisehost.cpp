@@ -25,6 +25,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
 #include <QPaintEvent>
@@ -34,6 +35,7 @@
 #include <QPixmap>
 #include <QPolygonF>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QScrollArea>
 #include <QStandardPaths>
 #include <QTableWidget>
@@ -54,6 +56,7 @@
 #include <QVBoxLayout>
 #include <QStyle>
 #include <QVBoxLayout>
+#include <QWindow>
 #include <QtMath>
 
 namespace {
@@ -421,10 +424,26 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                      << makeCheckRow(
                             QStringLiteral("Целенаправленное выполнение задания."),
                             checkboxLayout,
+                            initialCheckWidth)
+                     << makeCheckRow(
+                            QStringLiteral("Хаотическая деятельность ребенка."),
+                            checkboxLayout,
+                            initialCheckWidth)
+                     << makeCheckRow(
+                            QStringLiteral("Метод «проб и ошибок»."),
+                            checkboxLayout,
                             initialCheckWidth);
+    // По умолчанию пункты взаимоисключающие; для 1.13/1.17/1.18/1.25 — можно отметить все.
     for (const ExerciseCheckRow &row : m_activityChecks) {
         connect(row.box, &QCheckBox::toggled, this, [this, row](bool checked) {
             if (!checked) {
+                return;
+            }
+            const bool allowMulti = m_exerciseId == QStringLiteral("1.13")
+                || m_exerciseId == QStringLiteral("1.17")
+                || m_exerciseId == QStringLiteral("1.18")
+                || m_exerciseId == QStringLiteral("1.25");
+            if (allowMulti) {
                 return;
             }
             for (const ExerciseCheckRow &other : m_activityChecks) {
@@ -760,7 +779,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         const QString mirrorStep = m_specialistExercise->property("stepId").toString();
         if (!stepId.isEmpty() && stepId != mirrorStep) {
             m_specialistExercise->switchStep(stepId);
-            return;
         }
         m_specialistExercise->showPicture(index);
     });
@@ -837,6 +855,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 m_sessionStepId = m_stepCombo->currentText().trimmed();
                 reloadPreviewForCurrentStep();
             }
+        } else if (m_exerciseId == QStringLiteral("1.17")
+                   || m_exerciseId == QStringLiteral("1.18")) {
+            // Дописываем строки заданий в текущий протокол; выбор № уважаем.
+            m_forceNewProtocolSession = false;
+            m_sessionStepId = currentStepId();
+            reloadPreviewForCurrentStep();
+            runExerciseSession();
+            return;
         } else if (m_exerciseId == QStringLiteral("1.272") || forceNewProtocolSessionOnBegin()) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
@@ -849,7 +875,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 reloadPreviewForCurrentStep();
             }
         }
-        resetProtocolToInitialTemplate();
+        if (m_exerciseId != QStringLiteral("1.17") && m_exerciseId != QStringLiteral("1.18")) {
+            resetProtocolToInitialTemplate();
+        }
         runExerciseSession();
     });
     connect(m_formProtocolButton, &ImageButton::clicked, this, [this]() { formProtocol(); });
@@ -987,7 +1015,20 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kComboH = 33;
     constexpr int kComboY = 12;
     constexpr int kRightMargin = 24;
+    // Во время выполнения 1.17/1.18 селект скрыт (вернуть после Стоп).
+    if (m_exerciseRunning
+        && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18"))) {
+        m_stepCombo->hide();
+        return;
+    }
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
+    // 1.17/1.18: рядом с Begin (~85px зазор), как в руководстве.
+    if (!m_exerciseRunning
+        && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18"))) {
+        constexpr int kBeginRight = 976 + 158;
+        constexpr int kGap = 85;
+        comboX = kBeginRight + kGap;
+    }
     // 1.26/1.272: не поверх правой панели задания 2; +100px правее прежней позиции.
     if (m_exerciseRunning
         && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))) {
@@ -1286,11 +1327,23 @@ void ExerciseHost::updatePreviewLayout() {
 
     constexpr int kPreviewAbsLeft = 1100;
     constexpr int kPreviewAbsTop = 75;
+    int previewAbsLeft = kPreviewAbsLeft;
+    int previewAbsTop = kPreviewAbsTop;
+    // Превью как при dual-выполнении: чуть ниже / правее.
+    if (m_exerciseId == QStringLiteral("1.8")) {
+        previewAbsTop = 160;
+    } else if (m_exerciseId == QStringLiteral("1.17")
+               || m_exerciseId == QStringLiteral("1.18")) {
+        previewAbsLeft = 1180;
+        previewAbsTop = 180;
+    } else if (m_exerciseId == QStringLiteral("1.25")) {
+        previewAbsTop = 140;
+    }
     const int rightPanelLeft = kPanelX + kScrollWidth;
-    const int localX = kPreviewAbsLeft - rightPanelLeft;
-    const int localY = kPreviewAbsTop;
-    const int maxW = qMax(120, width() - kPreviewAbsLeft - 16);
-    const int maxH = qMax(120, height() - kPreviewAbsTop - 16);
+    const int localX = previewAbsLeft - rightPanelLeft;
+    const int localY = previewAbsTop;
+    const int maxW = qMax(120, width() - previewAbsLeft - 16);
+    const int maxH = qMax(120, height() - previewAbsTop - 16);
     QPixmap display = m_previewSource;
     if (display.width() > maxW || display.height() > maxH) {
         display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
@@ -1363,24 +1416,10 @@ void ExerciseHost::loadExercise() {
 
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
-    if (m_repository && m_partly) {
-        const QString lastBody = m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
-        const QString lastId = m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId);
-        if (!lastBody.trimmed().isEmpty()) {
-            m_currentProtocolId = lastId;
-            const QString viewHtml = m_repository->loadProtocolViewHtml(
-                m_exerciseId, lastId, m_patientFio, m_patientBirthDate);
-            if (!viewHtml.trimmed().isEmpty()) {
-                m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-            } else {
-                m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-            }
-        } else {
-            m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-        }
-    } else {
-        m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-    }
+    // При входе форма протокола всегда чистая (прошлые прохождения — на странице «Протоколы»).
+    m_currentProtocolId.clear();
+    m_protocolSavedThisSession = false;
+    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
     applyCompactLineHeight(m_templateBrowser->document());
     updateProtocolEditMode();
 
@@ -1525,32 +1564,90 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
     }
 }
 
-void ExerciseHost::updateExerciseOverlayGeometry() {
-    if (m_sessionRunner && m_exerciseRunning) {
-        QWidget *overlayRoot = m_sessionRunner->parentWidget();
-        if (overlayRoot) {
-            m_sessionRunner->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
-        }
+void ExerciseHost::reparentOverlayWidget(QWidget *overlayWidget) {
+    if (!overlayWidget) {
         return;
     }
-    if (!m_onlyP || !m_exerciseRunning) {
-        return;
-    }
-    QWidget *overlayRoot = m_onlyP->parentWidget();
-    if (!overlayRoot) {
-        return;
-    }
-    m_onlyP->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+    overlayWidget->hide();
+    overlayWidget->setWindowFlags(Qt::Widget);
+    overlayWidget->setParent(this);
+    overlayWidget->setGeometry(0, 0, width(), height());
 }
 
-void ExerciseHost::showExerciseOverlay() {
+void ExerciseHost::presentOverlayWidget(QWidget *overlayWidget) {
+    if (!overlayWidget) {
+        return;
+    }
+    m_exerciseRunning = true;
+
+    // Один экран: упражнение на весь физический монитор, даже если окно Infant уменьшено.
+    if (!m_dualScreen) {
+        QWidget *hostWindow = window();
+        QScreen *screen = nullptr;
+        if (hostWindow) {
+            if (QWindow *handle = hostWindow->windowHandle()) {
+                screen = handle->screen();
+            }
+            if (!screen) {
+                screen = QGuiApplication::screenAt(hostWindow->frameGeometry().center());
+            }
+        }
+        if (!screen) {
+            screen = QGuiApplication::primaryScreen();
+        }
+        overlayWidget->setParent(nullptr);
+        overlayWidget->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+        if (screen) {
+            overlayWidget->setGeometry(screen->geometry());
+        }
+        overlayWidget->showFullScreen();
+        overlayWidget->raise();
+        overlayWidget->activateWindow();
+        return;
+    }
+
     QWidget *overlayRoot = parentWidget();
     if (!overlayRoot) {
         return;
     }
-    m_exerciseRunning = true;
+    overlayWidget->setParent(overlayRoot);
+    overlayWidget->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+    overlayWidget->show();
+    overlayWidget->raise();
+}
+
+void ExerciseHost::updateExerciseOverlayGeometry() {
     QWidget *overlayWidget = nullptr;
-    if (m_sessionRunner && m_sessionRunner->isVisible()) {
+    if (m_sessionRunner && m_exerciseRunning) {
+        overlayWidget = m_sessionRunner;
+    } else if (m_onlyP && m_exerciseRunning) {
+        overlayWidget = m_onlyP;
+    }
+    if (!overlayWidget) {
+        return;
+    }
+    if (!m_dualScreen && overlayWidget->isWindow()) {
+        QScreen *screen = overlayWidget->screen();
+        if (!screen && window() && window()->windowHandle()) {
+            screen = window()->windowHandle()->screen();
+        }
+        if (!screen) {
+            screen = QGuiApplication::primaryScreen();
+        }
+        if (screen) {
+            overlayWidget->setGeometry(screen->geometry());
+        }
+        return;
+    }
+    QWidget *overlayRoot = overlayWidget->parentWidget();
+    if (overlayRoot) {
+        overlayWidget->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+    }
+}
+
+void ExerciseHost::showExerciseOverlay() {
+    QWidget *overlayWidget = nullptr;
+    if (m_sessionRunner && (m_exerciseRunning || m_sessionRunner->isVisible())) {
         overlayWidget = m_sessionRunner;
     } else if (m_onlyP) {
         overlayWidget = m_onlyP;
@@ -1558,8 +1655,7 @@ void ExerciseHost::showExerciseOverlay() {
     if (!overlayWidget) {
         return;
     }
-    overlayWidget->setParent(overlayRoot);
-    updateExerciseOverlayGeometry();
+    presentOverlayWidget(overlayWidget);
     lower();
     emit exerciseOverlayChanged(true);
 }
@@ -1567,9 +1663,7 @@ void ExerciseHost::showExerciseOverlay() {
 void ExerciseHost::restoreExerciseOverlay() {
     m_exerciseRunning = false;
     if (m_sessionRunner) {
-        m_sessionRunner->hide();
-        m_sessionRunner->setParent(this);
-        m_sessionRunner->setGeometry(0, 0, width(), height());
+        reparentOverlayWidget(m_sessionRunner);
     }
     if (m_stepCombo && m_stepCombo->parentWidget() != this) {
         m_stepCombo->setParent(this);
@@ -1580,8 +1674,7 @@ void ExerciseHost::restoreExerciseOverlay() {
         emit exerciseOverlayChanged(false);
         return;
     }
-    m_onlyP->setParent(this);
-    m_onlyP->setGeometry(0, 0, width(), height());
+    reparentOverlayWidget(m_onlyP);
     m_onlyP->hide();
     raise();
     layoutStepCombo();
@@ -1630,8 +1723,7 @@ void ExerciseHost::setDualScreenEnabled(bool enabled) {
         if (m_previewImage) {
             m_previewImage->hide();
         }
-        m_onlyP->setParent(this);
-        m_onlyP->setGeometry(0, 0, width(), height());
+        reparentOverlayWidget(m_onlyP);
         m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Headless);
 
         setExerciseChromeVisible(true);
@@ -1713,18 +1805,8 @@ void ExerciseHost::runExerciseSession() {
     if (!definition) {
         return;
     }
-    // Для numbered OnlyPicture (1.17/1.18) при старте сбрасываем на 1-е задание.
-    // Для 1.26 и др. — уважаем выбранное в селекте задание.
-    if (m_stepCombo && m_stepCombo->count() > 0
-        && definition->runner == ExerciseRunnerKind::OnlyPicture
-        && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        m_stepCombo->blockSignals(true);
-        m_stepCombo->setCurrentIndex(0);
-        m_stepCombo->blockSignals(false);
-        m_sessionStepId = m_stepCombo->currentText().trimmed();
-    } else {
-        m_sessionStepId = currentStepId();
-    }
+    // Для numbered OnlyPicture (1.17/1.18) уважаем выбранное в селекте задание.
+    m_sessionStepId = currentStepId();
     if (definition->runner == ExerciseRunnerKind::OnlyPicture) {
         runOnlyPExercise();
         return;
@@ -1814,24 +1896,18 @@ void ExerciseHost::runExerciseSession() {
                 showResultLabels(result.answers, result.elapsedSeconds);
                 emit exerciseOverlayChanged(false);
             });
-    } else if (m_sessionRunner->parent() != this) {
-        m_sessionRunner->setParent(this);
+    } else if (m_sessionRunner->parent() != this || m_sessionRunner->isWindow()) {
+        reparentOverlayWidget(m_sessionRunner);
     }
 
     setExerciseChromeVisible(false);
-    QWidget *overlayRoot = parentWidget();
-    if (!overlayRoot) {
-        return;
-    }
     m_sessionStepId = currentStepId();
-    m_sessionRunner->setParent(overlayRoot);
-    m_sessionRunner->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+    presentOverlayWidget(m_sessionRunner);
     lower();
+    emit exerciseOverlayChanged(true);
     m_sessionRunner->setSessionOptions(buildSessionOptions());
     m_dualScreen = AppSettings::dualScreenEnabled();
     m_sessionRunner->startSession(m_exerciseId, *definition, m_sessionStepId);
-    m_sessionRunner->show();
-    m_sessionRunner->raise();
     layoutStepCombo();
     QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
     syncPatientDisplay();
@@ -2283,6 +2359,10 @@ bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
         return false;
     }
     // Numbered / multi-step or_hlp: новая сессия после Begin, если шаги уже были в протоколе.
+    // 1.17/1.18: дописка строк заданий без сброса протокола (ТЗ заказчика).
+    if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")) {
+        return false;
+    }
     if (definition->protocol == ExerciseProtocolKind::NumberedDoneTime
         || definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp
         || definition->protocol == ExerciseProtocolKind::OrHlpBallsRow
@@ -2631,7 +2711,15 @@ void ExerciseHost::saveProtocolEdits() {
             }
         }
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
-    } else if (m_exerciseId == QStringLiteral("3.1.18")
+    } else if (m_exerciseId == QStringLiteral("1.1")
+               || m_exerciseId == QStringLiteral("1.2")
+               || m_exerciseId == QStringLiteral("1.4")
+               || m_exerciseId == QStringLiteral("1.8")
+               || m_exerciseId == QStringLiteral("1.13")
+               || m_exerciseId == QStringLiteral("1.17")
+               || m_exerciseId == QStringLiteral("1.18")
+               || m_exerciseId == QStringLiteral("1.25")
+               || m_exerciseId == QStringLiteral("3.1.18")
                || m_exerciseId == QStringLiteral("4.1.4")
                || m_exerciseId == QStringLiteral("4.2.2")
                || m_exerciseId == QStringLiteral("5.2.1")) {

@@ -121,13 +121,12 @@ void PatientDisplay::onSourcePictureChanged(int index) {
     if (!m_mirrorExercise || !m_exercise) {
         return;
     }
-    // pictureChanged(1) при смене задания идёт с новым stepId у источника —
-    // зеркало должно сначала переключить шаг, иначе снова загрузится старая картинка.
+    // pictureChanged при смене задания идёт с новым stepId у источника —
+    // зеркало должно сначала переключить шаг, затем показать нужный кадр.
     const QString stepId = m_exercise->property("stepId").toString();
     const QString mirrorStep = m_mirrorExercise->property("stepId").toString();
     if (!stepId.isEmpty() && stepId != mirrorStep) {
         m_mirrorExercise->switchStep(stepId);
-        return;
     }
     m_mirrorExercise->showPicture(index);
 }
@@ -248,7 +247,10 @@ void PatientDisplay::showOnSecondaryScreen() {
             m_mirrorExercise->syncMirrorSession(
                 exerciseId, settings, stepId.isEmpty() ? QStringLiteral("1") : stepId);
             if (!settings.dualPicture && exerciseId != QStringLiteral("3.2.3")) {
-                m_mirrorExercise->showPicture(1);
+                const int picIndex = m_exercise->picturesShown() > 0
+                    ? m_exercise->picturesShown()
+                    : 1;
+                m_mirrorExercise->showPicture(picIndex);
             }
             m_mirrorExercise->show();
         }

@@ -51,8 +51,9 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
         return false;
     }
     const QString firstCell = readProtocolTableCellText(table, row, 0);
-    if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive) && col == 1) {
-        return true;
+    // Результат вносится автоматически — запрет курсора и правок.
+    if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive)) {
+        return false;
     }
     if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
         return true;
