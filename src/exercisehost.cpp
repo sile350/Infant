@@ -1445,7 +1445,8 @@ void ExerciseHost::updatePreviewLayout() {
 
     if (m_exerciseId == QStringLiteral("1.8")
         || m_exerciseId == QStringLiteral("1.17")
-        || m_exerciseId == QStringLiteral("1.18")) {
+        || m_exerciseId == QStringLiteral("1.18")
+        || m_exerciseId == QStringLiteral("1.25")) {
         // Как OnlyPExercise::Specialist при dual: та же область, масштаб и центрирование.
         constexpr int kPictureMargin = 12;
         constexpr int kSpecialistPictureShiftLeft = 15;
@@ -1455,6 +1456,8 @@ void ExerciseHost::updatePreviewLayout() {
         if (m_exerciseId == QStringLiteral("1.18") && currentStepId() == QStringLiteral("3")) {
             extraX = -20;
             extraY = -10; // было +40; поднять на 50px (как Specialist при dual)
+        } else if (m_exerciseId == QStringLiteral("1.25")) {
+            extraY = -120;
         }
 
         int contentTop = kButtonMargin;
@@ -1485,9 +1488,6 @@ void ExerciseHost::updatePreviewLayout() {
         constexpr int kPreviewAbsTop = 75;
         int previewAbsLeft = kPreviewAbsLeft;
         int previewAbsTop = kPreviewAbsTop;
-        if (m_exerciseId == QStringLiteral("1.25")) {
-            previewAbsTop = 140;
-        }
         localX = previewAbsLeft - rightPanelLeft;
         localY = previewAbsTop;
         const int maxW = qMax(120, width() - previewAbsLeft - 16);
@@ -1542,6 +1542,8 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         }
     } else if (m_exerciseId == QStringLiteral("1.8")) {
         // Тот же файл, что OnlyPExercise (single → p%1.png).
+        candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
+    } else if (m_exerciseId == QStringLiteral("1.25")) {
         candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
     } else if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")) {
         if (!step.isEmpty()) {

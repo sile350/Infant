@@ -345,7 +345,7 @@ void OnlyPExercise::updateWidgetLayout() {
                 // Dual: как превью до старта (выше центра правой панели).
                 extraY = -120;
             } else if (m_displayRole == DisplayRole::Patient) {
-                extraX = -30;
+                extraX = 20; // было −30; сдвиг вправо на 50px
                 extraY = 30;
             }
         } else if (m_exerciseId == QStringLiteral("1.4")) {
