@@ -205,10 +205,21 @@ protected:
 
         switch (event->type()) {
         case QEvent::MouseButtonPress:
-        case QEvent::MouseButtonRelease:
-        case QEvent::MouseButtonDblClick:
+        case QEvent::MouseButtonDblClick: {
+            // Только viewport: иначе Press обрабатывается дважды (viewport + editor)
+            // и второй hitTest часто «промахивается» по соседней/заголовочной ячейке.
+            if (m_editor->viewport() && watched != m_editor->viewport()) {
+                return false;
+            }
             return handleMouseButton(watched, static_cast<QMouseEvent *>(event));
+        }
+        case QEvent::MouseButtonRelease:
+            // Не сбрасывать курсор на Release — Press уже выставил позицию.
+            return false;
         case QEvent::MouseMove:
+            if (m_editor->viewport() && watched != m_editor->viewport()) {
+                return false;
+            }
             updateHoverCursor(watched, static_cast<QMouseEvent *>(event));
             return false;
         case QEvent::KeyPress:
@@ -272,12 +283,73 @@ private:
     }
 
     bool handleMouseButton(QObject *watched, QMouseEvent *event) {
-        const QTextCursor probe = cursorAtViewportPos(viewportPosForMouse(watched, event));
+        QTextCursor probe = cursorAtViewportPos(viewportPosForMouse(watched, event));
+        if (probe.position() < 0 || !isEditableProtocolCursor(probe)) {
+            // Пустая соседняя ячейка: FuzzyHit часто попадает в заголовок — пробуем ExactHit.
+            if (m_editor->viewport()) {
+                const QPoint vp = viewportPosForMouse(watched, event);
+                const int exact = m_editor->document()->documentLayout()->hitTest(vp, Qt::ExactHit);
+                if (exact >= 0) {
+                    probe.setPosition(exact);
+                }
+            }
+        }
+        if (probe.position() < 0 || !isEditableProtocolCursor(probe)) {
+            // Клик по заголовку OR/HLP → первая строка данных в той же колонке.
+            if (QTextTable *table = probe.currentTable()) {
+                const QTextTableCell headerCell = table->cellAt(probe.position());
+                if (headerCell.isValid()) {
+                    const QString headerText =
+                        readProtocolTableCellText(table, headerCell.row(), headerCell.column());
+                    if (isLockedHeaderCell(headerText)) {
+                        for (int r = headerCell.row() + 1; r < table->rows(); ++r) {
+                            QTextTableCell dataCell = table->cellAt(r, headerCell.column());
+                            if (!dataCell.isValid()) {
+                                continue;
+                            }
+                            QTextCursor dataCursor = dataCell.firstCursorPosition();
+                            if (isEditableProtocolCursor(dataCursor)) {
+                                probe = dataCursor;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (probe.position() < 0 || !isEditableProtocolCursor(probe)) {
+            // Клик по заголовку OR/HLP → первая строка данных в той же колонке.
+            if (QTextTable *table = probe.currentTable()) {
+                const QTextTableCell headerCell = table->cellAt(probe.position());
+                if (headerCell.isValid()) {
+                    const QString headerText =
+                        readProtocolTableCellText(table, headerCell.row(), headerCell.column());
+                    if (isLockedHeaderCell(headerText)) {
+                        for (int r = headerCell.row() + 1; r < table->rows(); ++r) {
+                            const QTextTableCell dataCell = table->cellAt(r, headerCell.column());
+                            if (!dataCell.isValid()) {
+                                continue;
+                            }
+                            const QTextCursor dataCursor = dataCell.firstCursorPosition();
+                            if (isEditableProtocolCursor(dataCursor)) {
+                                probe = dataCursor;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if (probe.position() < 0 || !isEditableProtocolCursor(probe)) {
             restoreLastEditableCursor();
             return true;
         }
+        m_guarding = true;
+        m_editor->setTextCursor(probe);
+        m_lastEditablePos = probe.position();
         m_editor->setCursorWidth(1);
+        m_editor->setFocus(Qt::MouseFocusReason);
+        m_guarding = false;
         return false;
     }
 

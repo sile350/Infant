@@ -190,6 +190,7 @@ private:
     ImageButton *m_pAna = nullptr;
     ImageButton *m_pProto = nullptr;
     ImageButton *m_pUpr = nullptr;
+    QCheckBox *m_dualScreenTabCheck = nullptr;
     QLabel *m_logo1 = nullptr;
     QLabel *m_logo2 = nullptr;
 

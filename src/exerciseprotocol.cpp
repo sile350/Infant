@@ -63,7 +63,7 @@ QString readHeaderRows(const QString &exerciseId) {
 
 QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
-        return {};
+        return QStringLiteral("&nbsp;");
     }
     const QStringList lines = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
     QStringList parts;
@@ -73,7 +73,7 @@ QString formatProtocolCellText(const QString &text) {
             parts << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
         }
     }
-    return parts.join(QStringLiteral("<br>"));
+    return parts.isEmpty() ? QStringLiteral("&nbsp;") : parts.join(QStringLiteral("<br>"));
 }
 
 QString protocolSummaryTableOpenHtml() {
@@ -2915,7 +2915,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             }
 
             QList<QPair<int, QString>> replacements;
-            replacements.append(qMakePair(activityCol, makeEditable(activity, false)));
+            replacements.append(qMakePair(activityCol, makeEditable(activity, true)));
             replacements.append(qMakePair(helpCol, makeEditable(help, true)));
             if (ballsCol >= 0 && ballsCol < tds.size()) {
                 replacements.append(qMakePair(

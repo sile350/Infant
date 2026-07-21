@@ -76,7 +76,7 @@ QString formatProtocolTime(int elapsedSeconds) {
 
 QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
-        return QString();
+        return QStringLiteral("&nbsp;");
     }
     const QStringList parts = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
     QStringList lines;
@@ -86,7 +86,7 @@ QString formatProtocolCellText(const QString &text) {
             lines << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
         }
     }
-    return lines.join(QStringLiteral("<br>"));
+    return lines.isEmpty() ? QStringLiteral("&nbsp;") : lines.join(QStringLiteral("<br>"));
 }
 
 QString developmentLevel(int score) {
@@ -324,14 +324,9 @@ QMap<QString, QString> buildVariables(
     const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
     vars.insert(QStringLiteral("{{DATE}}"), now);
     vars.insert(QStringLiteral("{{USER}}"), userFio.toHtmlEscaped());
+    // OR/HLP: formatProtocolCellText уже ставит &nbsp; в пустые ячейки (якорь для клика в QTextEdit).
     vars.insert(QStringLiteral("{{OR}}"), formatProtocolCellText(checkboxes.activity));
-    {
-        const QString helpHtml = formatProtocolCellText(checkboxes.help);
-        // Пустая ячейка «Виды помощи» — невидимый якорь слева (как у «Характер деятельности»).
-        vars.insert(
-            QStringLiteral("{{HLP}}"),
-            helpHtml.isEmpty() ? QStringLiteral("&nbsp;") : helpHtml);
-    }
+    vars.insert(QStringLiteral("{{HLP}}"), formatProtocolCellText(checkboxes.help));
     vars.insert(QStringLiteral("{{TIME}}"), formatProtocolTime(elapsedSeconds).toHtmlEscaped());
 
     QString stepId = session.stepId.trimmed().isEmpty() ? QStringLiteral("1") : session.stepId;

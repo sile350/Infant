@@ -18,6 +18,13 @@ QString formatProtocolTime(int elapsedSeconds) {
 }
 
 QString editableCell(const QString &text = QString()) {
+    if (text.trimmed().isEmpty()) {
+        return QStringLiteral("<div contenteditable='true'>&nbsp;</div>");
+    }
+    // formatProtocolCellText уже возвращает HTML (&nbsp;/br) — не экранировать повторно.
+    if (text.contains(QStringLiteral("&nbsp;")) || text.contains(QLatin1Char('<'))) {
+        return QStringLiteral("<div contenteditable='true'>%1</div>").arg(text);
+    }
     return QStringLiteral("<div contenteditable='true'>%1</div>").arg(text.toHtmlEscaped());
 }
 
@@ -96,7 +103,7 @@ int scoreExercise14(int time, int picturesShown) {
 
 QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
-        return QString();
+        return QStringLiteral("&nbsp;");
     }
     const QStringList parts = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
     QStringList lines;
@@ -106,7 +113,7 @@ QString formatProtocolCellText(const QString &text) {
             lines << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
         }
     }
-    return lines.join(QStringLiteral("<br>"));
+    return lines.isEmpty() ? QStringLiteral("&nbsp;") : lines.join(QStringLiteral("<br>"));
 }
 
 QString dateSpecialistRow(const QString &userFio, int colspan = 2) {
