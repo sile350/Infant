@@ -22,6 +22,7 @@ class QGroupBox;
 class QPushButton;
 class QRadioButton;
 class QTableWidget;
+class QVBoxLayout;
 class OnlyPExercise;
 class ExerciseRunnerWidget;
 class PatientDisplay;
@@ -68,6 +69,8 @@ private:
     void layoutStepCombo();
     void updatePreviewLayout();
     void reloadPreviewForCurrentStep();
+    void syncActivityChecksFromOrHtml();
+    void clearActivityChecks();
     void ensureWords422Panel();
     void layoutWords422Panel();
     void updateWords422Panel(const QString &additional);
@@ -143,6 +146,9 @@ private:
     QWidget *m_scrollContent = nullptr;
     QTextBrowser *m_orBrowser = nullptr;
     QWidget *m_evaluationPanel = nullptr;
+    QWidget *m_activityChecksHost = nullptr;
+    QVBoxLayout *m_activityChecksLayout = nullptr;
+    QLabel *m_activityTitle = nullptr;
     QWidget *m_checkboxPanel = nullptr;
     QWidget *m_templatePanel = nullptr;
     QTextEdit *m_templateBrowser = nullptr;

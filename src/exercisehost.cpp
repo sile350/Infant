@@ -249,6 +249,85 @@ void resizeCheckLabel(QLabel *label, int width) {
     label->setFixedHeight(qMax(20, height));
 }
 
+QString stripHtmlTags(const QString &html) {
+    QString result = html;
+    result.remove(QRegularExpression(
+        QStringLiteral("<[^>]+>"),
+        QRegularExpression::CaseInsensitiveOption));
+    return result.trimmed();
+}
+
+QString checkboxValueFromInputTag(const QString &inputTag) {
+    static const QRegularExpression valueRe(
+        QStringLiteral("\\bvalue\\s*=\\s*['\"]([^'\"]*)['\"]"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = valueRe.match(inputTag);
+    if (!match.hasMatch()) {
+        return {};
+    }
+    return stripHtmlTags(match.captured(1));
+}
+
+QString activitySectionFromOrHtml(const QString &html) {
+    static const QRegularExpression startRe(
+        QStringLiteral("Характер\\s+деятельности"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch startMatch = startRe.match(html);
+    if (!startMatch.hasMatch()) {
+        return {};
+    }
+    const int start = startMatch.capturedStart();
+    static const QRegularExpression helpRe(
+        QStringLiteral("Виды\\s+возможной\\s+помощи"),
+        QRegularExpression::CaseInsensitiveOption);
+    const int helpStart = html.indexOf(helpRe, start);
+    if (helpStart > start) {
+        return html.mid(start, helpStart - start);
+    }
+    return html.mid(start);
+}
+
+QStringList parseActivityLabelsFromOrHtml(const QString &html) {
+    const QString section = activitySectionFromOrHtml(html);
+    if (section.isEmpty()) {
+        return {};
+    }
+
+    QMap<int, QString> byId;
+    static const QRegularExpression inputRe(
+        QStringLiteral("<input\\b[^>]*>"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression checkboxTypeRe(
+        QStringLiteral("type\\s*=\\s*['\"]checkbox['\"]"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression iddRe(
+        QStringLiteral("\\bid\\s*=\\s*['\"]idd(\\d+)['\"]"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    QRegularExpressionMatchIterator it = inputRe.globalMatch(section);
+    while (it.hasNext()) {
+        const QString tag = it.next().captured(0);
+        if (!checkboxTypeRe.match(tag).hasMatch()) {
+            continue;
+        }
+        const QRegularExpressionMatch idMatch = iddRe.match(tag);
+        if (!idMatch.hasMatch()) {
+            continue;
+        }
+        const QString label = checkboxValueFromInputTag(tag);
+        if (label.isEmpty()) {
+            continue;
+        }
+        byId.insert(idMatch.captured(1).toInt(), label);
+    }
+
+    QStringList labels;
+    for (auto mapIt = byId.constBegin(); mapIt != byId.constEnd(); ++mapIt) {
+        labels << mapIt.value();
+    }
+    return labels;
+}
+
 QString loadExerciseHtmlFile(const QString &exerciseId, const QString &fileName) {
     const QString path = ExerciseAssets::exerciseFile(exerciseId, fileName);
     if (path.isEmpty()) {
@@ -425,11 +504,17 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     evaluationLayout->addWidget(evalTitle);
     evaluationLayout->addSpacing(12);
 
-    auto *activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
-    activityTitle->setAlignment(Qt::AlignCenter);
-    activityTitle->setStyleSheet(QStringLiteral(
+    m_activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
+    m_activityTitle->setAlignment(Qt::AlignCenter);
+    m_activityTitle->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:15px; font-weight:bold; padding:0;"));
+
+    m_activityChecksHost = new OpaquePanel(kDocumentBg, m_evaluationPanel);
+    m_activityChecksHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    m_activityChecksLayout = new QVBoxLayout(m_activityChecksHost);
+    m_activityChecksLayout->setContentsMargins(8, 0, 8, 0);
+    m_activityChecksLayout->setSpacing(2);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
     m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -438,48 +523,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     checkboxLayout->setSpacing(2);
 
     const int initialCheckWidth = 760;
-    m_activityChecks << makeCheckRow(QStringLiteral("Ребенок не понимает инструкцию."), checkboxLayout, initialCheckWidth)
-                     << makeCheckRow(
-                            QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."),
-                            checkboxLayout,
-                            initialCheckWidth)
-                     << makeCheckRow(
-                            QStringLiteral("Целенаправленное выполнение задания."),
-                            checkboxLayout,
-                            initialCheckWidth)
-                     << makeCheckRow(
-                            QStringLiteral("Хаотическая деятельность ребенка."),
-                            checkboxLayout,
-                            initialCheckWidth)
-                     << makeCheckRow(
-                            QStringLiteral("Метод «проб и ошибок»."),
-                            checkboxLayout,
-                            initialCheckWidth);
-    // По умолчанию пункты взаимоисключающие; для 1.13/1.17/1.18/1.25 — можно отметить все.
-    for (const ExerciseCheckRow &row : m_activityChecks) {
-        connect(row.box, &QCheckBox::toggled, this, [this, row](bool checked) {
-            if (!checked) {
-                return;
-            }
-            const bool allowMulti = m_exerciseId == QStringLiteral("1.13")
-                || m_exerciseId == QStringLiteral("1.17")
-                || m_exerciseId == QStringLiteral("1.18")
-                || m_exerciseId == QStringLiteral("1.25");
-            if (allowMulti) {
-                return;
-            }
-            for (const ExerciseCheckRow &other : m_activityChecks) {
-                if (other.box != row.box) {
-                    other.box->setChecked(false);
-                }
-            }
-        });
-    }
-    checkboxLayout->addSpacing(12);
 
     auto *helpTitle = new WhiteLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
     helpTitle->setAlignment(Qt::AlignCenter);
-    helpTitle->setStyleSheet(activityTitle->styleSheet());
+    helpTitle->setStyleSheet(m_activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
     auto *stimHelpLabel = new WhiteLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
@@ -541,11 +588,12 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     tableLayout->setSpacing(0);
 
     auto *doneTitleLabel = new QLabel(QStringLiteral("Выполнение"), doneTable);
+    doneTitleLabel->setFrameShape(QFrame::NoFrame);
     doneTitleLabel->setFixedWidth(100);
     doneTitleLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
     doneTitleLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     doneTitleLabel->setStyleSheet(QStringLiteral(
-        "background:transparent; color:#000000;"
+        "background:#ffffff; border:none; color:#000000;"
         "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; padding:0; margin:0;"));
     tableLayout->addWidget(doneTitleLabel, 0, Qt::AlignTop);
 
@@ -553,7 +601,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     doneOptionsLayout->setContentsMargins(4, 0, 4, 0);
     doneOptionsLayout->setSpacing(0);
 
-    constexpr int kDoneOptionWidth = 260;
+    constexpr int kDoneOptionWidth = 240;
     m_doneChecks << makeDoneOptionRow(
                       QStringLiteral("Выполнено"), doneOptionsLayout, kDoneOptionWidth)
                  << makeDoneOptionRow(
@@ -580,7 +628,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_donePanel->hide();
 
     evaluationLayout->addWidget(m_donePanel);
-    evaluationLayout->addWidget(activityTitle);
+    evaluationLayout->addWidget(m_activityTitle);
+    evaluationLayout->addWidget(m_activityChecksHost);
+    evaluationLayout->addSpacing(12);
     evaluationLayout->addWidget(m_checkboxPanel);
 
     m_templatePanel = new OpaquePanel(kDocumentBg, m_scrollContent);
@@ -1164,7 +1214,9 @@ void ExerciseHost::openExercise(
     setExerciseChromeVisible(true);
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
-        row.box->setChecked(false);
+        if (row.box) {
+            row.box->setChecked(false);
+        }
     }
     for (const ExerciseCheckRow &row : m_helpChecks) {
         row.box->setChecked(false);
@@ -1489,11 +1541,65 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
     updatePreviewLayout();
 }
 
+void ExerciseHost::clearActivityChecks() {
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        if (row.label && row.label->parentWidget()) {
+            row.label->parentWidget()->deleteLater();
+        }
+    }
+    m_activityChecks.clear();
+}
+
+void ExerciseHost::syncActivityChecksFromOrHtml() {
+    clearActivityChecks();
+
+    const QStringList labels = parseActivityLabelsFromOrHtml(m_rawOrHtml);
+    const bool hasActivity = !labels.isEmpty();
+    if (m_activityTitle) {
+        m_activityTitle->setVisible(hasActivity);
+    }
+    if (m_activityChecksHost) {
+        m_activityChecksHost->setVisible(hasActivity);
+    }
+    if (!hasActivity || !m_activityChecksLayout) {
+        return;
+    }
+
+    const int checkWidth = m_scrollArea && m_scrollArea->viewport()
+        ? qMax(200, m_scrollArea->viewport()->width() - 40)
+        : 760;
+
+    for (const QString &text : labels) {
+        m_activityChecks << makeCheckRow(text, m_activityChecksLayout, checkWidth);
+    }
+
+    const bool allowMulti = m_exerciseId == QStringLiteral("1.13")
+        || m_exerciseId == QStringLiteral("1.17")
+        || m_exerciseId == QStringLiteral("1.18")
+        || m_exerciseId == QStringLiteral("1.25");
+    for (const ExerciseCheckRow &row : m_activityChecks) {
+        if (!row.box) {
+            continue;
+        }
+        connect(row.box, &QCheckBox::toggled, this, [this, row, allowMulti](bool checked) {
+            if (!checked || allowMulti) {
+                return;
+            }
+            for (const ExerciseCheckRow &other : m_activityChecks) {
+                if (other.box && other.box != row.box) {
+                    other.box->setChecked(false);
+                }
+            }
+        });
+    }
+}
+
 void ExerciseHost::loadExercise() {
     m_evaluationPanel->show();
 
     m_rawOrHtml = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
     reloadOrBrowser();
+    syncActivityChecksFromOrHtml();
 
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
@@ -1605,6 +1711,9 @@ void ExerciseHost::updateContentHeights() {
     }
     if (m_checkboxPanel) {
         m_checkboxPanel->setMinimumWidth(textWidth);
+    }
+    if (m_activityChecksHost) {
+        m_activityChecksHost->setMinimumWidth(textWidth);
     }
     if (m_evaluationPanel) {
         m_evaluationPanel->setMinimumWidth(textWidth);
