@@ -25,7 +25,6 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFrame>
-#include <QGridLayout>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
@@ -318,23 +317,16 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     return row;
 }
 
-ExerciseCheckRow makeDoneTableOption(
-    const QString &text,
-    QWidget *tableHost,
-    QGridLayout *grid,
-    int row,
-    int optionWidth) {
+ExerciseCheckRow makeDoneOptionRow(const QString &text, QVBoxLayout *layout, int optionWidth) {
     ExerciseCheckRow rowData;
-    auto *cell = new QWidget(tableHost);
-    cell->setStyleSheet(QStringLiteral("QWidget { background:#ffffff; }"));
-    auto *rowLayout = new QHBoxLayout(cell);
-    rowLayout->setContentsMargins(8, 4, 8, 4);
+    auto *rowLayout = new QHBoxLayout();
+    rowLayout->setContentsMargins(0, 0, 0, 0);
     rowLayout->setSpacing(8);
 
-    rowData.box = new WhiteCheckBox(cell);
+    rowData.box = new WhiteCheckBox();
     rowData.box->setFixedSize(18, 18);
 
-    rowData.label = new WhiteLabel(text, cell);
+    rowData.label = new WhiteLabel(text);
     rowData.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     if (optionWidth > 40) {
         resizeCheckLabel(rowData.label, optionWidth - 34);
@@ -344,7 +336,7 @@ ExerciseCheckRow makeDoneTableOption(
 
     rowLayout->addWidget(rowData.box, 0, Qt::AlignVCenter);
     rowLayout->addWidget(rowData.label, 1);
-    grid->addWidget(cell, row, 1);
+    layout->addLayout(rowLayout);
     return rowData;
 }
 
@@ -542,30 +534,30 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     auto *doneTable = new QWidget(m_donePanel);
     doneTable->setStyleSheet(QStringLiteral(
         "QWidget { background:#ffffff; border:1px solid #000000; }"));
-    auto *doneGrid = new QGridLayout(doneTable);
-    doneGrid->setContentsMargins(0, 0, 0, 0);
-    doneGrid->setSpacing(0);
+    auto *tableLayout = new QHBoxLayout(doneTable);
+    tableLayout->setContentsMargins(0, 0, 0, 0);
+    tableLayout->setSpacing(0);
 
-    auto *doneTitleCell = new QWidget(doneTable);
-    doneTitleCell->setFixedWidth(100);
-    auto *doneTitleLayout = new QVBoxLayout(doneTitleCell);
-    doneTitleLayout->setContentsMargins(4, 4, 4, 4);
-    auto *doneTitleLabel = new WhiteLabel(QStringLiteral("Выполнение"), doneTitleCell);
-    doneTitleLabel->setAlignment(Qt::AlignCenter);
+    auto *doneTitleLabel = new WhiteLabel(QStringLiteral("Выполнение"), doneTable);
+    doneTitleLabel->setFixedWidth(100);
+    doneTitleLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
+    doneTitleLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    doneTitleLabel->setContentsMargins(4, 4, 4, 4);
     doneTitleLabel->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
-    doneTitleLayout->addStretch(1);
-    doneTitleLayout->addWidget(doneTitleLabel, 0, Qt::AlignCenter);
-    doneTitleLayout->addStretch(1);
-    doneGrid->addWidget(doneTitleCell, 0, 0, 3, 1);
+    tableLayout->addWidget(doneTitleLabel, 0, Qt::AlignTop);
+
+    auto *doneOptionsLayout = new QVBoxLayout();
+    doneOptionsLayout->setContentsMargins(8, 4, 8, 4);
+    doneOptionsLayout->setSpacing(0);
 
     constexpr int kDoneOptionWidth = 280;
-    m_doneChecks << makeDoneTableOption(
-                      QStringLiteral("Выполнено"), doneTable, doneGrid, 0, kDoneOptionWidth)
-                 << makeDoneTableOption(
-                      QStringLiteral("Выполнено частично"), doneTable, doneGrid, 1, kDoneOptionWidth)
-                 << makeDoneTableOption(
-                      QStringLiteral("Не выполнено"), doneTable, doneGrid, 2, kDoneOptionWidth);
+    m_doneChecks << makeDoneOptionRow(
+                      QStringLiteral("Выполнено"), doneOptionsLayout, kDoneOptionWidth)
+                 << makeDoneOptionRow(
+                      QStringLiteral("Выполнено частично"), doneOptionsLayout, kDoneOptionWidth)
+                 << makeDoneOptionRow(
+                      QStringLiteral("Не выполнено"), doneOptionsLayout, kDoneOptionWidth);
     for (const ExerciseCheckRow &row : m_doneChecks) {
         connect(row.box, &QCheckBox::toggled, this, [this, row](bool checked) {
             if (!checked) {
@@ -578,6 +570,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             }
         });
     }
+
+    tableLayout->addLayout(doneOptionsLayout, 1);
 
     doneOuter->addWidget(doneTable, 0, Qt::AlignHCenter | Qt::AlignTop);
     doneOuter->addStretch(1);
