@@ -532,26 +532,28 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     doneOuter->addStretch(1);
 
     auto *doneTable = new QWidget(m_donePanel);
+    doneTable->setAttribute(Qt::WA_StyledBackground, true);
+    doneTable->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Minimum);
     doneTable->setStyleSheet(QStringLiteral(
         "QWidget { background:#ffffff; border:1px solid #000000; }"));
     auto *tableLayout = new QHBoxLayout(doneTable);
-    tableLayout->setContentsMargins(0, 0, 0, 0);
+    tableLayout->setContentsMargins(4, 4, 4, 4);
     tableLayout->setSpacing(0);
 
-    auto *doneTitleLabel = new WhiteLabel(QStringLiteral("Выполнение"), doneTable);
+    auto *doneTitleLabel = new QLabel(QStringLiteral("Выполнение"), doneTable);
     doneTitleLabel->setFixedWidth(100);
     doneTitleLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
     doneTitleLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-    doneTitleLabel->setContentsMargins(4, 4, 4, 4);
     doneTitleLabel->setStyleSheet(QStringLiteral(
-        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
+        "background:transparent; color:#000000;"
+        "font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; padding:0; margin:0;"));
     tableLayout->addWidget(doneTitleLabel, 0, Qt::AlignTop);
 
     auto *doneOptionsLayout = new QVBoxLayout();
-    doneOptionsLayout->setContentsMargins(8, 4, 8, 4);
+    doneOptionsLayout->setContentsMargins(4, 0, 4, 0);
     doneOptionsLayout->setSpacing(0);
 
-    constexpr int kDoneOptionWidth = 280;
+    constexpr int kDoneOptionWidth = 260;
     m_doneChecks << makeDoneOptionRow(
                       QStringLiteral("Выполнено"), doneOptionsLayout, kDoneOptionWidth)
                  << makeDoneOptionRow(
@@ -571,7 +573,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         });
     }
 
-    tableLayout->addLayout(doneOptionsLayout, 1);
+    tableLayout->addLayout(doneOptionsLayout, 0);
 
     doneOuter->addWidget(doneTable, 0, Qt::AlignHCenter | Qt::AlignTop);
     doneOuter->addStretch(1);
