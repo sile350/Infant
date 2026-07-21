@@ -242,10 +242,9 @@ void PatientDisplay::showOnSecondaryScreen() {
             if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
                 settings = definition->onlyPicture;
             }
-            // Текущий шаг с Headless-источника (не всегда «1»).
+            // Текущий шаг с Headless-источника (пустой — у autoAdvance вроде 1.4).
             const QString stepId = m_exercise->property("stepId").toString();
-            m_mirrorExercise->syncMirrorSession(
-                exerciseId, settings, stepId.isEmpty() ? QStringLiteral("1") : stepId);
+            m_mirrorExercise->syncMirrorSession(exerciseId, settings, stepId);
             if (!settings.dualPicture && exerciseId != QStringLiteral("3.2.3")) {
                 const int picIndex = m_exercise->picturesShown() > 0
                     ? m_exercise->picturesShown()

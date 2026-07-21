@@ -349,9 +349,11 @@ void OnlyPExercise::updateWidgetLayout() {
                 extraY = 30;
             }
         } else if (m_exerciseId == QStringLiteral("1.4")) {
-            // Один экран: по центру по вертикали (чуть поднять).
+            // Один экран и экран пациента: на 100px выше текущей позиции.
             if (m_displayRole == DisplayRole::Primary) {
-                extraY = -40;
+                extraY = -140; // было −40
+            } else if (m_displayRole == DisplayRole::Patient) {
+                extraY = -100;
             }
         } else if (m_exerciseId == QStringLiteral("1.8")) {
             // Один экран: по центру по вертикали (опустить чуть ниже).
@@ -775,7 +777,8 @@ QString OnlyPExercise::imageFileName(int index) const {
         }
         return QStringLiteral("%1.png").arg(m_browseIndex + 1);
     }
-    if (!m_stepId.isEmpty()) {
+    if (!m_stepId.isEmpty() && !settings.stepIds.isEmpty()) {
+        // Numbered (1.17/1.18/…): файл по № задания, не по индексу слайда.
         return settings.imagePattern.arg(m_stepId);
     }
     return settings.imagePattern.arg(index);
@@ -989,7 +992,20 @@ void OnlyPExercise::showPicture(int index) {
         applyBrowseIndex(qMax(0, index - 1));
         return;
     }
-    loadPicture(index);
+    // Зеркало: не эмитить pictureChanged повторно (иначе петля / лишние сбросы).
+    const QString path = ExerciseAssets::exerciseFile(m_exerciseId, imageFileName(index));
+    if (path.isEmpty()) {
+        return;
+    }
+    m_pictureSource.load(path);
+    m_picturesShown = qMax(m_picturesShown, index);
+    updateWidgetLayout();
+    if (m_picture) {
+        m_picture->raise();
+    }
+    if (m_displayRole != DisplayRole::Headless) {
+        show();
+    }
 }
 
 void OnlyPExercise::submitAnswer(bool correct) {
