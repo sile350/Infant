@@ -157,6 +157,10 @@ private:
     QList<ExerciseCheckRow> m_doneChecks;
     QWidget *m_donePanel = nullptr;
     QLabel *m_previewImage = nullptr;
+    QWidget *m_previewGenderPanel = nullptr;
+    QRadioButton *m_previewGirlRadio = nullptr;
+    QRadioButton *m_previewBoyRadio = nullptr;
+    QString m_previewGenderPrefix = QStringLiteral("d");
     QPixmap m_previewSource;
     QWidget *m_words422Panel = nullptr;
     QLabel *m_words422Label = nullptr;

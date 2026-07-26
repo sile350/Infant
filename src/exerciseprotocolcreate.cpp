@@ -464,66 +464,91 @@ QString buildProtocol126(
     const QString hlpText = formatProtocolCellText(checkboxes.help);
 
     const QString tableOpen = QStringLiteral(
-        "<table border='1' style='table-layout:fixed' cellspacing='0' width='674' cellpadding='0'>");
+        "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>");
     const QString processHeading = QStringLiteral(
         "<p align='center'><b>Процесс выполнения диагностического задания</b></p>");
+
+    static const QStringList kTask2Correct = {
+        QStringLiteral("Злость"),
+        QStringLiteral("Грусть"),
+        QStringLiteral("Спокойное"),
+        QStringLiteral("Злость"),
+        QStringLiteral("Удивление"),
+        QStringLiteral("Радость"),
+        QStringLiteral("Страх"),
+        QStringLiteral("Спокойное"),
+        QStringLiteral("Грусть"),
+        QStringLiteral("Страх"),
+        QStringLiteral("Радость"),
+        QStringLiteral("Удивление"),
+    };
 
     QString rows;
     if (step == QStringLiteral("1")) {
         rows += QStringLiteral(
-            "<tr><td colspan='3' align='center'> Задание 1 </td></tr>");
+            "<tr><td colspan='4' align='center'> Задание 1 </td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='24%'>Характер деятельности ребенка</td>"
-            "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
+            "<tr><td width='200'>Характер деятельности ребенка</td>"
+            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='24%'>Виды помощи</td>"
-            "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
+            "<tr><td width='200'>Виды помощи</td>"
+            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='24%' align='center'>Портретная картинка</td>"
-            "<td align='center'>Ответ ребенка</td>"
-            "<td align='center' width='10%'>Баллы</td></tr>");
-        rows += QStringLiteral("<tr><td>Радость</td><td align='left'>") + tmpAt(tmp, 2)
-            + QStringLiteral("</td><td align='center'><div id='col11' contenteditable='true'></div></td></tr>");
-        rows += QStringLiteral("<tr><td>Злость</td><td align='left'>") + tmpAt(tmp, 3)
-            + QStringLiteral("</td><td align='center'><div id='col12' contenteditable='true'></div></td></tr>");
-        rows += QStringLiteral("<tr><td>Грусть</td><td align='left'>") + tmpAt(tmp, 4)
-            + QStringLiteral("</td><td align='center'><div id='col13' contenteditable='true'></div></td></tr>");
-        rows += QStringLiteral("<tr><td>Страх</td><td align='left'>") + tmpAt(tmp, 5)
-            + QStringLiteral("</td><td align='center'><div id='col14' contenteditable='true'></div></td></tr>");
-        rows += QStringLiteral("<tr><td>Удивление</td><td align='left'>") + tmpAt(tmp, 6)
-            + QStringLiteral("</td><td align='center'><div id='col15' contenteditable='true'></div></td></tr>");
-        rows += QStringLiteral("<tr><td>Спокойствие</td><td align='left'>") + tmpAt(tmp, 7)
-            + QStringLiteral("</td><td align='center'><div id='col16' contenteditable='true'></div></td></tr>");
-        rows += QStringLiteral(
-            "<tr><td align='left' colspan='2'>Итоговая оценка</td>"
-            "<td align='center'><div id='sum1' contenteditable='true'></div></td></tr>");
-    } else if (step == QStringLiteral("2")) {
-        rows += QStringLiteral("<tr><td colspan='3' align='center'><b>Задание 2</b></td></tr>");
-        rows += QStringLiteral(
-            "<tr><td>Характер деятельности ребенка</td>"
-            "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
-            + orText + QStringLiteral("</div></td></tr>");
-        rows += QStringLiteral(
-            "<tr><td>Виды помощи</td>"
-            "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
-            + hlpText + QStringLiteral("</div></td></tr>");
-        rows += QStringLiteral(
-            "<tr><td align='center'><b>№ рассказа</b></td>"
-            "<td align='center'><b>Ответ ребенка</b></td>"
-            "<td align='center'><b>Баллы</b></td></tr>");
-        for (int i = 1; i <= 12; ++i) {
-            rows += QStringLiteral("<tr><td align='center'>") + QString::number(i)
-                + QStringLiteral("</td><td align='left'>") + tmpAt(tmp, i + 1)
-                + QStringLiteral("</td><td align='center'><div id='col2") + QString::number(i)
-                + QStringLiteral("' contenteditable='true'></div></td></tr>");
+            "<tr><td width='142' align='center'>Портретная картинка</td>"
+            "<td colspan='2' align='center'>Ответ ребенка</td>"
+            "<td align='center' width='60'>Баллы</td></tr>");
+        const QStringList emotions = {
+            QStringLiteral("Радость"), QStringLiteral("Злость"), QStringLiteral("Грусть"),
+            QStringLiteral("Страх"), QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
+        };
+        for (int i = 0; i < emotions.size(); ++i) {
+            const QString answerHtml = tmpAt(tmp, i + 2).isEmpty()
+                ? QStringLiteral("&nbsp;")
+                : tmpAt(tmp, i + 2);
+            rows += QStringLiteral("<tr><td>") + emotions.at(i)
+                + QStringLiteral("</td><td colspan='2' align='left'>"
+                                 "<div id='ans1%1' contenteditable='true'>%2</div></td>"
+                                 "<td align='center'><div id='col1%1' contenteditable='true'>&nbsp;</div></td></tr>")
+                      .arg(i + 1)
+                      .arg(answerHtml);
         }
         rows += QStringLiteral(
-            "<tr><td colspan='2' align='left'>Итоговая оценка</td>"
+            "<tr><td align='left' colspan='3'>Итоговая оценка</td>"
+            "<td align='center'><div id='sum1' contenteditable='true'></div></td></tr>");
+    } else if (step == QStringLiteral("2")) {
+        rows += QStringLiteral("<tr><td colspan='4' align='center'><b>Задание 2</b></td></tr>");
+        rows += QStringLiteral(
+            "<tr><td width='200'>Характер деятельности ребенка</td>"
+            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
+            + orText + QStringLiteral("</div></td></tr>");
+        rows += QStringLiteral(
+            "<tr><td width='200'>Виды помощи</td>"
+            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
+            + hlpText + QStringLiteral("</div></td></tr>");
+        rows += QStringLiteral(
+            "<tr><td width='105' align='center'><b>№ рассказа</b></td>"
+            "<td width='120' align='center'><b>Правильный ответ</b></td>"
+            "<td align='center'><b>Ответ ребенка</b></td>"
+            "<td width='60' align='center'><b>Баллы</b></td></tr>");
+        for (int i = 1; i <= 12; ++i) {
+            const QString answerHtml = tmpAt(tmp, i + 1).isEmpty()
+                ? QStringLiteral("&nbsp;")
+                : tmpAt(tmp, i + 1);
+            rows += QStringLiteral("<tr><td align='center'>") + QString::number(i)
+                + QStringLiteral("</td><td align='center'>") + kTask2Correct.at(i - 1)
+                + QStringLiteral("</td><td align='left'>"
+                                 "<div id='ans2%1' contenteditable='true'>%2</div></td>"
+                                 "<td align='center'><div id='col2%1' contenteditable='true'>&nbsp;</div></td></tr>")
+                      .arg(i)
+                      .arg(answerHtml);
+        }
+        rows += QStringLiteral(
+            "<tr><td colspan='3' align='left'>Итоговая оценка</td>"
             "<td align='center'><div id='sum2' contenteditable='true'></div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td colspan='2' align='left'>Индекс успешности по двум сериям</td>"
+            "<tr><td colspan='3' align='left'>Индекс успешности по двум сериям</td>"
             "<td align='center'><div id='sum3' contenteditable='true'></div></td></tr>");
     } else {
         return QString();
@@ -537,10 +562,11 @@ QString buildProtocol126(
 
     QString add = dateSpecialistRow(userFio, 1);
     add += QStringLiteral(
-        "<tr><td>Результат: : баллы (макс.)/вывод об уровне развития</td>"
-        "<td><div id='idvivod' contenteditable='true'>(36)</div></td></tr>");
+        "<tr><td width='200'>Результат: баллы (макс.) / вывод об уровне развития</td>"
+        "<td width='471'><div id='idvivod' contenteditable='true'>(36)</div></td></tr>");
     add += QStringLiteral(
-        "<tr><td>Примечание</td><td><div contenteditable='true'></div></td></tr>");
+        "<tr><td width='200'>Примечание</td>"
+        "<td width='471'><div contenteditable='true'></div></td></tr>");
     add += QStringLiteral("</table><!--s-->");
     add += processHeading;
     add += tableOpen + rows + QStringLiteral("</table>");

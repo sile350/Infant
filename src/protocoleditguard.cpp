@@ -32,7 +32,13 @@ QString readProtocolTableCellText(QTextTable *table, int row, int column) {
 bool isLockedHeaderCell(const QString &cellText) {
     return cellText.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
         || cellText.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
-        || cellText.contains(QStringLiteral("Виды возможной помощи"), Qt::CaseInsensitive);
+        || cellText.contains(QStringLiteral("Виды возможной помощи"), Qt::CaseInsensitive)
+        || cellText.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)
+        || cellText.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
+        || cellText.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)
+        || cellText.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
+        || (cellText.contains(QStringLiteral("№"), Qt::CaseInsensitive)
+            && cellText.contains(QStringLiteral("рассказ"), Qt::CaseInsensitive));
 }
 
 bool isEditableProtocolCursor(const QTextCursor &cursor) {
@@ -51,9 +57,9 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
         return false;
     }
     const QString firstCell = readProtocolTableCellText(table, row, 0);
-    // Результат вносится автоматически — запрет курсора и правок.
-    if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive)) {
-        return false;
+    // Результат: разрешено редактирование (1.26 и др.).
+    if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive) && col >= 1) {
+        return true;
     }
     if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
         return true;
@@ -64,8 +70,10 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
         && col >= 1) {
         return true;
     }
-    // Колонка «Баллы» + ячейки итоговых сумм (1.26 и др.).
+    // Колонка «Баллы» + «Ответ ребенка» + ячейки итоговых сумм (1.26 и др.).
     int ballsCol = -1;
+    int answerCol = -1;
+    int correctCol = -1;
     int ballsHeaderRow = -1;
     int selectedPicCol = -1;
     int explanationCol = -1;
@@ -80,6 +88,20 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
                         && header.length() <= 12))) {
                 ballsCol = c;
                 ballsHeaderRow = r;
+            }
+            if (answerCol < 0
+                && header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
+                answerCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
+            }
+            if (correctCol < 0
+                && header.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)) {
+                correctCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
             }
             if (selectedPicCol < 0
                 && header.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
@@ -111,7 +133,13 @@ bool isEditableProtocolCursor(const QTextCursor &cursor) {
             }
         }
     }
+    if (correctCol >= 0 && col == correctCol && row > ballsHeaderRow) {
+        return false;
+    }
     if (ballsHeaderRow >= 0 && row > ballsHeaderRow) {
+        if (answerCol >= 0 && col == answerCol) {
+            return true;
+        }
         if (selectedPicCol >= 0 && col == selectedPicCol) {
             return true;
         }

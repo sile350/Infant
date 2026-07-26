@@ -89,6 +89,11 @@ public:
         const QString &storedBody,
         QTextDocument *editorDocument);
 
+    // 1.26: Результат/Примечание + Характер/Виды помощи + ответы/баллы по id (без ломки таблиц).
+    static QString mergeProtocol126EditorIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
     // 1.26: перенос баллов из редактора → HTML; при computeSums — sum1/sum2/sum3/idvivod (bsum).
     static QString applyProtocol126SumFromDocument(
         const QString &storedBody,

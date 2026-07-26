@@ -657,14 +657,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     }
     m_sumButton->setToolTip(QStringLiteral("Подвести итог"));
     m_sumButton->hide();
-    templateLayout->addSpacing(8);
-    templateLayout->addWidget(m_sumButton, 0, Qt::AlignHCenter);
-    templateLayout->addSpacing(12);
     templateLayout->addSpacing(12);
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
     ProtocolEditGuard::install(m_templateBrowser, ProtocolEditGuard::Mode::ReadOnly);
     templateLayout->addWidget(m_templateBrowser);
+    // «Подвести итог» — под протоколом (как в руководстве для 1.26).
+    templateLayout->addSpacing(8);
+    templateLayout->addWidget(m_sumButton, 0, Qt::AlignHCenter);
 
     m_protocolSaveTimer = new QTimer(this);
     m_protocolSaveTimer->setSingleShot(true);
@@ -697,6 +697,34 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_previewImage->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_previewImage->setScaledContents(false);
     m_previewImage->setStyleSheet(QStringLiteral("background: transparent;"));
+
+    m_previewGenderPanel = new QWidget(m_rightPanel);
+    m_previewGenderPanel->setStyleSheet(QStringLiteral("background: transparent;"));
+    auto *genderLayout = new QHBoxLayout(m_previewGenderPanel);
+    genderLayout->setContentsMargins(0, 0, 0, 0);
+    genderLayout->setSpacing(16);
+    m_previewGirlRadio = new QRadioButton(QStringLiteral("Девочка"), m_previewGenderPanel);
+    m_previewBoyRadio = new QRadioButton(QStringLiteral("Мальчик"), m_previewGenderPanel);
+    m_previewGirlRadio->setChecked(true);
+    m_previewGenderPrefix = QStringLiteral("d");
+    genderLayout->addWidget(m_previewGirlRadio);
+    genderLayout->addWidget(m_previewBoyRadio);
+    genderLayout->addStretch(1);
+    m_previewGenderPanel->hide();
+    connect(m_previewGirlRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (!checked) {
+            return;
+        }
+        m_previewGenderPrefix = QStringLiteral("d");
+        reloadPreviewForCurrentStep();
+    });
+    connect(m_previewBoyRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (!checked) {
+            return;
+        }
+        m_previewGenderPrefix = QStringLiteral("m");
+        reloadPreviewForCurrentStep();
+    });
 
     m_rightCountLabel = new QLabel(m_rightPanel);
     m_rightCountLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
@@ -919,37 +947,20 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // 1.26: при полном цикле — старт с №1; если в последней сессии только задание 1 — продолжить с №2.
+        // 1.26: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
+        if (m_exerciseId == QStringLiteral("1.26")) {
+            m_forceNewProtocolSession = false;
+            m_sessionStepId = currentStepId();
+            if (m_sessionStepId.trimmed().isEmpty()) {
+                m_sessionStepId = QStringLiteral("1");
+            }
+            reloadPreviewForCurrentStep();
+            runExerciseSession();
+            return;
+        }
         // 1.272 / multi-step: повторный старт с задания 1; следующий form — с новой «Дата/специалист».
         // Во всех случаях отображаемый протокол сбрасывается в пустой template.
-        if (m_exerciseId == QStringLiteral("1.26")) {
-            m_sessionAdditional.clear();
-            m_additionalByStep.clear();
-
-            bool continueTask2 = false;
-            if (m_repository && m_partly) {
-                const QString existingBody =
-                    m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
-                const QString lastSessionHtml =
-                    ExerciseProtocol::extractLastProtocol126Session(existingBody);
-                continueTask2 = lastSessionHtml.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
-                    && !lastSessionHtml.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive);
-            }
-            // Полный повтор (оба задания уже были) → следующая «Дата/специалист».
-            m_forceNewProtocolSession = !continueTask2 && m_partly;
-            if (m_stepCombo && m_stepCombo->count() > 0) {
-                m_stepCombo->blockSignals(true);
-                if (continueTask2) {
-                    const int idx2 = m_stepCombo->findText(QStringLiteral("2"));
-                    m_stepCombo->setCurrentIndex(idx2 >= 0 ? idx2 : 0);
-                } else {
-                    m_stepCombo->setCurrentIndex(0);
-                }
-                m_stepCombo->blockSignals(false);
-                m_sessionStepId = m_stepCombo->currentText().trimmed();
-                reloadPreviewForCurrentStep();
-            }
-        } else if (m_exerciseId == QStringLiteral("1.17")
+        if (m_exerciseId == QStringLiteral("1.17")
                    || m_exerciseId == QStringLiteral("1.18")) {
             const QString step = currentStepId();
             bool newSession = false;
@@ -1123,23 +1134,24 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kComboH = 33;
     constexpr int kComboY = 12;
     constexpr int kRightMargin = 24;
-    // Во время выполнения 1.17/1.18 селект скрыт (вернуть после Стоп).
+    // Во время выполнения 1.17/1.18/1.26 селект скрыт (вернуть после Стоп).
     if (m_exerciseRunning
-        && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18"))) {
+        && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
+            || m_exerciseId == QStringLiteral("1.26"))) {
         m_stepCombo->hide();
         return;
     }
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
-    // 1.17/1.18: рядом с Begin (~85px зазор), как в руководстве.
+    // 1.17/1.18/1.26: рядом с Begin (~85px зазор), как в руководстве.
     if (!m_exerciseRunning
-        && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18"))) {
+        && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
+            || m_exerciseId == QStringLiteral("1.26"))) {
         constexpr int kBeginRight = 976 + 158;
         constexpr int kGap = 85;
         comboX = kBeginRight + kGap;
     }
-    // 1.26/1.272: не поверх правой панели задания 2; +100px правее прежней позиции.
-    if (m_exerciseRunning
-        && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))) {
+    // 1.272: не поверх правой панели задания 2; +100px правее прежней позиции.
+    if (m_exerciseRunning && m_exerciseId == QStringLiteral("1.272")) {
         comboX = qMax(0, qMin(comboX, 1220));
     }
     const int comboY = (host == this) ? kComboY : (y() + kComboY);
@@ -1214,6 +1226,17 @@ void ExerciseHost::openExercise(
     m_sessionStepId.clear();
     m_picturesShown = 0;
     m_currentProtocolId.clear();
+    m_previewGenderPrefix = QStringLiteral("d");
+    if (m_previewGirlRadio) {
+        m_previewGirlRadio->blockSignals(true);
+        m_previewGirlRadio->setChecked(true);
+        m_previewGirlRadio->blockSignals(false);
+    }
+    if (m_previewBoyRadio) {
+        m_previewBoyRadio->blockSignals(true);
+        m_previewBoyRadio->setChecked(false);
+        m_previewBoyRadio->blockSignals(false);
+    }
     m_orOpen1 = false;
     m_orOpen2 = false;
     m_orOpen3 = false;
@@ -1428,10 +1451,16 @@ void ExerciseHost::updatePreviewLayout() {
     }
     if (m_dualScreen && m_exerciseRunning) {
         m_previewImage->hide();
+        if (m_previewGenderPanel) {
+            m_previewGenderPanel->hide();
+        }
         return;
     }
     if (m_previewSource.isNull()) {
         m_previewImage->hide();
+        if (m_previewGenderPanel) {
+            m_previewGenderPanel->hide();
+        }
         return;
     }
 
@@ -1446,7 +1475,8 @@ void ExerciseHost::updatePreviewLayout() {
     if (m_exerciseId == QStringLiteral("1.8")
         || m_exerciseId == QStringLiteral("1.17")
         || m_exerciseId == QStringLiteral("1.18")
-        || m_exerciseId == QStringLiteral("1.25")) {
+        || m_exerciseId == QStringLiteral("1.25")
+        || m_exerciseId == QStringLiteral("1.26")) {
         // Как OnlyPExercise::Specialist при dual: та же область, масштаб и центрирование.
         constexpr int kPictureMargin = 12;
         constexpr int kSpecialistPictureShiftLeft = 15;
@@ -1461,6 +1491,12 @@ void ExerciseHost::updatePreviewLayout() {
         }
 
         int contentTop = kButtonMargin;
+        const bool showGender = m_exerciseId == QStringLiteral("1.26")
+            && !m_exerciseRunning
+            && currentStepId() != QStringLiteral("2");
+        if (showGender && m_previewGenderPanel) {
+            contentTop += 36;
+        }
         const QString stopPath = ExerciseAssets::sysImage(QStringLiteral("stop.png"));
         QPixmap stopPixmap;
         if (!stopPath.isEmpty() && stopPixmap.load(stopPath)) {
@@ -1483,7 +1519,24 @@ void ExerciseHost::updatePreviewLayout() {
         }
         localX = qMax(kPictureMargin, localX);
         localY = qMax(contentTop, (panelH - display.height()) / 2 + extraY);
+
+        if (m_previewGenderPanel) {
+            if (showGender) {
+                constexpr int kGenderW = 220;
+                constexpr int kGenderH = 28;
+                const int genderX = qMax(0, (panelW - kGenderW) / 2);
+                const int genderY = qMax(8, localY - 40);
+                m_previewGenderPanel->setGeometry(genderX, genderY, kGenderW, kGenderH);
+                m_previewGenderPanel->show();
+                m_previewGenderPanel->raise();
+            } else {
+                m_previewGenderPanel->hide();
+            }
+        }
     } else {
+        if (m_previewGenderPanel) {
+            m_previewGenderPanel->hide();
+        }
         constexpr int kPreviewAbsLeft = 1100;
         constexpr int kPreviewAbsTop = 75;
         int previewAbsLeft = kPreviewAbsLeft;
@@ -1527,11 +1580,19 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
     const QString step = currentStepId();
     QStringList candidates;
     if (m_exerciseId == QStringLiteral("1.26")) {
-        // Оригинал: задание 1 → d1.png, задание 2 → f2.png
+        // Оригинал: задание 1 → d1/m1.png, задание 2 → f2.png
         if (step == QStringLiteral("2")) {
             candidates << QStringLiteral("f2.png");
+            if (m_previewGenderPanel) {
+                m_previewGenderPanel->hide();
+            }
         } else {
-            candidates << QStringLiteral("d1.png") << QStringLiteral("f1.png");
+            const QString prefix = m_previewGenderPrefix.isEmpty()
+                ? QStringLiteral("d")
+                : m_previewGenderPrefix;
+            candidates << prefix + QStringLiteral("1.png")
+                       << QStringLiteral("d1.png")
+                       << QStringLiteral("f1.png");
         }
     } else if (m_exerciseId == QStringLiteral("1.272")) {
         // Оригинал e1272: картинка задания = N.png (fN.png — только мелкое превью в списке).
@@ -1583,7 +1644,18 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     clearActivityChecks();
 
     const QStringList labels = parseActivityLabelsFromOrHtml(m_rawOrHtml);
-    const bool hasActivity = !labels.isEmpty();
+    QStringList effectiveLabels = labels;
+    // 1.26: все 5 пунктов из or.html (на случай сбоя парсинга — явный fallback).
+    if (m_exerciseId == QStringLiteral("1.26") && effectiveLabels.size() < 5) {
+        effectiveLabels = QStringList{
+            QStringLiteral("Ребенок не понимает инструкцию."),
+            QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."),
+            QStringLiteral("Целенаправленное выполнение задания."),
+            QStringLiteral("Хаотическая деятельность ребенка."),
+            QStringLiteral("Метод «проб и ошибок»."),
+        };
+    }
+    const bool hasActivity = !effectiveLabels.isEmpty();
     if (m_activityTitle) {
         m_activityTitle->setVisible(hasActivity);
     }
@@ -1598,14 +1670,15 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
         ? qMax(200, m_scrollArea->viewport()->width() - 40)
         : 760;
 
-    for (const QString &text : labels) {
+    for (const QString &text : effectiveLabels) {
         m_activityChecks << makeCheckRow(text, m_activityChecksLayout, checkWidth);
     }
 
     const bool allowMulti = m_exerciseId == QStringLiteral("1.13")
         || m_exerciseId == QStringLiteral("1.17")
         || m_exerciseId == QStringLiteral("1.18")
-        || m_exerciseId == QStringLiteral("1.25");
+        || m_exerciseId == QStringLiteral("1.25")
+        || m_exerciseId == QStringLiteral("1.26");
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (!row.box) {
             continue;
@@ -2749,6 +2822,8 @@ void ExerciseHost::sumProtocol126() {
         || !m_templateBrowser) {
         return;
     }
+    // Сначала сохранить правки (примечание, характер, виды помощи, ответы), затем суммы.
+    saveProtocolEdits();
     commitTextEditChanges(m_templateBrowser, true);
     QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
     if (storedBody.trimmed().isEmpty()) {
@@ -2883,11 +2958,9 @@ void ExerciseHost::saveProtocolEdits() {
         body = ExerciseProtocol::mergeEditorDocumentIntoStoredBody(
             storedBody, m_templateBrowser->document(), 0);
     } else if (m_exerciseId == QStringLiteral("1.26")) {
-        // Результат/Примечание без joinClosed; баллы — только через id (не пересборка таблиц).
-        body = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
+        // Результат/Примечание/OR/HLP/ответы/баллы — без пересборки таблиц.
+        body = ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
-        body = ExerciseProtocol::applyProtocol126SumFromDocument(
-            body, m_templateBrowser->document(), false);
     } else if (m_exerciseId == QStringLiteral("1.272")) {
         body = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
             storedBody, m_templateBrowser->document());

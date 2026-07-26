@@ -2462,26 +2462,52 @@ QString extractAnswerFromLabeledRow(const QString &html, const QString &rowLabel
 }
 
 QString fillProtocol126RowScores(QString body) {
-    const QStringList task1Labels = {
-        QStringLiteral("Радость"),
-        QStringLiteral("Злость"),
-        QStringLiteral("Грусть"),
-        QStringLiteral("Страх"),
-        QStringLiteral("Удивление"),
-        QStringLiteral("Спокойствие"),
-    };
     const QStringList expected1 = expectedEmotionsTask1();
-    for (int i = 0; i < task1Labels.size(); ++i) {
-        const QString answer = extractAnswerFromLabeledRow(body, task1Labels.at(i));
+    for (int i = 0; i < expected1.size(); ++i) {
+        QString answer = htmlFragmentToPlainText(
+            extractDivInnerById(body, QStringLiteral("ans1%1").arg(i + 1))).trimmed();
+        if (answer.isEmpty()) {
+            static const QStringList kTask1Labels = {
+                QStringLiteral("Радость"), QStringLiteral("Злость"), QStringLiteral("Грусть"),
+                QStringLiteral("Страх"), QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
+            };
+            answer = extractAnswerFromLabeledRow(body, kTask1Labels.at(i));
+        }
         const int score = scoreEmotionAnswer(answer, expected1.at(i));
-        // Только содержимое div по id — как InnerHtml в оригинале, без правки <td>/<tr>.
         body = replaceDivInnerById(body, QStringLiteral("col1%1").arg(i + 1), QString::number(score));
     }
 
     const QStringList expected2 = expectedEmotionsTask2();
     for (int i = 0; i < expected2.size(); ++i) {
-        const QString label = QString::number(i + 1);
-        const QString answer = extractAnswerFromLabeledRow(body, label);
+        QString answer = htmlFragmentToPlainText(
+            extractDivInnerById(body, QStringLiteral("ans2%1").arg(i + 1))).trimmed();
+        if (answer.isEmpty()) {
+            // Старый формат без колонки «Правильный ответ»: № | ответ | баллы.
+            answer = extractAnswerFromLabeledRow(body, QString::number(i + 1));
+            // Новый формат: № | эталон | ответ | баллы — эталон не должен попасть в оценку.
+            const QStringList expectedPlain = {
+                QStringLiteral("Злость"), QStringLiteral("Грусть"), QStringLiteral("Спокойное"),
+                QStringLiteral("Злость"), QStringLiteral("Удивление"), QStringLiteral("Радость"),
+                QStringLiteral("Страх"), QStringLiteral("Спокойное"), QStringLiteral("Грусть"),
+                QStringLiteral("Страх"), QStringLiteral("Радость"), QStringLiteral("Удивление"),
+            };
+            if (i < expectedPlain.size()
+                && answer.compare(expectedPlain.at(i), Qt::CaseInsensitive) == 0) {
+                // Скорее всего взяли эталон из 2-й колонки — ищем 3-ю.
+                const QString escaped = QRegularExpression::escape(QString::number(i + 1));
+                const QRegularExpression re4(
+                    QStringLiteral(
+                        "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
+                        "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>")
+                        .arg(escaped),
+                    QRegularExpression::CaseInsensitiveOption
+                        | QRegularExpression::DotMatchesEverythingOption);
+                const QRegularExpressionMatch m4 = re4.match(body);
+                if (m4.hasMatch()) {
+                    answer = htmlFragmentToPlainText(m4.captured(1)).trimmed();
+                }
+            }
+        }
         const int score = scoreEmotionAnswer(answer, expected2.at(i));
         body = replaceDivInnerById(body, QStringLiteral("col2%1").arg(i + 1), QString::number(score));
     }
@@ -2608,6 +2634,115 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
     body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
     body = replaceDivInnerById(body, QStringLiteral("idvivod"), vivodText);
     return body;
+}
+
+QString replaceLabeledValueCellNth(
+    QString html,
+    const QString &labelKey,
+    int occurrence,
+    const QString &plainText) {
+    if (occurrence < 0 || html.isEmpty()) {
+        return html;
+    }
+    const QRegularExpression re(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*(?:<[^>]+>\\s*)*%1[^<]*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>)")
+            .arg(QRegularExpression::escape(labelKey)),
+        QRegularExpression::CaseInsensitiveOption);
+    int found = 0;
+    int offset = 0;
+    while (true) {
+        const QRegularExpressionMatch match = re.match(html, offset);
+        if (!match.hasMatch()) {
+            break;
+        }
+        if (found == occurrence) {
+            const QString inner = QStringLiteral("<div contenteditable='true'>%1</div>")
+                                      .arg(formatProtocolCellText(plainText));
+            return html.left(match.capturedStart())
+                + match.captured(1) + inner + match.captured(3)
+                + html.mid(match.capturedEnd());
+        }
+        ++found;
+        offset = match.capturedEnd();
+    }
+    return html;
+}
+
+QString ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
+    const QString &storedBody,
+    QTextDocument *editorDocument) {
+    if (storedBody.trimmed().isEmpty() || !editorDocument) {
+        return storedBody;
+    }
+
+    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+    const QString editorHtml = editorDocument->toHtml();
+
+    auto copyDivById = [&](const QString &id) {
+        const QRegularExpression idProbe(
+            QStringLiteral("\\bid\\s*=\\s*['\"]?%1['\"]?").arg(QRegularExpression::escape(id)),
+            QRegularExpression::CaseInsensitiveOption);
+        if (!idProbe.match(editorHtml).hasMatch()) {
+            return;
+        }
+        const QString plain = extractDivInnerById(editorHtml, id);
+        body = replaceDivInnerById(body, id, plain.toHtmlEscaped());
+    };
+
+    for (int i = 1; i <= 6; ++i) {
+        copyDivById(QStringLiteral("ans1%1").arg(i));
+        copyDivById(QStringLiteral("col1%1").arg(i));
+    }
+    for (int i = 1; i <= 12; ++i) {
+        copyDivById(QStringLiteral("ans2%1").arg(i));
+        copyDivById(QStringLiteral("col2%1").arg(i));
+    }
+    copyDivById(QStringLiteral("sum1"));
+    copyDivById(QStringLiteral("sum2"));
+    copyDivById(QStringLiteral("sum3"));
+    copyDivById(QStringLiteral("idvivod"));
+
+    QStringList activityValues;
+    QStringList helpValues;
+    QList<QTextTable *> tables;
+    collectTables(editorDocument->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table) {
+            continue;
+        }
+        for (int r = 0; r < table->rows(); ++r) {
+            const QString label = readTableCellText(table, r, 0);
+            if (table->columns() < 2) {
+                continue;
+            }
+            const QString value = readTableCellText(table, r, 1);
+            if (label.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                activityValues << value;
+            } else if (label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                       && !label.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
+                helpValues << value;
+            }
+        }
+    }
+
+    QStringList sessions = extractProtocol126SessionsByDate(body);
+    auto applyOrHlp = [&](QString chunk) {
+        for (int i = 0; i < activityValues.size(); ++i) {
+            chunk = replaceLabeledValueCellNth(
+                chunk, QStringLiteral("Характер деятельности"), i, activityValues.at(i));
+        }
+        for (int i = 0; i < helpValues.size(); ++i) {
+            chunk = replaceLabeledValueCellNth(
+                chunk, QStringLiteral("Виды помощи"), i, helpValues.at(i));
+        }
+        return chunk;
+    };
+    if (sessions.size() > 1) {
+        sessions[sessions.size() - 1] = applyOrHlp(sessions.last());
+        return joinProtocol126Sessions(sessions);
+    }
+    return applyOrHlp(body);
 }
 
 QString ExerciseProtocol::applyProtocolIdbSum(
