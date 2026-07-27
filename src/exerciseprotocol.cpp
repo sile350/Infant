@@ -3156,50 +3156,55 @@ QString ExerciseProtocol::applyProtocolBPrefixSum(const QString &storedBody, con
     return applyToChunk(storedBody);
 }
 
+QString editable3110Cell(const QString &plain) {
+    const QString value = plain.trimmed().isEmpty()
+        ? QStringLiteral("&nbsp;")
+        : plain.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"));
+    return QStringLiteral("<div contenteditable='true'>%1</div>").arg(value);
+}
+
 QString replace3110ProcessRowCells(
     QString body,
     const QString &stepNo,
     const QString &picture,
     const QString &explanation,
+    const QString &activity,
+    const QString &help,
     const QString &score) {
     const QString escaped = QRegularExpression::escape(stepNo);
     const QRegularExpression rowRe(
         QStringLiteral(
             "(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)"
-            "([\\s\\S]*?)(</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*<td[^>]*>)"
-            "([\\s\\S]*?)(</td>\\s*</tr>)")
+            "([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*<td[^>]*>)([\\s\\S]*?)"
+            "(</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
             .arg(escaped),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     const QRegularExpressionMatch match = rowRe.match(body);
     if (!match.hasMatch()) {
-        // Хотя бы баллы по id.
         if (!score.trimmed().isEmpty()) {
             body = replaceDivInnerById(body, QStringLiteral("idb") + stepNo, score.toHtmlEscaped());
         }
         return body;
     }
-    const QString picInner = QStringLiteral("<div contenteditable='true'>%1</div>").arg(picture.toHtmlEscaped());
-    const QString explInner =
-        QStringLiteral("<div contenteditable='true'>%1</div>").arg(explanation.toHtmlEscaped());
-    QString scoreInner = match.captured(6);
+    const QString picInner = editable3110Cell(picture);
+    const QString explInner = editable3110Cell(explanation);
+    const QString orInner = editable3110Cell(activity);
+    const QString hlpInner = editable3110Cell(help);
+    QString scoreInner = match.captured(10);
     if (!score.trimmed().isEmpty()) {
         const QString id = QStringLiteral("idb") + stepNo;
-        if (scoreInner.contains(id, Qt::CaseInsensitive)) {
-            scoreInner = replaceDivInnerById(
-                QStringLiteral("<div id='%1'>%2</div>").arg(id, scoreInner.contains(QLatin1Char('>')) ? scoreInner : QString()),
-                id,
-                score.toHtmlEscaped());
-            // Проще пересобрать div с id.
-            scoreInner = QStringLiteral("<div id='%1' contenteditable='true'>%2</div>")
-                             .arg(id, score.toHtmlEscaped());
-        } else {
-            scoreInner = QStringLiteral("<div id='%1' contenteditable='true'>%2</div>")
-                             .arg(id, score.toHtmlEscaped());
-        }
+        scoreInner = QStringLiteral("<div id='%1' contenteditable='true'>%2</div>")
+                         .arg(id, score.toHtmlEscaped());
+    } else if (!scoreInner.contains(QStringLiteral("idb") + stepNo, Qt::CaseInsensitive)) {
+        // Сохранить idb, если Qt потерял атрибут id.
+        const QString plain = htmlFragmentToPlainText(scoreInner).trimmed();
+        scoreInner = QStringLiteral("<div id='idb%1' contenteditable='true'>%2</div>")
+                         .arg(stepNo, plain.isEmpty() ? QStringLiteral("&nbsp;") : plain.toHtmlEscaped());
     }
     return body.left(match.capturedStart())
-        + match.captured(1) + picInner + match.captured(3) + explInner + match.captured(5) + scoreInner
-        + match.captured(7) + body.mid(match.capturedEnd());
+        + match.captured(1) + picInner + match.captured(3) + explInner + match.captured(5) + orInner
+        + match.captured(7) + hlpInner + match.captured(9) + scoreInner + match.captured(11)
+        + body.mid(match.capturedEnd());
 }
 
 QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
@@ -3219,6 +3224,8 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
         int headerRow = -1;
         int picCol = -1;
         int explCol = -1;
+        int activityCol = -1;
+        int helpCol = -1;
         int ballsCol = -1;
         for (int r = 0; r < table->rows() && headerRow < 0; ++r) {
             for (int c = 0; c < table->columns(); ++c) {
@@ -3229,6 +3236,15 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
                 }
                 if (h.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive)) {
                     explCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                    activityCol = c;
+                    headerRow = r;
+                }
+                if (h.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    && !h.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
+                    helpCol = c;
                     headerRow = r;
                 }
                 if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
@@ -3249,36 +3265,14 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
             }
             const QString picture = readTableCellText(table, r, picCol);
             const QString explanation = explCol >= 0 ? readTableCellText(table, r, explCol) : QString();
+            const QString activity = activityCol >= 0 ? readTableCellText(table, r, activityCol) : QString();
+            const QString help = helpCol >= 0 ? readTableCellText(table, r, helpCol) : QString();
             const QString score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
-            body = replace3110ProcessRowCells(body, stepNo, picture, explanation, score);
+            body = replace3110ProcessRowCells(
+                body, stepNo, picture, explanation, activity, help, score);
         }
     }
     return body;
-}
-
-QStringList expected3110Pictures() {
-    // Эталон «лишнего» предмета по сериям (spravka 3.1.10).
-    return {
-        QStringLiteral("картофель"),
-        QStringLiteral("мяч"),
-        QStringLiteral("шуба"),
-        QStringLiteral("яблоко"),
-        QStringLiteral("дверь"),
-        QStringLiteral("птица"),
-        QStringLiteral("кошка"),
-        QStringLiteral("собака"),
-        QStringLiteral("бабочка"),
-        QStringLiteral("кукла"),
-    };
-}
-
-bool pictureMatches3110Expected(const QString &entered, const QString &expected) {
-    const QString a = entered.trimmed().toLower();
-    const QString b = expected.trimmed().toLower();
-    if (a.isEmpty() || b.isEmpty()) {
-        return false;
-    }
-    return a == b || a.contains(b) || b.contains(a);
 }
 
 int countHelpEntries3110(const QString &helpCell) {
@@ -3293,6 +3287,18 @@ int countHelpEntries3110(const QString &helpCell) {
     return count;
 }
 
+double score3110FromActivityAndHelp(const QString &activity, const QString &help) {
+    // Как protocols.cs / шаблон activity_help_2: III уровень → 2, иначе 0; −0.5 за каждый вид помощи.
+    double score = 0.0;
+    if (activity.contains(QStringLiteral("III уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("2 балла"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("содержательное обобщение"), Qt::CaseInsensitive)) {
+        score = 2.0;
+    }
+    return qMax(0.0, score - 0.5 * countHelpEntries3110(help));
+}
+
 QString ExerciseProtocol::applyProtocol3110SumFromDocument(
     const QString &storedBody,
     QTextDocument *editorDocument) {
@@ -3300,39 +3306,33 @@ QString ExerciseProtocol::applyProtocol3110SumFromDocument(
         return storedBody;
     }
 
-    // Считаем и пишем только в последнюю сессию — иначе idb1.. затрагивают старые протоколы,
-    // а после join вид может показать всё тело.
+    // Правки и пересчёт — только в последней сессии (иначе №1.. попадут в старые блоки).
     QStringList sessions = extractProtocol126SessionsByDate(storedBody);
     const bool multi = sessions.size() > 1;
     QString chunk = multi ? sessions.last() : storedBody;
-    chunk = mergeProtocol3110EditorIntoStoredBody(chunk, editorDocument);
+    if (editorDocument) {
+        chunk = mergeProtocol3110EditorIntoStoredBody(chunk, editorDocument);
+    }
 
-    const QStringList expected = expected3110Pictures();
-    for (int i = 0; i < expected.size(); ++i) {
-        const QString stepNo = QString::number(i + 1);
-        const QString id = QStringLiteral("idb") + stepNo;
-        if (!chunk.contains(QStringLiteral("id='%1'").arg(id), Qt::CaseInsensitive)
-            && !chunk.contains(QStringLiteral("id=\"%1\"").arg(id), Qt::CaseInsensitive)) {
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*>\\s*(\\d+)\\s*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>"
+            "([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>"
+            "([\\s\\S]*?)</td>\\s*</tr>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatchIterator it = rowRe.globalMatch(chunk);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        const QString stepNo = match.captured(1).trimmed();
+        const QString activity = htmlFragmentToPlainText(match.captured(4)).trimmed();
+        const QString help = htmlFragmentToPlainText(match.captured(5)).trimmed();
+        // Без характера деятельности не трогаем уже выставленные баллы строки.
+        if (activity.isEmpty()) {
             continue;
         }
-        const QRegularExpression rowRe(
-            QStringLiteral(
-                "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>"
-                "([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>([\\s\\S]*?)</td>")
-                .arg(QRegularExpression::escape(stepNo)),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        const QRegularExpressionMatch match = rowRe.match(chunk);
-        if (!match.hasMatch()) {
-            continue;
-        }
-        const QString picture = htmlFragmentToPlainText(match.captured(1)).trimmed();
-        const QString help = htmlFragmentToPlainText(match.captured(4)).trimmed();
-        if (picture.isEmpty()) {
-            continue;
-        }
-        double score = pictureMatches3110Expected(picture, expected.at(i)) ? 2.0 : 0.0;
-        score = qMax(0.0, score - 0.5 * countHelpEntries3110(help));
-        chunk = replaceDivInnerById(chunk, id, formatBallsNumber(score));
+        const double score = score3110FromActivityAndHelp(activity, help);
+        chunk = replaceDivInnerById(
+            chunk, QStringLiteral("idb") + stepNo, formatBallsNumber(score));
     }
 
     chunk = applyProtocolIdbSum(chunk, QStringLiteral("(20)"), QStringLiteral("idb"));

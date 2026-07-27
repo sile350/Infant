@@ -2965,12 +2965,8 @@ void ExerciseHost::sumProtocol3110() {
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    // Сохранить правки OR/HLP/картинок перед подсчётом итога.
-    storedBody = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
-        storedBody, m_templateBrowser->document());
-    storedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
-        storedBody, m_templateBrowser->document());
-    // Баллы по «Выбранная картинка» → idb; сумма → idsum / idvivod(20).
+    // Перенос правок (картинка/OR/HLP/…) + баллы по характеру деятельности −0.5/помощь
+    // → idb; сумма → idsum / idvivod(20). Не затирать вручную внесённые OR/HLP.
     storedBody = ExerciseProtocol::applyProtocol3110SumFromDocument(
         storedBody, m_templateBrowser->document());
 
