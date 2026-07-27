@@ -65,11 +65,7 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         }
         return col >= 1;
     }
-    if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
-        // 1.26: Примечание не в списке разрешённых ячеек.
-        if (editor && editor->property("protocolStrict126Edit").toBool()) {
-            return false;
-        }
+    if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col >= 1) {
         return true;
     }
     // OR / HLP после формирования (как contenteditable в оригинале).
@@ -79,7 +75,43 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         return true;
     }
     const bool strict126 = editor && editor->property("protocolStrict126Edit").toBool();
-    // Колонка «Баллы» + «Ответ ребенка» + ячейки итоговых сумм (1.26 и др.).
+
+    // Ближайший заголовок колонки выше текущей строки (важно для 1.26: два блока
+    // «Ответ ребенка» в одной таблице — у задания 1 и 2 разные индексы колонок).
+    auto headerColAbove = [&](const QString &needle) -> int {
+        for (int r = row - 1; r >= 0; --r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                const QString header = readProtocolTableCellText(table, r, c);
+                if (header.contains(needle, Qt::CaseInsensitive)) {
+                    return c;
+                }
+            }
+        }
+        return -1;
+    };
+
+    if (strict126) {
+        if (firstCell.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+            || firstCell.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)
+            || firstCell.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)) {
+            return false;
+        }
+        const int correctCol = headerColAbove(QStringLiteral("Правильный ответ"));
+        if (correctCol >= 0 && col == correctCol) {
+            return false;
+        }
+        const int answerCol = headerColAbove(QStringLiteral("Ответ ребенка"));
+        if (answerCol >= 0 && col == answerCol) {
+            return true;
+        }
+        const int ballsCol = headerColAbove(QStringLiteral("Баллы"));
+        if (ballsCol >= 0 && col == ballsCol) {
+            return true;
+        }
+        return false;
+    }
+
+    // Колонка «Баллы» + «Ответ ребенка» + ячейки итоговых сумм (прочие методики).
     int ballsCol = -1;
     int answerCol = -1;
     int correctCol = -1;
@@ -149,32 +181,21 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         if (answerCol >= 0 && col == answerCol) {
             return true;
         }
-        if (!strict126) {
-            if (selectedPicCol >= 0 && col == selectedPicCol) {
-                return true;
-            }
-            if (explanationCol >= 0 && col == explanationCol) {
-                return true;
-            }
-            if (activityCol >= 0 && col == activityCol) {
-                return true;
-            }
-            if (helpCol >= 0 && col == helpCol) {
-                return true;
-            }
+        if (selectedPicCol >= 0 && col == selectedPicCol) {
+            return true;
+        }
+        if (explanationCol >= 0 && col == explanationCol) {
+            return true;
+        }
+        if (activityCol >= 0 && col == activityCol) {
+            return true;
+        }
+        if (helpCol >= 0 && col == helpCol) {
+            return true;
         }
     }
     if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {
-        // Итоговая/Индекс — только через «Подвести итог» в 1.26.
-        if (strict126
-            && (firstCell.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
-                || firstCell.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive))) {
-            return false;
-        }
         return true;
-    }
-    if (strict126) {
-        return false;
     }
     if (firstCell.contains(QStringLiteral("Итоговая оценка"), Qt::CaseInsensitive) && col >= 1) {
         return true;

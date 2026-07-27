@@ -2478,34 +2478,57 @@ QString fillProtocol126RowScores(QString body) {
     }
 
     const QStringList expected2 = expectedEmotionsTask2();
+    const QStringList expectedPlain = {
+        QStringLiteral("Злость"), QStringLiteral("Грусть"), QStringLiteral("Спокойное"),
+        QStringLiteral("Злость"), QStringLiteral("Удивление"), QStringLiteral("Радость"),
+        QStringLiteral("Страх"), QStringLiteral("Спокойное"), QStringLiteral("Грусть"),
+        QStringLiteral("Страх"), QStringLiteral("Радость"), QStringLiteral("Удивление"),
+    };
+    const bool hasCorrectColumn =
+        body.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive);
     for (int i = 0; i < expected2.size(); ++i) {
+        // Только ответ ребёнка (ans2*), не колонка «Правильный ответ».
         QString answer = htmlFragmentToPlainText(
             extractDivInnerById(body, QStringLiteral("ans2%1").arg(i + 1))).trimmed();
-        if (answer.isEmpty()) {
-            // Старый формат без колонки «Правильный ответ»: № | ответ | баллы.
+        if (answer.isEmpty() && !hasCorrectColumn) {
+            // Старый формат без колонки эталона: № | ответ | баллы.
             answer = extractAnswerFromLabeledRow(body, QString::number(i + 1));
-            // Новый формат: № | эталон | ответ | баллы — эталон не должен попасть в оценку.
-            const QStringList expectedPlain = {
-                QStringLiteral("Злость"), QStringLiteral("Грусть"), QStringLiteral("Спокойное"),
-                QStringLiteral("Злость"), QStringLiteral("Удивление"), QStringLiteral("Радость"),
-                QStringLiteral("Страх"), QStringLiteral("Спокойное"), QStringLiteral("Грусть"),
-                QStringLiteral("Страх"), QStringLiteral("Радость"), QStringLiteral("Удивление"),
-            };
-            if (i < expectedPlain.size()
-                && answer.compare(expectedPlain.at(i), Qt::CaseInsensitive) == 0) {
-                // Скорее всего взяли эталон из 2-й колонки — ищем 3-ю.
-                const QString escaped = QRegularExpression::escape(QString::number(i + 1));
-                const QRegularExpression re4(
-                    QStringLiteral(
-                        "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
-                        "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>")
-                        .arg(escaped),
-                    QRegularExpression::CaseInsensitiveOption
-                        | QRegularExpression::DotMatchesEverythingOption);
-                const QRegularExpressionMatch m4 = re4.match(body);
-                if (m4.hasMatch()) {
-                    answer = htmlFragmentToPlainText(m4.captured(1)).trimmed();
-                }
+        } else if (answer.isEmpty() && hasCorrectColumn) {
+            // № | эталон | ответ ребёнка | баллы — берём 3-ю колонку.
+            const QString escaped = QRegularExpression::escape(QString::number(i + 1));
+            const QRegularExpression re4(
+                QStringLiteral(
+                    "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
+                    "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>")
+                    .arg(escaped),
+                QRegularExpression::CaseInsensitiveOption
+                    | QRegularExpression::DotMatchesEverythingOption);
+            const QRegularExpressionMatch m4 = re4.match(body);
+            if (m4.hasMatch()) {
+                answer = htmlFragmentToPlainText(m4.captured(1)).trimmed();
+            }
+        }
+        // Эталон в колонке «Правильный ответ» не считать ответом ребёнка.
+        if (i < expectedPlain.size()
+            && answer.compare(expectedPlain.at(i), Qt::CaseInsensitive) == 0
+            && hasCorrectColumn) {
+            const QString escaped = QRegularExpression::escape(QString::number(i + 1));
+            const QRegularExpression re4(
+                QStringLiteral(
+                    "<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>[\\s\\S]*?</td>\\s*"
+                    "<td[^>]*>([\\s\\S]*?)</td>\\s*<td[^>]*>")
+                    .arg(escaped),
+                QRegularExpression::CaseInsensitiveOption
+                    | QRegularExpression::DotMatchesEverythingOption);
+            const QRegularExpressionMatch m4 = re4.match(body);
+            const QString third = m4.hasMatch()
+                ? htmlFragmentToPlainText(m4.captured(1)).trimmed()
+                : QString();
+            if (third.isEmpty()
+                || third.compare(expectedPlain.at(i), Qt::CaseInsensitive) == 0) {
+                answer.clear();
+            } else {
+                answer = third;
             }
         }
         const int score = scoreEmotionAnswer(answer, expected2.at(i));
@@ -2599,36 +2622,50 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
             QStringLiteral("Грусть"), QStringLiteral("Страх"),
             QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
         };
+        static const QStringList kTask2Correct = {
+            QStringLiteral("Злость"), QStringLiteral("Грусть"), QStringLiteral("Спокойное"),
+            QStringLiteral("Злость"), QStringLiteral("Удивление"), QStringLiteral("Радость"),
+            QStringLiteral("Страх"), QStringLiteral("Спокойное"), QStringLiteral("Грусть"),
+            QStringLiteral("Страх"), QStringLiteral("Радость"), QStringLiteral("Удивление"),
+        };
         QList<QTextTable *> tables;
         collectTables(editorDocument->rootFrame(), tables);
         for (QTextTable *table : tables) {
             if (!table || table->columns() < 2) {
                 continue;
             }
-            int answerCol = -1;
-            int headerRow = -1;
             for (int r = 0; r < table->rows(); ++r) {
-                for (int c = 0; c < table->columns(); ++c) {
-                    const QString header = readTableCellText(table, r, c);
-                    if (answerCol < 0
-                        && header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
-                        answerCol = c;
-                        headerRow = r;
-                    }
-                }
-            }
-            if (answerCol < 0 || headerRow < 0) {
-                continue;
-            }
-            for (int r = headerRow + 1; r < table->rows(); ++r) {
                 const QString label = readTableCellText(table, r, 0);
                 if (label.isEmpty()
                     || label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
                     || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)
                     || label.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
-                    || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
+                    || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Ответ"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Правильный"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Портрет"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("рассказ"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
                     continue;
                 }
+
+                // Колонка «Ответ ребенка» — из ближайшего заголовка ВЫШЕ строки
+                // (у задания 1 и 2 индексы колонок разные).
+                int answerCol = -1;
+                for (int hr = r - 1; hr >= 0 && answerCol < 0; --hr) {
+                    for (int c = 0; c < table->columns(); ++c) {
+                        const QString header = readTableCellText(table, hr, c);
+                        if (header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
+                            answerCol = c;
+                            break;
+                        }
+                    }
+                }
+                if (answerCol < 0 || answerCol >= table->columns()) {
+                    continue;
+                }
+
                 const QString answer = readTableCellText(table, r, answerCol);
                 for (int i = 0; i < kTask1.size(); ++i) {
                     if (label.compare(kTask1.at(i), Qt::CaseInsensitive) == 0) {
@@ -2642,6 +2679,26 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
                 bool okNum = false;
                 const int storyNo = label.toInt(&okNum);
                 if (okNum && storyNo >= 1 && storyNo <= 12) {
+                    // Не перезаписывать ответ ребёнка эталоном из соседней колонки.
+                    if (storyNo <= kTask2Correct.size()
+                        && answer.compare(kTask2Correct.at(storyNo - 1), Qt::CaseInsensitive) == 0) {
+                        int correctCol = -1;
+                        for (int hr = r - 1; hr >= 0 && correctCol < 0; --hr) {
+                            for (int c = 0; c < table->columns(); ++c) {
+                                const QString header = readTableCellText(table, hr, c);
+                                if (header.contains(
+                                        QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)) {
+                                    correctCol = c;
+                                    break;
+                                }
+                            }
+                        }
+                        if (correctCol >= 0 && correctCol == answerCol) {
+                            continue;
+                        }
+                        // Если текст совпал с эталоном, но колонка — «Ответ ребенка»,
+                        // оставляем как есть (ребёнок мог ответить верно).
+                    }
                     chunk = replaceDivInnerById(
                         chunk,
                         QStringLiteral("ans2%1").arg(storyNo),
@@ -2753,6 +2810,103 @@ QString ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
     copyDivById(QStringLiteral("sum2"));
     copyDivById(QStringLiteral("sum3"));
     copyDivById(QStringLiteral("idvivod"));
+
+    // Ответы/баллы по ячейкам таблицы (если Qt потерял id после задания 2).
+    {
+        static const QStringList kTask1 = {
+            QStringLiteral("Радость"), QStringLiteral("Злость"),
+            QStringLiteral("Грусть"), QStringLiteral("Страх"),
+            QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
+        };
+        QList<QTextTable *> answerTables;
+        collectTables(editorDocument->rootFrame(), answerTables);
+        for (QTextTable *table : answerTables) {
+            if (!table || table->columns() < 2) {
+                continue;
+            }
+            for (int r = 0; r < table->rows(); ++r) {
+                const QString label = readTableCellText(table, r, 0);
+                if (label.isEmpty()
+                    || label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Ответ"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Правильный"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Портрет"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("рассказ"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                int answerCol = -1;
+                int ballsCol = -1;
+                for (int hr = r - 1; hr >= 0; --hr) {
+                    for (int c = 0; c < table->columns(); ++c) {
+                        const QString header = readTableCellText(table, hr, c);
+                        if (answerCol < 0
+                            && header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
+                            answerCol = c;
+                        }
+                        if (ballsCol < 0
+                            && header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                            && header.length() <= 12) {
+                            ballsCol = c;
+                        }
+                    }
+                    if (answerCol >= 0 && ballsCol >= 0) {
+                        break;
+                    }
+                }
+                if (answerCol >= 0 && answerCol < table->columns()) {
+                    const QString answer = readTableCellText(table, r, answerCol);
+                    for (int i = 0; i < kTask1.size(); ++i) {
+                        if (label.compare(kTask1.at(i), Qt::CaseInsensitive) == 0) {
+                            body = replaceDivInnerById(
+                                body, QStringLiteral("ans1%1").arg(i + 1), answer.toHtmlEscaped());
+                            break;
+                        }
+                    }
+                    bool okNum = false;
+                    const int storyNo = label.toInt(&okNum);
+                    if (okNum && storyNo >= 1 && storyNo <= 12) {
+                        int correctCol = -1;
+                        for (int hr = r - 1; hr >= 0 && correctCol < 0; --hr) {
+                            for (int c = 0; c < table->columns(); ++c) {
+                                if (readTableCellText(table, hr, c).contains(
+                                        QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)) {
+                                    correctCol = c;
+                                    break;
+                                }
+                            }
+                        }
+                        if (correctCol < 0 || correctCol != answerCol) {
+                            body = replaceDivInnerById(
+                                body, QStringLiteral("ans2%1").arg(storyNo), answer.toHtmlEscaped());
+                        }
+                    }
+                }
+                if (ballsCol >= 0 && ballsCol < table->columns()) {
+                    const QString score = readTableCellText(table, r, ballsCol).trimmed();
+                    if (!score.isEmpty()) {
+                        for (int i = 0; i < kTask1.size(); ++i) {
+                            if (label.compare(kTask1.at(i), Qt::CaseInsensitive) == 0) {
+                                body = replaceDivInnerById(
+                                    body, QStringLiteral("col1%1").arg(i + 1), score.toHtmlEscaped());
+                                break;
+                            }
+                        }
+                        bool okNum = false;
+                        const int storyNo = label.toInt(&okNum);
+                        if (okNum && storyNo >= 1 && storyNo <= 12) {
+                            body = replaceDivInnerById(
+                                body, QStringLiteral("col2%1").arg(storyNo), score.toHtmlEscaped());
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     QStringList activityValues;
     QStringList helpValues;
