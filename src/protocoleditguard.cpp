@@ -57,13 +57,13 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         return false;
     }
     const QString firstCell = readProtocolTableCellText(table, row, 0);
-    // Результат вносится автоматически (1.1 / 1.4 / 1.8 и др.) — запрет курсора.
-    // Исключение: protocolAllowResultEdit (например 1.26).
+    // «Результат» редактируется по умолчанию.
+    // Блокировка только там, где баллы вносятся программно (1.1 / 1.4 / 1.8).
     if (firstCell.contains(QStringLiteral("Результат"), Qt::CaseInsensitive)) {
-        if (editor && editor->property("protocolAllowResultEdit").toBool() && col >= 1) {
-            return true;
+        if (editor && editor->property("protocolLockResultEdit").toBool()) {
+            return false;
         }
-        return false;
+        return col >= 1;
     }
     if (firstCell.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive) && col == 1) {
         return true;

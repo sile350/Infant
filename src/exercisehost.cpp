@@ -2615,10 +2615,11 @@ void ExerciseHost::updateProtocolEditMode() {
     if (!m_templateBrowser) {
         return;
     }
-    // 1.26: «Результат» можно править; 1.1 / 1.4 / 1.8 — только автозаполнение.
-    m_templateBrowser->setProperty(
-        "protocolAllowResultEdit",
-        m_exerciseId == QStringLiteral("1.26"));
+    // Блокировать «Результат» только где он заполняется программой (не вручную).
+    const bool lockResult = m_exerciseId == QStringLiteral("1.1")
+        || m_exerciseId == QStringLiteral("1.4")
+        || m_exerciseId == QStringLiteral("1.8");
+    m_templateBrowser->setProperty("protocolLockResultEdit", lockResult);
     // Редактирование только после формирования протокола в текущей сессии.
     const ProtocolEditGuard::Mode mode = m_protocolSavedThisSession
         ? ProtocolEditGuard::Mode::LimitedEdit
