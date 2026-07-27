@@ -720,7 +720,52 @@ QString createExerciseProtocolFromTemplate(
         // 1.17/1.18/2.10 numbered: дописка строк в текущую сессию или новая «Дата/специалист».
         if (tmpl.kind == QStringLiteral("numbered")
             && (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18")
-                || exerciseId == QStringLiteral("2.10"))) {
+                || exerciseId == QStringLiteral("2.10") || exerciseId == QStringLiteral("3.1.2"))) {
+            QStringList stepIds = session.stepIds;
+            if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
+                stepIds << session.stepId.trimmed();
+            }
+            if (stepIds.isEmpty()) {
+                stepIds << QStringLiteral("1");
+            }
+            const QString lastSessionHtml =
+                ExerciseProtocol::extractLastProtocol126Session(existingProtocolHtml);
+            const QString scopeHtml = lastSessionHtml.trimmed().isEmpty()
+                ? existingProtocolHtml
+                : lastSessionHtml;
+            QStringList newSteps;
+            for (const QString &sid : stepIds) {
+                if (!ExerciseProtocol::numberedStepPresentInSessionHtml(scopeHtml, sid)) {
+                    newSteps << sid;
+                }
+            }
+            if (newSteps.isEmpty()) {
+                ProtocolSessionInput repeatSession = session;
+                repeatSession.stepIds = stepIds;
+                const QString repeatRows =
+                    buildNumberedProcessRows(tmpl, vars, repeatSession, elapsedSeconds);
+                QString sessionBlock;
+                if (!tmpl.dateRow.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.dateRow, vars);
+                }
+                if (!tmpl.initialBlock.isEmpty()) {
+                    sessionBlock += substituteAll(tmpl.initialBlock, vars);
+                }
+                sessionBlock += repeatRows;
+                if (!sessionBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                    sessionBlock += QStringLiteral("</table>");
+                }
+                return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, sessionBlock);
+            }
+            ProtocolSessionInput appendSession = session;
+            appendSession.stepIds = newSteps;
+            const QString appendRows =
+                buildNumberedProcessRows(tmpl, vars, appendSession, elapsedSeconds);
+            return ExerciseProtocol::appendRowsToStoredBody(
+                trimTrailingSummaryRow(existingProtocolHtml), appendRows);
+        }
+        // 3.1.12 done_time multi-step: дописка строк задания как у 2.10/3.1.2.
+        if (tmpl.kind == QStringLiteral("done_time") && exerciseId == QStringLiteral("3.1.12")) {
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
                 stepIds << session.stepId.trimmed();

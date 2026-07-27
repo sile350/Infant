@@ -2046,7 +2046,11 @@ bool ExerciseProtocol::numberedStepPresentInSessionHtml(
             "<tr[^>]*>\\s*<td[^>]*align\\s*=\\s*['\"]center['\"][^>]*>\\s*%1\\s*</td>")
             .arg(QRegularExpression::escape(sid)),
         QRegularExpression::CaseInsensitiveOption);
-    return rowRe.match(sessionHtml).hasMatch();
+    if (rowRe.match(sessionHtml).hasMatch()) {
+        return true;
+    }
+    return sessionHtml.contains(
+        QStringLiteral("<!--step") + sid + QStringLiteral("-->"), Qt::CaseInsensitive);
 }
 
 QString closeDanglingTables(QString html) {

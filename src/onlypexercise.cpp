@@ -384,14 +384,22 @@ void OnlyPExercise::updateWidgetLayout() {
             } else {
                 extraY = 40;
             }
+        } else if (m_exerciseId == QStringLiteral("3.1.1")
+                   || m_exerciseId == QStringLiteral("3.1.2")
+                   || m_exerciseId == QStringLiteral("3.1.10")
+                   || m_exerciseId == QStringLiteral("3.1.11")
+                   || m_exerciseId == QStringLiteral("3.1.12")) {
+            // По центру экрана; один экран — чуть правее.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+                extraY = 40;
+            } else {
+                extraY = 40;
+            }
         } else if (m_exerciseId == QStringLiteral("2.9")) {
             // 12.3: dual/full — чуть ниже, ближе к центру по вертикали.
             extraY = 80;
-        } else if (m_exerciseId == QStringLiteral("3.1.1")
-                   || m_exerciseId == QStringLiteral("3.1.2")
-                   || m_exerciseId == QStringLiteral("3.1.11")
-                   || m_exerciseId == QStringLiteral("3.1.12")
-                   || m_exerciseId == QStringLiteral("3.1.18")
+        } else if (m_exerciseId == QStringLiteral("3.1.18")
                    || m_exerciseId == QStringLiteral("3.2.1")
                    || m_exerciseId == QStringLiteral("3.2.2")
                    || m_exerciseId == QStringLiteral("3.2.4")
@@ -526,8 +534,13 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 2.10 один экран: по центру экрана по вертикали (и чуть правее через extraX).
-            if (m_exerciseId == QStringLiteral("2.10")) {
+            // 2.10 / 3.1.x один экран: по центру экрана по вертикали (и чуть правее через extraX).
+            if (m_exerciseId == QStringLiteral("2.10")
+                || m_exerciseId == QStringLiteral("3.1.1")
+                || m_exerciseId == QStringLiteral("3.1.2")
+                || m_exerciseId == QStringLiteral("3.1.10")
+                || m_exerciseId == QStringLiteral("3.1.11")
+                || m_exerciseId == QStringLiteral("3.1.12")) {
                 pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             }
             m_picture->move(pictureX, pictureY);

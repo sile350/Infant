@@ -786,6 +786,7 @@ QString Repository::loadProtocolViewHtml(
     if (exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
         || exerciseId == QStringLiteral("2.8") || exerciseId == QStringLiteral("2.9")
         || exerciseId == QStringLiteral("2.10")
+        || exerciseId == QStringLiteral("3.1.1") || exerciseId == QStringLiteral("3.1.2")
         || exerciseId == QStringLiteral("3.1.10") || exerciseId == QStringLiteral("3.1.11")
         || exerciseId == QStringLiteral("3.1.12") || exerciseId == QStringLiteral("3.1.17")
         || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("4.1.4")
@@ -869,12 +870,21 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("2.8")
                 || uprid == QStringLiteral("2.9")
                 || uprid == QStringLiteral("2.10")
+                || uprid == QStringLiteral("3.1.1")
+                || uprid == QStringLiteral("3.1.2")
+                || uprid == QStringLiteral("3.1.11")
+                || uprid == QStringLiteral("3.1.12")
                 || uprid == QStringLiteral("3.1.18")
                 || uprid == QStringLiteral("4.1.4")
                 || uprid == QStringLiteral("4.2.2")
                 || uprid == QStringLiteral("5.2.1")) {
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                     storedBody, &sectionDocument);
+            } else if (uprid == QStringLiteral("3.1.10")) {
+                mergedBody = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
+                    storedBody, &sectionDocument);
+                mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+                    mergedBody, &sectionDocument);
             } else if (uprid == QStringLiteral("1.26")) {
                 mergedBody = ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
                     storedBody, &sectionDocument);
