@@ -71,6 +71,8 @@ private:
     void reloadPreviewForCurrentStep();
     void syncActivityChecksFromOrHtml();
     void clearActivityChecks();
+    void syncHelpChecksFromOrHtml();
+    void clearHelpChecks();
     void ensureWords422Panel();
     void layoutWords422Panel();
     void updateWords422Panel(const QString &additional);
@@ -150,6 +152,10 @@ private:
     QVBoxLayout *m_activityChecksLayout = nullptr;
     QLabel *m_activityTitle = nullptr;
     QWidget *m_checkboxPanel = nullptr;
+    QVBoxLayout *m_helpChecksLayout = nullptr;
+    QLabel *m_stimHelpLabel = nullptr;
+    QLabel *m_directHelpLabel = nullptr;
+    QLabel *m_teachHelpLabel = nullptr;
     QWidget *m_templatePanel = nullptr;
     QTextEdit *m_templateBrowser = nullptr;
     QList<ExerciseCheckRow> m_activityChecks;

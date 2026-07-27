@@ -3484,6 +3484,31 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
     const bool multiSession = sessions.size() > 1;
     QString target = multiSession ? sessions.last() : body;
 
+    auto makeEditable = [](const QString &text) {
+        const QString value = text.trimmed().isEmpty()
+            ? QStringLiteral("&nbsp;")
+            : text.toHtmlEscaped();
+        return QStringLiteral("<div contenteditable='true'>%1</div>").arg(value);
+    };
+
+    auto replaceNthTdInner = [](QString trInner, int tdIndex, const QString &newInner) {
+        const QRegularExpression tdRe(
+            QStringLiteral("(<td[^>]*>)([\\s\\S]*?)(</td>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QList<QRegularExpressionMatch> tds;
+        QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(trInner);
+        while (tdIt.hasNext()) {
+            tds.append(tdIt.next());
+        }
+        if (tdIndex < 0 || tdIndex >= tds.size()) {
+            return trInner;
+        }
+        const QRegularExpressionMatch &td = tds.at(tdIndex);
+        return trInner.left(td.capturedStart())
+            + td.captured(1) + newInner + td.captured(3)
+            + trInner.mid(td.capturedEnd());
+    };
+
     QList<QTextTable *> tables;
     collectTables(editorDocument->rootFrame(), tables);
     for (QTextTable *table : tables) {
@@ -3498,7 +3523,9 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
             for (int c = 0; c < table->columns(); ++c) {
                 const QString h = readTableCellText(table, r, c);
                 if (h.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
-                    || h.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0) {
+                    || h.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
+                    || h.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
+                    || h.contains(QStringLiteral("N/ответ"), Qt::CaseInsensitive)) {
                     headerRow = r;
                 }
                 if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
@@ -3516,29 +3543,78 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
                 }
             }
         }
-        if (headerRow < 0 || ballsCol < 0) {
+        if (headerRow < 0) {
             continue;
         }
+
+        static const QRegularExpression leadingNumRe(QStringLiteral("^\\s*(\\d+)"));
+
         for (int r = headerRow + 1; r < table->rows(); ++r) {
             const QString label = readTableCellText(table, r, 0).trimmed();
             if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
-                const QString sum = readTableCellText(table, r, ballsCol);
-                if (!sum.trimmed().isEmpty()) {
-                    target = replaceDivInnerById(target, QStringLiteral("idsum"), sum);
+                if (ballsCol >= 0) {
+                    const QString sum = readTableCellText(table, r, ballsCol);
+                    if (!sum.trimmed().isEmpty()) {
+                        target = replaceDivInnerById(target, QStringLiteral("idsum"), sum);
+                    }
                 }
                 continue;
             }
-            bool isNumber = false;
-            label.toInt(&isNumber);
-            if (!isNumber) {
+            const QRegularExpressionMatch numMatch = leadingNumRe.match(label);
+            if (!numMatch.hasMatch()) {
                 continue;
             }
-            Q_UNUSED(activityCol);
-            Q_UNUSED(helpCol);
-            const QString score = readTableCellText(table, r, ballsCol);
-            if (!score.trimmed().isEmpty()) {
-                target = replaceDivInnerById(target, QStringLiteral("ids") + label, score);
+            const QString stepNo = numMatch.captured(1);
+            const QString scoreId = QStringLiteral("ids") + stepNo;
+
+            if (ballsCol >= 0) {
+                const QString score = readTableCellText(table, r, ballsCol);
+                if (!score.trimmed().isEmpty()) {
+                    target = replaceDivInnerById(target, scoreId, score.toHtmlEscaped());
+                }
             }
+
+            if (activityCol < 0 || helpCol < 0) {
+                continue;
+            }
+            const QString activity = readTableCellText(table, r, activityCol);
+            const QString help = readTableCellText(table, r, helpCol);
+
+            // Строка процесса с idsN — обновляем ячейки характера и помощи.
+            const QRegularExpression idProbe(
+                QStringLiteral("\\bid\\s*=\\s*['\"]%1['\"]").arg(QRegularExpression::escape(scoreId)),
+                QRegularExpression::CaseInsensitiveOption);
+            if (!idProbe.match(target).hasMatch()) {
+                continue;
+            }
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QRegularExpressionMatchIterator it = trRe.globalMatch(target);
+            while (it.hasNext()) {
+                const QRegularExpressionMatch m = it.next();
+                if (!idProbe.match(m.captured(2)).hasMatch()) {
+                    continue;
+                }
+                QString inner = m.captured(2);
+                inner = replaceNthTdInner(inner, activityCol, makeEditable(activity));
+                inner = replaceNthTdInner(inner, helpCol, makeEditable(help));
+                target.replace(m.capturedStart(), m.capturedLength(), m.captured(1) + inner + m.captured(3));
+                break;
+            }
+        }
+        break;
+    }
+
+    // Ручная правка «Результат» (idvivod) — поверх mergeLimited, если Qt сохранил id.
+    {
+        const QString editorHtml = editorDocument->toHtml();
+        const QRegularExpression idProbe(
+            QStringLiteral("\\bid\\s*=\\s*['\"]?idvivod['\"]?"),
+            QRegularExpression::CaseInsensitiveOption);
+        if (idProbe.match(editorHtml).hasMatch()) {
+            const QString plain = extractDivInnerById(editorHtml, QStringLiteral("idvivod"));
+            target = replaceDivInnerById(target, QStringLiteral("idvivod"), plain.toHtmlEscaped());
         }
     }
 

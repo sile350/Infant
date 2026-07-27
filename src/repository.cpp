@@ -872,6 +872,9 @@ bool Repository::updateProtocolsFromEditedDocument(
             } else if (uprid == QStringLiteral("1.26")) {
                 mergedBody = ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
                     storedBody, &sectionDocument);
+            } else if (uprid == QStringLiteral("1.272")) {
+                mergedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+                    storedBody, &sectionDocument);
             } else {
                 mergedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
                     storedBody, &sectionDocument);

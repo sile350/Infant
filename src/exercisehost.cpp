@@ -287,9 +287,8 @@ QString activitySectionFromOrHtml(const QString &html) {
     return html.mid(start);
 }
 
-QStringList parseActivityLabelsFromOrHtml(const QString &html) {
-    const QString section = activitySectionFromOrHtml(html);
-    if (section.isEmpty()) {
+QStringList parseCheckboxLabelsByIdPrefix(const QString &section, const QString &idPrefix) {
+    if (section.isEmpty() || idPrefix.isEmpty()) {
         return {};
     }
 
@@ -300,8 +299,8 @@ QStringList parseActivityLabelsFromOrHtml(const QString &html) {
     static const QRegularExpression checkboxTypeRe(
         QStringLiteral("type\\s*=\\s*['\"]checkbox['\"]"),
         QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression iddRe(
-        QStringLiteral("\\bid\\s*=\\s*['\"]idd(\\d+)['\"]"),
+    const QRegularExpression idRe(
+        QStringLiteral("\\bid\\s*=\\s*['\"]%1(\\d+)['\"]").arg(QRegularExpression::escape(idPrefix)),
         QRegularExpression::CaseInsensitiveOption);
 
     QRegularExpressionMatchIterator it = inputRe.globalMatch(section);
@@ -310,7 +309,7 @@ QStringList parseActivityLabelsFromOrHtml(const QString &html) {
         if (!checkboxTypeRe.match(tag).hasMatch()) {
             continue;
         }
-        const QRegularExpressionMatch idMatch = iddRe.match(tag);
+        const QRegularExpressionMatch idMatch = idRe.match(tag);
         if (!idMatch.hasMatch()) {
             continue;
         }
@@ -326,6 +325,41 @@ QStringList parseActivityLabelsFromOrHtml(const QString &html) {
         labels << mapIt.value();
     }
     return labels;
+}
+
+QStringList parseActivityLabelsFromOrHtml(const QString &html) {
+    return parseCheckboxLabelsByIdPrefix(activitySectionFromOrHtml(html), QStringLiteral("idd"));
+}
+
+QString helpSectionFromOrHtml(const QString &html) {
+    static const QRegularExpression startRe(
+        QStringLiteral("Виды\\s+возможной\\s+помощи"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch startMatch = startRe.match(html);
+    if (!startMatch.hasMatch()) {
+        return {};
+    }
+    return html.mid(startMatch.capturedStart());
+}
+
+QStringList parseHelpLabelsFromOrHtml(const QString &html) {
+    return parseCheckboxLabelsByIdPrefix(helpSectionFromOrHtml(html), QStringLiteral("idp"));
+}
+
+QStringList defaultHelpLabels() {
+    return QStringList{
+        QStringLiteral(
+            "Одобрение или неодобрение действий ребенка, стимуляция с помощью слов "
+            "«хорошо», «правильно», «неправильно, подумай еще»."),
+        QStringLiteral(
+            "Вопросы к испытуемому о том, почему он сделал то или иное действие, с целью "
+            "повышения уровня осознания смысла задания и ориентировки в задании."),
+        QStringLiteral("Подсказка, совет действовать тем или иным образом."),
+        QStringLiteral("Показ способа выполнения задания с просьбой повторить это действие."),
+        QStringLiteral(
+            "Совместно-раздельная деятельность: специалист начинает выполнять задание, а ребенок "
+            "продолжает."),
+    };
 }
 
 QString loadExerciseHtmlFile(const QString &exerciseId, const QString &fileName) {
@@ -522,56 +556,26 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     checkboxLayout->setContentsMargins(8, 0, 8, 0);
     checkboxLayout->setSpacing(2);
 
-    const int initialCheckWidth = 760;
+    m_helpChecksLayout = checkboxLayout;
 
     auto *helpTitle = new WhiteLabel(QStringLiteral("Виды возможной помощи:"), m_checkboxPanel);
     helpTitle->setAlignment(Qt::AlignCenter);
     helpTitle->setStyleSheet(m_activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
-    auto *stimHelpLabel = new WhiteLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
-    stimHelpLabel->setStyleSheet(QStringLiteral(
+    m_stimHelpLabel = new WhiteLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
+    m_stimHelpLabel->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
         "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
-    checkboxLayout->addWidget(stimHelpLabel);
-    m_helpChecks << makeCheckRow(
-        QStringLiteral(
-            "Одобрение или неодобрение действий ребенка, стимуляция с помощью слов "
-            "«хорошо», «правильно», «неправильно, подумай еще»."),
-        checkboxLayout,
-        initialCheckWidth);
+    checkboxLayout->addWidget(m_stimHelpLabel);
 
-    auto *directHelpLabel = new WhiteLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
-    directHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
-    checkboxLayout->addWidget(directHelpLabel);
-    m_helpChecks << makeCheckRow(
-        QStringLiteral(
-            "Вопросы к испытуемому о том, почему он сделал то или иное действие, с целью "
-            "повышения уровня осознания смысла задания и ориентировки в задании."),
-        checkboxLayout,
-        initialCheckWidth);
-    m_helpChecks << makeCheckRow(
-        QStringLiteral("Подсказка, совет действовать тем или иным образом."),
-        checkboxLayout,
-        initialCheckWidth);
+    m_directHelpLabel = new WhiteLabel(QStringLiteral("Направляющая помощь:"), m_checkboxPanel);
+    m_directHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
+    checkboxLayout->addWidget(m_directHelpLabel);
 
-    auto *teachHelpLabel = new WhiteLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
-    teachHelpLabel->setStyleSheet(stimHelpLabel->styleSheet());
-    checkboxLayout->addWidget(teachHelpLabel);
-    m_helpChecks << makeCheckRow(
-        QStringLiteral("Показ способа выполнения задания с просьбой повторить это действие."),
-        checkboxLayout,
-        initialCheckWidth);
-    m_helpChecks << makeCheckRow(
-        QStringLiteral(
-            "Совместно-раздельная деятельность: специалист начинает выполнять задание, а ребенок "
-            "продолжает."),
-        checkboxLayout,
-        initialCheckWidth);
-
-    for (const ExerciseCheckRow &row : m_helpChecks) {
-        connect(row.box, &QCheckBox::toggled, this, [this](bool) {});
-    }
+    m_teachHelpLabel = new WhiteLabel(QStringLiteral("Обучающая помощь:"), m_checkboxPanel);
+    m_teachHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
+    checkboxLayout->addWidget(m_teachHelpLabel);
 
     m_donePanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
     auto *doneOuter = new QHBoxLayout(m_donePanel);
@@ -947,8 +951,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // 1.26: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
-        if (m_exerciseId == QStringLiteral("1.26")) {
+        // 1.26 / 1.272: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
+        if (m_exerciseId == QStringLiteral("1.26")
+            || m_exerciseId == QStringLiteral("1.272")) {
             m_forceNewProtocolSession = false;
             m_sessionStepId = currentStepId();
             if (m_sessionStepId.trimmed().isEmpty()) {
@@ -958,7 +963,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             runExerciseSession();
             return;
         }
-        // 1.272 / multi-step: повторный старт с задания 1; следующий form — с новой «Дата/специалист».
+        // multi-step: повторный старт с задания 1; следующий form — с новой «Дата/специалист».
         // Во всех случаях отображаемый протокол сбрасывается в пустой template.
         if (m_exerciseId == QStringLiteral("1.17")
                    || m_exerciseId == QStringLiteral("1.18")) {
@@ -982,10 +987,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             reloadPreviewForCurrentStep();
             runExerciseSession();
             return;
-        } else if (m_exerciseId == QStringLiteral("1.272") || forceNewProtocolSessionOnBegin()) {
+        } else if (forceNewProtocolSessionOnBegin()) {
             m_sessionAdditional.clear();
             m_additionalByStep.clear();
-            m_forceNewProtocolSession = forceNewProtocolSessionOnBegin();
+            m_forceNewProtocolSession = true;
             if (m_stepCombo && m_stepCombo->count() > 0) {
                 m_stepCombo->blockSignals(true);
                 m_stepCombo->setCurrentIndex(0);
@@ -1134,25 +1139,23 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kComboH = 33;
     constexpr int kComboY = 12;
     constexpr int kRightMargin = 24;
-    // Во время выполнения 1.17/1.18/1.26 селект скрыт (вернуть после Стоп).
+    // Во время выполнения 1.17/1.18/1.26/1.272 селект скрыт (вернуть после Стоп).
     if (m_exerciseRunning
         && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
-            || m_exerciseId == QStringLiteral("1.26"))) {
+            || m_exerciseId == QStringLiteral("1.26")
+            || m_exerciseId == QStringLiteral("1.272"))) {
         m_stepCombo->hide();
         return;
     }
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
-    // 1.17/1.18/1.26: рядом с Begin (~85px зазор), как в руководстве.
+    // 1.17/1.18/1.26/1.272: рядом с Begin (~85px зазор), как в руководстве.
     if (!m_exerciseRunning
         && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
-            || m_exerciseId == QStringLiteral("1.26"))) {
+            || m_exerciseId == QStringLiteral("1.26")
+            || m_exerciseId == QStringLiteral("1.272"))) {
         constexpr int kBeginRight = 976 + 158;
         constexpr int kGap = 85;
         comboX = kBeginRight + kGap;
-    }
-    // 1.272: не поверх правой панели задания 2; +100px правее прежней позиции.
-    if (m_exerciseRunning && m_exerciseId == QStringLiteral("1.272")) {
-        comboX = qMax(0, qMin(comboX, 1220));
     }
     const int comboY = (host == this) ? kComboY : (y() + kComboY);
     m_stepCombo->setStyleSheet(
@@ -1640,13 +1643,109 @@ void ExerciseHost::clearActivityChecks() {
     m_activityChecks.clear();
 }
 
+void ExerciseHost::clearHelpChecks() {
+    for (const ExerciseCheckRow &row : m_helpChecks) {
+        if (row.label && row.label->parentWidget()) {
+            row.label->parentWidget()->deleteLater();
+        }
+    }
+    m_helpChecks.clear();
+}
+
+void ExerciseHost::syncHelpChecksFromOrHtml() {
+    clearHelpChecks();
+    if (!m_helpChecksLayout) {
+        return;
+    }
+
+    QStringList labels = parseHelpLabelsFromOrHtml(m_rawOrHtml);
+    // 1.272: свои 3 вида помощи из руководства (fallback при сбое парсинга).
+    if (m_exerciseId == QStringLiteral("1.272") && labels.size() < 3) {
+        labels = QStringList{
+            QStringLiteral(
+                "Демонстрация карточек с изображением лиц с основными эмоциональными состояниями, "
+                "с предложением выбрать соответствующее ситуации состояние."),
+            QStringLiteral("Наводящие вопросы, способствующие выделению причины."),
+            QStringLiteral("Подсказывающий вопрос."),
+        };
+    }
+    if (labels.isEmpty()) {
+        labels = defaultHelpLabels();
+    }
+
+    const bool flatCustom = m_exerciseId == QStringLiteral("1.272") || labels.size() != 5;
+    if (m_stimHelpLabel) {
+        m_stimHelpLabel->setVisible(!flatCustom);
+    }
+    if (m_directHelpLabel) {
+        m_directHelpLabel->setVisible(!flatCustom);
+    }
+    if (m_teachHelpLabel) {
+        m_teachHelpLabel->setVisible(!flatCustom);
+    }
+
+    const int checkWidth = m_scrollArea && m_scrollArea->viewport()
+        ? qMax(200, m_scrollArea->viewport()->width() - 40)
+        : 760;
+
+    auto insertAfter = [this](QWidget *anchor) -> int {
+        if (!m_helpChecksLayout || !anchor) {
+            return m_helpChecksLayout ? m_helpChecksLayout->count() : 0;
+        }
+        const int idx = m_helpChecksLayout->indexOf(anchor);
+        return idx >= 0 ? idx + 1 : m_helpChecksLayout->count();
+    };
+
+    if (flatCustom) {
+        // Плоский список сразу после заголовка «Виды возможной помощи».
+        int insertAt = 1;
+        for (const QString &text : labels) {
+            m_helpChecks << makeCheckRow(text, m_helpChecksLayout, checkWidth);
+            if (QWidget *row = m_helpChecks.last().label
+                    ? m_helpChecks.last().label->parentWidget()
+                    : nullptr) {
+                m_helpChecksLayout->removeWidget(row);
+                m_helpChecksLayout->insertWidget(insertAt++, row);
+            }
+        }
+        return;
+    }
+
+    // Стандартные 5 пунктов с подзаголовками Стимулирующая / Направляющая / Обучающая.
+    int stimAt = insertAfter(m_stimHelpLabel);
+    m_helpChecks << makeCheckRow(labels.at(0), m_helpChecksLayout, checkWidth);
+    if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
+        m_helpChecksLayout->removeWidget(row);
+        m_helpChecksLayout->insertWidget(stimAt, row);
+    }
+
+    int directAt = insertAfter(m_directHelpLabel);
+    for (int i = 1; i <= 2 && i < labels.size(); ++i) {
+        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
+            m_helpChecksLayout->removeWidget(row);
+            m_helpChecksLayout->insertWidget(directAt++, row);
+        }
+    }
+
+    int teachAt = insertAfter(m_teachHelpLabel);
+    for (int i = 3; i < labels.size(); ++i) {
+        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
+            m_helpChecksLayout->removeWidget(row);
+            m_helpChecksLayout->insertWidget(teachAt++, row);
+        }
+    }
+}
+
 void ExerciseHost::syncActivityChecksFromOrHtml() {
     clearActivityChecks();
 
     const QStringList labels = parseActivityLabelsFromOrHtml(m_rawOrHtml);
     QStringList effectiveLabels = labels;
-    // 1.26: все 5 пунктов из or.html (на случай сбоя парсинга — явный fallback).
-    if (m_exerciseId == QStringLiteral("1.26") && effectiveLabels.size() < 5) {
+    // 1.26 / 1.272: все 5 пунктов из or.html (на случай сбоя парсинга — явный fallback).
+    if ((m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))
+        && effectiveLabels.size() < 5) {
         effectiveLabels = QStringList{
             QStringLiteral("Ребенок не понимает инструкцию."),
             QStringLiteral("Ребенок понимает инструкцию, но не может выполнить задание."),
@@ -1678,7 +1777,8 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
         || m_exerciseId == QStringLiteral("1.17")
         || m_exerciseId == QStringLiteral("1.18")
         || m_exerciseId == QStringLiteral("1.25")
-        || m_exerciseId == QStringLiteral("1.26");
+        || m_exerciseId == QStringLiteral("1.26")
+        || m_exerciseId == QStringLiteral("1.272");
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (!row.box) {
             continue;
@@ -1702,6 +1802,7 @@ void ExerciseHost::loadExercise() {
     m_rawOrHtml = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
     reloadOrBrowser();
     syncActivityChecksFromOrHtml();
+    syncHelpChecksFromOrHtml();
 
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
@@ -2384,20 +2485,13 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
 
     if (m_exerciseId == QStringLiteral("1.272")) {
         // Оригинал createP("1.272"): additional = только param1.Text (№ задания).
+        // Каждое задание формируется отдельно — в form только текущий №.
         const QString step = session.stepId.trimmed().isEmpty()
             ? QStringLiteral("1")
             : session.stepId.trimmed();
         session.stepId = step;
         session.additional = step;
-        const QStringList order = numberedStepIds();
-        for (const QString &sid : order) {
-            if (m_additionalByStep.contains(sid) || m_stepElapsedSeconds.contains(sid)) {
-                session.stepIds << sid;
-            }
-        }
-        if (session.stepIds.isEmpty()) {
-            session.stepIds << step;
-        }
+        session.stepIds << step;
     } else if (keepRunnerAdditional) {
         session.additional = m_sessionAdditional;
         // 5.2.1: оригинал createP получает param1 + ";" + data1..data10; таблица на каждое №.
@@ -2660,8 +2754,9 @@ bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
         return false;
     }
     // Numbered / multi-step or_hlp: новая сессия после Begin, если шаги уже были в протоколе.
-    // 1.17/1.18: дописка строк заданий без сброса протокола (ТЗ заказчика).
-    if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")) {
+    // 1.17/1.18/1.272: дописка строк заданий без сброса протокола (ТЗ заказчика).
+    if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
+        || m_exerciseId == QStringLiteral("1.272")) {
         return false;
     }
     if (definition->protocol == ExerciseProtocolKind::NumberedDoneTime
@@ -2875,14 +2970,14 @@ void ExerciseHost::sumProtocol1272() {
         || !m_templateBrowser) {
         return;
     }
+    // Сначала сохранить правки (примечание, характер, виды помощи, результат), затем суммы.
+    saveProtocolEdits();
     commitTextEditChanges(m_templateBrowser, true);
     QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    storedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
-        storedBody, m_templateBrowser->document());
-    // Оригинал bsum: getSum("ids") → idsum, idvivod = sum+"(24)".
+    // Не пересобираем таблицы — только сумма ids* → idsum / idvivod = sum(24).
     storedBody = ExerciseProtocol::applyProtocolIdbSum(
         storedBody, QStringLiteral("(24)"), QStringLiteral("ids"));
 

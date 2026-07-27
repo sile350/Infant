@@ -507,6 +507,22 @@ QString buildNumberedProcessRows(
 }
 
 // 1.27 / 1.272: строка на каждое № задания + одна «Итоговая оценка» (как createP + trim1).
+QString stepLabel1272(const QString &stepId) {
+    static const QMap<QString, QString> kEmotions = {
+        {QStringLiteral("1"), QStringLiteral("Грусть")},
+        {QStringLiteral("2"), QStringLiteral("Страх")},
+        {QStringLiteral("3"), QStringLiteral("Удивление")},
+        {QStringLiteral("4"), QStringLiteral("Злость")},
+        {QStringLiteral("5"), QStringLiteral("Радость")},
+        {QStringLiteral("6"), QStringLiteral("Спокойствие")},
+    };
+    const QString emotion = kEmotions.value(stepId.trimmed());
+    if (emotion.isEmpty()) {
+        return stepId;
+    }
+    return stepId.trimmed() + QStringLiteral(". ") + emotion;
+}
+
 QString buildOrHlpBallsProcessRows(
     const ProtocolTemplate &tmpl,
     const QMap<QString, QString> &baseVars,
@@ -533,6 +549,11 @@ QString buildOrHlpBallsProcessRows(
         QMap<QString, QString> vars = baseVars;
         vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
         vars.insert(QStringLiteral("{{ADDITIONAL}}"), stepId.toHtmlEscaped());
+        if (tmpl.id == QStringLiteral("1.272")) {
+            vars.insert(QStringLiteral("{{STEP_LABEL}}"), stepLabel1272(stepId).toHtmlEscaped());
+        } else {
+            vars.insert(QStringLiteral("{{STEP_LABEL}}"), stepId.toHtmlEscaped());
+        }
         rows += ensureRowWrapped(substituteAll(rowTpl, vars));
     }
     if (!tmpl.summaryRow.isEmpty()) {
