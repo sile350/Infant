@@ -1106,7 +1106,19 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
     body.replace(QStringLiteral("<col width='479'>"), QStringLiteral("<col width='471'>"));
     body.replace(QStringLiteral("<col width=\"479\">"), QStringLiteral("<col width=\"471\">"));
 
-    // Все <table> протокола — ровно 671px (иначе на «Протоколы» сессии/процесс разной ширины).
+    auto setAttrWidth = [](QString attrs, const QString &w) {
+        const QRegularExpression widthRe(
+            QStringLiteral("\\s*width\\s*=\\s*['\"][^'\"]*['\"]"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpression colspanRe(
+            QStringLiteral("\\s*colspan\\s*=\\s*['\"][^'\"]*['\"]"),
+            QRegularExpression::CaseInsensitiveOption);
+        attrs.remove(widthRe);
+        attrs.remove(colspanRe);
+        return QStringLiteral(" width='%1'%2").arg(w, attrs);
+    };
+
+    // Все <table> протокола — ровно 671px.
     {
         const QRegularExpression tableRe(
             QStringLiteral("(<table\\b)([^>]*)(>)"),
@@ -1142,43 +1154,112 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
-    // Дата/Результат/Примечание: 200/471 (в т.ч. после Qt, когда текст в <p>).
-    const QRegularExpression summaryRowRe(
-        QStringLiteral(
-            "(<tr[^>]*>\\s*<td\\b)([^>]*>)"
-            "(\\s*(?:<(?:p|div|span|font|b|strong)\\b[^>]*>\\s*)*"
-            "(?:Дата\\s*/\\s*специалист|Результат|Примечание)"
-            "[\\s\\S]*?</td>\\s*<td\\b)([^>]*>)"),
-        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    QString out;
-    out.reserve(body.size() + 64);
-    int last = 0;
-    QRegularExpressionMatchIterator it = summaryRowRe.globalMatch(body);
-    while (it.hasNext()) {
-        const QRegularExpressionMatch m = it.next();
-        out += body.mid(last, m.capturedStart() - last);
-        // Не трогаем строки с colspan (многоколоночные таблицы).
-        if (m.captured(2).contains(QStringLiteral("colspan"), Qt::CaseInsensitive)
-            || m.captured(4).contains(QStringLiteral("colspan"), Qt::CaseInsensitive)) {
-            out += m.captured(0);
-        } else {
-            QString td1Attrs = m.captured(2);
-            QString td2Attrs = m.captured(4);
-            auto setWidth = [](QString attrs, const QString &w) {
-                const QRegularExpression widthRe(
-                    QStringLiteral("\\s*width\\s*=\\s*['\"][^'\"]*['\"]"),
-                    QRegularExpression::CaseInsensitiveOption);
-                attrs.remove(widthRe);
-                return QStringLiteral(" width='%1'%2").arg(w, attrs);
-            };
-            td1Attrs = setWidth(td1Attrs, QStringLiteral("200"));
-            td2Attrs = setWidth(td2Attrs, QStringLiteral("471"));
-            out += m.captured(1) + td1Attrs + m.captured(3) + td2Attrs;
+    // Дата/Результат/Примечание: 200/471; снимаем лишний colspan у повторных сессий.
+    {
+        const QRegularExpression summaryRowRe(
+            QStringLiteral(
+                "(<tr[^>]*>\\s*<td\\b)([^>]*>)"
+                "(\\s*(?:<(?:p|div|span|font|b|strong)\\b[^>]*>\\s*)*"
+                "(?:Дата\\s*/\\s*специалист|Результат|Примечание)"
+                "[\\s\\S]*?</td>\\s*<td\\b)([^>]*>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 64);
+        int last = 0;
+        QRegularExpressionMatchIterator it = summaryRowRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            out += m.captured(1) + setAttrWidth(m.captured(2), QStringLiteral("200"))
+                + m.captured(3) + setAttrWidth(m.captured(4), QStringLiteral("471"));
+            last = m.capturedEnd();
         }
-        last = m.capturedEnd();
+        out += body.mid(last);
+        body = out;
     }
-    out += body.mid(last);
-    return out;
+
+    // Таблицы процесса «Факт выполнения» (2.8/2.9 — 3 кол.; 2.10 — 4 кол.): сумма = 671.
+    {
+        const QRegularExpression processTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Факт\\s+выполнения[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 128);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            const bool numbered = inner.contains(
+                QRegularExpression(
+                    QStringLiteral(">\\s*№\\s*<"),
+                    QRegularExpression::CaseInsensitiveOption));
+
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            if (numbered) {
+                inner.prepend(QStringLiteral(
+                    "<colgroup><col width='40'><col width='125'><col width='253'><col width='253'></colgroup>"));
+            } else {
+                inner.prepend(QStringLiteral(
+                    "<colgroup><col width='125'><col width='273'><col width='273'></colgroup>"));
+            }
+
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if ((!numbered && tds.size() == 3) || (numbered && tds.size() == 4)) {
+                    QStringList widths;
+                    if (numbered) {
+                        widths << QStringLiteral("40") << QStringLiteral("125")
+                               << QStringLiteral("253") << QStringLiteral("253");
+                    } else {
+                        widths << QStringLiteral("125") << QStringLiteral("273")
+                               << QStringLiteral("273");
+                    }
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        newRow += td.captured(1) + setAttrWidth(td.captured(2), widths.at(i))
+                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
+    return body;
 }
 
 QString ensureProtocol12SummaryTableOpens(QString body) {
