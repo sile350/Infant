@@ -376,8 +376,18 @@ void OnlyPExercise::updateWidgetLayout() {
                     extraY = -10; // было +40; поднять на 50px
                 }
             }
-        } else if (m_exerciseId == QStringLiteral("2.10")
-                   || m_exerciseId == QStringLiteral("3.1.1")
+        } else if (m_exerciseId == QStringLiteral("2.10")) {
+            // 13.5/13.6: по центру по вертикали; один экран — ещё чуть правее.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+                extraY = 40;
+            } else {
+                extraY = 40;
+            }
+        } else if (m_exerciseId == QStringLiteral("2.9")) {
+            // 12.3: dual/full — чуть ниже, ближе к центру по вертикали.
+            extraY = 80;
+        } else if (m_exerciseId == QStringLiteral("3.1.1")
                    || m_exerciseId == QStringLiteral("3.1.2")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.12")
@@ -515,7 +525,11 @@ void OnlyPExercise::updateWidgetLayout() {
             }
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
-            const int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
+            int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
+            // 2.10 один экран: по центру экрана по вертикали (и чуть правее через extraX).
+            if (m_exerciseId == QStringLiteral("2.10")) {
+                pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
+            }
             m_picture->move(pictureX, pictureY);
             m_picture->show();
             if (m_picture2) {

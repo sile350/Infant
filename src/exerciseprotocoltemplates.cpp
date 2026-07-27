@@ -717,9 +717,10 @@ QString createExerciseProtocolFromTemplate(
             // Не вставлять внутрь последней </table> — блоки это самостоятельные <table>.
             return existingProtocolHtml + appendBlocks;
         }
-        // 1.17/1.18 numbered: дописка строк в текущую сессию или новая «Дата/специалист».
+        // 1.17/1.18/2.10 numbered: дописка строк в текущую сессию или новая «Дата/специалист».
         if (tmpl.kind == QStringLiteral("numbered")
-            && (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18"))) {
+            && (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18")
+                || exerciseId == QStringLiteral("2.10"))) {
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
                 stepIds << session.stepId.trimmed();

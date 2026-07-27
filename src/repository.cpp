@@ -783,6 +783,8 @@ QString Repository::loadProtocolViewHtml(
     // На странице упражнения показываем только последний сформированный блок
     // (начиная с его «Дата/специалист»).
     if (exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
+        || exerciseId == QStringLiteral("2.8") || exerciseId == QStringLiteral("2.9")
+        || exerciseId == QStringLiteral("2.10")
         || exerciseId == QStringLiteral("3.1.10") || exerciseId == QStringLiteral("3.1.11")
         || exerciseId == QStringLiteral("3.1.12") || exerciseId == QStringLiteral("3.1.17")
         || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("4.1.4")
@@ -863,6 +865,9 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("1.17")
                 || uprid == QStringLiteral("1.18")
                 || uprid == QStringLiteral("1.25")
+                || uprid == QStringLiteral("2.8")
+                || uprid == QStringLiteral("2.9")
+                || uprid == QStringLiteral("2.10")
                 || uprid == QStringLiteral("3.1.18")
                 || uprid == QStringLiteral("4.1.4")
                 || uprid == QStringLiteral("4.2.2")

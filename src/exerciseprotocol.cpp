@@ -796,8 +796,10 @@ QString replaceResultRowSecondCell(QString body, const QString &plainText) {
         QStringLiteral(
             "(<tr[^>]*>\\s*<td[^>]*>\\s*Результат[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    // Всегда сохраняем id='idvivod' — иначе «Подвести итог» не находит ячейку Результат.
     const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
-                              ? QStringLiteral("<div contenteditable='true'>%1</div>").arg(plainText.toHtmlEscaped())
+                              ? QStringLiteral("<div contenteditable='true' id='idvivod'>%1</div>")
+                                    .arg(plainText.toHtmlEscaped())
                               : plainText.toHtmlEscaped();
     // Только первое совпадение в переданном фрагменте (обычно одна сессия).
     const QRegularExpressionMatch match = rowRe.match(body);
@@ -2185,7 +2187,11 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
 
     QString last = sessions.last();
     if (parsed.hasResult) {
-        last = replaceResultRowSecondCell(last, parsed.resultText);
+        if (last.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+            last = replaceDivInnerById(last, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+        } else {
+            last = replaceResultRowSecondCell(last, parsed.resultText);
+        }
     }
     if (parsed.hasNote) {
         last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
@@ -2962,8 +2968,14 @@ QString ExerciseProtocol::applyProtocolIdbSum(
     auto applyToChunk = [&](QString chunk) {
         const double sum = sumAllDivIdsWithPrefix(chunk, idPrefix);
         const QString sumText = formatBallsNumber(sum);
+        const QString resultText = sumText + maxSuffix;
         chunk = replaceDivInnerById(chunk, QStringLiteral("idsum"), sumText);
-        chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), sumText + maxSuffix);
+        // Результат = Итоговая оценка + (макс.); если idvivod потерян — пишем в строку Результат.
+        const QString before = chunk;
+        chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), resultText);
+        if (chunk == before) {
+            chunk = replaceResultRowSecondCell(chunk, resultText);
+        }
         return chunk;
     };
     if (sessions.size() > 1) {

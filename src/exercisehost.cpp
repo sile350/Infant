@@ -951,9 +951,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // 1.26 / 1.272: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
+        // 1.26 / 1.272 / 2.10: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
         if (m_exerciseId == QStringLiteral("1.26")
-            || m_exerciseId == QStringLiteral("1.272")) {
+            || m_exerciseId == QStringLiteral("1.272")
+            || m_exerciseId == QStringLiteral("2.10")) {
             m_forceNewProtocolSession = false;
             m_sessionStepId = currentStepId();
             if (m_sessionStepId.trimmed().isEmpty()) {
@@ -963,8 +964,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             runExerciseSession();
             return;
         }
-        // multi-step: повторный старт с задания 1; следующий form — с новой «Дата/специалист».
-        // Во всех случаях отображаемый протокол сбрасывается в пустой template.
+        // 1.17/1.18: дописка строк или новая сессия, если шаг уже был.
         if (m_exerciseId == QStringLiteral("1.17")
                    || m_exerciseId == QStringLiteral("1.18")) {
             const QString step = currentStepId();
@@ -1139,20 +1139,22 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kComboH = 33;
     constexpr int kComboY = 12;
     constexpr int kRightMargin = 24;
-    // Во время выполнения 1.17/1.18/1.26/1.272 селект скрыт (вернуть после Стоп).
+    // Во время выполнения 1.17/1.18/1.26/1.272/2.10 селект скрыт (вернуть после Стоп).
     if (m_exerciseRunning
         && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
             || m_exerciseId == QStringLiteral("1.26")
-            || m_exerciseId == QStringLiteral("1.272"))) {
+            || m_exerciseId == QStringLiteral("1.272")
+            || m_exerciseId == QStringLiteral("2.10"))) {
         m_stepCombo->hide();
         return;
     }
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
-    // 1.17/1.18/1.26/1.272: рядом с Begin (~85px зазор), как в руководстве.
+    // 1.17/1.18/1.26/1.272/2.10: рядом с Begin (~85px зазор), как в руководстве.
     if (!m_exerciseRunning
         && (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
             || m_exerciseId == QStringLiteral("1.26")
-            || m_exerciseId == QStringLiteral("1.272"))) {
+            || m_exerciseId == QStringLiteral("1.272")
+            || m_exerciseId == QStringLiteral("2.10"))) {
         constexpr int kBeginRight = 976 + 158;
         constexpr int kGap = 85;
         comboX = kBeginRight + kGap;
@@ -1479,7 +1481,10 @@ void ExerciseHost::updatePreviewLayout() {
         || m_exerciseId == QStringLiteral("1.17")
         || m_exerciseId == QStringLiteral("1.18")
         || m_exerciseId == QStringLiteral("1.25")
-        || m_exerciseId == QStringLiteral("1.26")) {
+        || m_exerciseId == QStringLiteral("1.26")
+        || m_exerciseId == QStringLiteral("2.8")
+        || m_exerciseId == QStringLiteral("2.9")
+        || m_exerciseId == QStringLiteral("2.10")) {
         // Как OnlyPExercise::Specialist при dual: та же область, масштаб и центрирование.
         constexpr int kPictureMargin = 12;
         constexpr int kSpecialistPictureShiftLeft = 15;
@@ -1491,6 +1496,11 @@ void ExerciseHost::updatePreviewLayout() {
             extraY = -10; // было +40; поднять на 50px (как Specialist при dual)
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             extraY = -120;
+        } else if (m_exerciseId == QStringLiteral("2.8")
+                   || m_exerciseId == QStringLiteral("2.9")
+                   || m_exerciseId == QStringLiteral("2.10")) {
+            // До старта: по центру правой половины по вертикали.
+            extraY = 40;
         }
 
         int contentTop = kButtonMargin;
@@ -1743,8 +1753,10 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
 
     const QStringList labels = parseActivityLabelsFromOrHtml(m_rawOrHtml);
     QStringList effectiveLabels = labels;
-    // 1.26 / 1.272: все 5 пунктов из or.html (на случай сбоя парсинга — явный fallback).
-    if ((m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272"))
+    // 1.26 / 1.272 / 2.8 / 2.9 / 2.10: все 5 пунктов (fallback при сбое парсинга).
+    if ((m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+         || m_exerciseId == QStringLiteral("2.8") || m_exerciseId == QStringLiteral("2.9")
+         || m_exerciseId == QStringLiteral("2.10"))
         && effectiveLabels.size() < 5) {
         effectiveLabels = QStringList{
             QStringLiteral("Ребенок не понимает инструкцию."),
@@ -1778,7 +1790,10 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
         || m_exerciseId == QStringLiteral("1.18")
         || m_exerciseId == QStringLiteral("1.25")
         || m_exerciseId == QStringLiteral("1.26")
-        || m_exerciseId == QStringLiteral("1.272");
+        || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("2.8")
+        || m_exerciseId == QStringLiteral("2.9")
+        || m_exerciseId == QStringLiteral("2.10");
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (!row.box) {
             continue;
@@ -2551,33 +2566,42 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
         }
         session.additional = step + QLatin1Char(';') + emptyAnswers.join(QLatin1Char(';'));
     } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        // Как в оригинале: в протокол попадают задания, которые реально запускали
-        // (время в stepElapsedSeconds). Не все пункты combo сразу — иначе повторная
-        // сессия выглядит как дописка строк без новой «Дата/специалист».
-        session.stepElapsedSeconds = m_stepElapsedSeconds;
-        if (session.stepId.isEmpty()) {
-            session.stepId = QStringLiteral("1");
-        }
-        if (session.stepElapsedSeconds.isEmpty() && !session.stepId.isEmpty()) {
-            session.stepElapsedSeconds.insert(session.stepId, m_elapsedSeconds);
-        }
-        if (!session.stepElapsedSeconds.isEmpty()) {
-            // Порядок как в combo / definition.
-            const QStringList order = numberedStepIds();
-            for (const QString &sid : order) {
-                if (session.stepElapsedSeconds.contains(sid)) {
-                    session.stepIds << sid;
+        if (m_exerciseId == QStringLiteral("2.10")) {
+            // Как 1.272: каждое задание формируется отдельно — в form только текущий №.
+            const QString step = session.stepId.trimmed().isEmpty()
+                ? QStringLiteral("1")
+                : session.stepId.trimmed();
+            session.stepId = step;
+            session.stepIds << step;
+            session.stepElapsedSeconds.insert(step, m_elapsedSeconds);
+            session.additional = step + QLatin1Char(';') + session.doneState;
+        } else {
+            // Как в оригинале: в протокол попадают задания, которые реально запускали
+            // (время в stepElapsedSeconds). Не все пункты combo сразу — иначе повторная
+            // сессия выглядит как дописка строк без новой «Дата/специалист».
+            session.stepElapsedSeconds = m_stepElapsedSeconds;
+            if (session.stepId.isEmpty()) {
+                session.stepId = QStringLiteral("1");
+            }
+            if (session.stepElapsedSeconds.isEmpty() && !session.stepId.isEmpty()) {
+                session.stepElapsedSeconds.insert(session.stepId, m_elapsedSeconds);
+            }
+            if (!session.stepElapsedSeconds.isEmpty()) {
+                const QStringList order = numberedStepIds();
+                for (const QString &sid : order) {
+                    if (session.stepElapsedSeconds.contains(sid)) {
+                        session.stepIds << sid;
+                    }
+                }
+                if (session.stepIds.isEmpty()) {
+                    session.stepIds = session.stepElapsedSeconds.keys();
                 }
             }
             if (session.stepIds.isEmpty()) {
-                session.stepIds = session.stepElapsedSeconds.keys();
+                session.stepIds << session.stepId;
             }
+            session.additional = session.stepId + QLatin1Char(';') + session.doneState;
         }
-        if (session.stepIds.isEmpty()) {
-            session.stepIds << session.stepId;
-        }
-        // Для совместимости с fallback/шаблонами без multi-row.
-        session.additional = session.stepId + QLatin1Char(';') + session.doneState;
     } else if (definition && definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp) {
         session.additional = session.doneState;
     } else if (definition && definition->protocol == ExerciseProtocolKind::OrHlpBallsRow) {
@@ -2739,6 +2763,8 @@ void ExerciseHost::updateSumButtonVisibility() {
 
 bool ExerciseHost::usesLastProtocolSessionView() const {
     return m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("2.8") || m_exerciseId == QStringLiteral("2.9")
+        || m_exerciseId == QStringLiteral("2.10")
         || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("3.1.11")
         || m_exerciseId == QStringLiteral("3.1.12") || m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.4")
@@ -2754,9 +2780,10 @@ bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
         return false;
     }
     // Numbered / multi-step or_hlp: новая сессия после Begin, если шаги уже были в протоколе.
-    // 1.17/1.18/1.272: дописка строк заданий без сброса протокола (ТЗ заказчика).
+    // 1.17/1.18/1.272/2.10: дописка строк заданий без сброса протокола (ТЗ заказчика).
     if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
-        || m_exerciseId == QStringLiteral("1.272")) {
+        || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("2.10")) {
         return false;
     }
     if (definition->protocol == ExerciseProtocolKind::NumberedDoneTime
@@ -2970,14 +2997,17 @@ void ExerciseHost::sumProtocol1272() {
         || !m_templateBrowser) {
         return;
     }
-    // Сначала сохранить правки (примечание, характер, виды помощи, результат), затем суммы.
+    // Сначала сохранить правки (примечание, характер, виды помощи, баллы), затем суммы.
     saveProtocolEdits();
     commitTextEditChanges(m_templateBrowser, true);
     QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    // Не пересобираем таблицы — только сумма ids* → idsum / idvivod = sum(24).
+    // Ещё раз подтянуть баллы ids* / idsum из редактора (на случай потери id в autosave).
+    storedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+        storedBody, m_templateBrowser->document());
+    // Сумма ids* → «Итоговая оценка»; то же значение → «Результат: баллы (макс.)» как N(24).
     storedBody = ExerciseProtocol::applyProtocolIdbSum(
         storedBody, QStringLiteral("(24)"), QStringLiteral("ids"));
 
@@ -3115,6 +3145,9 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.17")
                || m_exerciseId == QStringLiteral("1.18")
                || m_exerciseId == QStringLiteral("1.25")
+               || m_exerciseId == QStringLiteral("2.8")
+               || m_exerciseId == QStringLiteral("2.9")
+               || m_exerciseId == QStringLiteral("2.10")
                || m_exerciseId == QStringLiteral("3.1.18")
                || m_exerciseId == QStringLiteral("4.1.4")
                || m_exerciseId == QStringLiteral("4.2.2")

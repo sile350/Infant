@@ -209,24 +209,9 @@ QString ExerciseAssets::prepareOrHtml(
 
     const int hrPos = result.indexOf(QStringLiteral("<hr"), 0, Qt::CaseInsensitive);
     if (hrPos > 0) {
-        // Оставляем заголовок «Оценка результатов» и текст разделов, убираем input-контролы
-        // (галочки/радио живут в Qt-панели).
-        QString afterHr = result.mid(hrPos);
-        afterHr.remove(QRegularExpression(
-            QStringLiteral("<hr\\b[^>]*>\\s*(</hr>)?"),
-            QRegularExpression::CaseInsensitiveOption));
-        afterHr.replace(
-            QRegularExpression(
-                QStringLiteral("<input\\b[^>]*>"),
-                QRegularExpression::CaseInsensitiveOption),
-            QString());
-        // Таблица «Выполнение» без radio — оставляем подписи ячеек.
-        const int bodyEnd = result.indexOf(QStringLiteral("</body>"), hrPos, Qt::CaseInsensitive);
-        if (bodyEnd > hrPos) {
-            result = result.left(hrPos).trimmed() + QStringLiteral("\n")
-                + afterHr.left(afterHr.indexOf(QStringLiteral("</body>"), 0, Qt::CaseInsensitive))
-                + QStringLiteral("\n</body></html>");
-        }
+        // Блок «Оценка результатов» / характер / помощь после <hr> дублирует Qt-панель
+        // и без input выглядит сломанным — убираем из OR-документа.
+        result = result.left(hrPos).trimmed() + QStringLiteral("\n</body></html>");
     }
 
     const QString sourceHtml = result;
