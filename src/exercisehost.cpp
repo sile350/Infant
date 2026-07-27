@@ -951,9 +951,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             CustomMessageBox::showError(this, QStringLiteral("Сначала необходимо сформировать отчет"));
             return;
         }
-        // 1.26 / 1.272: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
+        // 1.26 / 1.272 / 2.10: выбранное задание до Start; протокол не обнулять (только при входе/выходе).
         if (m_exerciseId == QStringLiteral("1.26")
-            || m_exerciseId == QStringLiteral("1.272")) {
+            || m_exerciseId == QStringLiteral("1.272")
+            || m_exerciseId == QStringLiteral("2.10")) {
             m_forceNewProtocolSession = false;
             m_sessionStepId = currentStepId();
             if (m_sessionStepId.trimmed().isEmpty()) {
@@ -963,10 +964,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             runExerciseSession();
             return;
         }
-        // 1.17/1.18/2.10: дописка строк или новая сессия, если шаг уже был.
+        // 1.17/1.18: дописка строк или новая сессия, если шаг уже был.
         if (m_exerciseId == QStringLiteral("1.17")
-                   || m_exerciseId == QStringLiteral("1.18")
-                   || m_exerciseId == QStringLiteral("2.10")) {
+                   || m_exerciseId == QStringLiteral("1.18")) {
             const QString step = currentStepId();
             bool newSession = false;
             if (m_repository && m_partly && !step.isEmpty()) {
@@ -1819,21 +1819,14 @@ void ExerciseHost::loadExercise() {
     syncActivityChecksFromOrHtml();
     syncHelpChecksFromOrHtml();
 
-    // 2.8 / 2.9 / 2.10: как у других done_time — на вкладке последний сформированный протокол.
-    if (m_exerciseId == QStringLiteral("2.8")
-        || m_exerciseId == QStringLiteral("2.9")
-        || m_exerciseId == QStringLiteral("2.10")) {
-        showLastProtocolInTemplate();
-    } else {
-        const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
-        const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
-        // При входе форма протокола чистая (прошлые прохождения — на странице «Протоколы»).
-        m_currentProtocolId.clear();
-        m_protocolSavedThisSession = false;
-        m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-        applyCompactLineHeight(m_templateBrowser->document());
-        updateProtocolEditMode();
-    }
+    const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
+    const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    // При входе форма протокола всегда чистая (прошлые прохождения — на странице «Протоколы»).
+    m_currentProtocolId.clear();
+    m_protocolSavedThisSession = false;
+    m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
+    applyCompactLineHeight(m_templateBrowser->document());
+    updateProtocolEditMode();
 
     if (m_donePanel) {
         m_donePanel->setVisible(needsDoneStatePanel());
@@ -2770,6 +2763,8 @@ void ExerciseHost::updateSumButtonVisibility() {
 
 bool ExerciseHost::usesLastProtocolSessionView() const {
     return m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
+        || m_exerciseId == QStringLiteral("2.8") || m_exerciseId == QStringLiteral("2.9")
+        || m_exerciseId == QStringLiteral("2.10")
         || m_exerciseId == QStringLiteral("3.1.10") || m_exerciseId == QStringLiteral("3.1.11")
         || m_exerciseId == QStringLiteral("3.1.12") || m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18") || m_exerciseId == QStringLiteral("4.1.4")
@@ -2785,7 +2780,7 @@ bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
         return false;
     }
     // Numbered / multi-step or_hlp: новая сессия после Begin, если шаги уже были в протоколе.
-    // 1.17/1.18/1.272/2.10: дописка строк заданий без сброса протокола (логика Begin отдельно).
+    // 1.17/1.18/1.272/2.10: дописка строк заданий без сброса протокола (ТЗ заказчика).
     if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")
         || m_exerciseId == QStringLiteral("1.272")
         || m_exerciseId == QStringLiteral("2.10")) {

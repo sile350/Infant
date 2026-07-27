@@ -2183,9 +2183,35 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         return storedBody;
     }
 
-    // Только Результат/Примечание последней сессии по «Дата/специалист».
-    // Не joinClosed/ensureClosed — они срезают повторные сессии после первой таблицы процесса.
-    QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+    // 1.26: только Результат/Примечание последней сессии — без joinClosed.
+    if (looksLikeProtocol126Body(storedBody)) {
+        QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+        if (sessions.isEmpty()) {
+            QString body = storedBody;
+            if (parsed.hasResult) {
+                body = replaceResultRowSecondCell(body, parsed.resultText);
+            }
+            if (parsed.hasNote) {
+                body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
+            }
+            return body;
+        }
+        QString last = sessions.last();
+        if (parsed.hasResult) {
+            if (last.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+                last = replaceDivInnerById(last, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+            } else {
+                last = replaceResultRowSecondCell(last, parsed.resultText);
+            }
+        }
+        if (parsed.hasNote) {
+            last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
+        }
+        sessions[sessions.size() - 1] = last;
+        return joinProtocol126Sessions(sessions);
+    }
+
+    QStringList sessions = extractProtocolBodiesByDateRows(storedBody);
     if (sessions.isEmpty()) {
         QString body = storedBody;
         if (parsed.hasResult) {
@@ -2194,8 +2220,9 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         if (parsed.hasNote) {
             body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
         }
-        return body;
+        return ensureClosedProtocolSession(body);
     }
+
     QString last = sessions.last();
     if (parsed.hasResult) {
         if (last.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
@@ -2208,7 +2235,7 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
     }
     sessions[sessions.size() - 1] = last;
-    return joinProtocol126Sessions(sessions);
+    return joinClosedProtocolSessions(sessions);
 }
 
 QString replaceDivInnerById(QString html, const QString &divId, const QString &innerHtml) {
@@ -3230,12 +3257,6 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     }
     QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
 
-    // OR/HLP только в последней сессии — иначе lastIndexOf(<!--s-->) по всему телу
-    // при повторных протоколах может повредить границы сессий.
-    QStringList dateSessions = extractProtocol126SessionsByDate(body);
-    const bool multiSession = dateSessions.size() > 1;
-    QString sessionScope = multiSession ? dateSessions.last() : body;
-
     QList<QTextTable *> tables;
     collectTables(editorDocument->rootFrame(), tables);
     for (QTextTable *table : tables) {
@@ -3276,12 +3297,12 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             continue;
         }
 
-        const int marker = sessionScope.lastIndexOf(QStringLiteral("<!--s-->"));
+        const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
         if (marker < 0) {
             continue;
         }
-        const QString head = sessionScope.left(marker + QStringLiteral("<!--s-->").size());
-        QString tail = sessionScope.mid(marker + QStringLiteral("<!--s-->").size());
+        const QString head = body.left(marker + QStringLiteral("<!--s-->").size());
+        QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
 
         const QRegularExpression trRe(
             QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
@@ -3390,13 +3411,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             const QString newRow = htmlRow.open + inner + htmlRow.close;
             tail.replace(htmlRow.start, htmlRow.len, newRow);
         }
-        sessionScope = head + tail;
-        if (multiSession) {
-            dateSessions[dateSessions.size() - 1] = sessionScope;
-            body = joinProtocol126Sessions(dateSessions);
-        } else {
-            body = sessionScope;
-        }
+        body = head + tail;
         break;
     }
     return body;
@@ -3828,12 +3843,6 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
 QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {
     if (protocolBody.trimmed().isEmpty()) {
         return {};
-    }
-    // Сначала плоский разрез только по «Дата/специалист» — иначе ensureClosed
-    // срезает повторные сессии, оказавшиеся «хвостом» после первой таблицы процесса.
-    QStringList dateSessions = extractProtocol126SessionsByDate(protocolBody);
-    if (dateSessions.size() > 1) {
-        return joinProtocol126Sessions(dateSessions);
     }
     QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
     if (sessions.isEmpty()) {
