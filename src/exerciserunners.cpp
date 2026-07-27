@@ -2381,6 +2381,10 @@ public:
         m_stepId = stepId;
         m_canvas->setGeometry(0, 0, width(), height());
         m_canvas->startExercise(exerciseId, stepId);
+        // Превью мальчик/девочка → стартовый набор портретов задания 1.
+        if (exerciseId == QStringLiteral("1.26") && !m_sessionOptions.genderPrefix.trimmed().isEmpty()) {
+            m_canvas->applyGenderPrefix(m_sessionOptions.genderPrefix);
+        }
         m_canvas->show();
         m_canvas->raise();
         // Оригинал e126/e1272: pstop Left=970 Top=70

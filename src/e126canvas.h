@@ -33,6 +33,8 @@ public:
     QString answersSnapshot() const;
     bool emotionsVisible() const { return m_emotionsVisible; }
     QString genderPrefix() const { return m_genderPrefix; }
+    // Применить пол из превью до/после старта (d = девочка, m = мальчик).
+    void applyGenderPrefix(const QString &prefix);
     int currentCount() const { return m_count; }
 
 signals:

@@ -2590,6 +2590,68 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
         return chunk;
     };
 
+    auto applyAnswersFromEditor = [&](QString chunk) -> QString {
+        if (!editorDocument) {
+            return chunk;
+        }
+        static const QStringList kTask1 = {
+            QStringLiteral("Радость"), QStringLiteral("Злость"),
+            QStringLiteral("Грусть"), QStringLiteral("Страх"),
+            QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
+        };
+        QList<QTextTable *> tables;
+        collectTables(editorDocument->rootFrame(), tables);
+        for (QTextTable *table : tables) {
+            if (!table || table->columns() < 2) {
+                continue;
+            }
+            int answerCol = -1;
+            int headerRow = -1;
+            for (int r = 0; r < table->rows(); ++r) {
+                for (int c = 0; c < table->columns(); ++c) {
+                    const QString header = readTableCellText(table, r, c);
+                    if (answerCol < 0
+                        && header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
+                        answerCol = c;
+                        headerRow = r;
+                    }
+                }
+            }
+            if (answerCol < 0 || headerRow < 0) {
+                continue;
+            }
+            for (int r = headerRow + 1; r < table->rows(); ++r) {
+                const QString label = readTableCellText(table, r, 0);
+                if (label.isEmpty()
+                    || label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Индекс"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                    || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                const QString answer = readTableCellText(table, r, answerCol);
+                for (int i = 0; i < kTask1.size(); ++i) {
+                    if (label.compare(kTask1.at(i), Qt::CaseInsensitive) == 0) {
+                        chunk = replaceDivInnerById(
+                            chunk,
+                            QStringLiteral("ans1%1").arg(i + 1),
+                            answer.toHtmlEscaped());
+                        break;
+                    }
+                }
+                bool okNum = false;
+                const int storyNo = label.toInt(&okNum);
+                if (okNum && storyNo >= 1 && storyNo <= 12) {
+                    chunk = replaceDivInnerById(
+                        chunk,
+                        QStringLiteral("ans2%1").arg(storyNo),
+                        answer.toHtmlEscaped());
+                }
+            }
+        }
+        return chunk;
+    };
+
     // Редактор показывает только последнюю сессию — писать баллы/суммы только в неё.
     QStringList sessions = extractProtocol126SessionsByDate(body);
     const bool multiSession = sessions.size() > 1;
@@ -2603,37 +2665,26 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
         return applyManualScoresFromEditor(body);
     }
 
-    Q_UNUSED(editorDocument);
-    if (multiSession) {
-        QString last = sessions.last();
-        last = fillProtocol126RowScores(last);
-        const double sum1 = sumDivPrefix(last, QStringLiteral("col1"));
-        const double sum2 = sumDivPrefix(last, QStringLiteral("col2"));
+    // «Подвести итог»: учесть правки ответов в редакторе, затем пересчитать баллы/суммы.
+    auto finalizeSums = [&](QString chunk) {
+        chunk = applyAnswersFromEditor(chunk);
+        chunk = fillProtocol126RowScores(chunk);
+        const double sum1 = sumDivPrefix(chunk, QStringLiteral("col1"));
+        const double sum2 = sumDivPrefix(chunk, QStringLiteral("col2"));
         const int sum3 = static_cast<int>(sum1 + sum2);
-        last = replaceDivInnerById(last, QStringLiteral("sum1"), QString::number(static_cast<int>(sum1)));
-        last = replaceDivInnerById(last, QStringLiteral("sum2"), QString::number(static_cast<int>(sum2)));
-        last = replaceDivInnerById(last, QStringLiteral("sum3"), QString::number(sum3));
-        last = replaceDivInnerById(
-            last, QStringLiteral("idvivod"), QString::number(sum3) + QStringLiteral("(36)"));
-        sessions[sessions.size() - 1] = last;
+        chunk = replaceDivInnerById(chunk, QStringLiteral("sum1"), QString::number(static_cast<int>(sum1)));
+        chunk = replaceDivInnerById(chunk, QStringLiteral("sum2"), QString::number(static_cast<int>(sum2)));
+        chunk = replaceDivInnerById(chunk, QStringLiteral("sum3"), QString::number(sum3));
+        chunk = replaceDivInnerById(
+            chunk, QStringLiteral("idvivod"), QString::number(sum3) + QStringLiteral("(36)"));
+        return chunk;
+    };
+
+    if (multiSession) {
+        sessions[sessions.size() - 1] = finalizeSums(sessions.last());
         return joinProtocol126Sessions(sessions);
     }
-
-    body = fillProtocol126RowScores(body);
-
-    const double sum1 = sumDivPrefix(body, QStringLiteral("col1"));
-    const double sum2 = sumDivPrefix(body, QStringLiteral("col2"));
-    const int sum3 = static_cast<int>(sum1 + sum2);
-    const QString sum1Text = QString::number(static_cast<int>(sum1));
-    const QString sum2Text = QString::number(static_cast<int>(sum2));
-    const QString sum3Text = QString::number(sum3);
-    const QString vivodText = sum3Text + QStringLiteral("(36)");
-
-    body = replaceDivInnerById(body, QStringLiteral("sum1"), sum1Text);
-    body = replaceDivInnerById(body, QStringLiteral("sum2"), sum2Text);
-    body = replaceDivInnerById(body, QStringLiteral("sum3"), sum3Text);
-    body = replaceDivInnerById(body, QStringLiteral("idvivod"), vivodText);
-    return body;
+    return finalizeSums(body);
 }
 
 QString replaceLabeledValueCellNth(

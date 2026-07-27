@@ -2620,6 +2620,10 @@ void ExerciseHost::updateProtocolEditMode() {
         || m_exerciseId == QStringLiteral("1.4")
         || m_exerciseId == QStringLiteral("1.8");
     m_templateBrowser->setProperty("protocolLockResultEdit", lockResult);
+    // 1.26: курсор только в ответ/баллы/характер/помощь/результат.
+    m_templateBrowser->setProperty(
+        "protocolStrict126Edit",
+        m_exerciseId == QStringLiteral("1.26"));
     // Редактирование только после формирования протокола в текущей сессии.
     const ProtocolEditGuard::Mode mode = m_protocolSavedThisSession
         ? ProtocolEditGuard::Mode::LimitedEdit
@@ -3398,6 +3402,11 @@ ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
         if (m_rotateCWCombo) {
             options.rotateCW = m_rotateCWCombo->currentText().toInt();
         }
+    }
+    if (m_exerciseId == QStringLiteral("1.26")) {
+        options.genderPrefix = m_previewGenderPrefix.isEmpty()
+            ? QStringLiteral("d")
+            : m_previewGenderPrefix;
     }
     return options;
 }

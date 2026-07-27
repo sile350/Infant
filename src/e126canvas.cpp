@@ -184,6 +184,7 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
     m_stepId = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
     m_elapsed = 0;
     m_count = 1;
+    // Пол по умолчанию — девочка; EmotionsRunner может переопределить через applyGenderPrefix.
     m_genderPrefix = QStringLiteral("d");
     m_emotionsVisible = false;
     m_answers = QStringList();
@@ -300,6 +301,29 @@ void E126Canvas::startExercise(const QString &exerciseId, const QString &stepId)
         m_timer.start();
     }
     setFocus();
+    notifyPatientContentChanged();
+}
+
+void E126Canvas::applyGenderPrefix(const QString &prefix) {
+    const QString next = (prefix == QStringLiteral("m")) ? QStringLiteral("m") : QStringLiteral("d");
+    m_genderPrefix = next;
+    if (m_girlRadio && m_boyRadio) {
+        const bool girl = next != QStringLiteral("m");
+        m_girlRadio->blockSignals(true);
+        m_boyRadio->blockSignals(true);
+        m_girlRadio->setChecked(girl);
+        m_boyRadio->setChecked(!girl);
+        m_girlRadio->blockSignals(false);
+        m_boyRadio->blockSignals(false);
+    }
+    if (m_stepId == QStringLiteral("1") || m_stepId.isEmpty()) {
+        showDemoImage();
+    } else if (m_emotionsVisible) {
+        applyPixmap(
+            m_emotionsLabel,
+            next == QStringLiteral("m") ? QStringLiteral("mem.png") : QStringLiteral("dem.png"));
+        layoutUi();
+    }
     notifyPatientContentChanged();
 }
 

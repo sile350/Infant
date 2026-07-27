@@ -20,6 +20,8 @@ struct ExerciseSessionOptions {
     bool rotateEnabled = true;
     int rotateW = 0;
     int rotateCW = 0;
+    // 1.26: префикс портретов до старта («d» / «m») из превью мальчик/девочка.
+    QString genderPrefix;
 };
 
 #endif
