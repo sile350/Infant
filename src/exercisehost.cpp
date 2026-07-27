@@ -265,7 +265,26 @@ QString checkboxValueFromInputTag(const QString &inputTag) {
     if (!match.hasMatch()) {
         return {};
     }
-    return stripHtmlTags(match.captured(1));
+    QString label = stripHtmlTags(match.captured(1)).trimmed();
+    // Убрать мусорные символы (PUA/checkbox glyphs) и ведущие табы из старых or.html.
+    QString cleaned;
+    cleaned.reserve(label.size());
+    for (const QChar ch : label) {
+        const ushort u = ch.unicode();
+        if (u == 0x09 || u == 0x0a || u == 0x0d) {
+            if (!cleaned.isEmpty() && !cleaned.endsWith(QLatin1Char(' '))) {
+                cleaned.append(QLatin1Char(' '));
+            }
+            continue;
+        }
+        if (u >= 0xE000 && u <= 0xF8FF) {
+            continue;
+        }
+        if (ch.isPrint() || ch.isSpace()) {
+            cleaned.append(ch);
+        }
+    }
+    return cleaned.trimmed();
 }
 
 QString activitySectionFromOrHtml(const QString &html) {
@@ -958,7 +977,33 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             || m_exerciseId == QStringLiteral("3.1.2")
             || m_exerciseId == QStringLiteral("3.1.10")
             || m_exerciseId == QStringLiteral("3.1.12")) {
-            m_forceNewProtocolSession = false;
+            // Повтор того же № / уже есть idb — новая сессия со строки «Дата/специалист».
+            bool newSession = false;
+            if (m_repository && m_partly
+                && (m_exerciseId == QStringLiteral("3.1.2")
+                    || m_exerciseId == QStringLiteral("3.1.10")
+                    || m_exerciseId == QStringLiteral("3.1.12"))) {
+                const QString step = currentStepId().trimmed().isEmpty()
+                    ? QStringLiteral("1")
+                    : currentStepId().trimmed();
+                const QString existingBody =
+                    m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId);
+                const QString lastSession =
+                    ExerciseProtocol::extractLastProtocol126Session(existingBody);
+                const QString scope = lastSession.trimmed().isEmpty() ? existingBody : lastSession;
+                if (m_exerciseId == QStringLiteral("3.1.10")) {
+                    const QString idb = QStringLiteral("idb") + step;
+                    newSession = scope.contains(QStringLiteral("id='%1'").arg(idb), Qt::CaseInsensitive)
+                        || scope.contains(QStringLiteral("id=\"%1\"").arg(idb), Qt::CaseInsensitive);
+                } else {
+                    newSession =
+                        ExerciseProtocol::numberedStepPresentInSessionHtml(scope, step);
+                }
+            }
+            m_forceNewProtocolSession = newSession;
+            if (newSession) {
+                resetProtocolToInitialTemplate();
+            }
             m_sessionStepId = currentStepId();
             if (m_sessionStepId.trimmed().isEmpty()) {
                 m_sessionStepId = QStringLiteral("1");
@@ -2860,11 +2905,12 @@ bool ExerciseHost::forceNewProtocolSessionOnBegin() const {
     if (definition->protocol == ExerciseProtocolKind::NumberedDoneTime
         || definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp
         || definition->protocol == ExerciseProtocolKind::OrHlpBallsRow
+        || definition->protocol == ExerciseProtocolKind::OrHlpRow
         || definition->protocol == ExerciseProtocolKind::TimedBalls
         || definition->protocol == ExerciseProtocolKind::TimedBallsWithPictureCount) {
         return true;
     }
-    return m_exerciseId == QStringLiteral("3.1.11") || m_exerciseId == QStringLiteral("3.1.12")
+    return m_exerciseId == QStringLiteral("3.1.1") || m_exerciseId == QStringLiteral("3.1.11")
         || m_exerciseId == QStringLiteral("3.1.17") || m_exerciseId == QStringLiteral("3.1.18")
         || m_exerciseId == QStringLiteral("4.1.8") || m_exerciseId == QStringLiteral("4.2.1")
         || m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")

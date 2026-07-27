@@ -809,6 +809,31 @@ QString createExerciseProtocolFromTemplate(
             return ExerciseProtocol::appendRowsToStoredBody(
                 trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
+        // 3.1.1 / 3.1.11 — одно задание за проход: при partly всегда новая «Дата/специалист»
+        // (не дописывать только строку процесса к предыдущей сессии).
+        if (tmpl.kind == QStringLiteral("or_hlp_balls")
+            && (exerciseId == QStringLiteral("3.1.1")
+                || exerciseId == QStringLiteral("3.1.11"))) {
+            QStringList stepIds = session.stepIds;
+            if (stepIds.isEmpty()) {
+                stepIds << QStringLiteral("1");
+            }
+            ProtocolSessionInput repeatSession = session;
+            repeatSession.stepIds = stepIds;
+            const QString repeatRows = buildOrHlpBallsProcessRows(tmpl, vars, repeatSession);
+            QString sessionBlock;
+            if (!tmpl.dateRow.isEmpty()) {
+                sessionBlock += substituteAll(tmpl.dateRow, vars);
+            }
+            if (!tmpl.initialBlock.isEmpty()) {
+                sessionBlock += substituteAll(tmpl.initialBlock, vars);
+            }
+            sessionBlock += repeatRows;
+            if (!sessionBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                sessionBlock += QStringLiteral("</table>");
+            }
+            return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, sessionBlock);
+        }
         // 1.26/tmp0_variants, 3.1.10, 1.27/1.272: дописка строк задания в текущий протокол.
         if (tmpl.kind == QStringLiteral("tmp0_variants")
             || tmpl.kind == QStringLiteral("or_hlp_balls_row")

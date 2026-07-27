@@ -2041,6 +2041,10 @@ bool ExerciseProtocol::numberedStepPresentInSessionHtml(
     if (sid.isEmpty() || sessionHtml.trimmed().isEmpty()) {
         return false;
     }
+    if (sessionHtml.contains(
+            QStringLiteral("<!--step") + sid + QStringLiteral("-->"), Qt::CaseInsensitive)) {
+        return true;
+    }
     const QRegularExpression rowRe(
         QStringLiteral(
             "<tr[^>]*>\\s*<td[^>]*align\\s*=\\s*['\"]center['\"][^>]*>\\s*%1\\s*</td>")
@@ -2049,8 +2053,13 @@ bool ExerciseProtocol::numberedStepPresentInSessionHtml(
     if (rowRe.match(sessionHtml).hasMatch()) {
         return true;
     }
-    return sessionHtml.contains(
-        QStringLiteral("<!--step") + sid + QStringLiteral("-->"), Qt::CaseInsensitive);
+    // После QTextDocument align иногда пропадает — первая ячейка строки = №.
+    const QRegularExpression plainNumRe(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*>\\s*(?:<[^>]+>\\s*)*%1\\s*(?:</[^>]+>\\s*)*</td>")
+            .arg(QRegularExpression::escape(sid)),
+        QRegularExpression::CaseInsensitiveOption);
+    return plainNumRe.match(sessionHtml).hasMatch();
 }
 
 QString closeDanglingTables(QString html) {

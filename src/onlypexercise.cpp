@@ -390,7 +390,12 @@ void OnlyPExercise::updateWidgetLayout() {
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.12")) {
             // По центру экрана; один экран — чуть правее.
-            if (m_displayRole == DisplayRole::Primary) {
+            // 3.1.1 экран пациента: вверх на 50 и правее на 50.
+            if (m_displayRole == DisplayRole::Patient
+                && m_exerciseId == QStringLiteral("3.1.1")) {
+                extraX = 50;
+                extraY = -50;
+            } else if (m_displayRole == DisplayRole::Primary) {
                 extraX = 80;
                 extraY = 40;
             } else {
