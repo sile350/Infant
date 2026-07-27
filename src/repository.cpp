@@ -88,7 +88,8 @@ void appendProtocolRecord(
             continuation ? QString() : headerForExercise(uprid), protocolBody);
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
-        const QString flatBody = ExerciseProtocol::flattenStoredProtocolBody(protocolBody);
+        const QString flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(
+            ExerciseProtocol::flattenStoredProtocolBody(protocolBody));
         if (continuation) {
             record = QStringLiteral(
                           "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
