@@ -58,6 +58,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void loadExercise();
@@ -87,12 +88,15 @@ private:
     void sumProtocol3110();
     void sumProtocol418();
     void sumProtocol318();
+    void syncProtocol317BallsToResult();
     void updateSumButtonVisibility();
     bool usesLastProtocolSessionView() const;
     bool forceNewProtocolSessionOnBegin() const;
     void resetProtocolToInitialTemplate();
     void showLastProtocolInTemplate();
     void updateProtocolEditMode();
+    bool isCursorInProtocolBallsColumn() const;
+    void onProtocolCursorMoved();
     void setExerciseChromeVisible(bool visible);
     void showExerciseOverlay();
     void restoreExerciseOverlay();
@@ -126,6 +130,7 @@ private:
     bool m_suppressProtocolAutosave = false;
     bool m_partly = false;
     bool m_forceNewProtocolSession = false;
+    bool m_cursorInBallsColumn = false;
     QString m_currentProtocolId;
     bool m_exerciseRunning = false;
     bool m_orOpen1 = false;

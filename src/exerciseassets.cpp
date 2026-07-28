@@ -17,11 +17,13 @@ QString extractDivInnerHtml(const QString &html, const QString &divId) {
         return {};
     }
     const int contentStart = openMatch.capturedEnd(0);
+    const QRegularExpression anyOpenRe(
+        QStringLiteral("<div\\b"), QRegularExpression::CaseInsensitiveOption);
     const QRegularExpression closeRe(QStringLiteral("</div>"), QRegularExpression::CaseInsensitiveOption);
     int depth = 1;
     int pos = contentStart;
     while (pos < html.size() && depth > 0) {
-        const QRegularExpressionMatch nextOpen = openRe.match(html, pos);
+        const QRegularExpressionMatch nextOpen = anyOpenRe.match(html, pos);
         const QRegularExpressionMatch nextClose = closeRe.match(html, pos);
         if (!nextClose.hasMatch()) {
             break;
@@ -43,12 +45,50 @@ QString extractDivInnerHtml(const QString &html, const QString &divId) {
 }
 
 void replaceDivState(QString &html, const QString &divId, bool open, const QString &sourceHtml) {
-    const QRegularExpression divRe(
-        QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>.*?</div>")
-            .arg(QRegularExpression::escape(divId)),
-        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    // Глубина вложенности: нежадный regex обрезает на первом </div> внутри секции
+    // (как у 3.2.11 «Процедура» с <div align="center">) и оставляет хвост текста видимым.
+    const QRegularExpression openRe(
+        QStringLiteral("<div\\s+id=['\"]%1['\"][^>]*>").arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch openMatch = openRe.match(html);
+    if (!openMatch.hasMatch()) {
+        return;
+    }
+    const int openStart = openMatch.capturedStart(0);
+    const int contentStart = openMatch.capturedEnd(0);
+    const QRegularExpression anyOpenRe(
+        QStringLiteral("<div\\b"), QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpression closeRe(
+        QStringLiteral("</div>"), QRegularExpression::CaseInsensitiveOption);
+    int depth = 1;
+    int pos = contentStart;
+    int closeEnd = -1;
+    while (pos < html.size() && depth > 0) {
+        const QRegularExpressionMatch nextOpen = anyOpenRe.match(html, pos);
+        const QRegularExpressionMatch nextClose = closeRe.match(html, pos);
+        if (!nextClose.hasMatch()) {
+            break;
+        }
+        const int openPos = nextOpen.hasMatch() ? nextOpen.capturedStart(0) : -1;
+        const int closePos = nextClose.capturedStart(0);
+        if (openPos >= 0 && openPos < closePos) {
+            ++depth;
+            pos = nextOpen.capturedEnd(0);
+            continue;
+        }
+        --depth;
+        pos = nextClose.capturedEnd(0);
+        if (depth == 0) {
+            closeEnd = pos;
+            break;
+        }
+    }
+    if (closeEnd < 0) {
+        return;
+    }
+
     if (!open) {
-        html.replace(divRe, QString());
+        html.remove(openStart, closeEnd - openStart);
         return;
     }
 
@@ -56,10 +96,11 @@ void replaceDivState(QString &html, const QString &divId, bool open, const QStri
     if (divId == QStringLiteral("div2")) {
         inner.replace(QRegularExpression(QStringLiteral("^(\\s|&nbsp;)+")), QString());
     }
-    const QString style = QStringLiteral("display:block;margin:0;padding:0;line-height:120%;height:auto;overflow:visible");
-    html.replace(
-        divRe,
-        QStringLiteral("<div id='%1' style=\"%2\">%3</div>").arg(divId, style, inner));
+    const QString style = QStringLiteral(
+        "display:block;margin:0;padding:0;line-height:120%;height:auto;overflow:visible");
+    const QString replacement =
+        QStringLiteral("<div id='%1' style=\"%2\">%3</div>").arg(divId, style, inner);
+    html.replace(openStart, closeEnd - openStart, replacement);
 }
 
 void compactOrSectionSpacing(QString &html) {

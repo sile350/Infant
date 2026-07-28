@@ -111,7 +111,9 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         return false;
     }
 
-    // Колонка «Баллы» + «Ответ ребенка» + ячейки итоговых сумм (прочие методики).
+    // OR/HLP/Баллы + «Ответ ребенка» + ячейки итоговых сумм (прочие методики).
+    // protocolLockBallsEdit: запрет курсора в колонке «Баллы» (3.1.17 и т.п.).
+    const bool lockBalls = editor && editor->property("protocolLockBallsEdit").toBool();
     int ballsCol = -1;
     int answerCol = -1;
     int correctCol = -1;
@@ -195,7 +197,7 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         }
     }
     if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {
-        return true;
+        return !lockBalls;
     }
     if (firstCell.contains(QStringLiteral("Итоговая оценка"), Qt::CaseInsensitive) && col >= 1) {
         return true;

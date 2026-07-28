@@ -324,9 +324,10 @@ QString createExerciseProtocolBodyFallback(
     case ExerciseProtocolKind::DoneTimeOrHlp: {
         const QString header = QStringLiteral(
             "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-            "<tr><td width='134' align='center'>Факт выполнения<br>/ время</td>"
-            "<td width='268' align='center'>Характер деятельности ребенка</td>"
-            "<td width='267' align='center'>Виды помощи</td></tr>");
+            "<colgroup><col width='125'><col width='273'><col width='273'></colgroup>"
+            "<tr><td width='125'>Факт выполнения<br>/ время</td>"
+            "<td width='273' align='center'>Характер деятельности ребенка</td>"
+            "<td width='273' align='center'>Виды помощи</td></tr>");
         if (partly) {
             return ExerciseProtocol::appendFullSessionToStoredBody(
                 base, buildDoneTimeInitial(userFio, 3, header, doneState, elapsedSeconds, checkboxes));

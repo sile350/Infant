@@ -1,5 +1,6 @@
 #include "exerciseprotocoltemplates.h"
 
+#include "exerciseconfig.h"
 #include "exerciseprotocolcreate.h"
 
 #include <QCoreApplication>
@@ -717,10 +718,9 @@ QString createExerciseProtocolFromTemplate(
             // Не вставлять внутрь последней </table> — блоки это самостоятельные <table>.
             return existingProtocolHtml + appendBlocks;
         }
-        // 1.17/1.18/2.10 numbered: дописка строк в текущую сессию или новая «Дата/специалист».
+        // Numbered multi-step (руководство / упр. 6): дописка строк или новая «Дата/специалист».
         if (tmpl.kind == QStringLiteral("numbered")
-            && (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18")
-                || exerciseId == QStringLiteral("2.10") || exerciseId == QStringLiteral("3.1.2"))) {
+            && ExerciseConfig::usesAppendOnlyMultiStepLogic(exerciseId)) {
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
                 stepIds << session.stepId.trimmed();
@@ -764,8 +764,10 @@ QString createExerciseProtocolFromTemplate(
             return ExerciseProtocol::appendRowsToStoredBody(
                 trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
-        // 3.1.12 done_time multi-step: дописка строк задания как у 2.10/3.1.2.
-        if (tmpl.kind == QStringLiteral("done_time") && exerciseId == QStringLiteral("3.1.12")) {
+        // done_time / done_time_scan multi-step: дописка строк задания как у numbered.
+        if ((tmpl.kind == QStringLiteral("done_time")
+             || tmpl.kind == QStringLiteral("done_time_scan"))
+            && ExerciseConfig::usesAppendOnlyMultiStepLogic(exerciseId)) {
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
                 stepIds << session.stepId.trimmed();

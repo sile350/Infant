@@ -1259,6 +1259,88 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
+    // OR/HLP/Баллы (3 колонки): 300+300+71 = 671.
+    {
+        const QRegularExpression processTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Характер\\s+деятельности[\\s\\S]*?Виды\\s+помощи"
+                "[\\s\\S]*?Баллы[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 128);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            // Пропускаем 4+ колоночные таблицы (с № / картинкой и т.п.).
+            {
+                const QRegularExpression firstTrRe(
+                    QStringLiteral("<tr\\b[^>]*>([\\s\\S]*?)</tr>"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                const QRegularExpressionMatch firstTr = firstTrRe.match(inner);
+                if (firstTr.hasMatch()) {
+                    const int tdCount = firstTr.captured(1).count(
+                        QRegularExpression(QStringLiteral("<td\\b"), QRegularExpression::CaseInsensitiveOption));
+                    if (tdCount != 3) {
+                        out += m.captured(0);
+                        last = m.capturedEnd();
+                        continue;
+                    }
+                }
+            }
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            inner.prepend(QStringLiteral(
+                "<colgroup><col width='300'><col width='300'><col width='71'></colgroup>"));
+
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            const QStringList widths = {
+                QStringLiteral("300"), QStringLiteral("300"), QStringLiteral("71")};
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (tds.size() == 3) {
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        newRow += td.captured(1) + setAttrWidth(td.captured(2), widths.at(i))
+                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
     return body;
 }
 

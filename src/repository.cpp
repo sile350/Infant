@@ -789,7 +789,11 @@ QString Repository::loadProtocolViewHtml(
         || exerciseId == QStringLiteral("3.1.1") || exerciseId == QStringLiteral("3.1.2")
         || exerciseId == QStringLiteral("3.1.10") || exerciseId == QStringLiteral("3.1.11")
         || exerciseId == QStringLiteral("3.1.12") || exerciseId == QStringLiteral("3.1.17")
-        || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("4.1.4")
+        || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("3.2.1")
+        || exerciseId == QStringLiteral("3.2.2") || exerciseId == QStringLiteral("3.2.3")
+        || exerciseId == QStringLiteral("3.2.4") || exerciseId == QStringLiteral("3.2.5")
+        || exerciseId == QStringLiteral("3.2.11")
+        || exerciseId == QStringLiteral("4.1.4")
         || exerciseId == QStringLiteral("4.1.8")) {
         // Разрез только по дате — вложенные таблицы баллов/строк не срезают предыдущие сессии.
         body = ExerciseProtocol::extractLastProtocol126Session(body);
@@ -874,11 +878,20 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("3.1.2")
                 || uprid == QStringLiteral("3.1.11")
                 || uprid == QStringLiteral("3.1.12")
-                || uprid == QStringLiteral("3.1.18")
+                || uprid == QStringLiteral("3.2.1")
+                || uprid == QStringLiteral("3.2.2")
+                || uprid == QStringLiteral("3.2.3")
+                || uprid == QStringLiteral("3.2.4")
+                || uprid == QStringLiteral("3.2.5")
+                || uprid == QStringLiteral("3.2.11")
                 || uprid == QStringLiteral("4.1.4")
                 || uprid == QStringLiteral("4.2.2")
                 || uprid == QStringLiteral("5.2.1")) {
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+                    storedBody, &sectionDocument);
+            } else if (uprid == QStringLiteral("3.1.17")
+                       || uprid == QStringLiteral("3.1.18")) {
+                mergedBody = ExerciseProtocol::applyProtocol318SumFromDocument(
                     storedBody, &sectionDocument);
             } else if (uprid == QStringLiteral("3.1.10")) {
                 mergedBody = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(

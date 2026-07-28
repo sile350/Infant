@@ -404,16 +404,40 @@ void OnlyPExercise::updateWidgetLayout() {
         } else if (m_exerciseId == QStringLiteral("2.9")) {
             // 12.3: dual/full — чуть ниже, ближе к центру по вертикали.
             extraY = 80;
-        } else if (m_exerciseId == QStringLiteral("3.1.18")
-                   || m_exerciseId == QStringLiteral("3.2.1")
+        } else if (m_exerciseId == QStringLiteral("3.1.18")) {
+            // 20.2 один экран: ниже и правее → центр. 20.3 dual: только ниже на обоих.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+                extraY = 40;
+            } else {
+                extraY = 40;
+            }
+        } else if (m_exerciseId == QStringLiteral("3.2.1")
                    || m_exerciseId == QStringLiteral("3.2.2")
                    || m_exerciseId == QStringLiteral("3.2.4")
                    || m_exerciseId == QStringLiteral("3.2.5")) {
-            // Поднять картинку на основном экране на 200px.
-            extraY = -200;
-        } else if (m_exerciseId == QStringLiteral("3.2.11") && m_stepId == QStringLiteral("2")) {
-            // «Существенные признаки…» — поднять картинку во 2-м задании.
-            extraY = -200;
+            // Один экран: ниже и правее → центр. Dual: только ниже на обоих.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+                extraY = 40;
+            } else {
+                extraY = 40;
+            }
+        } else if (m_exerciseId == QStringLiteral("3.2.3")) {
+            // 23.10 один экран: чуть правее, по центру H/V.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+            }
+        } else if (m_exerciseId == QStringLiteral("3.2.11")) {
+            // Задание 2: один экран — центр H/V; dual — ниже по вертикали на обоих.
+            if (m_stepId == QStringLiteral("2")) {
+                if (m_displayRole == DisplayRole::Primary) {
+                    extraX = 80;
+                    extraY = 40;
+                } else {
+                    extraY = 40;
+                }
+            }
         } else if (m_exerciseId == QStringLiteral("4.1.2")) {
             // onlyp.cs: Пример → (1300,500), «1» → (1300,170)
             if (m_stepId == QStringLiteral("1")) {
@@ -539,13 +563,20 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 2.10 / 3.1.x один экран: по центру экрана по вертикали (и чуть правее через extraX).
+            // 2.10 / 3.1.x / 3.2.3 один экран: по центру экрана по вертикали (и чуть правее через extraX).
             if (m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")
                 || m_exerciseId == QStringLiteral("3.1.2")
                 || m_exerciseId == QStringLiteral("3.1.10")
                 || m_exerciseId == QStringLiteral("3.1.11")
-                || m_exerciseId == QStringLiteral("3.1.12")) {
+                || m_exerciseId == QStringLiteral("3.1.12")
+                || m_exerciseId == QStringLiteral("3.2.1")
+                || m_exerciseId == QStringLiteral("3.2.2")
+                || m_exerciseId == QStringLiteral("3.2.3")
+                || m_exerciseId == QStringLiteral("3.2.4")
+                || m_exerciseId == QStringLiteral("3.2.5")
+                || (m_exerciseId == QStringLiteral("3.2.11")
+                    && m_stepId == QStringLiteral("2"))) {
                 pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             }
             m_picture->move(pictureX, pictureY);

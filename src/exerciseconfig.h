@@ -60,6 +60,9 @@ public:
     static const ExerciseDefinition *find(const QString &exerciseId);
     static bool isRunnable(const QString &exerciseId);
     static QString unsupportedMessage(const QString &exerciseId);
+    // Руководство: «Только после формирования протокола… следующего» + несколько заданий.
+    // Логика как упр. 6: выбор № до Start, не сбрасывать протокол, дописка строки после Form.
+    static bool usesAppendOnlyMultiStepLogic(const QString &exerciseId);
 };
 
 #endif
