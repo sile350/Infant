@@ -78,6 +78,9 @@ private:
     void layoutWords422Panel();
     void updateWords422Panel(const QString &additional);
     void syncWords422AdditionalFromPanel();
+    void ensureWords511Panel();
+    void layoutWords511Panel();
+    void setWords511TableEditable(bool editable);
     void runExerciseSession();
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);
@@ -178,6 +181,9 @@ private:
     QTableWidget *m_words422Table = nullptr;
     QLabel *m_words422Graph = nullptr;
     QPixmap m_words422GraphBase;
+    bool m_words422Editable = false;
+    QWidget *m_words511Panel = nullptr;
+    QTableWidget *m_words511Table = nullptr;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;
     QLabel *m_timeResultLabel = nullptr;

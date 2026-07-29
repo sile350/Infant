@@ -20,6 +20,7 @@ public:
         const ExerciseDefinition &definition,
         const QString &stepId) override;
     void stopSession() override;
+    void bindPatientDisplay(PatientDisplay *display) override;
     void resizeEvent(QResizeEvent *event) override;
 
 protected:
@@ -32,6 +33,9 @@ private:
     void toggleTemplate2();
     void appendHelpText();
     void layoutUi();
+    void ensurePatientView();
+    void syncPatientPicture();
+    void layoutPatientView();
 
     QLabel *m_stop = nullptr;
     QLabel *m_templateBtn1 = nullptr;
@@ -47,6 +51,10 @@ private:
     int m_elapsed = 0;
     bool m_template1Visible = false;
     bool m_template2Visible = false;
+
+    PatientDisplay *m_patientDisplay = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    QLabel *m_patientPicture = nullptr;
 };
 
 #endif

@@ -1182,20 +1182,30 @@ public:
 
         const QFont groupFont(QStringLiteral("Microsoft Sans Serif"), 16);
         const QFont itemFont(QStringLiteral("Microsoft Sans Serif"), 20);
-        // Как f1.png: зелёная рамка, номера заданий, прозрачные контролы поверх тельняшки.
+        // Как f1.png: зелёная рамка, номера заданий, полосы, видимые радиокнопки.
         const QString boxStyle = QStringLiteral(
             "QGroupBox {"
             "  color:#000000; background-color:transparent;"
-            "  border:2px solid #228B22; margin-top:12px;"
+            "  border:2px solid #228B22; margin-top:24px; padding-top:2px;"
             "}"
             "QGroupBox::title {"
-            "  subcontrol-origin: margin; left:10px; padding:0 6px;"
+            "  subcontrol-origin: margin; subcontrol-position: top left;"
+            "  left:12px; top:2px; padding:0 8px;"
             "  color:#000000; background-color:#ffffff;"
             "}"
             "QRadioButton {"
-            "  color:#000000; background-color:transparent; border:none; spacing:8px;"
+            "  color:#000000; background-color:transparent; border:none; spacing:6px;"
             "}"
-            "QRadioButton::indicator { width:18px; height:18px; background:transparent; }"
+            "QRadioButton::indicator { width:14px; height:14px; }"
+            "QRadioButton::indicator:unchecked {"
+            "  border:1px solid #808080; border-radius:7px; background:#ffffff;"
+            "}"
+            "QRadioButton::indicator:checked {"
+            "  border:1px solid #808080; border-radius:7px;"
+            "  background-color:qradialgradient("
+            "    cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,"
+            "    stop:0 #333333, stop:0.38 #333333, stop:0.39 #ffffff);"
+            "}"
             "QLabel { color:#000000; background-color:transparent; border:none; }");
 
         auto makeTransparent = [](QWidget *w) {
@@ -1223,7 +1233,7 @@ public:
             makeTransparent(box);
 
             auto *stripes = new DigitsStripeBackground(box);
-            stripes->setGeometry(2, 2, 567, 401);
+            stripes->setGeometry(2, 20, 567, 381);
             stripes->lower();
             stripes->show();
 
@@ -1242,7 +1252,6 @@ public:
             for (int i = 0; i < 8; ++i) {
                 auto *radio = new QRadioButton(colA.at(i), box);
                 radio->setFont(itemFont);
-                makeTransparent(radio);
                 radio->move(32, kRadioY[i]);
                 radio->adjustSize();
                 radio->setProperty("digitValue", ascendingValues ? (i + 1) : (8 - i));
@@ -1300,7 +1309,7 @@ public:
         if (m_group1) {
             m_group1->setGeometry(1257, 117, 571, 405);
             if (auto *stripes = m_group1->findChild<DigitsStripeBackground *>()) {
-                stripes->setGeometry(2, 14, m_group1->width() - 4, m_group1->height() - 16);
+                stripes->setGeometry(2, 20, m_group1->width() - 4, m_group1->height() - 22);
                 stripes->lower();
             }
             m_group1->show();
@@ -1309,7 +1318,7 @@ public:
         if (m_group2) {
             m_group2->setGeometry(1257, 545, 571, 405);
             if (auto *stripes = m_group2->findChild<DigitsStripeBackground *>()) {
-                stripes->setGeometry(2, 14, m_group2->width() - 4, m_group2->height() - 16);
+                stripes->setGeometry(2, 20, m_group2->width() - 4, m_group2->height() - 22);
                 stripes->lower();
             }
             m_group2->show();
@@ -1403,6 +1412,7 @@ public:
             + m_table->verticalHeader()->defaultSectionSize() * 6
             + 2 * m_table->frameWidth() + 2;
         m_table->setFixedSize(360, tableH);
+        connect(m_table, &QTableWidget::cellChanged, this, [this](int, int) { syncPatientWordsView(); });
 
         setFocusPolicy(Qt::StrongFocus);
         layoutUi();
@@ -1416,6 +1426,7 @@ public:
         raise();
         m_table->setCurrentCell(0, 0);
         m_table->editItem(m_table->item(0, 0));
+        syncPatientWordsView();
     }
 
     void finish() override {
@@ -1431,6 +1442,9 @@ public:
         result.elapsedSeconds = m_elapsed;
         result.additional = collectAdditional();
         m_timer->stop();
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
         hide();
         emitFinished(result);
     }
@@ -1460,6 +1474,16 @@ public:
         }
         m_stop->move(970, 70);
         m_stop->raise();
+        syncPatientWordsView();
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        if (!display) {
+            return;
+        }
+        ensurePatientWordsView(display);
+        syncPatientWordsView();
+        display->attachContentWidget(m_patientRoot);
     }
 
 protected:
@@ -1471,8 +1495,84 @@ protected:
         TimedSessionRunner::keyPressEvent(event);
     }
 
+private:
+    void ensurePatientWordsView(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background:#ffffff;"));
+            m_patientWordsLabel = new QLabel(m_patientRoot);
+            m_patientWordsLabel->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 14));
+            m_patientWordsLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+            m_patientWordsLabel->setWordWrap(true);
+
+            m_patientTable = new QTableWidget(6, 1, m_patientRoot);
+            m_patientTable->setHorizontalHeaderLabels(
+                {QStringLiteral("Кол-во правильно названных слов")});
+            m_patientTable->verticalHeader()->setVisible(true);
+            m_patientTable->verticalHeader()->setDefaultSectionSize(36);
+            m_patientTable->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+            m_patientTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+            m_patientTable->horizontalHeader()->setFixedHeight(40);
+            m_patientTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_patientTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_patientTable->setShowGrid(true);
+            m_patientTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+            m_patientTable->setStyleSheet(QStringLiteral(
+                "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
+                "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
+            for (int i = 0; i < 6; ++i) {
+                m_patientTable->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
+                auto *item = new QTableWidgetItem;
+                item->setTextAlignment(Qt::AlignCenter);
+                item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                m_patientTable->setItem(i, 0, item);
+            }
+            const int tableH = m_patientTable->horizontalHeader()->height()
+                + m_patientTable->verticalHeader()->defaultSectionSize() * 6
+                + 2 * m_patientTable->frameWidth() + 2;
+            m_patientTable->setFixedSize(360, tableH);
+        } else if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+        m_patientRoot->setGeometry(0, 0, 1920, 1080);
+        if (m_patientWordsLabel) {
+            m_patientWordsLabel->setGeometry(984, 122, 886, 48);
+        }
+        if (m_patientTable) {
+            m_patientTable->move(1306, 170);
+        }
+    }
+
+    void syncPatientWordsView() {
+        if (!m_patientRoot) {
+            return;
+        }
+        if (m_patientWordsLabel && m_wordsLabel) {
+            m_patientWordsLabel->setText(m_wordsLabel->text());
+        }
+        if (m_patientTable && m_table) {
+            for (int r = 0; r < 6; ++r) {
+                const QTableWidgetItem *src = m_table->item(r, 0);
+                QTableWidgetItem *dst = m_patientTable->item(r, 0);
+                if (!dst) {
+                    dst = new QTableWidgetItem;
+                    dst->setTextAlignment(Qt::AlignCenter);
+                    dst->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                    m_patientTable->setItem(r, 0, dst);
+                }
+                dst->setText(src ? src->text() : QString());
+            }
+        }
+    }
+
     QLabel *m_wordsLabel = nullptr;
     QTableWidget *m_table = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    QLabel *m_patientWordsLabel = nullptr;
+    QTableWidget *m_patientTable = nullptr;
 };
 
 class HtmlTableRunner final : public TimedSessionRunner {
@@ -1496,9 +1596,9 @@ public:
             m_stimulusLabel->deleteLater();
             m_stimulusLabel = nullptr;
         }
-        if (m_overtimeLabel) {
-            m_overtimeLabel->deleteLater();
-            m_overtimeLabel = nullptr;
+        if (m_liveTimer) {
+            m_liveTimer->deleteLater();
+            m_liveTimer = nullptr;
         }
         if (m_picture) {
             m_picture->hide();
@@ -1523,24 +1623,39 @@ public:
                 QStringLiteral("Способы выполнения человеком действий."),
                 QStringLiteral("Качества выполняемых человеком действий."),
             };
-            m_table->setColumnCount(1);
+            m_table->setColumnCount(2);
             m_table->setRowCount(groups.size());
-            m_table->setHorizontalHeaderLabels({QStringLiteral("Названные ребенком слова")});
+            m_table->setHorizontalHeaderLabels({
+                QStringLiteral("Группы"),
+                QStringLiteral("Названные ребенком слова"),
+            });
+            m_table->verticalHeader()->setVisible(false);
             for (int i = 0; i < groups.size(); ++i) {
-                m_table->setVerticalHeaderItem(i, new QTableWidgetItem(groups.at(i)));
-                m_table->setItem(i, 0, new QTableWidgetItem);
+                auto *groupItem = new QTableWidgetItem(groups.at(i));
+                groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                m_table->setItem(i, 0, groupItem);
+                auto *wordItem = new QTableWidgetItem;
+                wordItem->setFlags(Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                m_table->setItem(i, 1, wordItem);
             }
-            m_overtimeLabel = new QLabel(this);
-            m_overtimeLabel->setStyleSheet(
-                QStringLiteral("color:#cc0000; font-size:16pt; font-weight:700; background:transparent;"));
-            m_overtimeLabel->hide();
-            if (m_overtimeConnection) {
-                disconnect(m_overtimeConnection);
+            m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+            m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+            m_liveTimer = new QLabel(this);
+            markPatientControl(m_liveTimer);
+            m_liveTimer->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 16));
+            m_liveTimer->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+            m_liveTimer->show();
+            if (m_timerConnection) {
+                disconnect(m_timerConnection);
             }
-            m_overtimeConnection = connect(m_timer, &QTimer::timeout, this, [this]() {
+            m_timerConnection = connect(m_timer, &QTimer::timeout, this, [this]() {
                 if (m_exerciseId == QStringLiteral("5.1.1")) {
+                    updateLiveTimer511();
                     layoutTableUi();
                 }
+            });
+            connect(m_table, &QTableWidget::cellChanged, this, [this](int, int) {
+                syncPatientWords511View();
             });
         } else if (exerciseId == QStringLiteral("5.2.1")) {
             static const QStringList fragments = {
@@ -1556,38 +1671,86 @@ public:
                 QStringLiteral("Сложные предложения и конструкции"),
             };
             m_dataByStep.clear();
-            m_table->setColumnCount(1);
+            m_table->setColumnCount(2);
             m_table->setRowCount(fragments.size());
-            m_table->setHorizontalHeaderLabels({QStringLiteral("Частота употребления")});
+            m_table->setHorizontalHeaderLabels({
+                QStringLiteral("Фрагменты речи, фиксируемые в процессе исследования"),
+                QStringLiteral("Частота употребления"),
+            });
+            m_table->verticalHeader()->setVisible(false);
+            m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_table->horizontalHeader()->setFixedHeight(48);
+            m_table->verticalHeader()->setDefaultSectionSize(28);
+            m_table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+            m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+            m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+            m_table->setColumnWidth(0, 500);
+            m_table->setColumnWidth(1, 171);
+            m_table->setWordWrap(true);
             for (int i = 0; i < fragments.size(); ++i) {
-                m_table->setVerticalHeaderItem(i, new QTableWidgetItem(fragments.at(i)));
-                m_table->setItem(i, 0, new QTableWidgetItem);
+                auto *fragItem = new QTableWidgetItem(fragments.at(i));
+                fragItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                m_table->setItem(i, 0, fragItem);
+                auto *freqItem = new QTableWidgetItem;
+                freqItem->setFlags(Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                freqItem->setTextAlignment(Qt::AlignCenter);
+                m_table->setItem(i, 1, freqItem);
             }
+            const int tableH = m_table->horizontalHeader()->height()
+                + m_table->verticalHeader()->defaultSectionSize() * fragments.size()
+                + 2 * m_table->frameWidth() + 2;
+            m_table->setFixedSize(671, tableH);
+            markPatientControl(m_table);
+
             m_stimulusLabel = new QLabel(this);
-            m_stimulusLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+            m_stimulusLabel->setAlignment(Qt::AlignCenter);
             m_stimulusLabel->setStyleSheet(QStringLiteral("background:transparent;"));
-            const QString picPath = ExerciseAssets::exerciseFile(
-                exerciseId, m_stepId + QStringLiteral(".png"));
-            if (!picPath.isEmpty()) {
-                m_stimulusLabel->setPixmap(QPixmap(picPath));
-            }
+            loadStimulusPixmap521();
             m_stimulusLabel->show();
+
+            m_liveTimer = new QLabel(this);
+            markPatientControl(m_liveTimer);
+            m_liveTimer->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 16));
+            m_liveTimer->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+            m_liveTimer->show();
+            if (m_timerConnection) {
+                disconnect(m_timerConnection);
+            }
+            m_timerConnection = connect(m_timer, &QTimer::timeout, this, [this]() {
+                if (m_exerciseId == QStringLiteral("5.2.1")) {
+                    updateLiveTimer521();
+                    layoutTableUi();
+                }
+            });
         } else {
             m_table->setColumnCount(1);
             m_table->setRowCount(1);
             m_table->setItem(0, 0, new QTableWidgetItem);
         }
 
-        m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-        m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        if (exerciseId != QStringLiteral("5.1.1") && exerciseId != QStringLiteral("5.2.1")) {
+            m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+            m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        }
         layoutTableUi();
         m_table->show();
         m_stop->move(970, 70);
         m_stop->show();
         m_stop->raise();
+        if (m_exerciseId == QStringLiteral("5.1.1")) {
+            updateLiveTimer511();
+        } else if (m_exerciseId == QStringLiteral("5.2.1")) {
+            updateLiveTimer521();
+        }
         m_timer->start();
         show();
         raise();
+        if (m_exerciseId == QStringLiteral("5.1.1")) {
+            syncPatientWords511View();
+        } else if (m_exerciseId == QStringLiteral("5.2.1")) {
+            syncPatientPicture521();
+        }
     }
 
     void switchStep(const QString &stepId) override {
@@ -1600,28 +1763,16 @@ public:
             m_dataByStep.insert(m_stepId, collectAdditional());
             m_stepId = next;
             applyTableData(m_dataByStep.value(m_stepId));
-            if (m_stimulusLabel) {
-                const QString picPath =
-                    ExerciseAssets::exerciseFile(m_exerciseId, m_stepId + QStringLiteral(".png"));
-                if (!picPath.isEmpty()) {
-                    m_stimulusLabel->setPixmap(QPixmap(picPath));
-                } else {
-                    m_stimulusLabel->clear();
-                }
-            }
+            loadStimulusPixmap521();
             layoutTableUi();
+            syncPatientPicture521();
             return;
         }
         m_stepId = next;
-        if (m_exerciseId == QStringLiteral("5.2.1") && m_stimulusLabel) {
-            const QString picPath =
-                ExerciseAssets::exerciseFile(m_exerciseId, m_stepId + QStringLiteral(".png"));
-            if (!picPath.isEmpty()) {
-                m_stimulusLabel->setPixmap(QPixmap(picPath));
-            } else {
-                m_stimulusLabel->clear();
-            }
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
+            loadStimulusPixmap521();
             layoutTableUi();
+            syncPatientPicture521();
         }
     }
 
@@ -1647,8 +1798,12 @@ public:
             return {};
         }
         QStringList parts;
+        const int valueCol = (m_exerciseId == QStringLiteral("5.1.1")
+                              || m_exerciseId == QStringLiteral("5.2.1"))
+            ? 1
+            : 0;
         for (int r = 0; r < m_table->rowCount(); ++r) {
-            const QTableWidgetItem *item = m_table->item(r, 0);
+            const QTableWidgetItem *item = m_table->item(r, valueCol);
             parts << (item ? item->text().trimmed() : QString());
         }
         if (m_exerciseId == QStringLiteral("5.1.1")) {
@@ -1662,11 +1817,12 @@ public:
             return;
         }
         const QStringList parts = joined.split(QLatin1Char(';'));
+        const int valueCol = m_exerciseId == QStringLiteral("5.2.1") ? 1 : 0;
         for (int r = 0; r < m_table->rowCount(); ++r) {
-            QTableWidgetItem *item = m_table->item(r, 0);
+            QTableWidgetItem *item = m_table->item(r, valueCol);
             if (!item) {
                 item = new QTableWidgetItem;
-                m_table->setItem(r, 0, item);
+                m_table->setItem(r, valueCol, item);
             }
             item->setText(r < parts.size() ? parts.at(r) : QString());
         }
@@ -1685,8 +1841,29 @@ public:
         result.elapsedSeconds = m_elapsed;
         result.additional = collectAdditional();
         m_timer->stop();
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
         hide();
         emitFinished(result);
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        if (!display) {
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("5.1.1")) {
+            ensurePatientWords511View(display);
+            syncPatientWords511View();
+            display->attachContentWidget(m_patientRoot);
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
+            ensurePatientPicture521(display);
+            syncPatientPicture521();
+            display->attachContentWidget(m_patientRoot);
+            return;
+        }
     }
 
     void layoutTableUi() {
@@ -1694,22 +1871,46 @@ public:
             return;
         }
         if (m_exerciseId == QStringLiteral("5.2.1") && m_stimulusLabel) {
-            m_stimulusLabel->setGeometry(40, 120, 520, 700);
-            m_table->setGeometry(580, 120, qMax(300, width() - 620), qMax(300, height() - 180));
+            // Как в РП: таблица слева (ширина протокола 671), картинка по центру правой половины.
+            constexpr int kTableW = 671;
+            constexpr int kTableLeft = 40;
+            constexpr int kTableTop = 120;
+            m_table->move(kTableLeft, kTableTop);
+            m_table->raise();
+
+            const int rightHalfLeft = width() / 2;
+            const int rightHalfW = qMax(100, width() - rightHalfLeft);
+            QPixmap src = m_stimulusPixmap;
+            if (!src.isNull()) {
+                const int maxW = qMax(80, rightHalfW - 40);
+                const int maxH = qMax(80, height() - kTableTop - 40);
+                if (src.width() > maxW || src.height() > maxH) {
+                    src = src.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                }
+                m_stimulusLabel->setPixmap(src);
+                m_stimulusLabel->setFixedSize(src.size());
+                const int picX = rightHalfLeft + qMax(0, (rightHalfW - src.width()) / 2);
+                const int picY = qMax(kTableTop, (height() - src.height()) / 2);
+                m_stimulusLabel->move(picX, picY);
+            }
             m_stimulusLabel->raise();
-        } else {
+            syncPatientPicture521();
+        } else if (m_exerciseId != QStringLiteral("5.2.1")) {
             m_table->setGeometry(100, 120, qMax(400, width() - 200), qMax(300, height() - 200));
+            m_table->raise();
         }
-        m_table->raise();
-        if (m_overtimeLabel && m_exerciseId == QStringLiteral("5.1.1") && m_elapsed > 160) {
-            m_overtimeLabel->setText(
-                QStringLiteral("%1:%2 сек")
-                    .arg(m_elapsed / 60)
-                    .arg(m_elapsed % 60, 2, 10, QLatin1Char('0')));
-            m_overtimeLabel->adjustSize();
-            m_overtimeLabel->move(1200, 70);
-            m_overtimeLabel->show();
-            m_overtimeLabel->raise();
+        if (m_liveTimer && m_stop
+            && (m_exerciseId == QStringLiteral("5.1.1")
+                || m_exerciseId == QStringLiteral("5.2.1"))) {
+            m_liveTimer->adjustSize();
+            const int timerX = m_stop->x() + m_stop->width() + 50;
+            const int timerY = m_stop->y()
+                + qMax(0, (m_stop->height() - m_liveTimer->height()) / 2);
+            m_liveTimer->move(timerX, timerY);
+            m_liveTimer->raise();
+        }
+        if (m_exerciseId == QStringLiteral("5.1.1")) {
+            syncPatientWords511View();
         }
     }
 
@@ -1728,11 +1929,181 @@ public:
         m_stop->raise();
     }
 
+private:
+    void updateLiveTimer511() {
+        if (!m_liveTimer || m_exerciseId != QStringLiteral("5.1.1")) {
+            return;
+        }
+        const QString color = m_elapsed > 160 ? QStringLiteral("#cc0000") : QStringLiteral("#000000");
+        m_liveTimer->setStyleSheet(
+            QStringLiteral("color:%1; font-size:16pt; font-weight:700; background:transparent;")
+                .arg(color));
+        m_liveTimer->setText(
+            QStringLiteral("%1:%2 сек")
+                .arg(m_elapsed / 60)
+                .arg(m_elapsed % 60, 2, 10, QLatin1Char('0')));
+        m_liveTimer->adjustSize();
+    }
+
+    void ensurePatientWords511View(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (m_patientRoot && m_patientPicture && !m_patientTable) {
+            m_patientRoot->deleteLater();
+            m_patientRoot = nullptr;
+            m_patientPicture = nullptr;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background:#ffffff;"));
+            m_patientTable = new QTableWidget(8, 2, m_patientRoot);
+            m_patientTable->setHorizontalHeaderLabels({
+                QStringLiteral("Группы"),
+                QStringLiteral("Названные ребенком слова"),
+            });
+            m_patientTable->verticalHeader()->setVisible(false);
+            m_patientTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+            m_patientTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+            m_patientTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+            m_patientTable->setStyleSheet(QStringLiteral(
+                "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
+                "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
+            static const QStringList groups = {
+                QStringLiteral("Животные"),
+                QStringLiteral("Растения"),
+                QStringLiteral("Цвета предметов"),
+                QStringLiteral("Формы предметов"),
+                QStringLiteral("Другие признаки предметов, кроме формы и цвета."),
+                QStringLiteral("Действия человека."),
+                QStringLiteral("Способы выполнения человеком действий."),
+                QStringLiteral("Качества выполняемых человеком действий."),
+            };
+            for (int i = 0; i < groups.size(); ++i) {
+                auto *groupItem = new QTableWidgetItem(groups.at(i));
+                groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                m_patientTable->setItem(i, 0, groupItem);
+                auto *wordItem = new QTableWidgetItem;
+                wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                m_patientTable->setItem(i, 1, wordItem);
+            }
+            const int tableH = m_patientTable->horizontalHeader()->height()
+                + m_patientTable->rowHeight(0) * 8
+                + 2 * m_patientTable->frameWidth() + 2;
+            m_patientTable->setFixedSize(730, tableH);
+            m_patientTable->move(40, 40);
+        }
+    }
+
+    void syncPatientWords511View() {
+        if (!m_patientTable || !m_table || m_exerciseId != QStringLiteral("5.1.1")) {
+            return;
+        }
+        for (int r = 0; r < m_table->rowCount() && r < m_patientTable->rowCount(); ++r) {
+            const QTableWidgetItem *srcGroup = m_table->item(r, 0);
+            const QTableWidgetItem *srcWord = m_table->item(r, 1);
+            QTableWidgetItem *dstGroup = m_patientTable->item(r, 0);
+            QTableWidgetItem *dstWord = m_patientTable->item(r, 1);
+            if (dstGroup) {
+                dstGroup->setText(srcGroup ? srcGroup->text() : QString());
+            }
+            if (dstWord) {
+                dstWord->setText(srcWord ? srcWord->text() : QString());
+            }
+        }
+    }
+
+    void updateLiveTimer521() {
+        if (!m_liveTimer || m_exerciseId != QStringLiteral("5.2.1")) {
+            return;
+        }
+        m_liveTimer->setStyleSheet(
+            QStringLiteral("color:#000000; font-size:16pt; font-weight:700; background:transparent;"));
+        m_liveTimer->setText(
+            QStringLiteral("%1:%2 сек")
+                .arg(m_elapsed / 60)
+                .arg(m_elapsed % 60, 2, 10, QLatin1Char('0')));
+        m_liveTimer->adjustSize();
+    }
+
+    void loadStimulusPixmap521() {
+        m_stimulusPixmap = QPixmap();
+        if (m_exerciseId != QStringLiteral("5.2.1")) {
+            return;
+        }
+        const QStringList candidates = {
+            m_stepId + QStringLiteral(".png"),
+            QStringLiteral("f") + m_stepId + QStringLiteral(".png"),
+        };
+        for (const QString &name : candidates) {
+            const QString picPath = ExerciseAssets::exerciseFile(m_exerciseId, name);
+            if (!picPath.isEmpty() && m_stimulusPixmap.load(picPath)) {
+                break;
+            }
+        }
+        if (m_stimulusLabel) {
+            if (m_stimulusPixmap.isNull()) {
+                m_stimulusLabel->clear();
+            } else {
+                m_stimulusLabel->setPixmap(m_stimulusPixmap);
+            }
+        }
+    }
+
+    void ensurePatientPicture521(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        // 5.1.1 и 5.2.1 делят HtmlTableRunner — сбрасываем чужой patient-view.
+        if (m_patientRoot && m_patientTable) {
+            m_patientRoot->deleteLater();
+            m_patientRoot = nullptr;
+            m_patientTable = nullptr;
+            m_patientPicture = nullptr;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background:#ffffff;"));
+        }
+        if (!m_patientPicture) {
+            m_patientPicture = new QLabel(m_patientRoot);
+            m_patientPicture->setAlignment(Qt::AlignCenter);
+            m_patientPicture->setStyleSheet(QStringLiteral("background:transparent;"));
+        }
+    }
+
+    void syncPatientPicture521() {
+        if (!m_patientRoot || !m_patientPicture || m_exerciseId != QStringLiteral("5.2.1")) {
+            return;
+        }
+        const int pw = qMax(100, m_patientRoot->width());
+        const int ph = qMax(100, m_patientRoot->height());
+        if (m_stimulusPixmap.isNull()) {
+            m_patientPicture->clear();
+            return;
+        }
+        QPixmap display = m_stimulusPixmap;
+        const int maxW = qMax(40, pw - 40);
+        const int maxH = qMax(40, ph - 40);
+        if (display.width() > maxW || display.height() > maxH) {
+            display = m_stimulusPixmap.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+        m_patientPicture->setPixmap(display);
+        m_patientPicture->setFixedSize(display.size());
+        m_patientPicture->move(qMax(0, (pw - display.width()) / 2), qMax(0, (ph - display.height()) / 2));
+        m_patientPicture->show();
+        m_patientPicture->raise();
+    }
+
     QTableWidget *m_table = nullptr;
     QLabel *m_stimulusLabel = nullptr;
-    QLabel *m_overtimeLabel = nullptr;
-    QMetaObject::Connection m_overtimeConnection;
+    QPixmap m_stimulusPixmap;
+    QLabel *m_liveTimer = nullptr;
+    QLabel *m_patientPicture = nullptr;
+    QMetaObject::Connection m_timerConnection;
     QMap<QString, QString> m_dataByStep;
+    QWidget *m_patientRoot = nullptr;
+    QTableWidget *m_patientTable = nullptr;
 };
 
 class PuzzlesRunner : public ExerciseRunnerWidget {

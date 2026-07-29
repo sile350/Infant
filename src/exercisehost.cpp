@@ -47,6 +47,7 @@
 #include <QTextEdit>
 #include <QTextTable>
 #include <QTimer>
+#include <QUrl>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -984,7 +985,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             // 1.26 / 1.272 / 5.2.1: смена сессии решается в formProtocol / createP.
             const bool deferSessionDecision = m_exerciseId == QStringLiteral("1.26")
                 || m_exerciseId == QStringLiteral("1.272")
-                || m_exerciseId == QStringLiteral("5.2.1");
+                || m_exerciseId == QStringLiteral("5.2.1")
+                || m_exerciseId == QStringLiteral("5.3.1");
             if (!deferSessionDecision && m_repository && m_partly) {
                 const QString step = currentStepId().trimmed().isEmpty()
                     ? QStringLiteral("1")
@@ -1011,6 +1013,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             m_sessionStepId = currentStepId();
             if (m_sessionStepId.trimmed().isEmpty()) {
                 m_sessionStepId = QStringLiteral("1");
+            }
+            // Явно зафиксировать выбранный № до Start (5.2.1 / упр. 6).
+            if (m_stepCombo && m_stepCombo->count() > 0) {
+                const QString selected = m_stepCombo->currentText().trimmed();
+                if (!selected.isEmpty()) {
+                    m_sessionStepId = selected;
+                }
             }
             reloadPreviewForCurrentStep();
             runExerciseSession();
@@ -1185,17 +1194,14 @@ void ExerciseHost::layoutStepCombo() {
     const bool nearBeginCombo = ExerciseConfig::usesAppendOnlyMultiStepLogic(m_exerciseId)
         || m_exerciseId == QStringLiteral("4.1.2");
 
-    // Во время выполнения: скрыть (как упр. 6 / руководство для 4.1.2).
+    // Во время выполнения: скрыть (как упр. 6 / руководство для 4.1.2 / 5.2.1).
     if (m_exerciseRunning && nearBeginCombo) {
         m_stepCombo->hide();
         return;
     }
 
-    // Во время упражнения оверлей на parent (m_root) — селект тоже там и поверх оверлея.
+    // Всегда на ExerciseHost — иначе popup выпадающего списка обрезается/ломается.
     QWidget *host = this;
-    if (m_exerciseRunning && parentWidget()) {
-        host = parentWidget();
-    }
     if (m_stepCombo->parentWidget() != host) {
         m_stepCombo->setParent(host);
     }
@@ -1218,14 +1224,24 @@ void ExerciseHost::layoutStepCombo() {
             comboX = maxX;
         }
     }
-    const int comboY = (host == this) ? kComboY : (y() + kComboY);
-    m_stepCombo->setStyleSheet(
-        QStringLiteral(
-            "QComboBox { background-color:#ffffff; background-image:none; color:#000000;"
-            " border:1px solid #808080; padding-left:6px; }"
-            "QComboBox QAbstractItemView { background-color:#ffffff; background-image:none; color:#000000; }"
-            "%1")
-            .arg(stepComboArrowCss()));
+    const int comboY = kComboY;
+    static const QString kStepComboStyle = QStringLiteral(
+        "QComboBox { background-color:#ffffff; background-image:none; color:#000000;"
+        " border:1px solid #808080; padding:1px 28px 1px 6px; min-height:20px;"
+        " font-family:'Microsoft Sans Serif'; font-size:14px; }"
+        "QComboBox::drop-down {"
+        "  subcontrol-origin: padding; subcontrol-position: top right;"
+        "  width:22px; border:none; border-left:1px solid #b0b0b0; background:#ececec;"
+        "}"
+        "QComboBox::down-arrow { %1 }"
+        "QComboBox QAbstractItemView {"
+        "  background-color:#ffffff; background-image:none; color:#000000;"
+        "  selection-background-color:#cce8ff; outline:0; border:1px solid #808080;"
+        "}")
+        .arg(stepComboArrowCss());
+    if (m_stepCombo->styleSheet() != kStepComboStyle) {
+        m_stepCombo->setStyleSheet(kStepComboStyle);
+    }
     m_stepCombo->setGeometry(comboX, comboY, kComboW, kComboH);
     m_stepCombo->setVisible(true);
     m_stepCombo->raise();
@@ -1235,9 +1251,7 @@ void ExerciseHost::layoutStepCombo() {
     }
     if (QAbstractItemView *view = m_stepCombo->view()) {
         view->setMinimumWidth(kComboW);
-        if (QWidget *popup = view->window()) {
-            popup->raise();
-        }
+        view->setTextElideMode(Qt::ElideNone);
     }
 }
 
@@ -1259,6 +1273,9 @@ void ExerciseHost::reloadOrBrowser() {
         return;
     }
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+    if (m_orBrowser->document()) {
+        m_orBrowser->document()->setBaseUrl(QUrl::fromLocalFile(baseDir + QLatin1Char('/')));
+    }
     m_orBrowser->setHtml(ExerciseAssets::prepareOrHtml(
         m_rawOrHtml, baseDir, m_orOpen1, m_orOpen2, m_orOpen3));
     applyCompactLineHeight(m_orBrowser->document());
@@ -1290,6 +1307,13 @@ void ExerciseHost::openExercise(
         if (!existingBody.trimmed().isEmpty()) {
             m_partly = true;
         }
+    }
+    if (m_exerciseId == QStringLiteral("4.2.2")
+        || m_exerciseId == QStringLiteral("5.1.1")
+        || m_exerciseId == QStringLiteral("5.2.1")
+        || m_exerciseId == QStringLiteral("5.3.1")
+        || m_exerciseId == QStringLiteral("5.4.2")) {
+        m_partly = false;
     }
     m_sessionAdditional.clear();
     m_additionalByStep.clear();
@@ -1358,27 +1382,27 @@ void ExerciseHost::ensureWords422Panel() {
     m_words422Table = new QTableWidget(6, 1, m_words422Panel);
     m_words422Table->setHorizontalHeaderLabels({QStringLiteral("Кол-во правильно названных слов")});
     m_words422Table->verticalHeader()->setVisible(true);
-    m_words422Table->verticalHeader()->setDefaultSectionSize(32);
+    m_words422Table->verticalHeader()->setDefaultSectionSize(36);
     m_words422Table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     m_words422Table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    m_words422Table->horizontalHeader()->setFixedHeight(36);
+    m_words422Table->horizontalHeader()->setFixedHeight(40);
     m_words422Table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_words422Table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_words422Table->setEditTriggers(QAbstractItemView::AllEditTriggers);
+    m_words422Table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_words422Table->setStyleSheet(QStringLiteral(
-        "QTableWidget { background:#f8f8f8; gridline-color:#000000; color:#000000; }"
-        "QHeaderView::section { background:#f8f8f8; color:#000000; padding:4px; }"));
+        "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
+        "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
     for (int i = 0; i < 6; ++i) {
         m_words422Table->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
         auto *item = new QTableWidgetItem;
         item->setTextAlignment(Qt::AlignCenter);
-        item->setFlags(item->flags() | Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
         m_words422Table->setItem(i, 0, item);
     }
     const int tableH = m_words422Table->horizontalHeader()->height()
         + m_words422Table->verticalHeader()->defaultSectionSize() * 6
         + 2 * m_words422Table->frameWidth() + 2;
-    m_words422Table->setFixedSize(380, tableH);
+    m_words422Table->setFixedSize(360, tableH);
 
     m_words422Graph = new QLabel(m_words422Panel);
     m_words422Graph->setAlignment(Qt::AlignLeft | Qt::AlignTop);
@@ -1399,6 +1423,29 @@ void ExerciseHost::ensureWords422Panel() {
         updateWords422Panel(m_sessionAdditional);
     });
 }
+
+namespace {
+
+void setWords422TableEditable(QTableWidget *table, bool editable) {
+    if (!table) {
+        return;
+    }
+    table->setEditTriggers(editable ? QAbstractItemView::AllEditTriggers
+                                    : QAbstractItemView::NoEditTriggers);
+    for (int r = 0; r < table->rowCount(); ++r) {
+        QTableWidgetItem *item = table->item(r, 0);
+        if (!item) {
+            item = new QTableWidgetItem;
+            item->setTextAlignment(Qt::AlignCenter);
+            table->setItem(r, 0, item);
+        }
+        item->setFlags(editable
+                           ? Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable
+                           : Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    }
+}
+
+} // namespace
 
 void ExerciseHost::layoutWords422Panel() {
     if (m_exerciseId != QStringLiteral("4.2.2") || !m_rightPanel) {
@@ -1508,12 +1555,125 @@ void ExerciseHost::updateWords422Panel(const QString &additional) {
     layoutWords422Panel();
 }
 
+namespace {
+
+QStringList words511Groups() {
+    return {
+        QStringLiteral("Животные"),
+        QStringLiteral("Растения"),
+        QStringLiteral("Цвета предметов"),
+        QStringLiteral("Формы предметов"),
+        QStringLiteral("Другие признаки предметов, кроме формы и цвета."),
+        QStringLiteral("Действия человека."),
+        QStringLiteral("Способы выполнения человеком действий."),
+        QStringLiteral("Качества выполняемых человеком действий."),
+    };
+}
+
+} // namespace
+
+void ExerciseHost::ensureWords511Panel() {
+    if (m_words511Panel || !m_rightPanel) {
+        return;
+    }
+    m_words511Panel = new QWidget(m_rightPanel);
+    m_words511Panel->setStyleSheet(QStringLiteral("background:transparent;"));
+
+    const QStringList groups = words511Groups();
+    m_words511Table = new QTableWidget(groups.size(), 2, m_words511Panel);
+    m_words511Table->setHorizontalHeaderLabels({
+        QStringLiteral("Группы"),
+        QStringLiteral("Названные ребенком слова"),
+    });
+    m_words511Table->verticalHeader()->setVisible(false);
+    m_words511Table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_words511Table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_words511Table->horizontalHeader()->setFixedHeight(40);
+    m_words511Table->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_words511Table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_words511Table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_words511Table->setStyleSheet(QStringLiteral(
+        "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
+        "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
+    for (int i = 0; i < groups.size(); ++i) {
+        auto *groupItem = new QTableWidgetItem(groups.at(i));
+        groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        m_words511Table->setItem(i, 0, groupItem);
+        auto *wordItem = new QTableWidgetItem;
+        wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        m_words511Table->setItem(i, 1, wordItem);
+    }
+    const int tableH = m_words511Table->horizontalHeader()->height()
+        + m_words511Table->rowHeight(0) * groups.size()
+        + 2 * m_words511Table->frameWidth() + 2;
+    m_words511Table->setFixedSize(730, tableH);
+}
+
+void ExerciseHost::setWords511TableEditable(bool editable) {
+    if (!m_words511Table) {
+        return;
+    }
+    m_words511Table->setEditTriggers(editable ? QAbstractItemView::AllEditTriggers
+                                              : QAbstractItemView::NoEditTriggers);
+    for (int r = 0; r < m_words511Table->rowCount(); ++r) {
+        QTableWidgetItem *groupItem = m_words511Table->item(r, 0);
+        if (groupItem) {
+            groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        }
+        QTableWidgetItem *wordItem = m_words511Table->item(r, 1);
+        if (!wordItem) {
+            wordItem = new QTableWidgetItem;
+            m_words511Table->setItem(r, 1, wordItem);
+        }
+        wordItem->setFlags(editable
+                               ? Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable
+                               : Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    }
+}
+
+void ExerciseHost::layoutWords511Panel() {
+    if (m_exerciseId != QStringLiteral("5.1.1") || !m_rightPanel) {
+        if (m_words511Panel) {
+            m_words511Panel->hide();
+        }
+        return;
+    }
+    ensureWords511Panel();
+    constexpr int kPanelAbsLeft = 900;
+    constexpr int kPanelAbsTop = 150;
+    const int rightPanelLeft = kPanelX + kScrollWidth;
+    const int localX = qMax(0, kPanelAbsLeft - rightPanelLeft);
+    const int localY = kPanelAbsTop;
+    const int panelW = qMax(400, m_rightPanel->width() - localX - 8);
+    const int panelH = qMax(500, m_rightPanel->height() - localY - 8);
+    m_words511Panel->setGeometry(localX, localY, panelW, panelH);
+    if (m_words511Table) {
+        m_words511Table->move(0, 0);
+    }
+    m_words511Panel->show();
+    m_words511Panel->raise();
+    if (m_previewImage) {
+        m_previewImage->hide();
+    }
+}
+
 void ExerciseHost::updatePreviewLayout() {
-    if (m_exerciseId == QStringLiteral("4.2.2")) {
+    if (m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")) {
         if (m_previewImage) {
             m_previewImage->hide();
         }
-        layoutWords422Panel();
+        if (m_exerciseId == QStringLiteral("4.2.2")) {
+            layoutWords422Panel();
+        } else {
+            layoutWords511Panel();
+        }
+        if (m_timeResultLabel && m_timeResultLabel->isVisible() && m_rightPanel) {
+            const int rightPanelLeft = kPanelX + kScrollWidth;
+            const int beginLocalX = qMax(0, 976 - rightPanelLeft);
+            m_timeResultLabel->adjustSize();
+            m_timeResultLabel->move(beginLocalX + 200, 24);
+            m_timeResultLabel->raise();
+        }
         return;
     }
     if (!m_previewImage) {
@@ -1564,7 +1724,10 @@ void ExerciseHost::updatePreviewLayout() {
         || m_exerciseId == QStringLiteral("3.2.11")
         || m_exerciseId == QStringLiteral("4.1.1")
         || m_exerciseId == QStringLiteral("4.1.2")
-        || m_exerciseId == QStringLiteral("4.1.4")) {
+        || m_exerciseId == QStringLiteral("4.1.4")
+        || m_exerciseId == QStringLiteral("5.2.1")
+        || m_exerciseId == QStringLiteral("5.3.1")
+        || m_exerciseId == QStringLiteral("5.4.2")) {
         // Как OnlyPExercise::Specialist при dual: та же область, масштаб и центрирование.
         constexpr int kPictureMargin = 12;
         constexpr int kSpecialistPictureShiftLeft = 15;
@@ -1586,6 +1749,12 @@ void ExerciseHost::updatePreviewLayout() {
             extraY = 40;
         } else if (m_exerciseId == QStringLiteral("4.1.4")) {
             // 29.1: чуть ниже → центр правой половины по вертикали.
+            extraY = 40;
+        } else if (m_exerciseId == QStringLiteral("5.2.1")
+                   || m_exerciseId == QStringLiteral("5.3.1")
+                   || m_exerciseId == QStringLiteral("5.4.2")) {
+            // 36.14 / 37.10 / 38.2: чуть ниже и правее → центр правой половины.
+            extraX = 80;
             extraY = 40;
         } else if (m_exerciseId == QStringLiteral("3.2.11")) {
             // 26.4: задания 1 и 3 — ниже к центру правой половины по вертикали.
@@ -1708,7 +1877,18 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
             m_previewImage->hide();
         }
         ensureWords422Panel();
+        setWords422TableEditable(m_words422Table, m_words422Editable);
         layoutWords422Panel();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("5.1.1")) {
+        m_previewSource = QPixmap();
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        ensureWords511Panel();
+        setWords511TableEditable(false);
+        layoutWords511Panel();
         return;
     }
     m_previewSource = QPixmap();
@@ -1736,6 +1916,18 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         } else {
             candidates << QStringLiteral("1.png") << QStringLiteral("f1.png");
         }
+    } else if (m_exerciseId == QStringLiteral("5.2.1")
+               || m_exerciseId == QStringLiteral("5.3.1")) {
+        // Картинка задания = N.png (fN — превью того же кадра).
+        if (!step.isEmpty()) {
+            candidates << step + QStringLiteral(".png")
+                       << QStringLiteral("f") + step + QStringLiteral(".png");
+        } else {
+            candidates << QStringLiteral("1.png") << QStringLiteral("f1.png");
+        }
+    } else if (m_exerciseId == QStringLiteral("5.4.2")) {
+        candidates << QStringLiteral("f1.png") << QStringLiteral("traf1.png")
+                   << QStringLiteral("tale.png");
     } else if (m_exerciseId == QStringLiteral("1.8")) {
         // Тот же файл, что OnlyPExercise (single → p%1.png).
         candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
@@ -1791,7 +1983,8 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     }
 
     // 32.1: 4.1.8 — виды помощи только в процессе выполнения; на странице описания скрыть.
-    if (m_exerciseId == QStringLiteral("4.1.8")) {
+    if (m_exerciseId == QStringLiteral("4.1.8")
+        || m_exerciseId == QStringLiteral("5.4.2")) {
         if (m_checkboxPanel) {
             m_checkboxPanel->hide();
         }
@@ -1926,6 +2119,31 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
 
     const QStringList labels = parseActivityLabelsFromOrHtml(m_rawOrHtml);
     QStringList effectiveLabels = labels;
+    // 5.4.2 «Сказка»: оценка — выбор балла (радио idd1..idd5 в or.html без value).
+    if (m_exerciseId == QStringLiteral("5.4.2")) {
+        effectiveLabels = QStringList{
+            QStringLiteral(
+                "4 балла (высокий уровень) – ребенок отвечает на вопрос, улавливает скрытый смысл "
+                "сказки и правильно интерпретирует поступки героев, адекватно определяет чувства, "
+                "переживаемые ими, способен к адекватной оценке поступков героев."),
+            QStringLiteral(
+                "3 балла (средний уровень) – в ответах ребенка есть неточности, чаще всего ребенок "
+                "интерпретирует поступки и чувства героев исходя из конкретных ситуаций, пережитых "
+                "им самим, рассуждениям ребенка присущ инфантилизм."),
+            QStringLiteral(
+                "2 балла (уровень ниже среднего) – ребенок может уловить смысл сказки и назвать "
+                "некоторые эмоциональные состояния героев сказки при наводящих вопросах и "
+                "подсказках экспериментатора."),
+            QStringLiteral(
+                "1 балл (низкий уровень) – ребенок не может объяснить поступки героев, правильно "
+                "подставляет карточки с изображением соответствующих эмоциональных состояний, но не "
+                "всегда может назвать их."),
+            QStringLiteral(
+                "0 баллов (очень низкий уровень) – ребенок не может выполнить задание даже в "
+                "условиях предъявления помощи, не идентифицирует изображения эмоциональных "
+                "состояний на картинках с эмоциями героев сказки."),
+        };
+    }
     // 1.26 / 1.272 / 2.8 / 2.9 / 2.10: все 5 пунктов (fallback при сбое парсинга).
     if ((m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
          || m_exerciseId == QStringLiteral("2.8") || m_exerciseId == QStringLiteral("2.9")
@@ -1963,7 +2181,8 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
          || m_exerciseId == QStringLiteral("3.2.11")
          || m_exerciseId == QStringLiteral("4.1.1")
          || m_exerciseId == QStringLiteral("4.1.5")
-         || m_exerciseId == QStringLiteral("4.1.6"))
+         || m_exerciseId == QStringLiteral("4.1.6")
+         || m_exerciseId == QStringLiteral("5.3.1"))
         && effectiveLabels.size() < 3) {
         effectiveLabels = QStringList{
             QStringLiteral("Ребенок не понимает инструкцию."),
@@ -1973,6 +2192,11 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     }
     const bool hasActivity = !effectiveLabels.isEmpty();
     if (m_activityTitle) {
+        if (m_exerciseId == QStringLiteral("5.4.2")) {
+            m_activityTitle->setText(QStringLiteral("Баллы"));
+        } else {
+            m_activityTitle->setText(QStringLiteral("Характер деятельности ребенка:"));
+        }
         m_activityTitle->setVisible(hasActivity);
     }
     if (m_activityChecksHost) {
@@ -2048,10 +2272,20 @@ void ExerciseHost::loadExercise() {
 
     if (m_exerciseId == QStringLiteral("4.2.2")) {
         ensureWords422Panel();
+        m_words422Editable = false;
         updateWords422Panel(QString());
+        setWords422TableEditable(m_words422Table, false);
         layoutWords422Panel();
     } else if (m_words422Panel) {
         m_words422Panel->hide();
+    }
+
+    if (m_exerciseId == QStringLiteral("5.1.1")) {
+        ensureWords511Panel();
+        setWords511TableEditable(false);
+        layoutWords511Panel();
+    } else if (m_words511Panel) {
+        m_words511Panel->hide();
     }
 
     if (m_stepCombo) {
@@ -2436,6 +2670,13 @@ void ExerciseHost::runExerciseSession() {
     m_stepElapsedSeconds.clear();
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
+    if (m_exerciseId == QStringLiteral("4.2.2")) {
+        m_words422Editable = false;
+        setWords422TableEditable(m_words422Table, false);
+    }
+    if (m_exerciseId == QStringLiteral("5.1.1")) {
+        setWords511TableEditable(false);
+    }
     m_exerciseRunning = true;
     if (m_beginButton) {
         m_beginButton->hide();
@@ -2457,7 +2698,9 @@ void ExerciseHost::runExerciseSession() {
                 }
                 m_sessionAdditional = result.additional;
                 if (m_exerciseId == QStringLiteral("4.2.2")) {
+                    m_words422Editable = true;
                     updateWords422Panel(result.additional);
+                    setWords422TableEditable(m_words422Table, true);
                 }
                 if (m_exerciseId == QStringLiteral("5.2.1")) {
                     const QString stepKey = currentStepId().trimmed().isEmpty()
@@ -2743,48 +2986,15 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
             const QString step = session.stepId.trimmed().isEmpty()
                 ? QStringLiteral("1")
                 : session.stepId.trimmed();
+            session.stepId = step;
             if (!session.additional.startsWith(step + QLatin1Char(';'))) {
                 session.additional = step + QLatin1Char(';') + session.additional;
             }
-            session.additionalByStep = m_additionalByStep;
-            if (!session.additionalByStep.contains(step) && !session.additional.trimmed().isEmpty()) {
-                session.additionalByStep.insert(step, session.additional);
-            }
-            auto stepPayloadHasData = [](const QString &payload, const QString &sid) {
-                QStringList parts = payload.split(QLatin1Char(';'));
-                if (!parts.isEmpty() && parts.at(0).trimmed() == sid) {
-                    parts.removeFirst();
-                }
-                for (const QString &part : parts) {
-                    if (!part.trimmed().isEmpty()) {
-                        return true;
-                    }
-                }
-                return false;
-            };
-            // Гарантируем префикс «N;» у каждой записи.
-            for (auto it = session.additionalByStep.begin(); it != session.additionalByStep.end(); ++it) {
-                const QString sid = it.key();
-                QString val = it.value();
-                if (!val.startsWith(sid + QLatin1Char(';'))
-                    && val.split(QLatin1Char(';')).value(0).trimmed() != sid) {
-                    it.value() = sid + QLatin1Char(';') + val;
-                }
-            }
-            // В протокол — задания с данными в таблице; текущее — всегда (как Form после Стоп).
-            const QStringList order = numberedStepIds();
+            // Как упр. 6: каждое формирование — только текущее выбранное задание.
             session.stepIds.clear();
-            for (const QString &sid : order) {
-                if (!session.additionalByStep.contains(sid)) {
-                    continue;
-                }
-                if (stepPayloadHasData(session.additionalByStep.value(sid), sid) || sid == step) {
-                    session.stepIds << sid;
-                }
-            }
-            if (session.stepIds.isEmpty()) {
-                session.stepIds << step;
-            }
+            session.stepIds << step;
+            session.additionalByStep.clear();
+            session.additionalByStep.insert(step, session.additional);
         }
     } else if (m_exerciseId == QStringLiteral("1.26")) {
         // Как в оригинале: param1 + ";" + answers[0..12].join(";")
@@ -3320,7 +3530,9 @@ bool ExerciseHost::isCursorInProtocolBallsColumn() const {
 void ExerciseHost::onProtocolCursorMoved() {
     const bool syncBalls = m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18")
-        || m_exerciseId == QStringLiteral("4.2.1");
+        || m_exerciseId == QStringLiteral("4.2.1")
+        || m_exerciseId == QStringLiteral("4.2.2")
+        || m_exerciseId == QStringLiteral("5.1.1");
     if (!syncBalls || !m_protocolSavedThisSession) {
         m_cursorInBallsColumn = false;
         return;
@@ -3335,7 +3547,9 @@ void ExerciseHost::onProtocolCursorMoved() {
 void ExerciseHost::syncProtocol317BallsToResult() {
     const bool syncBalls = m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18")
-        || m_exerciseId == QStringLiteral("4.2.1");
+        || m_exerciseId == QStringLiteral("4.2.1")
+        || m_exerciseId == QStringLiteral("4.2.2")
+        || m_exerciseId == QStringLiteral("5.1.1");
     if (!syncBalls
         || !m_protocolSavedThisSession
         || m_suppressProtocolAutosave
@@ -3441,7 +3655,9 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("4.1.6")
                || m_exerciseId == QStringLiteral("4.2.1")
                || m_exerciseId == QStringLiteral("4.2.2")
-               || m_exerciseId == QStringLiteral("5.2.1")) {
+               || m_exerciseId == QStringLiteral("5.1.1")
+               || m_exerciseId == QStringLiteral("5.2.1")
+               || m_exerciseId == QStringLiteral("5.3.1")) {
         body = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
     } else if (m_exerciseId == QStringLiteral("3.1.17")

@@ -1414,6 +1414,96 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
+    // 5.4.2 «Сказка»: таблица процесса Вопросы/Ответы/Виды помощи — 219+226+226 = 671.
+    {
+        const QRegularExpression processTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Вопросы[\\s\\S]*?(?:Ответы\\s+ребенка|Ответы)"
+                "[\\s\\S]*?(?:Виды\\s+помощи|Виды\\s+и\\s+количество\\s+помощи)[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 128);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            inner.prepend(QStringLiteral(
+                "<colgroup><col width='219'><col width='226'><col width='226'></colgroup>"));
+
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (tds.size() == 3) {
+                    const QStringList widths = {
+                        QStringLiteral("219"), QStringLiteral("226"), QStringLiteral("226")};
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        newRow += td.captured(1) + setAttrWidth(td.captured(2), widths.at(i))
+                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                } else if (tds.size() == 2) {
+                    // Строка «Баллы» — colspan второй ячейки на 452.
+                    const QStringList widths = {
+                        QStringLiteral("219"), QStringLiteral("452")};
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        QString attrs = setAttrWidth(td.captured(2), widths.at(i));
+                        if (i == 1) {
+                            attrs.replace(
+                                QRegularExpression(
+                                    QStringLiteral("\\s*colspan\\s*=\\s*['\"][^'\"]*['\"]"),
+                                    QRegularExpression::CaseInsensitiveOption),
+                                QString());
+                            attrs += QStringLiteral(" colspan='2'");
+                        }
+                        newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4)
+                            + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
     return body;
 }
 
@@ -3858,6 +3948,27 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             row.open = m.captured(1);
             row.inner = m.captured(2);
             row.close = m.captured(3);
+            // OR/HLP/Баллы — 3 <td>; numbered (1.17/5.3.1) — 4; «Частота употребления» (5.2.1) — 2.
+            {
+                const QRegularExpression tdCountRe(
+                    QStringLiteral("<td\\b"),
+                    QRegularExpression::CaseInsensitiveOption);
+                int tdCount = 0;
+                QRegularExpressionMatchIterator tdCountIt = tdCountRe.globalMatch(row.inner);
+                while (tdCountIt.hasNext()) {
+                    tdCountIt.next();
+                    ++tdCount;
+                }
+                if (tdCount != 3 && tdCount != 4) {
+                    continue;
+                }
+            }
+            if (plain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                continue;
+            }
             dataRows.append(row);
         }
         if (dataRows.isEmpty()) {
@@ -4375,6 +4486,15 @@ QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody)
         || protocolBody.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)) {
         return normalizeSummaryColumnWidthsHtml(
             ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody));
+    }
+    // 5.2.1: после <!--s--> несколько таблиц (Задание №N + OR/HLP) — не отрезать.
+    if (protocolBody.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
+        || protocolBody.contains(QStringLiteral("Задание №"), Qt::CaseInsensitive)) {
+        const QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
+        if (sessions.isEmpty()) {
+            return normalizeSummaryColumnWidthsHtml(ensureClosedProtocolSession(protocolBody));
+        }
+        return joinClosedProtocolSessions(sessions);
     }
     QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
     if (sessions.isEmpty()) {

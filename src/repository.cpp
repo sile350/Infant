@@ -910,7 +910,9 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("4.1.6")
                 || uprid == QStringLiteral("4.2.1")
                 || uprid == QStringLiteral("4.2.2")
-                || uprid == QStringLiteral("5.2.1")) {
+                || uprid == QStringLiteral("5.1.1")
+                || uprid == QStringLiteral("5.2.1")
+                || uprid == QStringLiteral("5.3.1")) {
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                     storedBody, &sectionDocument);
             } else if (uprid == QStringLiteral("3.1.17")

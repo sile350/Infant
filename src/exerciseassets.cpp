@@ -282,10 +282,10 @@ QString ExerciseAssets::prepareOrHtml(
         "body { background-color:#ffffff; color:#000000; margin:0; padding:0; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px; }"
         ".or-strip { background-color:#f8f8f8; margin:0; padding:16px 0 4px 0; }"
         "a { color:#000000; text-decoration:underline; display:block; background-color:#f8f8f8; text-align:left; margin:0 0 12px 0; padding:2px 0; line-height:130%; white-space:normal; }"
-        "#analis { white-space:normal; }"
+        "#analis { white-space:normal; text-align:left !important; clear:both; margin-left:0 !important; }"
         "a:last-of-type { margin-bottom:0; }"
         "a:hover { text-decoration:underline; }"
-        "div,ul,li,p,br { margin:0; padding:0; text-align:left; }"
+        "div,ul,li,p,br,img { margin:0; padding:0; text-align:left; }"
         "</style>");
     const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
     if (headEnd >= 0) {

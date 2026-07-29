@@ -2,6 +2,7 @@
 
 #include "exerciseassets.h"
 #include "imagebutton.h"
+#include "patientdisplay.h"
 
 #include <QAbstractItemView>
 #include <QComboBox>
@@ -11,6 +12,7 @@
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QTableWidget>
 #include <QTimer>
 
@@ -227,6 +229,7 @@ void WolfRunner::startSession(
     // wolf_Load → b1_Click: сразу показать traf1
     toggleTemplate1();
     layoutUi();
+    syncPatientPicture();
     setFocus();
     m_timer->start();
     show();
@@ -256,6 +259,7 @@ void WolfRunner::toggleTemplate1() {
         m_template1Visible = false;
     }
     layoutUi();
+    syncPatientPicture();
 }
 
 void WolfRunner::toggleTemplate2() {
@@ -281,6 +285,7 @@ void WolfRunner::toggleTemplate2() {
         m_template2Visible = false;
     }
     layoutUi();
+    syncPatientPicture();
 }
 
 void WolfRunner::appendHelpText() {
@@ -357,12 +362,103 @@ void WolfRunner::finishSession() {
     // exbegin: arraydata1 (h1..h7) | arraydata2 (p1..p7)
     result.additional = helps.join(QLatin1Char(';')) + QLatin1Char('|') + answers.join(QLatin1Char(';'));
     m_timer->stop();
+    if (m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
+    }
+    if (m_patientRoot) {
+        m_patientRoot->hide();
+    }
     hide();
     emitFinished(result);
 }
 
 void WolfRunner::stopSession() {
     finishSession();
+}
+
+void WolfRunner::bindPatientDisplay(PatientDisplay *display) {
+    m_patientDisplay = display;
+    ensurePatientView();
+    syncPatientPicture();
+    if (display && m_patientRoot) {
+        display->attachContentWidget(m_patientRoot);
+        // После showOnSecondaryScreen геометрия обновится — перецентрировать кадр.
+        QTimer::singleShot(0, this, [this]() { layoutPatientView(); });
+        QTimer::singleShot(50, this, [this]() { layoutPatientView(); });
+    }
+}
+
+void WolfRunner::ensurePatientView() {
+    if (m_patientRoot) {
+        return;
+    }
+    m_patientRoot = new QWidget;
+    m_patientRoot->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    m_patientRoot->setAutoFillBackground(true);
+    QPalette pal = m_patientRoot->palette();
+    pal.setColor(QPalette::Window, QColor(0xf0, 0xf0, 0xf0));
+    m_patientRoot->setPalette(pal);
+    m_patientRoot->setStyleSheet(QStringLiteral("background-color:#f0f0f0; border:none;"));
+
+    m_patientPicture = new QLabel(m_patientRoot);
+    m_patientPicture->setAlignment(Qt::AlignCenter);
+    m_patientPicture->setStyleSheet(QStringLiteral("background:transparent; border:none;"));
+    m_patientPicture->hide();
+}
+
+void WolfRunner::syncPatientPicture() {
+    ensurePatientView();
+    if (!m_patientPicture) {
+        return;
+    }
+    // 38.8: текст сказки на 2-м экране скрыт; только сюжетные/эмоции (traf1/traf2).
+    if (!m_templateImage || m_templateImage->isHidden()) {
+        m_patientPicture->clear();
+        m_patientPicture->hide();
+        return;
+    }
+    const QPixmap source = m_templateImage->pixmap(Qt::ReturnByValue);
+    if (source.isNull()) {
+        m_patientPicture->clear();
+        m_patientPicture->hide();
+        return;
+    }
+    m_patientPicture->setPixmap(source);
+    m_patientPicture->setFixedSize(source.size());
+    m_patientPicture->show();
+    layoutPatientView();
+}
+
+void WolfRunner::layoutPatientView() {
+    if (!m_patientRoot || !m_patientPicture) {
+        return;
+    }
+    int w = m_patientRoot->width();
+    int h = m_patientRoot->height();
+    if (QWidget *parent = m_patientRoot->parentWidget()) {
+        if (parent->width() > 0 && parent->height() > 0) {
+            w = parent->width();
+            h = parent->height();
+            m_patientRoot->setGeometry(0, 0, w, h);
+        }
+    }
+    if (w <= 0) {
+        w = 1920;
+    }
+    if (h <= 0) {
+        h = 1080;
+    }
+    const QPixmap pix = m_patientPicture->pixmap(Qt::ReturnByValue);
+    if (m_patientPicture->isHidden() || pix.isNull()) {
+        return;
+    }
+    // 38.9: картинка по центру экрана по горизонтали и вертикали.
+    const QSize picSize = pix.size();
+    m_patientPicture->setFixedSize(picSize);
+    const int x = qMax(0, (w - picSize.width()) / 2);
+    const int y = qMax(0, (h - picSize.height()) / 2);
+    m_patientPicture->move(x, y);
+    m_patientPicture->raise();
 }
 
 void WolfRunner::keyPressEvent(QKeyEvent *event) {
@@ -376,4 +472,7 @@ void WolfRunner::keyPressEvent(QKeyEvent *event) {
 void WolfRunner::resizeEvent(QResizeEvent *event) {
     ExerciseRunnerWidget::resizeEvent(event);
     layoutUi();
+    if (m_patientRoot && m_patientDisplay) {
+        layoutPatientView();
+    }
 }

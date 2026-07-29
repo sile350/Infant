@@ -212,6 +212,27 @@ QString scanLinkHtml(const QString &path) {
     return QStringLiteral("<a href='%1'>Показать изображение</a>").arg(url);
 }
 
+int wolfScoreFromActivityText(const QString &activity) {
+    // Порядок: от большего к меньшему (чтобы «4 балла» не перепутать с «балла»).
+    if (activity.contains(QStringLiteral("4 балла"), Qt::CaseInsensitive)) {
+        return 4;
+    }
+    if (activity.contains(QStringLiteral("3 балла"), Qt::CaseInsensitive)) {
+        return 3;
+    }
+    if (activity.contains(QStringLiteral("2 балла"), Qt::CaseInsensitive)) {
+        return 2;
+    }
+    if (activity.contains(QStringLiteral("1 балл"), Qt::CaseInsensitive)
+        && !activity.contains(QStringLiteral("0 балл"), Qt::CaseInsensitive)) {
+        return 1;
+    }
+    if (activity.contains(QStringLiteral("0 балл"), Qt::CaseInsensitive)) {
+        return 0;
+    }
+    return -1;
+}
+
 int wolfScoreFromOrHtml(const QString &orHtml) {
     static const struct {
         const char *id;
@@ -346,10 +367,12 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
 
     double score = 0;
+    bool scoreSelected = true;
     const bool manualBalls = tmpl.id == QStringLiteral("4.1.4")
         || tmpl.scoreKind == QStringLiteral("manual_balls");
     if (manualBalls) {
         // Баллы вручную (время + число найденных картинок) — не автозаполнять.
+        scoreSelected = false;
     } else if (tmpl.scoreKind == QStringLiteral("timed414_result")) {
         score = scoreExercise414(elapsedSeconds);
     } else if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
@@ -370,7 +393,14 @@ QMap<QString, QString> buildVariables(
     } else if (tmpl.scoreKind == QStringLiteral("timed14") || tmpl.id == QStringLiteral("1.4")) {
         score = scoreExercise14(elapsedSeconds, session.picturesShown);
     } else if (tmpl.scoreKind == QStringLiteral("or_checkbox_4")) {
-        score = wolfScoreFromOrHtml(session.orHtml);
+        // Qt-панель «Оценка результатов» (5.4.2): балл из выбранного пункта.
+        const int fromPanel = wolfScoreFromActivityText(checkboxes.activity);
+        if (fromPanel >= 0) {
+            score = fromPanel;
+        } else {
+            scoreSelected = false;
+            score = 0;
+        }
     } else if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
         // Как в protocols.cs 3.1.10: idd3 → 2, каждый вид помощи −0.5.
         if (checkboxes.activity.contains(QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)
@@ -382,7 +412,7 @@ QMap<QString, QString> buildVariables(
             checkboxes.help.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
         score = qMax(0.0, score - 0.5 * helpParts.size());
     }
-    if (manualBalls) {
+    if (manualBalls || !scoreSelected) {
         vars.insert(QStringLiteral("{{SCORE}}"), QString());
         vars.insert(QStringLiteral("{{LEVEL}}"), QString());
     } else if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
