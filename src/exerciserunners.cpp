@@ -2280,7 +2280,7 @@ private:
     void layout415Chrome() {
         const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
         const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
-        // cards.Designer: words 1192@82, phide 1339@29, timer 1479@31
+        // cards.Designer: words 1192@82, phide 1339@29, timer 1479@31 (+50px вправо)
         if (m_wordsLabel) {
             m_wordsLabel->adjustSize();
             m_wordsLabel->move(qRound(1192 * sx), qRound(82 * sy));
@@ -2292,7 +2292,7 @@ private:
         }
         if (m_liveTimer) {
             m_liveTimer->adjustSize();
-            m_liveTimer->move(qRound(1479 * sx), qRound(31 * sy));
+            m_liveTimer->move(qRound(1529 * sx), qRound(31 * sy));
             m_liveTimer->raise();
         }
         if (m_stop) {
@@ -2479,42 +2479,59 @@ private:
             m_table418->setHorizontalHeaderLabels({
                 QStringLiteral("Стимульные\nслова"),
                 QStringLiteral("Выбранная\nкартинка"),
-                QStringLiteral("Объяснение выбора"),
-                QStringLiteral("Воспроизведенное слово\nдо предъявления помощи"),
-                QStringLiteral("Виды помощи"),
-                QStringLiteral("Воспроизведенное слово\nпосле предъявления помощи"),
+                QStringLiteral("Объяснение\nвыбора"),
+                QStringLiteral("Воспроизведенное\nслово до\nпредъявления помощи"),
+                QStringLiteral("Виды\nпомощи"),
+                QStringLiteral("Воспроизведенное\nслово после\nпредъявления помощи"),
                 QStringLiteral("Баллы"),
             });
             m_table418->verticalHeader()->setVisible(false);
-            m_table418->verticalHeader()->setDefaultSectionSize(56);
-            m_table418->horizontalHeader()->setMinimumHeight(72);
+            m_table418->verticalHeader()->setDefaultSectionSize(52);
+            m_table418->horizontalHeader()->setMinimumHeight(78);
+            m_table418->horizontalHeader()->setFixedHeight(78);
             m_table418->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter | Qt::AlignVCenter);
-            m_table418->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-            m_table418->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
-            m_table418->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
-            m_table418->setColumnWidth(0, 90);
-            m_table418->setColumnWidth(6, 56);
+            m_table418->horizontalHeader()->setTextElideMode(Qt::ElideNone);
+            m_table418->horizontalHeader()->setMinimumSectionSize(48);
+            m_table418->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
             m_table418->setWordWrap(true);
+            m_table418->setEditTriggers(QAbstractItemView::AllEditTriggers);
+            m_table418->setSelectionBehavior(QAbstractItemView::SelectItems);
             m_table418->setStyleSheet(QStringLiteral(
-                "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
+                "QHeaderView::section {"
+                "  background:#f0f0f0; color:#000000; padding:3px 2px;"
+                "  border:1px solid #a0a0a0;"
+                "}"));
             for (int r = 0; r < 5; ++r) {
                 auto *wordItem = new QTableWidgetItem(stimulusWords().at(r));
                 wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
                 wordItem->setTextAlignment(Qt::AlignCenter);
                 m_table418->setItem(r, 0, wordItem);
                 for (int c = 1; c < 7; ++c) {
-                    m_table418->setItem(r, c, new QTableWidgetItem);
+                    auto *cellItem = new QTableWidgetItem;
+                    cellItem->setTextAlignment(Qt::AlignCenter);
+                    if (c == 3 || c == 5) {
+                        cellItem->setFlags(
+                            Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                    }
+                    m_table418->setItem(r, c, cellItem);
                 }
             }
         }
 
         if (!m_hideButton) {
-            m_hideButton = new ImageButton(this);
+            m_hideButton = new ImageButton(m_panel418);
             markPatientControl(m_hideButton);
             connect(m_hideButton, &ImageButton::clicked, this, [this]() { toggle418Words(); });
+        } else if (m_hideButton->parentWidget() != m_panel418) {
+            m_hideButton->setParent(m_panel418);
         }
-        m_hideButton->setImagePath(
-            ExerciseAssets::exerciseFile(QStringLiteral("4.1.8"), QStringLiteral("hide.png")));
+        const QString hidePath =
+            ExerciseAssets::exerciseFile(QStringLiteral("4.1.8"), QStringLiteral("hide.png"));
+        m_hideButton->setImagePath(hidePath);
+        const QPixmap hidePm(hidePath);
+        if (!hidePm.isNull()) {
+            m_hideButton->setFixedSize(hidePm.size());
+        }
         m_wordsHidden = false;
         apply418WordHeaderVisibility();
     }
@@ -2529,6 +2546,9 @@ private:
                 if (!item) {
                     item = new QTableWidgetItem;
                     m_table418->setItem(r, c, item);
+                }
+                if (c == 3 || c == 5) {
+                    item->setFlags(Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
                 }
                 item->setText(QString());
             }
@@ -2564,24 +2584,57 @@ private:
         const int panelH = qRound(421 * sy);
         m_panel418->setGeometry(panelX, panelY, panelW, panelH);
 
-        // Подписи и селекты без наложений (WinForms: gap ~6px при 8pt).
+        // Кнопка «Скрыть слова» слева от «Помощь к слову» (внутри рамки).
+        // Далее как cards.Designer: label3@144, combo2@241, label4@364, combo1@448.
+        const int rowY = qRound(24 * sy);
+        const int labelY = qRound(28 * sy);
+        int cursorX = qRound(8 * sx);
+        if (m_hideButton) {
+            if (m_hideButton->parentWidget() != m_panel418) {
+                m_hideButton->setParent(m_panel418);
+            }
+            const int hideW = m_hideButton->width() > 0 ? m_hideButton->width() : qRound(120 * sx);
+            const int hideH = m_hideButton->height() > 0 ? m_hideButton->height() : qRound(28 * sy);
+            m_hideButton->setGeometry(cursorX, rowY, hideW, hideH);
+            m_hideButton->show();
+            m_hideButton->raise();
+            cursorX += hideW + qRound(8 * sx);
+        }
         if (m_helpWordLabel && m_wordCombo && m_helpTypeLabel && m_helpCombo) {
-            m_helpWordLabel->setGeometry(qRound(10 * sx), qRound(28 * sy), qRound(120 * sx), qRound(20 * sy));
-            m_wordCombo->setGeometry(qRound(135 * sx), qRound(24 * sy), qRound(130 * sx), qRound(24 * sy));
-            m_helpTypeLabel->setGeometry(qRound(275 * sx), qRound(28 * sy), qRound(90 * sx), qRound(20 * sy));
-            m_helpCombo->setGeometry(qRound(370 * sx), qRound(25 * sy), qRound(560 * sx), qRound(24 * sy));
+            const int helpWordW = qRound(95 * sx);
+            m_helpWordLabel->setGeometry(cursorX, labelY, helpWordW, qRound(20 * sy));
+            cursorX += helpWordW + qRound(4 * sx);
+            const int wordComboW = qRound(110 * sx);
+            m_wordCombo->setGeometry(cursorX, rowY, wordComboW, qRound(24 * sy));
+            cursorX += wordComboW + qRound(10 * sx);
+            const int helpTypeW = qRound(85 * sx);
+            m_helpTypeLabel->setGeometry(cursorX, labelY, helpTypeW, qRound(20 * sy));
+            cursorX += helpTypeW + qRound(4 * sx);
+            const int helpComboW = qMax(qRound(160 * sx), panelW - cursorX - qRound(10 * sx));
+            m_helpCombo->setGeometry(cursorX, rowY, helpComboW, qRound(24 * sy));
         }
         if (m_table418) {
-            m_table418->setGeometry(
-                qRound(6 * sx), qRound(52 * sy), qRound(933 * sx), qRound(354 * sy));
-            m_table418->setColumnWidth(0, qRound(90 * sx));
-            m_table418->setColumnWidth(6, qRound(56 * sx));
-        }
-        // 32.2: «Показать/скрыть слова» над верхним левым углом таблицы.
-        if (m_hideButton) {
-            const int hideH = m_hideButton->height() > 0 ? m_hideButton->height() : 28;
-            m_hideButton->move(panelX + qRound(6 * sx), panelY - hideH - qRound(4 * sy));
-            m_hideButton->raise();
+            const int tableX = qRound(6 * sx);
+            const int tableY = qRound(56 * sy);
+            const int tableW = qMax(200, panelW - qRound(12 * sx));
+            const int tableH = qMax(120, panelH - tableY - qRound(10 * sy));
+            m_table418->setGeometry(tableX, tableY, tableW, tableH);
+            // Пропорции table.html (85/66/213/85/246/85/30), чуть шире для полных заголовков.
+            const int usableW = qMax(200, tableW - 4);
+            const int w0 = qRound(usableW * 0.105);
+            const int w1 = qRound(usableW * 0.095);
+            const int w2 = qRound(usableW * 0.145);
+            const int w3 = qRound(usableW * 0.185);
+            const int w5 = qRound(usableW * 0.185);
+            const int w6 = qRound(usableW * 0.055);
+            const int w4 = qMax(60, usableW - w0 - w1 - w2 - w3 - w5 - w6);
+            m_table418->setColumnWidth(0, w0);
+            m_table418->setColumnWidth(1, w1);
+            m_table418->setColumnWidth(2, w2);
+            m_table418->setColumnWidth(3, w3);
+            m_table418->setColumnWidth(4, w4);
+            m_table418->setColumnWidth(5, w5);
+            m_table418->setColumnWidth(6, w6);
         }
         // 32.5: секундомер на 1-м экране (cards.Designer label2 @ 1479,31).
         if (m_liveTimer && m_liveTimer->isVisible()) {

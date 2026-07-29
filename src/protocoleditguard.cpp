@@ -122,6 +122,8 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
     int explanationCol = -1;
     int activityCol = -1;
     int helpCol = -1;
+    int reproducedBeforeCol = -1;
+    int reproducedAfterCol = -1;
     for (int r = 0; r < table->rows(); ++r) {
         for (int c = 0; c < table->columns(); ++c) {
             const QString header = readProtocolTableCellText(table, r, c);
@@ -174,6 +176,24 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
                     ballsHeaderRow = r;
                 }
             }
+            if (reproducedBeforeCol < 0
+                && (header.contains(QStringLiteral("до предъявления"), Qt::CaseInsensitive)
+                    || (header.contains(QStringLiteral("Воспроиз"), Qt::CaseInsensitive)
+                        && header.contains(QStringLiteral("до"), Qt::CaseInsensitive)))) {
+                reproducedBeforeCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
+            }
+            if (reproducedAfterCol < 0
+                && (header.contains(QStringLiteral("после предъявления"), Qt::CaseInsensitive)
+                    || (header.contains(QStringLiteral("Воспроиз"), Qt::CaseInsensitive)
+                        && header.contains(QStringLiteral("после"), Qt::CaseInsensitive)))) {
+                reproducedAfterCol = c;
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
+            }
         }
     }
     if (correctCol >= 0 && col == correctCol && row > ballsHeaderRow) {
@@ -193,6 +213,12 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
             return true;
         }
         if (helpCol >= 0 && col == helpCol) {
+            return true;
+        }
+        if (reproducedBeforeCol >= 0 && col == reproducedBeforeCol) {
+            return true;
+        }
+        if (reproducedAfterCol >= 0 && col == reproducedAfterCol) {
             return true;
         }
     }

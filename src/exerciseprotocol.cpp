@@ -2680,7 +2680,7 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
                 body.replace(
                     target.capturedStart(0),
                     target.capturedLength(0),
-                    target.captured(1) + val.toHtmlEscaped() + target.captured(3));
+                    target.captured(1) + formatProtocolCellText(val) + target.captured(3));
             }
         }
         break;
