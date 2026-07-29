@@ -25,6 +25,28 @@ void markPatientControl(QWidget *widget) {
     }
 }
 
+class WhitePatientRoot final : public QWidget {
+public:
+    explicit WhitePatientRoot(QWidget *parent = nullptr) : QWidget(parent, Qt::Widget) {
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAttribute(Qt::WA_StyledBackground, true);
+        setAutoFillBackground(true);
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, Qt::white);
+        pal.setColor(QPalette::Base, Qt::white);
+        setPalette(pal);
+        setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
+        hide();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.fillRect(rect(), Qt::white);
+    }
+};
+
 void setButtonImage(QLabel *button, const QString &path) {
     if (!button || path.isEmpty()) {
         return;
@@ -449,20 +471,17 @@ void WolfRunner::ensurePatientView() {
     if (m_patientRoot) {
         return;
     }
-    // Не создавать top-level окно: сразу скрытый виджет без родителя с Qt::Widget.
-    m_patientRoot = new QWidget(nullptr, Qt::Widget);
-    m_patientRoot->setAttribute(Qt::WA_OpaquePaintEvent, true);
-    m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
-    m_patientRoot->setAutoFillBackground(true);
-    QPalette pal = m_patientRoot->palette();
-    pal.setColor(QPalette::Window, Qt::white);
-    pal.setColor(QPalette::Base, Qt::white);
-    m_patientRoot->setPalette(pal);
-    m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
-    m_patientRoot->hide();
-
+    m_patientRoot = new WhitePatientRoot(nullptr);
     m_patientPicture = new QLabel(m_patientRoot);
     m_patientPicture->setAlignment(Qt::AlignCenter);
+    m_patientPicture->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    m_patientPicture->setAutoFillBackground(true);
+    {
+        QPalette pal = m_patientPicture->palette();
+        pal.setColor(QPalette::Window, Qt::white);
+        pal.setColor(QPalette::Base, Qt::white);
+        m_patientPicture->setPalette(pal);
+    }
     m_patientPicture->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
     m_patientPicture->hide();
 }

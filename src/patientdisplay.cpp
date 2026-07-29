@@ -6,10 +6,9 @@
 
 #include <QGuiApplication>
 #include <QLabel>
-#include <QPaintEvent>
 #include <QPainter>
-#include <QPalette>
 #include <QPixmap>
+#include <QResizeEvent>
 #include <QScreen>
 #include <QTimer>
 #include <QWindow>
@@ -28,22 +27,26 @@ QScreen *secondaryScreen() {
 
 } // namespace
 
-void PatientDisplay::paintEvent(QPaintEvent *event) {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.fillRect(rect(), Qt::white);
+void PatientDisplay::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    if (m_contentWidget) {
+        m_contentWidget->setGeometry(0, 0, width(), height());
+    }
+    if (m_mirrorLabel) {
+        m_mirrorLabel->setGeometry(0, 0, width(), height());
+    }
+    if (m_mirrorExercise) {
+        m_mirrorExercise->setGeometry(0, 0, width(), height());
+    }
+    if (m_patientEmotions) {
+        m_patientEmotions->setGeometry(0, 0, width(), height());
+    }
 }
 
 PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::Window) {
     setAttribute(Qt::WA_DeleteOnClose, false);
-    setAttribute(Qt::WA_OpaquePaintEvent, true);
-    setAttribute(Qt::WA_StyledBackground, true);
-    setAutoFillBackground(true);
-    QPalette pal = palette();
-    pal.setColor(QPalette::Window, Qt::white);
-    pal.setColor(QPalette::Base, Qt::white);
-    setPalette(pal);
     setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+
     m_mirrorExercise = new OnlyPExercise(this);
     m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
     m_mirrorExercise->setMirrorMode(true);
@@ -58,7 +61,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     m_mirrorLabel = new QLabel(this);
     m_mirrorLabel->setAlignment(Qt::AlignCenter);
     m_mirrorLabel->setScaledContents(true);
-    m_mirrorLabel->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+    m_mirrorLabel->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
     m_mirrorLabel->setGeometry(0, 0, 1920, 1080);
     m_mirrorLabel->hide();
 
@@ -140,8 +143,6 @@ void PatientDisplay::onSourcePictureChanged(int index) {
     if (!m_mirrorExercise || !m_exercise) {
         return;
     }
-    // pictureChanged при смене задания идёт с новым stepId у источника —
-    // зеркало должно сначала переключить шаг, затем показать нужный кадр.
     const QString stepId = m_exercise->property("stepId").toString();
     const QString mirrorStep = m_mirrorExercise->property("stepId").toString();
     if (!stepId.isEmpty() && stepId != mirrorStep) {
@@ -186,6 +187,7 @@ void PatientDisplay::attachMirrorWidget(QWidget *source) {
     }
     if (m_mirrorLabel) {
         m_mirrorLabel->show();
+        m_mirrorLabel->raise();
     }
     m_mirrorTimer->start();
 }
@@ -197,8 +199,6 @@ void PatientDisplay::attachContentWidget(QWidget *widget) {
     if (m_mirrorTimer) {
         m_mirrorTimer->stop();
     }
-    // Режим «только контент» (Сказка и др.): убрать зеркало OnlyP — иначе в углу
-    // остаётся чёрный/тёмный прямоугольник кнопки «Стоп» (80,72).
     if (m_mirrorLabel) {
         m_mirrorLabel->hide();
         m_mirrorLabel->clear();
@@ -234,30 +234,32 @@ void PatientDisplay::updateMirrorPixmap() {
         return;
     }
 
-    // Не трогаем UI специалиста (hide/setUpdatesEnabled давали зависания в 2.8 и др.).
-    // Берём полный кадр и закрашиваем области управляющих элементов белым.
     QPixmap pixmap = m_mirrorSource->grab();
     if (pixmap.isNull()) {
         return;
     }
 
-    QPainter painter(&pixmap);
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    const QList<QWidget *> widgets =
-        m_mirrorSource->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
-    for (QWidget *widget : widgets) {
-        if (!widget || !widget->property("dokitPatientControl").toBool()) {
-            continue;
+    QPixmap canvas(pixmap.size());
+    canvas.fill(Qt::white);
+    {
+        QPainter painter(&canvas);
+        painter.drawPixmap(0, 0, pixmap);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        const QList<QWidget *> widgets =
+            m_mirrorSource->findChildren<QWidget *>(QString(), Qt::FindChildrenRecursively);
+        for (QWidget *widget : widgets) {
+            if (!widget || !widget->property("dokitPatientControl").toBool()) {
+                continue;
+            }
+            if (!widget->isVisible()) {
+                continue;
+            }
+            const QPoint topLeft = widget->mapTo(m_mirrorSource, QPoint(0, 0));
+            painter.fillRect(QRect(topLeft, widget->size()), Qt::white);
         }
-        if (!widget->isVisible()) {
-            continue;
-        }
-        const QPoint topLeft = widget->mapTo(m_mirrorSource, QPoint(0, 0));
-        painter.fillRect(QRect(topLeft, widget->size()), Qt::white);
     }
-    painter.end();
 
-    m_mirrorLabel->setPixmap(pixmap);
+    m_mirrorLabel->setPixmap(canvas);
 }
 
 void PatientDisplay::showOnSecondaryScreen() {
@@ -275,6 +277,7 @@ void PatientDisplay::showOnSecondaryScreen() {
 
     const QRect geometry = target->geometry();
     setGeometry(geometry);
+
     if (m_mirrorExercise) {
         m_mirrorExercise->setGeometry(0, 0, geometry.width(), geometry.height());
     }
@@ -285,7 +288,6 @@ void PatientDisplay::showOnSecondaryScreen() {
         m_mirrorLabel->setGeometry(0, 0, geometry.width(), geometry.height());
     }
     if (m_contentWidget) {
-        // Контентный режим: зеркало OnlyP не должно просвечивать.
         if (m_mirrorExercise) {
             m_mirrorExercise->hide();
             m_mirrorExercise->lower();
@@ -314,7 +316,6 @@ void PatientDisplay::showOnSecondaryScreen() {
             if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
                 settings = definition->onlyPicture;
             }
-            // Текущий шаг с Headless-источника (пустой — у autoAdvance вроде 1.4).
             const QString stepId = m_exercise->property("stepId").toString();
             m_mirrorExercise->syncMirrorSession(exerciseId, settings, stepId);
             if (!settings.dualPicture && exerciseId != QStringLiteral("3.2.3")) {
