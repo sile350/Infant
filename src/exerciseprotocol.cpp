@@ -918,7 +918,8 @@ QString rebuildProtocol12SessionList(const QStringList &sessions) {
     return result;
 }
 
-// Гарантирует: summary закрыт перед <!--s-->, таблица процесса закрыта, без вложенных <table>.
+// Гарантирует: summary закрыт перед <!--s-->, таблица(ы) процесса закрыты, без вложенных <table>.
+// У 4.1.8 после <!--s--> две последовательные таблицы (характер + стимульные слова) — обе сохраняем.
 QString ensureClosedProtocolSession(QString session) {
     session = stripLeadingSummaryTableWrapper(session.trimmed());
     if (session.isEmpty()) {
@@ -939,12 +940,13 @@ QString ensureClosedProtocolSession(QString session) {
         QString());
     summary = summary.trimmed();
 
-    QString results = session.mid(marker + QStringLiteral("<!--s-->").size()).trimmed();
-    const int tableStart = results.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+    QString afterMarker = session.mid(marker + QStringLiteral("<!--s-->").size()).trimmed();
+    const int tableStart = afterMarker.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
     if (tableStart < 0) {
         return summary + QStringLiteral("</table><!--s-->");
     }
-    results = results.mid(tableStart);
+    const QString leading = afterMarker.left(tableStart);
+    QString results = afterMarker.mid(tableStart);
 
     const int nestedOpen = results.indexOf(QStringLiteral("<table"), 6, Qt::CaseInsensitive);
     const int firstClose = results.indexOf(QStringLiteral("</table>"), 0, Qt::CaseInsensitive);
@@ -960,6 +962,21 @@ QString ensureClosedProtocolSession(QString session) {
         processTable += QStringLiteral("</table>");
     } else if (firstClose >= 0) {
         processTable = results.left(firstClose + QStringLiteral("</table>").size());
+        // Соседние <table> после первой (не вложенные): характер + стимулы 4.1.8 и т.п.
+        QString rest = results.mid(firstClose + QStringLiteral("</table>").size());
+        while (true) {
+            const int nextOpen = rest.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+            if (nextOpen < 0) {
+                break;
+            }
+            const int nextClose =
+                rest.indexOf(QStringLiteral("</table>"), nextOpen, Qt::CaseInsensitive);
+            if (nextClose < 0) {
+                break;
+            }
+            processTable += rest.left(nextClose + QStringLiteral("</table>").size());
+            rest = rest.mid(nextClose + QStringLiteral("</table>").size());
+        }
     } else {
         const int lastTr = results.lastIndexOf(QStringLiteral("</tr>"), -1, Qt::CaseInsensitive);
         if (lastTr >= 0) {
@@ -970,7 +987,7 @@ QString ensureClosedProtocolSession(QString session) {
         processTable += QStringLiteral("</table>");
     }
 
-    return summary + QStringLiteral("</table><!--s-->") + processTable;
+    return summary + QStringLiteral("</table><!--s-->") + leading + processTable;
 }
 
 QString joinClosedProtocolSessions(const QStringList &sessions) {
@@ -2524,48 +2541,73 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
         return storedBody;
     }
 
-    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+    // Нельзя mergeLimited → joinClosedProtocolSessions: у 4.1.8 после <!--s--> две
+    // последовательные <table> (характер + стимулы), и ensureClosed обрезает вторую
+    // (со словами/баллами) — протокол «очищается».
+    QString body = storedBody;
     const QString editorHtml = editorDocument->toHtml();
 
-    // Примечание с id='idnote' (mergeLimited мог заменить ячейку без id).
     {
         int editorSectionIndex = 0;
         const QStringList editorSessions =
-            ExerciseProtocol::extractProtocolBodiesByDateRows(editorDocument->toHtml());
+            ExerciseProtocol::extractProtocolBodiesByDateRows(editorHtml);
         if (editorSessions.size() > 1) {
             editorSectionIndex = editorSessions.size() - 1;
         }
         ParsedProtocolFields parsed =
             parseProtocolFieldsFromDocument(editorDocument, editorSectionIndex);
+
+        QStringList sessions = extractProtocol126SessionsByDate(body);
+        const bool multi = sessions.size() > 1;
+        QString chunk = multi ? sessions.last() : body;
+
+        if (parsed.hasResult) {
+            if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+                chunk = replaceDivInnerById(
+                    chunk, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+            } else {
+                chunk = replaceResultRowSecondCell(chunk, parsed.resultText);
+            }
+        }
         QString notePlain = parsed.hasNote ? parsed.noteText : QString();
         const QString idnoteInner = extractDivInnerById(editorHtml, QStringLiteral("idnote"));
         if (!idnoteInner.isEmpty()) {
             notePlain = htmlFragmentToPlainText(idnoteInner);
         }
-        const QRegularExpression noteRowRe(
-            QStringLiteral(
-                "(<tr[^>]*>\\s*<td[^>]*>\\s*Примечание\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        QRegularExpressionMatchIterator it = noteRowRe.globalMatch(body);
-        QRegularExpressionMatch match;
-        while (it.hasNext()) {
-            match = it.next();
+        if (parsed.hasNote || !idnoteInner.isEmpty()) {
+            const QRegularExpression noteRowRe(
+                QStringLiteral(
+                    "(<tr[^>]*>\\s*<td[^>]*>\\s*Примечание\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+                QRegularExpression::CaseInsensitiveOption
+                    | QRegularExpression::DotMatchesEverythingOption);
+            QRegularExpressionMatchIterator it = noteRowRe.globalMatch(chunk);
+            QRegularExpressionMatch match;
+            while (it.hasNext()) {
+                match = it.next();
+            }
+            if (match.hasMatch()) {
+                chunk.replace(
+                    match.capturedStart(0),
+                    match.capturedLength(0),
+                    match.captured(1)
+                        + QStringLiteral("<div contenteditable='true' id='idnote'>%1</div>")
+                              .arg(notePlain.toHtmlEscaped())
+                        + match.captured(3));
+            }
         }
-        if (match.hasMatch()) {
-            body.replace(
-                match.capturedStart(0),
-                match.capturedLength(0),
-                match.captured(1)
-                    + QStringLiteral("<div contenteditable='true' id='idnote'>%1</div>")
-                          .arg(notePlain.toHtmlEscaped())
-                    + match.captured(3));
+
+        if (multi) {
+            sessions[sessions.size() - 1] = chunk;
+            body = joinProtocol126Sessions(sessions);
+        } else {
+            body = chunk;
         }
     }
 
-    // Характер / дата / результат — по id (последняя сессия).
-    body = replace418DivFromEditor(body, editorHtml, QStringLiteral("cidd"), false);
+    // Характер / дата / результат — по id (последняя сессия). Пустые значения не затирают.
+    body = replace418DivFromEditor(body, editorHtml, QStringLiteral("cidd"), true);
     body = replace418DivFromEditor(body, editorHtml, QStringLiteral("idspc"), true);
-    body = replace418DivFromEditor(body, editorHtml, QStringLiteral("idvivod"), false);
+    body = replace418DivFromEditor(body, editorHtml, QStringLiteral("idvivod"), true);
 
     // Таблица стимулов: читаем ячейки из QTextTable (id часто теряются в toHtml).
     static const char *kWords[] = {"Школа", "Обед", "Утро", "Красота", "Прогулка"};
@@ -2639,20 +2681,22 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
                 // Строка «Итоговая оценка» — сохранить idsum из редактора.
                 if (word.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive) && cols[5] >= 0) {
                     const QString sumText = readTableCellText(table, r, cols[5]);
-                    const QRegularExpression idsumRe(
-                        QStringLiteral(
-                            "(<div\\b[^>]*\\bid\\s*=\\s*['\"]idsum['\"][^>]*>)([\\s\\S]*?)(</div>)"),
-                        QRegularExpression::CaseInsensitiveOption);
-                    QRegularExpressionMatchIterator it = idsumRe.globalMatch(body);
-                    QRegularExpressionMatch target;
-                    while (it.hasNext()) {
-                        target = it.next();
-                    }
-                    if (target.hasMatch()) {
-                        body.replace(
-                            target.capturedStart(0),
-                            target.capturedLength(0),
-                            target.captured(1) + sumText.toHtmlEscaped() + target.captured(3));
+                    if (!sumText.trimmed().isEmpty()) {
+                        const QRegularExpression idsumRe(
+                            QStringLiteral(
+                                "(<div\\b[^>]*\\bid\\s*=\\s*['\"]idsum['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+                            QRegularExpression::CaseInsensitiveOption);
+                        QRegularExpressionMatchIterator it = idsumRe.globalMatch(body);
+                        QRegularExpressionMatch target;
+                        while (it.hasNext()) {
+                            target = it.next();
+                        }
+                        if (target.hasMatch()) {
+                            body.replace(
+                                target.capturedStart(0),
+                                target.capturedLength(0),
+                                target.captured(1) + sumText.toHtmlEscaped() + target.captured(3));
+                        }
                     }
                 }
                 continue;
@@ -2662,6 +2706,10 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
                     continue;
                 }
                 const QString val = readTableCellMultilineText(table, r, cols[c]);
+                // Пустое чтение из QTextDocument не должно затирать сохранённые ячейки.
+                if (val.trimmed().isEmpty()) {
+                    continue;
+                }
                 const QString id =
                     QString::fromUtf8(kPrefixes[c]) + QString::number(wordIndex + 1);
                 const QRegularExpression targetRe(
@@ -4320,6 +4368,13 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
 QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {
     if (protocolBody.trimmed().isEmpty()) {
         return {};
+    }
+    // 4.1.8: две таблицы после <!--s--> — flatten через ensureClosed раньше отрезал стимулы.
+    if (protocolBody.contains(QStringLiteral("id='sel1'"), Qt::CaseInsensitive)
+        || protocolBody.contains(QStringLiteral("id=\"sel1\""), Qt::CaseInsensitive)
+        || protocolBody.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)) {
+        return normalizeSummaryColumnWidthsHtml(
+            ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody));
     }
     QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
     if (sessions.isEmpty()) {

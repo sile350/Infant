@@ -3119,12 +3119,14 @@ void ExerciseHost::sumProtocol418() {
         || !m_templateBrowser) {
         return;
     }
+    // Сначала сохранить правки (re/rea/b/…), затем только сумма b1..b5 — как bsum в оригинале.
+    saveProtocolEdits();
     commitTextEditChanges(m_templateBrowser, true);
     QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    // Не затираем протокол: переносим правки редактора, затем суммируем b1..b5.
+    // Ещё раз подтянуть правки редактора (без joinClosed), затем сумма уже введённых b*.
     storedBody = ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
         storedBody, m_templateBrowser->document());
     storedBody = ExerciseProtocol::applyProtocolBPrefixSum(storedBody);

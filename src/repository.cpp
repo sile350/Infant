@@ -86,6 +86,21 @@ void appendProtocolRecord(
         // Плоская сборка: summary </table> + <br> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
         record = ExerciseProtocol::buildProtocol126ViewRecord(
             continuation ? QString() : headerForExercise(uprid), protocolBody);
+    } else if (uprid == QStringLiteral("4.1.8")) {
+        // Характер + таблица стимульных слов (две <table> после <!--s-->).
+        QString flatBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody);
+        flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(flatBody);
+        if (continuation) {
+            record = QStringLiteral(
+                          "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+                          "<colgroup><col width='200'><col width='471'></colgroup>")
+                      + flatBody;
+        } else {
+            record = headerForExercise(uprid) + flatBody;
+        }
+        if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            record += QStringLiteral("</table>");
+        }
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
         const QString flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(

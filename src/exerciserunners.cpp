@@ -2183,6 +2183,10 @@ public:
         m_stop->move(80, 72);
         m_stop->show();
         m_stop->raise();
+        // После позиции «Стоп» — секундомер на том же уровне, справа +50 px (4.1.8).
+        if (exerciseId == QStringLiteral("4.1.8")) {
+            layout418Ui();
+        }
         show();
         raise();
     }
@@ -2202,13 +2206,19 @@ public:
             m_canvas->setGeometry(0, 0, width(), height());
         }
         if (m_exerciseId == QStringLiteral("4.1.8")) {
+            if (m_stop) {
+                m_stop->move(80, 72);
+            }
             layout418Ui();
             layoutPatient415Ui();
         } else if (usesWordsChrome()) {
             layout415Chrome();
             layoutPatient415Ui();
-        }
-        if (m_stop) {
+            if (m_stop) {
+                m_stop->move(80, 72);
+                m_stop->raise();
+            }
+        } else if (m_stop) {
             m_stop->move(80, 72);
             m_stop->raise();
         }
@@ -2636,15 +2646,21 @@ private:
             m_table418->setColumnWidth(5, w5);
             m_table418->setColumnWidth(6, w6);
         }
-        // 32.5: секундомер на 1-м экране (cards.Designer label2 @ 1479,31).
-        if (m_liveTimer && m_liveTimer->isVisible()) {
+        // Секундомер на уровне «Стоп», справа от неё на 50 px.
+        if (m_liveTimer && m_liveTimer->isVisible() && m_stop) {
             m_liveTimer->adjustSize();
-            m_liveTimer->move(qRound(1479 * sx), qRound(31 * sy));
+            const int timerX = m_stop->x() + m_stop->width() + 50;
+            const int timerY = m_stop->y()
+                + qMax(0, (m_stop->height() - m_liveTimer->height()) / 2);
+            m_liveTimer->move(timerX, timerY);
             m_liveTimer->raise();
         }
         m_panel418->raise();
         if (m_stop) {
             m_stop->raise();
+        }
+        if (m_liveTimer && m_liveTimer->isVisible()) {
+            m_liveTimer->raise();
         }
     }
 
