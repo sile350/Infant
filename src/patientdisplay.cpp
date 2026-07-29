@@ -48,6 +48,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
     m_mirrorExercise->setMirrorMode(true);
     m_mirrorExercise->setGeometry(0, 0, 1920, 1080);
+    m_mirrorExercise->hide();
 
     m_patientEmotions = new E126Canvas(this);
     m_patientEmotions->setDisplayRole(E126Canvas::DisplayRole::Patient);
@@ -58,6 +59,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     m_mirrorLabel->setAlignment(Qt::AlignCenter);
     m_mirrorLabel->setScaledContents(true);
     m_mirrorLabel->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+    m_mirrorLabel->setGeometry(0, 0, 1920, 1080);
     m_mirrorLabel->hide();
 
     m_mirrorTimer = new QTimer(this);
@@ -195,14 +197,19 @@ void PatientDisplay::attachContentWidget(QWidget *widget) {
     if (m_mirrorTimer) {
         m_mirrorTimer->stop();
     }
+    // Режим «только контент» (Сказка и др.): убрать зеркало OnlyP — иначе в углу
+    // остаётся чёрный/тёмный прямоугольник кнопки «Стоп» (80,72).
     if (m_mirrorLabel) {
         m_mirrorLabel->hide();
+        m_mirrorLabel->clear();
     }
     if (m_mirrorExercise) {
         m_mirrorExercise->hide();
+        m_mirrorExercise->lower();
     }
     if (m_patientEmotions) {
         m_patientEmotions->hide();
+        m_patientEmotions->lower();
     }
     if (m_contentWidget && m_contentWidget != widget) {
         m_contentWidget->hide();
@@ -278,11 +285,22 @@ void PatientDisplay::showOnSecondaryScreen() {
         m_mirrorLabel->setGeometry(0, 0, geometry.width(), geometry.height());
     }
     if (m_contentWidget) {
+        // Контентный режим: зеркало OnlyP не должно просвечивать.
+        if (m_mirrorExercise) {
+            m_mirrorExercise->hide();
+            m_mirrorExercise->lower();
+        }
+        if (m_patientEmotions) {
+            m_patientEmotions->hide();
+            m_patientEmotions->lower();
+        }
+        if (m_mirrorLabel) {
+            m_mirrorLabel->hide();
+        }
         m_contentWidget->setGeometry(0, 0, geometry.width(), geometry.height());
         m_contentWidget->show();
         m_contentWidget->raise();
-    }
-    if (m_emotionsSource && m_patientEmotions) {
+    } else if (m_emotionsSource && m_patientEmotions) {
         onEmotionsContentChanged();
         m_patientEmotions->show();
         m_patientEmotions->raise();
@@ -306,6 +324,7 @@ void PatientDisplay::showOnSecondaryScreen() {
                 m_mirrorExercise->showPicture(picIndex);
             }
             m_mirrorExercise->show();
+            m_mirrorExercise->raise();
         }
     }
     showFullScreen();

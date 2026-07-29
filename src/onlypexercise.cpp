@@ -178,16 +178,19 @@ OnlyPExercise::OnlyPExercise(QWidget *parent) : QWidget(parent) {
     m_stopButton->setGeometry(kStopLeft, kStopTop, 134, 29);
     m_stopButton->setScaledContents(false);
     m_stopButton->setAutoFillBackground(true);
+    m_stopButton->hide();
 
     m_rightButton = new ClickableLabel(this);
     m_rightButton->setGeometry(kRightLeft, kAnswerTop, 134, 29);
     m_rightButton->setScaledContents(false);
     m_rightButton->setAutoFillBackground(true);
+    m_rightButton->hide();
 
     m_wrongButton = new ClickableLabel(this);
     m_wrongButton->setGeometry(kWrongLeft, kAnswerTop, 134, 29);
     m_wrongButton->setScaledContents(false);
     m_wrongButton->setAutoFillBackground(true);
+    m_wrongButton->hide();
 
     m_navBackButton = new ClickableLabel(this);
     m_navBackButton->setScaledContents(false);

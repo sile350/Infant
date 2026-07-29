@@ -449,7 +449,8 @@ void WolfRunner::ensurePatientView() {
     if (m_patientRoot) {
         return;
     }
-    m_patientRoot = new QWidget;
+    // Не создавать top-level окно: сразу скрытый виджет без родителя с Qt::Widget.
+    m_patientRoot = new QWidget(nullptr, Qt::Widget);
     m_patientRoot->setAttribute(Qt::WA_OpaquePaintEvent, true);
     m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
     m_patientRoot->setAutoFillBackground(true);
@@ -458,6 +459,7 @@ void WolfRunner::ensurePatientView() {
     pal.setColor(QPalette::Base, Qt::white);
     m_patientRoot->setPalette(pal);
     m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
+    m_patientRoot->hide();
 
     m_patientPicture = new QLabel(m_patientRoot);
     m_patientPicture->setAlignment(Qt::AlignCenter);
