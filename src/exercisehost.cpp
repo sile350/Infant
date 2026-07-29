@@ -25,6 +25,7 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFile>
+#include <QFontMetrics>
 #include <QFrame>
 #include <QGuiApplication>
 #include <QHeaderView>
@@ -247,9 +248,12 @@ void resizeCheckLabel(QLabel *label, int width) {
     if (!label || width <= 0) {
         return;
     }
+    label->ensurePolished();
     label->setFixedWidth(width);
-    const int height = label->heightForWidth(width);
-    label->setFixedHeight(qMax(20, height));
+    // heightForWidth иногда врёт до первого show — считаем через FontMetrics.
+    const QFontMetrics fm(label->font());
+    const QRect bound = fm.boundingRect(QRect(0, 0, width, 10000), Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, label->text());
+    label->setFixedHeight(qMax(20, bound.height()));
 }
 
 QString stripHtmlTags(const QString &html) {
@@ -430,7 +434,8 @@ int tightDocumentHeight(QTextDocument *doc) {
 ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int contentWidth) {
     ExerciseCheckRow row;
     auto *wrap = new OpaquePanel(kDocumentBg);
-    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    // Maximum по вертикали — иначе setWidgetResizable раздувает строки лишним местом.
+    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
     auto *rowLayout = new QHBoxLayout(wrap);
     rowLayout->setContentsMargins(0, 2, 0, 2);
     rowLayout->setSpacing(8);
@@ -439,16 +444,16 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     row.box->setFixedSize(18, 18);
 
     row.label = new WhiteLabel(text, wrap);
-    row.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    row.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    row.label->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
     if (contentWidth > 40) {
         resizeCheckLabel(row.label, contentWidth - 34);
     }
-    row.label->setStyleSheet(QStringLiteral(
-        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
 
     rowLayout->addWidget(row.box, 0, Qt::AlignTop);
-    rowLayout->addWidget(row.label, 1);
-    layout->addWidget(wrap);
+    rowLayout->addWidget(row.label, 0, Qt::AlignTop);
+    layout->addWidget(wrap, 0, Qt::AlignTop);
     return row;
 }
 
@@ -462,12 +467,12 @@ ExerciseCheckRow makeDoneOptionRow(const QString &text, QVBoxLayout *layout, int
     rowData.box->setFixedSize(18, 18);
 
     rowData.label = new WhiteLabel(text);
-    rowData.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    rowData.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    rowData.label->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
     if (optionWidth > 40) {
         resizeCheckLabel(rowData.label, optionWidth - 34);
     }
-    rowData.label->setStyleSheet(QStringLiteral(
-        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
 
     rowLayout->addWidget(rowData.box, 0, Qt::AlignVCenter);
     rowLayout->addWidget(rowData.label, 1);
@@ -526,6 +531,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(m_scrollContent);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+    layout->setAlignment(Qt::AlignTop);
 
     auto *orPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
     auto *orLayout = new QVBoxLayout(orPanel);
@@ -540,10 +546,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     orLayout->addWidget(m_orBrowser);
 
     m_evaluationPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
-    m_evaluationPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
+    m_evaluationPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *evaluationLayout = new QVBoxLayout(m_evaluationPanel);
     evaluationLayout->setContentsMargins(8, 0, 8, 12);
     evaluationLayout->setSpacing(4);
+    evaluationLayout->setAlignment(Qt::AlignTop);
 
     auto *hrLine = new QFrame(m_evaluationPanel);
     hrLine->setFrameShape(QFrame::HLine);
@@ -567,16 +574,18 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "font-size:15px; font-weight:bold; padding:0;"));
 
     m_activityChecksHost = new OpaquePanel(kDocumentBg, m_evaluationPanel);
-    m_activityChecksHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    m_activityChecksHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
     m_activityChecksLayout = new QVBoxLayout(m_activityChecksHost);
     m_activityChecksLayout->setContentsMargins(8, 0, 8, 0);
     m_activityChecksLayout->setSpacing(2);
+    m_activityChecksLayout->setAlignment(Qt::AlignTop);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
-    m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
     auto *checkboxLayout = new QVBoxLayout(m_checkboxPanel);
     checkboxLayout->setContentsMargins(8, 0, 8, 0);
     checkboxLayout->setSpacing(2);
+    checkboxLayout->setAlignment(Qt::AlignTop);
 
     m_helpChecksLayout = checkboxLayout;
 
@@ -1121,6 +1130,7 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     updateChromeLayout();
     updateExerciseOverlayGeometry();
+    layoutContent();
 }
 
 void ExerciseHost::updateChromeLayout() {
@@ -1961,7 +1971,7 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
 void ExerciseHost::clearActivityChecks() {
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.label && row.label->parentWidget()) {
-            row.label->parentWidget()->deleteLater();
+            delete row.label->parentWidget();
         }
     }
     m_activityChecks.clear();
@@ -1970,7 +1980,7 @@ void ExerciseHost::clearActivityChecks() {
 void ExerciseHost::clearHelpChecks() {
     for (const ExerciseCheckRow &row : m_helpChecks) {
         if (row.label && row.label->parentWidget()) {
-            row.label->parentWidget()->deleteLater();
+            delete row.label->parentWidget();
         }
     }
     m_helpChecks.clear();
@@ -2304,9 +2314,10 @@ void ExerciseHost::loadExercise() {
     }
 
     updateExerciseOptionsPanel();
-    layoutContent();
-    QTimer::singleShot(50, this, [this]() { updateContentHeights(); });
     updateChromeLayout();
+    layoutContent();
+    QTimer::singleShot(0, this, [this]() { updateContentHeights(); });
+    QTimer::singleShot(50, this, [this]() { updateContentHeights(); });
 }
 
 void ExerciseHost::layoutContent() {
