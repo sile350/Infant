@@ -854,11 +854,12 @@ public:
         const int groupH = qMax(1, designBottom - kDesignTop);
         const int designCX = kDesignLeft + groupW / 2;
         const int designCY = kDesignTop + groupH / 2;
-        // Чуть левее и ниже чистого центра.
+        // Чуть левее и ниже чистого центра; поднять всю группу на 200px.
         constexpr int kNudgeLeft = 40;
         constexpr int kNudgeDown = 40;
+        constexpr int kShiftUp = 200;
         const int offsetX = width() / 2 - qRound(designCX * sx) - kNudgeLeft;
-        const int offsetY = height() / 2 - qRound(designCY * sy) + kNudgeDown;
+        const int offsetY = height() / 2 - qRound(designCY * sy) + kNudgeDown - kShiftUp;
 
         auto place = [&](int designX, int designY) {
             return QPoint(qRound(designX * sx) + offsetX, qRound(designY * sy) + offsetY);
