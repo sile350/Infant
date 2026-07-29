@@ -4,6 +4,7 @@
 #include <QWidget>
 
 class QLabel;
+class QPaintEvent;
 class QTimer;
 class OnlyPExercise;
 class E126Canvas;
@@ -22,6 +23,7 @@ public:
     void switchStep(const QString &stepId);
 
 private:
+    void paintEvent(QPaintEvent *event) override;
     void updateMirrorPixmap();
     void onSourcePictureChanged(int index);
     void onSourceBrowseStateChanged(int index);

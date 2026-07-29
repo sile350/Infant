@@ -6,7 +6,9 @@
 
 #include <QGuiApplication>
 #include <QLabel>
+#include <QPaintEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QScreen>
 #include <QTimer>
@@ -26,9 +28,22 @@ QScreen *secondaryScreen() {
 
 } // namespace
 
+void PatientDisplay::paintEvent(QPaintEvent *event) {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.fillRect(rect(), Qt::white);
+}
+
 PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::Window) {
     setAttribute(Qt::WA_DeleteOnClose, false);
-    setStyleSheet(QStringLiteral("background-color: #ffffff;"));
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setAutoFillBackground(true);
+    QPalette pal = palette();
+    pal.setColor(QPalette::Window, Qt::white);
+    pal.setColor(QPalette::Base, Qt::white);
+    setPalette(pal);
+    setStyleSheet(QStringLiteral("background-color:#ffffff;"));
     m_mirrorExercise = new OnlyPExercise(this);
     m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
     m_mirrorExercise->setMirrorMode(true);
@@ -42,6 +57,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
     m_mirrorLabel = new QLabel(this);
     m_mirrorLabel->setAlignment(Qt::AlignCenter);
     m_mirrorLabel->setScaledContents(true);
+    m_mirrorLabel->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
     m_mirrorLabel->hide();
 
     m_mirrorTimer = new QTimer(this);

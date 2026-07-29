@@ -25,7 +25,6 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFile>
-#include <QFontMetrics>
 #include <QFrame>
 #include <QGuiApplication>
 #include <QHeaderView>
@@ -39,7 +38,6 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QScrollArea>
-#include <QShowEvent>
 #include <QStandardPaths>
 #include <QTableWidget>
 #include <QTextBlock>
@@ -250,17 +248,7 @@ void resizeCheckLabel(QLabel *label, int width) {
         return;
     }
     label->setFixedWidth(width);
-    // До первого показа/polish heightForWidth часто завышает высоту — отсюда «дыры» между пунктами.
-    label->ensurePolished();
-    int height = label->heightForWidth(width);
-    if (height < 20) {
-        const QFontMetrics fm(label->font());
-        const QRect bounds = fm.boundingRect(
-            QRect(0, 0, width, 0),
-            Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop,
-            label->text());
-        height = bounds.height();
-    }
+    const int height = label->heightForWidth(width);
     label->setFixedHeight(qMax(20, height));
 }
 
@@ -442,8 +430,7 @@ int tightDocumentHeight(QTextDocument *doc) {
 ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int contentWidth) {
     ExerciseCheckRow row;
     auto *wrap = new OpaquePanel(kDocumentBg);
-    // Maximum: не растягивать строку по высоте, иначе между пунктами появляются «дыры».
-    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     auto *rowLayout = new QHBoxLayout(wrap);
     rowLayout->setContentsMargins(0, 2, 0, 2);
     rowLayout->setSpacing(8);
@@ -452,12 +439,12 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     row.box->setFixedSize(18, 18);
 
     row.label = new WhiteLabel(text, wrap);
-    row.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    row.label->setStyleSheet(QStringLiteral(
-        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
+    row.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     if (contentWidth > 40) {
         resizeCheckLabel(row.label, contentWidth - 34);
     }
+    row.label->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
 
     rowLayout->addWidget(row.box, 0, Qt::AlignTop);
     rowLayout->addWidget(row.label, 1);
@@ -475,12 +462,12 @@ ExerciseCheckRow makeDoneOptionRow(const QString &text, QVBoxLayout *layout, int
     rowData.box->setFixedSize(18, 18);
 
     rowData.label = new WhiteLabel(text);
-    rowData.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    rowData.label->setStyleSheet(QStringLiteral(
-        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
+    rowData.label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     if (optionWidth > 40) {
         resizeCheckLabel(rowData.label, optionWidth - 34);
     }
+    rowData.label->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"));
 
     rowLayout->addWidget(rowData.box, 0, Qt::AlignVCenter);
     rowLayout->addWidget(rowData.label, 1);
@@ -541,7 +528,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     layout->setSpacing(0);
 
     auto *orPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
-    orPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
     auto *orLayout = new QVBoxLayout(orPanel);
     orLayout->setContentsMargins(0, 0, 0, 0);
     orLayout->setSpacing(0);
@@ -554,7 +540,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     orLayout->addWidget(m_orBrowser);
 
     m_evaluationPanel = new OpaquePanel(kDocumentBg, m_scrollContent);
-    m_evaluationPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    m_evaluationPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
     auto *evaluationLayout = new QVBoxLayout(m_evaluationPanel);
     evaluationLayout->setContentsMargins(8, 0, 8, 12);
     evaluationLayout->setSpacing(4);
@@ -581,13 +567,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "font-size:15px; font-weight:bold; padding:0;"));
 
     m_activityChecksHost = new OpaquePanel(kDocumentBg, m_evaluationPanel);
-    m_activityChecksHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    m_activityChecksHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     m_activityChecksLayout = new QVBoxLayout(m_activityChecksHost);
     m_activityChecksLayout->setContentsMargins(8, 0, 8, 0);
     m_activityChecksLayout->setSpacing(2);
 
     m_checkboxPanel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
-    m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    m_checkboxPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     auto *checkboxLayout = new QVBoxLayout(m_checkboxPanel);
     checkboxLayout->setContentsMargins(8, 0, 8, 0);
     checkboxLayout->setSpacing(2);
@@ -674,7 +660,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     evaluationLayout->addWidget(m_checkboxPanel);
 
     m_templatePanel = new OpaquePanel(kDocumentBg, m_scrollContent);
-    m_templatePanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
     auto *templateLayout = new QVBoxLayout(m_templatePanel);
     templateLayout->setContentsMargins(0, 24, 0, 8);
     templateLayout->setSpacing(0);
@@ -728,8 +713,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     layout->addWidget(m_evaluationPanel);
     layout->addWidget(m_templatePanel);
     layout->addSpacing(120);
-    // Лишняя высота viewport (widgetResizable) уходит сюда, а не раздувает пункты оценки.
-    layout->addStretch(1);
     m_scrollArea->setWidget(m_scrollContent);
 
     m_beginButton = new ImageButton(this);
@@ -1140,12 +1123,6 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
     updateExerciseOverlayGeometry();
 }
 
-void ExerciseHost::showEvent(QShowEvent *event) {
-    QWidget::showEvent(event);
-    updateChromeLayout();
-    layoutContent();
-}
-
 void ExerciseHost::updateChromeLayout() {
     if (m_exerciseRunning && !m_dualScreen) {
         updateExerciseOverlayGeometry();
@@ -1366,7 +1343,6 @@ void ExerciseHost::openExercise(
         m_timeResultLabel->hide();
     }
     setExerciseChromeVisible(true);
-    updateChromeLayout();
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.box) {
@@ -1384,8 +1360,6 @@ void ExerciseHost::openExercise(
         }
     }
     show();
-    updateChromeLayout();
-    layoutContent();
     raise();
 }
 
@@ -2357,6 +2331,7 @@ void ExerciseHost::updateContentHeights() {
     if (m_evaluationPanel) {
         m_evaluationPanel->setMinimumHeight(0);
         m_evaluationPanel->setMaximumHeight(QWIDGETSIZE_MAX);
+        m_evaluationPanel->adjustSize();
     }
     if (m_templateBrowser) {
         if (QTextDocument *doc = m_templateBrowser->document()) {
@@ -2394,20 +2369,12 @@ void ExerciseHost::updateContentHeights() {
     }
     if (m_checkboxPanel) {
         m_checkboxPanel->setMinimumWidth(textWidth);
-        m_checkboxPanel->adjustSize();
     }
     if (m_activityChecksHost) {
         m_activityChecksHost->setMinimumWidth(textWidth);
-        m_activityChecksHost->adjustSize();
     }
     if (m_evaluationPanel) {
         m_evaluationPanel->setMinimumWidth(textWidth);
-        m_evaluationPanel->adjustSize();
-        // После пересчёта пунктов — не давать QScrollArea раздувать блок оценки.
-        const int evalH = m_evaluationPanel->sizeHint().height();
-        if (evalH > 0) {
-            m_evaluationPanel->setMaximumHeight(evalH);
-        }
     }
     if (m_scrollContent) {
         m_scrollContent->adjustSize();
