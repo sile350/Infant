@@ -38,6 +38,7 @@
 #include <QResizeEvent>
 #include <QScreen>
 #include <QScrollArea>
+#include <QShowEvent>
 #include <QStandardPaths>
 #include <QTableWidget>
 #include <QTextBlock>
@@ -1123,6 +1124,12 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
     updateExerciseOverlayGeometry();
 }
 
+void ExerciseHost::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    updateChromeLayout();
+    layoutContent();
+}
+
 void ExerciseHost::updateChromeLayout() {
     if (m_exerciseRunning && !m_dualScreen) {
         updateExerciseOverlayGeometry();
@@ -1180,6 +1187,7 @@ void ExerciseHost::updateChromeLayout() {
     }
 
     layoutStepCombo();
+    layoutContent();
 }
 
 void ExerciseHost::layoutStepCombo() {
@@ -1343,6 +1351,7 @@ void ExerciseHost::openExercise(
         m_timeResultLabel->hide();
     }
     setExerciseChromeVisible(true);
+    updateChromeLayout();
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.box) {
@@ -1360,6 +1369,8 @@ void ExerciseHost::openExercise(
         }
     }
     show();
+    updateChromeLayout();
+    layoutContent();
     raise();
 }
 

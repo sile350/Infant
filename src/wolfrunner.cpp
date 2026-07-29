@@ -450,12 +450,12 @@ void WolfRunner::ensurePatientView() {
         return;
     }
     m_patientRoot = new QWidget;
-    m_patientRoot->setAttribute(Qt::WA_OpaquePaintEvent, true);
+    m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
     m_patientRoot->setAutoFillBackground(true);
     QPalette pal = m_patientRoot->palette();
-    pal.setColor(QPalette::Window, QColor(0xf0, 0xf0, 0xf0));
+    pal.setColor(QPalette::Window, Qt::white);
     m_patientRoot->setPalette(pal);
-    m_patientRoot->setStyleSheet(QStringLiteral("background-color:#f0f0f0; border:none;"));
+    m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
 
     m_patientPicture = new QLabel(m_patientRoot);
     m_patientPicture->setAlignment(Qt::AlignCenter);
