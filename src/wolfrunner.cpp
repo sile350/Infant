@@ -13,6 +13,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QPixmap>
 #include <QTableWidget>
 #include <QTimer>
 
@@ -28,13 +29,27 @@ void setButtonImage(QLabel *button, const QString &path) {
     if (!button || path.isEmpty()) {
         return;
     }
+    const QPixmap pix(path);
+    if (pix.isNull()) {
+        return;
+    }
     if (auto *imageButton = qobject_cast<ImageButton *>(button)) {
         imageButton->setImagePath(path);
+    } else {
+        button->setPixmap(pix);
     }
-    const QPixmap pix(path);
-    if (!pix.isNull()) {
-        button->setFixedSize(pix.size());
+    button->setFixedSize(pix.size());
+    button->setCursor(Qt::PointingHandCursor);
+    button->show();
+    button->raise();
+}
+
+QPixmap loadExercisePixmap(const QString &exerciseId, const QString &fileName) {
+    const QString path = ExerciseAssets::exerciseFile(exerciseId, fileName);
+    if (path.isEmpty()) {
+        return {};
     }
+    return QPixmap(path);
 }
 
 const QStringList &wolfQuestions() {
@@ -71,11 +86,13 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
     auto *template1 = new ImageButton(this);
     m_templateBtn1 = template1;
     markPatientControl(m_templateBtn1);
+    m_templateBtn1->setCursor(Qt::PointingHandCursor);
     connect(template1, &ImageButton::clicked, this, [this]() { toggleTemplate1(); });
 
     auto *template2 = new ImageButton(this);
     m_templateBtn2 = template2;
     markPatientControl(m_templateBtn2);
+    m_templateBtn2->setCursor(Qt::PointingHandCursor);
     connect(template2, &ImageButton::clicked, this, [this]() { toggleTemplate2(); });
 
     // Сказка и сюжетные картинки — видны пациенту (не markPatientControl).
@@ -84,8 +101,9 @@ WolfRunner::WolfRunner(QWidget *parent) : ExerciseRunnerWidget(parent) {
     m_taleImage->setStyleSheet(QStringLiteral("background:transparent;"));
 
     m_templateImage = new QLabel(this);
-    m_templateImage->setScaledContents(false);
-    m_templateImage->setStyleSheet(QStringLiteral("background:transparent;"));
+    m_templateImage->setScaledContents(true);
+    m_templateImage->setAlignment(Qt::AlignCenter);
+    m_templateImage->setStyleSheet(QStringLiteral("background:transparent; border:none;"));
     m_templateImage->hide();
 
     m_helpToLabel = new QLabel(QStringLiteral("Помощь к"), this);
@@ -200,6 +218,7 @@ void WolfRunner::startSession(
     m_elapsed = 0;
     m_template1Visible = false;
     m_template2Visible = false;
+    m_templateSource = QPixmap();
 
     for (int i = 0; i < m_table->rowCount(); ++i) {
         if (QTableWidgetItem *a = m_table->item(i, 2)) {
@@ -237,25 +256,26 @@ void WolfRunner::startSession(
 }
 
 void WolfRunner::toggleTemplate1() {
-    const QString trafPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("traf1.png"));
-    const QString showsPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("shows.png"));
-    const QString hidePath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("hidep.png"));
-    const QString showePath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("showe.png"));
-
+    // Как wolf.cs b1_Click: Tag showed / "" — показ traf1 или скрытие.
     if (!m_template1Visible) {
-        if (!trafPath.isEmpty()) {
-            const QPixmap pix(trafPath);
+        const QPixmap pix = loadExercisePixmap(m_exerciseId, QStringLiteral("traf1.png"));
+        if (!pix.isNull()) {
+            m_templateSource = pix;
             m_templateImage->setPixmap(pix);
-            m_templateImage->setFixedSize(pix.size());
             m_templateImage->show();
+            m_templateImage->raise();
         }
-        setButtonImage(m_templateBtn1, hidePath);
-        setButtonImage(m_templateBtn2, showePath);
+        setButtonImage(
+            m_templateBtn1, ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("hidep.png")));
+        setButtonImage(
+            m_templateBtn2, ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("showe.png")));
         m_template2Visible = false;
         m_template1Visible = true;
     } else {
         m_templateImage->hide();
-        setButtonImage(m_templateBtn1, showsPath);
+        m_templateSource = QPixmap();
+        setButtonImage(
+            m_templateBtn1, ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("shows.png")));
         m_template1Visible = false;
     }
     layoutUi();
@@ -263,25 +283,26 @@ void WolfRunner::toggleTemplate1() {
 }
 
 void WolfRunner::toggleTemplate2() {
-    const QString trafPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("traf2.png"));
-    const QString showsPath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("shows.png"));
-    const QString hidePath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("hidep.png"));
-    const QString showePath = ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("showe.png"));
-
+    // Как wolf.cs b2_Click: показ traf2 (эмоции) или скрытие.
     if (!m_template2Visible) {
-        if (!trafPath.isEmpty()) {
-            const QPixmap pix(trafPath);
+        const QPixmap pix = loadExercisePixmap(m_exerciseId, QStringLiteral("traf2.png"));
+        if (!pix.isNull()) {
+            m_templateSource = pix;
             m_templateImage->setPixmap(pix);
-            m_templateImage->setFixedSize(pix.size());
             m_templateImage->show();
+            m_templateImage->raise();
         }
-        setButtonImage(m_templateBtn2, hidePath);
-        setButtonImage(m_templateBtn1, showsPath);
+        setButtonImage(
+            m_templateBtn2, ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("hidep.png")));
+        setButtonImage(
+            m_templateBtn1, ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("shows.png")));
         m_template1Visible = false;
         m_template2Visible = true;
     } else {
         m_templateImage->hide();
-        setButtonImage(m_templateBtn2, showePath);
+        m_templateSource = QPixmap();
+        setButtonImage(
+            m_templateBtn2, ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("showe.png")));
         m_template2Visible = false;
     }
     layoutUi();
@@ -305,10 +326,28 @@ void WolfRunner::appendHelpText() {
 }
 
 void WolfRunner::layoutUi() {
-    // wolf_Load: pstop @ (970,70); b1/b2.Top = pstop.Top; Left из Designer 1204 / 1567
-    m_stop->move(970, 70);
-    m_templateBtn1->move(1204, 70);
-    m_templateBtn2->move(1567, 70);
+    const int hostW = qMax(width(), 1280);
+    const int hostH = qMax(height(), 720);
+
+    // Стоп и кнопки показа картинок — в один ряд, всегда в видимой зоне
+    // (в Designer b2 @ 1567 уезжал за край на мониторах < ~1820 px).
+    constexpr int kBtnY = 70;
+    constexpr int kGap = 16;
+    m_stop->move(970, kBtnY);
+    const int stopRight = m_stop->x() + m_stop->width();
+    int btn1X = stopRight + 50;
+    int btn2X = btn1X + (m_templateBtn1->width() > 0 ? m_templateBtn1->width() : 274) + kGap;
+    const int btn2W = m_templateBtn2->width() > 0 ? m_templateBtn2->width() : 254;
+    if (btn2X + btn2W > hostW - 16) {
+        btn2X = hostW - 16 - btn2W;
+        btn1X = btn2X - kGap - (m_templateBtn1->width() > 0 ? m_templateBtn1->width() : 274);
+        if (btn1X < stopRight + kGap) {
+            btn1X = stopRight + kGap;
+            btn2X = btn1X + (m_templateBtn1->width() > 0 ? m_templateBtn1->width() : 274) + kGap;
+        }
+    }
+    m_templateBtn1->move(btn1X, kBtnY);
+    m_templateBtn2->move(btn2X, kBtnY);
 
     // pictureBox2 @ (12,24,805,248)
     m_taleImage->setGeometry(12, 24, 805, 248);
@@ -321,24 +360,42 @@ void WolfRunner::layoutUi() {
     m_helpTypeLabel->adjustSize();
     m_helpCombo->setGeometry(313, 278, 467, 21);
 
-    // webBrowser1 @ (12,316,805,752) — фиксированный прямоугольник как в оригинале
-    m_table->setGeometry(12, 316, 805, 752);
+    // webBrowser1 @ (12,316,805,752)
+    const int tableH = qMax(200, hostH - 316 - 12);
+    m_table->setGeometry(12, 316, 805, tableH);
     m_table->setColumnWidth(0, 50);
     m_table->setColumnWidth(1, 250);
     m_table->setColumnWidth(2, 250);
     m_table->setColumnWidth(3, 250);
 
-    // pictureBox1 @ (964,243), AutoSize — справа от таблицы (таблица до x=817)
-    m_templateImage->move(964, 243);
+    // pictureBox1 справа: вписать traf в доступную область под кнопками.
+    constexpr int kPicLeft = 964;
+    constexpr int kPicTop = 120;
+    const int picMaxW = qMax(200, hostW - kPicLeft - 16);
+    const int picMaxH = qMax(200, hostH - kPicTop - 16);
+    if (m_templateImage && !m_templateImage->isHidden() && !m_templateSource.isNull()) {
+        QPixmap display = m_templateSource;
+        if (display.width() > picMaxW || display.height() > picMaxH) {
+            display = m_templateSource.scaled(
+                picMaxW, picMaxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+        m_templateImage->setPixmap(display);
+        m_templateImage->setFixedSize(display.size());
+        m_templateImage->move(kPicLeft, kPicTop);
+        m_templateImage->show();
+    } else if (m_templateImage) {
+        m_templateImage->move(kPicLeft, kPicTop);
+    }
 
-    // Z-order как Controls.Add в Designer: сказка → комбо → таблица → сюжет → кнопки сверху
     m_taleImage->raise();
     m_helpToLabel->raise();
     m_helpTypeLabel->raise();
     m_episodeCombo->raise();
     m_helpCombo->raise();
     m_table->raise();
-    m_templateImage->raise();
+    if (m_templateImage) {
+        m_templateImage->raise();
+    }
     m_stop->raise();
     m_templateBtn1->raise();
     m_templateBtn2->raise();
@@ -412,21 +469,23 @@ void WolfRunner::syncPatientPicture() {
         return;
     }
     // 38.8: текст сказки на 2-м экране скрыт; только сюжетные/эмоции (traf1/traf2).
-    if (!m_templateImage || m_templateImage->isHidden()) {
+    const bool showPic = m_templateImage && !m_templateImage->isHidden() && !m_templateSource.isNull()
+        && (m_template1Visible || m_template2Visible);
+    if (!showPic) {
         m_patientPicture->clear();
         m_patientPicture->hide();
+        if (m_patientRoot) {
+            m_patientRoot->update();
+        }
         return;
     }
-    const QPixmap source = m_templateImage->pixmap(Qt::ReturnByValue);
-    if (source.isNull()) {
-        m_patientPicture->clear();
-        m_patientPicture->hide();
-        return;
-    }
-    m_patientPicture->setPixmap(source);
-    m_patientPicture->setFixedSize(source.size());
+    m_patientPicture->setPixmap(m_templateSource);
+    m_patientPicture->setFixedSize(m_templateSource.size());
     m_patientPicture->show();
     layoutPatientView();
+    if (m_patientRoot) {
+        m_patientRoot->update();
+    }
 }
 
 void WolfRunner::layoutPatientView() {

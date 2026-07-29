@@ -3,12 +3,15 @@
 
 #include "exerciserunnerwidget.h"
 
+#include <QPixmap>
+
 class QComboBox;
 class QKeyEvent;
 class QLabel;
 class QPaintEvent;
 class QTableWidget;
 class QTimer;
+class PatientDisplay;
 
 class WolfRunner final : public ExerciseRunnerWidget {
     Q_OBJECT
@@ -51,6 +54,7 @@ private:
     int m_elapsed = 0;
     bool m_template1Visible = false;
     bool m_template2Visible = false;
+    QPixmap m_templateSource;
 
     PatientDisplay *m_patientDisplay = nullptr;
     QWidget *m_patientRoot = nullptr;

@@ -13,6 +13,10 @@ void ImageButton::setImagePath(const QString &path) {
 }
 
 void ImageButton::mousePressEvent(QMouseEvent *event) {
-    emit clicked();
+    if (event && event->button() == Qt::LeftButton) {
+        emit clicked();
+        event->accept();
+        return;
+    }
     QLabel::mousePressEvent(event);
 }

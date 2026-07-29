@@ -53,3 +53,12 @@
 213	3531	8070322454798488	CMakeFiles/infant.dir/src/exerciseassets.cpp.obj	e3f86964b42e31f1
 215	7814	8070322454818033	CMakeFiles/infant.dir/src/exerciseprotocol.cpp.obj	b2ea93485a1e218f
 7814	15115	8070322530803184	infant.exe	8f109e57622b20c3
+19	700	8070330596805535	infant_autogen/timestamp	928c61d4c371ba7e
+19	700	8070330596805535	infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+19	700	8070330596805535	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	928c61d4c371ba7e
+19	700	8070330596805535	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+702	4942	8070330597544286	CMakeFiles/infant.dir/src/imagebutton.cpp.obj	986e973ceef36e74
+706	6482	8070330597578816	CMakeFiles/infant.dir/src/wolfrunner.cpp.obj	7a6a20709ee86e1c
+701	6920	8070330597524689	CMakeFiles/infant.dir/infant_autogen/mocs_compilation.cpp.obj	6eef372d4a19db75
+704	9926	8070330597559304	CMakeFiles/infant.dir/src/exerciserunners.cpp.obj	5baccb64cfc3d301
+9926	17560	8070330689775129	infant.exe	8f109e57622b20c3
