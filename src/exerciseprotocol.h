@@ -89,6 +89,11 @@ public:
         const QString &storedBody,
         QTextDocument *editorDocument);
 
+    // 4.1.8: Результат/Примечание/Характер + таблица стимулов (sel/ex/re/hlp/rea/b) из редактора.
+    static QString mergeProtocol418EditorIntoStoredBody(
+        const QString &storedBody,
+        QTextDocument *editorDocument);
+
     // 1.26: Результат/Примечание + Характер/Виды помощи + ответы/баллы по id (без ломки таблиц).
     static QString mergeProtocol126EditorIntoStoredBody(
         const QString &storedBody,

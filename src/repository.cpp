@@ -792,9 +792,13 @@ QString Repository::loadProtocolViewHtml(
         || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("3.2.1")
         || exerciseId == QStringLiteral("3.2.2") || exerciseId == QStringLiteral("3.2.3")
         || exerciseId == QStringLiteral("3.2.4") || exerciseId == QStringLiteral("3.2.5")
-        || exerciseId == QStringLiteral("3.2.11")
+        || exerciseId == QStringLiteral("3.2.11") || exerciseId == QStringLiteral("4.1.1")
+        || exerciseId == QStringLiteral("4.1.2")
         || exerciseId == QStringLiteral("4.1.4")
-        || exerciseId == QStringLiteral("4.1.8")) {
+        || exerciseId == QStringLiteral("4.1.5")
+        || exerciseId == QStringLiteral("4.1.6")
+        || exerciseId == QStringLiteral("4.1.8")
+        || exerciseId == QStringLiteral("4.2.1")) {
         // Разрез только по дате — вложенные таблицы баллов/строк не срезают предыдущие сессии.
         body = ExerciseProtocol::extractLastProtocol126Session(body);
     } else {
@@ -884,7 +888,12 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("3.2.4")
                 || uprid == QStringLiteral("3.2.5")
                 || uprid == QStringLiteral("3.2.11")
+                || uprid == QStringLiteral("4.1.1")
+                || uprid == QStringLiteral("4.1.2")
                 || uprid == QStringLiteral("4.1.4")
+                || uprid == QStringLiteral("4.1.5")
+                || uprid == QStringLiteral("4.1.6")
+                || uprid == QStringLiteral("4.2.1")
                 || uprid == QStringLiteral("4.2.2")
                 || uprid == QStringLiteral("5.2.1")) {
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
@@ -903,6 +912,9 @@ bool Repository::updateProtocolsFromEditedDocument(
                     storedBody, &sectionDocument);
             } else if (uprid == QStringLiteral("1.272")) {
                 mergedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+                    storedBody, &sectionDocument);
+            } else if (uprid == QStringLiteral("4.1.8")) {
+                mergedBody = ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
                     storedBody, &sectionDocument);
             } else {
                 mergedBody = ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(

@@ -19,8 +19,10 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QFileInfo>
+#include <QFont>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -39,6 +41,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QtMath>
+
+#include <functional>
 
 namespace {
 
@@ -677,7 +681,14 @@ protected:
 
 class Remember2Runner final : public TimedSessionRunner {
 public:
-    using TimedSessionRunner::TimedSessionRunner;
+    explicit Remember2Runner(QWidget *parent = nullptr) : TimedSessionRunner(parent) {
+        // Секундомер во время выполнения (remember2: ltime @ 1380,13) — только на 1-м экране.
+        m_liveTimer = new QLabel(this);
+        m_liveTimer->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 22));
+        m_liveTimer->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+        m_liveTimer->hide();
+        connect(m_timer, &QTimer::timeout, this, [this]() { updateLiveTimer(); });
+    }
 
     void startSession(
         const QString &exerciseId,
@@ -687,111 +698,223 @@ public:
         if (m_picture) {
             m_picture->hide();
         }
-        m_showA = new ClickableLabel(this);
-        m_showB = new ClickableLabel(this);
-        markPatientControl(m_showA);
-        markPatientControl(m_showB);
-        const QString hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
-        const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
-        if (!hidePath.isEmpty()) {
-            m_showA->setPixmap(QPixmap(hidePath));
+        ensureCardsUi(exerciseId);
+        resetCardsState(exerciseId);
+        updateLiveTimer();
+        if (m_liveTimer) {
+            m_liveTimer->show();
+            m_liveTimer->raise();
         }
-        if (!showPath.isEmpty()) {
-            m_showB->setPixmap(QPixmap(showPath));
-        }
-        m_showA->onClick = [this, showPath, hidePath]() { toggleCard(m_cardA, m_showA, showPath, hidePath); };
-        m_showB->onClick = [this, showPath, hidePath]() { toggleCard(m_cardB, m_showB, showPath, hidePath); };
-        m_cardA = new QLabel(this);
-        m_cardB = new QLabel(this);
-        const QString aPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("a.png"));
-        const QString bPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("b.png"));
-        if (!aPath.isEmpty()) {
-            const QPixmap aPixmap(aPath);
-            m_cardA->setPixmap(aPixmap);
-            m_cardA->setFixedSize(aPixmap.size());
-        }
-        if (!bPath.isEmpty()) {
-            const QPixmap bPixmap(bPath);
-            m_cardB->setPixmap(bPixmap);
-            m_cardB->setFixedSize(bPixmap.size());
-        }
-        // В оригинале картинка А видна сразу, Б скрыта.
-        m_cardA->show();
-        m_cardB->hide();
         layoutRemember2();
     }
 
+    void ensureCardsUi(const QString &exerciseId) {
+        // Виджеты один раз — иначе при повторном Start остаются «старые» А/Б (29.4).
+        if (!m_showA) {
+            m_showA = new ClickableLabel(this);
+            markPatientControl(m_showA);
+        }
+        if (!m_showB) {
+            m_showB = new ClickableLabel(this);
+            markPatientControl(m_showB);
+        }
+        if (!m_cardA) {
+            m_cardA = new QLabel(this);
+            markPatientControl(m_cardA);
+        }
+        if (!m_cardB) {
+            m_cardB = new QLabel(this);
+            markPatientControl(m_cardB);
+        }
+        m_hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
+        m_showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
+        m_showA->onClick = [this]() { toggleCardA(); };
+        m_showB->onClick = [this]() { toggleCardB(); };
+    }
+
+    void resetCardsState(const QString &exerciseId) {
+        const QString aPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("a.png"));
+        const QString bPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("b.png"));
+        m_pixmapA = aPath.isEmpty() ? QPixmap() : QPixmap(aPath);
+        m_pixmapB = bPath.isEmpty() ? QPixmap() : QPixmap(bPath);
+        if (!m_pixmapA.isNull()) {
+            m_cardA->setPixmap(m_pixmapA);
+            m_cardA->setFixedSize(m_pixmapA.size());
+        }
+        if (!m_pixmapB.isNull()) {
+            m_cardB->setPixmap(m_pixmapB);
+            m_cardB->setFixedSize(m_pixmapB.size());
+        }
+        // Как remember2: А видна, Б скрыта; кнопки hide/show.
+        m_cardAVisible = true;
+        m_cardBVisible = false;
+        applyCardVisibility();
+        if (!m_hidePath.isEmpty()) {
+            m_showA->setPixmap(QPixmap(m_hidePath));
+            m_showA->setFixedSize(QPixmap(m_hidePath).size());
+        }
+        if (!m_showPath.isEmpty()) {
+            m_showB->setPixmap(QPixmap(m_showPath));
+            m_showB->setFixedSize(QPixmap(m_showPath).size());
+        }
+    }
+
+    void applyCardVisibility() {
+        if (m_cardA) {
+            if (m_cardAVisible && !m_pixmapA.isNull()) {
+                m_cardA->setPixmap(m_pixmapA);
+                m_cardA->show();
+            } else {
+                m_cardA->clear();
+                m_cardA->hide();
+            }
+        }
+        if (m_cardB) {
+            if (m_cardBVisible && !m_pixmapB.isNull()) {
+                m_cardB->setPixmap(m_pixmapB);
+                m_cardB->show();
+            } else {
+                m_cardB->clear();
+                m_cardB->hide();
+            }
+        }
+    }
+
+    void toggleCardA() {
+        // remember2.cs pictureBox1: только А; не трогает Б.
+        if (m_cardAVisible) {
+            m_cardAVisible = false;
+            if (!m_showPath.isEmpty()) {
+                m_showA->setPixmap(QPixmap(m_showPath));
+            }
+        } else {
+            m_cardAVisible = true;
+            if (!m_hidePath.isEmpty()) {
+                m_showA->setPixmap(QPixmap(m_hidePath));
+            }
+        }
+        applyCardVisibility();
+        layoutRemember2();
+    }
+
+    void toggleCardB() {
+        // remember2.cs pictureBox2: взаимное переключение А/Б.
+        if (!m_cardBVisible) {
+            m_cardBVisible = true;
+            m_cardAVisible = false;
+            if (!m_showPath.isEmpty()) {
+                m_showA->setPixmap(QPixmap(m_showPath));
+            }
+            if (!m_hidePath.isEmpty()) {
+                m_showB->setPixmap(QPixmap(m_hidePath));
+            }
+        } else {
+            m_cardBVisible = false;
+            m_cardAVisible = true;
+            if (!m_hidePath.isEmpty()) {
+                m_showA->setPixmap(QPixmap(m_hidePath));
+            }
+            if (!m_showPath.isEmpty()) {
+                m_showB->setPixmap(QPixmap(m_showPath));
+            }
+        }
+        applyCardVisibility();
+        layoutRemember2();
+    }
+
+    void updateLiveTimer() {
+        if (!m_liveTimer) {
+            return;
+        }
+        const int minutes = m_elapsed / 60;
+        const int seconds = m_elapsed - minutes * 60;
+        m_liveTimer->setText(QStringLiteral("%1:%2 сек").arg(minutes).arg(seconds));
+        m_liveTimer->adjustSize();
+    }
+
     void layoutRemember2() {
-        // remember2.Designer: кнопки 1120/1380@120, карточки 708/1284@174, stop 970@70
+        // remember2.Designer: stop 970@70, кнопки 1120/1380@120, карточки 708/1284@174, ltime 1380@13.
+        // 29.2 / 29.5: всю группу чуть ниже и левее → центр экрана H/V.
+        const qreal sx = width() / 1920.0;
+        const qreal sy = height() / 1080.0;
+        const int cardAW = m_cardA ? m_cardA->width() : 538;
+        const int cardAH = m_cardA ? m_cardA->height() : 637;
+        const int cardBW = m_cardB ? m_cardB->width() : 530;
+        const int cardBH = m_cardB ? m_cardB->height() : 638;
+        const int btnW = m_showA ? m_showA->width() : 104;
+        const int btnH = m_showA ? m_showA->height() : 34;
+        const int stopW = m_stop ? m_stop->width() : 134;
+        const int stopH = m_stop ? m_stop->height() : 29;
+
+        constexpr int kDesignLeft = 708;
+        constexpr int kDesignTop = 13;
+        const int designRight = qMax(1380 + btnW, 1284 + cardBW);
+        const int designBottom = qMax(174 + cardAH, 174 + cardBH);
+        const int groupW = qMax(1, designRight - kDesignLeft);
+        const int groupH = qMax(1, designBottom - kDesignTop);
+        const int designCX = kDesignLeft + groupW / 2;
+        const int designCY = kDesignTop + groupH / 2;
+        // Чуть левее и ниже чистого центра.
+        constexpr int kNudgeLeft = 40;
+        constexpr int kNudgeDown = 40;
+        const int offsetX = width() / 2 - qRound(designCX * sx) - kNudgeLeft;
+        const int offsetY = height() / 2 - qRound(designCY * sy) + kNudgeDown;
+
+        auto place = [&](int designX, int designY) {
+            return QPoint(qRound(designX * sx) + offsetX, qRound(designY * sy) + offsetY);
+        };
+
         if (m_stop) {
-            m_stop->move(970, 70);
+            m_stop->move(place(970, 70));
             m_stop->show();
             m_stop->raise();
         }
         if (m_showA) {
-            m_showA->move(1120, 120);
+            m_showA->move(place(1120, 120));
             m_showA->show();
             m_showA->raise();
         }
         if (m_showB) {
-            m_showB->move(1380, 120);
+            m_showB->move(place(1380, 120));
             m_showB->show();
             m_showB->raise();
         }
-        if (m_cardA) {
-            m_cardA->move(708, 174);
+        if (m_cardA && m_cardAVisible) {
+            m_cardA->move(place(708, 174));
+            m_cardA->show();
+            m_cardA->raise();
         }
-        if (m_cardB) {
-            m_cardB->move(1284, 174);
+        if (m_cardB && m_cardBVisible) {
+            m_cardB->move(place(1284, 174));
+            m_cardB->show();
+            m_cardB->raise();
         }
+        if (m_liveTimer) {
+            m_liveTimer->move(place(1380, 13));
+            m_liveTimer->show();
+            m_liveTimer->raise();
+        }
+        Q_UNUSED(stopW);
+        Q_UNUSED(stopH);
+        Q_UNUSED(btnH);
     }
 
-    void toggleCard(QLabel *card, ClickableLabel *button, const QString &showPath, const QString &hidePath) {
-        Q_UNUSED(button);
-        // Как в remember2.cs: кнопки переключают видимость А/Б взаимно.
-        if (card == m_cardA) {
-            if (m_cardA->isVisible()) {
-                m_cardA->hide();
-                if (!showPath.isEmpty()) {
-                    m_showA->setPixmap(QPixmap(showPath));
-                }
-            } else {
-                m_cardA->show();
-                m_cardB->hide();
-                if (!hidePath.isEmpty()) {
-                    m_showA->setPixmap(QPixmap(hidePath));
-                }
-                if (!showPath.isEmpty()) {
-                    m_showB->setPixmap(QPixmap(showPath));
-                }
-            }
-            return;
+    void finish() override {
+        if (m_liveTimer) {
+            m_liveTimer->hide();
         }
-        if (card == m_cardB) {
-            if (m_cardB->isVisible()) {
-                m_cardB->hide();
-                m_cardA->show();
-                if (!showPath.isEmpty()) {
-                    m_showB->setPixmap(QPixmap(showPath));
-                }
-                if (!hidePath.isEmpty()) {
-                    m_showA->setPixmap(QPixmap(hidePath));
-                }
-            } else {
-                m_cardB->show();
-                m_cardA->hide();
-                if (!hidePath.isEmpty()) {
-                    m_showB->setPixmap(QPixmap(hidePath));
-                }
-                if (!showPath.isEmpty()) {
-                    m_showA->setPixmap(QPixmap(showPath));
-                }
-            }
+        TimedSessionRunner::finish();
+    }
+
+    void layoutUi() override {
+        if (m_picture) {
+            m_picture->hide();
         }
+        layoutRemember2();
     }
 
     void resizeEvent(QResizeEvent *event) override {
-        TimedSessionRunner::resizeEvent(event);
+        ExerciseRunnerWidget::resizeEvent(event);
         layoutRemember2();
     }
 
@@ -799,6 +922,13 @@ public:
     ClickableLabel *m_showB = nullptr;
     QLabel *m_cardA = nullptr;
     QLabel *m_cardB = nullptr;
+    QLabel *m_liveTimer = nullptr;
+    QPixmap m_pixmapA;
+    QPixmap m_pixmapB;
+    QString m_showPath;
+    QString m_hidePath;
+    bool m_cardAVisible = true;
+    bool m_cardBVisible = false;
 };
 
 class E28Runner final : public TimedSessionRunner {
@@ -1020,12 +1150,16 @@ public:
 
         const QFont groupFont(QStringLiteral("Microsoft Sans Serif"), 16);
         const QFont itemFont(QStringLiteral("Microsoft Sans Serif"), 20);
+        // 33.3: как f1.png — зелёная рамка и прозрачный фон (тельняшка рисуется в paintEvent).
         const QString boxStyle = QStringLiteral(
             "QGroupBox {"
-            "  color:#000000; background-color:#f0f0f0;"
-            "  border:1px solid #a0a0a0; margin-top:12px;"
+            "  color:#000000; background-color:transparent;"
+            "  border:2px solid #228B22; margin-top:12px;"
             "}"
-            "QGroupBox::title { subcontrol-origin: margin; left:10px; padding:0 4px; }"
+            "QGroupBox::title {"
+            "  subcontrol-origin: margin; left:10px; padding:0 6px;"
+            "  color:#000000; background-color:#ffffff;"
+            "}"
             "QRadioButton { color:#000000; background:transparent; spacing:8px; }"
             "QRadioButton::indicator { width:18px; height:18px; }"
             "QLabel { color:#000000; background:transparent; }");
@@ -1033,6 +1167,7 @@ public:
         m_group1 = new QGroupBox(QStringLiteral("1"), this);
         m_group1->setFont(groupFont);
         m_group1->setStyleSheet(boxStyle);
+        m_group1->setAttribute(Qt::WA_TranslucentBackground, true);
         auto *headerA1 = new QLabel(QStringLiteral("А"), m_group1);
         headerA1->setFont(itemFont);
         headerA1->move(28, 28);
@@ -1058,6 +1193,7 @@ public:
         m_group2 = new QGroupBox(QStringLiteral("2"), this);
         m_group2->setFont(groupFont);
         m_group2->setStyleSheet(boxStyle);
+        m_group2->setAttribute(Qt::WA_TranslucentBackground, true);
         auto *headerA2 = new QLabel(QStringLiteral("А"), m_group2);
         headerA2->setFont(itemFont);
         headerA2->move(28, 28);
@@ -1129,9 +1265,35 @@ public:
         }
         m_stop->move(970, 70);
         m_stop->raise();
+        update();
     }
 
 protected:
+    void paintEvent(QPaintEvent *event) override {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.fillRect(rect(), Qt::white);
+        // Тельняшка (горизонтальные полосы) под панелями заданий — как f1.png до старта.
+        auto paintStripes = [&](QGroupBox *box) {
+            if (!box || !box->isVisible()) {
+                return;
+            }
+            const QRect r = box->geometry().adjusted(2, 2, -2, -2);
+            painter.fillRect(r, Qt::white);
+            constexpr int kStripeH = 34;
+            bool dark = false;
+            for (int y = r.top() + 48; y < r.bottom(); y += kStripeH) {
+                if (dark) {
+                    painter.fillRect(
+                        r.left(), y, r.width(), qMin(kStripeH, r.bottom() - y), QColor(232, 232, 232));
+                }
+                dark = !dark;
+            }
+        };
+        paintStripes(m_group1);
+        paintStripes(m_group2);
+    }
+
     void keyPressEvent(QKeyEvent *event) override {
         if (event->key() == Qt::Key_Space) {
             finish();
@@ -1629,7 +1791,12 @@ public:
         setAttribute(Qt::WA_OpaquePaintEvent, true);
         setMouseTracking(true);
         m_timer.setInterval(1000);
-        connect(&m_timer, &QTimer::timeout, this, [this]() { ++m_elapsed; });
+        connect(&m_timer, &QTimer::timeout, this, [this]() {
+            ++m_elapsed;
+            if (onTick) {
+                onTick(m_elapsed);
+            }
+        });
     }
 
     struct Card {
@@ -1642,11 +1809,26 @@ public:
         bool draggable = false;
     };
 
+    std::function<void(int)> onTick;
+    std::function<void()> onCardsChanged;
+
     int elapsedSeconds() const { return m_elapsed; }
 
     void setCanvasBackground(const QColor &color) {
         m_background = color;
         update();
+    }
+
+    const QVector<Card> &cards() const { return m_cards; }
+
+    void setCards(const QVector<Card> &cards, bool emitChange = false) {
+        m_cards = cards;
+        m_dragIndex = -1;
+        m_dragging = false;
+        update();
+        if (emitChange && onCardsChanged) {
+            onCardsChanged();
+        }
     }
 
     void loadCards(const QString &exerciseId, const QVector<Card> &cards) {
@@ -1659,15 +1841,14 @@ public:
         update();
     }
 
+    void stopTimer() { m_timer.stop(); }
+
 protected:
     void paintEvent(QPaintEvent *event) override {
         Q_UNUSED(event);
         QPainter painter(this);
         painter.fillRect(rect(), m_background);
-        const double scale = qMin(
-            1.0,
-            qMin(width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0,
-                 height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0));
+        const double scale = designScale();
         const int offsetX = (width() - qRound(1920 * scale)) / 2;
         const int offsetY = (height() - qRound(1080 * scale)) / 2;
         for (const Card &card : m_cards) {
@@ -1721,6 +1902,7 @@ protected:
         card.x = qRound((event->x() - offsetX) / scale) - m_dragOffsetX;
         card.y = qRound((event->y() - offsetY) / scale) - m_dragOffsetY;
         update();
+        notifyCardsChanged();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override {
@@ -1731,7 +1913,12 @@ protected:
         const int index = m_dragIndex;
         m_dragging = false;
         m_dragIndex = -1;
-        if (wasDrag || index < 0 || index >= m_cards.size()) {
+        if (wasDrag) {
+            notifyCardsChanged();
+            update();
+            return;
+        }
+        if (index < 0 || index >= m_cards.size()) {
             update();
             return;
         }
@@ -1741,9 +1928,16 @@ protected:
         }
         card.closed = !card.closed;
         update();
+        notifyCardsChanged();
     }
 
 private:
+    void notifyCardsChanged() {
+        if (onCardsChanged) {
+            onCardsChanged();
+        }
+    }
+
     double designScale() const {
         return qMin(
             1.0,
@@ -1799,6 +1993,44 @@ public:
             m_stop->setFixedSize(QPixmap(stopPath).size());
         }
         m_stop->onClick = [this]() { finishSession(); };
+
+        m_wordsLabel = new QLabel(this);
+        markPatientControl(m_wordsLabel);
+        m_wordsLabel->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 16));
+        m_wordsLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+        m_wordsLabel->setText(QStringLiteral("Игра, лес, зима, компот, работа, зубы"));
+        m_wordsLabel->hide();
+
+        m_liveTimer = new QLabel(this);
+        markPatientControl(m_liveTimer);
+        m_liveTimer->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 16));
+        m_liveTimer->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+        m_liveTimer->hide();
+
+        m_wordsToggle = new ImageButton(this);
+        markPatientControl(m_wordsToggle);
+        m_wordsToggle->hide();
+        connect(m_wordsToggle, &ImageButton::clicked, this, [this]() { toggle415Words(); });
+
+        m_canvas->onTick = [this](int elapsed) { updateLiveTimer(elapsed); };
+        m_canvas->onCardsChanged = [this]() { syncCardsToPatient(); };
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        m_patientDisplay = display;
+        if (display && usesPatientCanvas()) {
+            ensurePatient415Ui(display);
+            display->attachContentWidget(m_patientRoot);
+            syncCardsToPatient();
+            if (usesWordsChrome()) {
+                apply415WordsVisibility();
+            } else if (m_patientWords) {
+                m_patientWords->hide();
+            }
+            return;
+        }
+        teardownPatient415Ui();
+        ExerciseRunnerWidget::bindPatientDisplay(display);
     }
 
     void startSession(
@@ -1809,6 +2041,7 @@ public:
         Q_UNUSED(stepId);
         m_exerciseId = exerciseId;
         m_wordsHidden = false;
+        m_syncingCards = false;
 
         QVector<FlipCardCanvas::Card> cards;
         const QString zeroPath = ExerciseAssets::exerciseFile(
@@ -1817,7 +2050,8 @@ public:
         QPixmap backPixmap(zeroPath);
 
         if (exerciseId == QStringLiteral("4.1.5")) {
-            // cards.cs: 1,5,4,6,3,2 в ряд с шагом 250
+            // cards.cs: 1,5,4,6,3,2; 30.2/30.4 — ниже на ~90px, чтобы не перекрывала Стоп.
+            constexpr int kCardY = 81 + 90;
             const int order[] = {1, 5, 4, 6, 3, 2};
             for (int i = 0; i < 6; ++i) {
                 FlipCardCanvas::Card card;
@@ -1825,7 +2059,7 @@ public:
                     exerciseId, QString::number(order[i]) + QStringLiteral(".png")));
                 card.back = backPixmap;
                 card.x = 50 + i * 250;
-                card.y = 81;
+                card.y = kCardY;
                 card.closed = true;
                 card.clickable = true;
                 card.draggable = true;
@@ -1833,9 +2067,11 @@ public:
             }
             m_canvas->setCanvasBackground(Qt::white);
         } else if (exerciseId == QStringLiteral("4.1.6")) {
+            // cards.cs: сетка 3×4 @910/100; 31.2 — лицом вверх; 31.3 — ниже на ~90px.
+            constexpr int kCardY0 = 100 + 90;
             int count = 1;
             int linex = 910;
-            int liney = 100;
+            int liney = kCardY0;
             for (int row = 0; row < 3; ++row) {
                 for (int col = 0; col < 4; ++col) {
                     FlipCardCanvas::Card card;
@@ -1844,7 +2080,7 @@ public:
                     card.back = backPixmap;
                     card.x = linex;
                     card.y = liney;
-                    card.closed = true;
+                    card.closed = false; // лицевой стороной вверх
                     card.clickable = true;
                     card.draggable = true;
                     cards.append(card);
@@ -1860,9 +2096,11 @@ public:
             clear418Table();
             m_canvas->setCanvasBackground(QColor(240, 240, 240));
 
+            // 32.3: карточки ниже на ~100px (оба экрана).
+            constexpr int kCardY0 = 20 + 100;
             int count = 1;
             int linex = 1000;
-            int liney = 20;
+            int liney = kCardY0;
             for (int row = 0; row < 4; ++row) {
                 for (int col = 0; col < 4; ++col) {
                     if (row == 3 && col == 3) {
@@ -1902,6 +2140,34 @@ public:
                 m_hideButton->show();
                 m_hideButton->raise();
             }
+            // 32.5: секундомер на 1-м экране (как label2 в оригинале).
+            if (m_wordsLabel) {
+                m_wordsLabel->hide();
+            }
+            if (m_wordsToggle) {
+                m_wordsToggle->hide();
+            }
+            if (m_liveTimer) {
+                updateLiveTimer(0);
+                m_liveTimer->show();
+                m_liveTimer->raise();
+            }
+            if (m_patientCanvas) {
+                m_patientCanvas->setCanvasBackground(QColor(240, 240, 240));
+                syncCardsToPatient();
+            }
+            if (m_patientWords) {
+                m_patientWords->hide();
+            }
+        } else if (usesWordsChrome()) {
+            if (m_panel418) {
+                m_panel418->hide();
+            }
+            if (m_hideButton) {
+                m_hideButton->hide();
+            }
+            setup415Chrome();
+            layout415Chrome();
         } else {
             if (m_panel418) {
                 m_panel418->hide();
@@ -1909,6 +2175,8 @@ public:
             if (m_hideButton) {
                 m_hideButton->hide();
             }
+            hide415Chrome();
+            teardownPatient415Ui();
         }
 
         m_stop->move(80, 72);
@@ -1920,6 +2188,13 @@ public:
 
     void stopSession() override { finishSession(); }
 
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == m_patientRoot && event->type() == QEvent::Resize) {
+            layoutPatient415Ui();
+        }
+        return ExerciseRunnerWidget::eventFilter(watched, event);
+    }
+
     void resizeEvent(QResizeEvent *event) override {
         ExerciseRunnerWidget::resizeEvent(event);
         if (m_canvas) {
@@ -1927,6 +2202,10 @@ public:
         }
         if (m_exerciseId == QStringLiteral("4.1.8")) {
             layout418Ui();
+            layoutPatient415Ui();
+        } else if (usesWordsChrome()) {
+            layout415Chrome();
+            layoutPatient415Ui();
         }
         if (m_stop) {
             m_stop->move(80, 72);
@@ -1935,6 +2214,22 @@ public:
     }
 
 private:
+    bool usesWordsChrome() const {
+        return m_exerciseId == QStringLiteral("4.1.5")
+            || m_exerciseId == QStringLiteral("4.1.6");
+    }
+
+    bool usesPatientCanvas() const {
+        return usesWordsChrome() || m_exerciseId == QStringLiteral("4.1.8");
+    }
+
+    QString wordsChromeText() const {
+        if (m_exerciseId == QStringLiteral("4.1.6")) {
+            return QStringLiteral("Свет, обед, ночь, ученье, дорога, молоко");
+        }
+        return QStringLiteral("Игра, лес, зима, компот, работа, зубы");
+    }
+
     static const QStringList &stimulusWords() {
         static const QStringList words = {
             QStringLiteral("Школа"),
@@ -1944,6 +2239,185 @@ private:
             QStringLiteral("Прогулка"),
         };
         return words;
+    }
+
+    void setup415Chrome() {
+        m_wordsHidden = false;
+        if (m_wordsLabel) {
+            m_wordsLabel->setText(wordsChromeText());
+        }
+        if (m_wordsToggle) {
+            m_wordsToggle->setImagePath(
+                ExerciseAssets::exerciseFile(QStringLiteral("4.1.5"), QStringLiteral("hide.png")));
+            m_wordsToggle->show();
+            m_wordsToggle->raise();
+        }
+        if (m_wordsLabel) {
+            m_wordsLabel->show();
+            m_wordsLabel->raise();
+        }
+        if (m_liveTimer) {
+            updateLiveTimer(0);
+            m_liveTimer->show();
+            m_liveTimer->raise();
+        }
+        apply415WordsVisibility();
+    }
+
+    void hide415Chrome() {
+        if (m_wordsLabel) {
+            m_wordsLabel->hide();
+        }
+        if (m_liveTimer) {
+            m_liveTimer->hide();
+        }
+        if (m_wordsToggle) {
+            m_wordsToggle->hide();
+        }
+    }
+
+    void layout415Chrome() {
+        const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
+        const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
+        // cards.Designer: words 1192@82, phide 1339@29, timer 1479@31
+        if (m_wordsLabel) {
+            m_wordsLabel->adjustSize();
+            m_wordsLabel->move(qRound(1192 * sx), qRound(82 * sy));
+            m_wordsLabel->raise();
+        }
+        if (m_wordsToggle) {
+            m_wordsToggle->move(qRound(1339 * sx), qRound(29 * sy));
+            m_wordsToggle->raise();
+        }
+        if (m_liveTimer) {
+            m_liveTimer->adjustSize();
+            m_liveTimer->move(qRound(1479 * sx), qRound(31 * sy));
+            m_liveTimer->raise();
+        }
+        if (m_stop) {
+            m_stop->raise();
+        }
+    }
+
+    void updateLiveTimer(int elapsed) {
+        if (!m_liveTimer) {
+            return;
+        }
+        const int minutes = elapsed / 60;
+        const int seconds = elapsed - minutes * 60;
+        m_liveTimer->setText(QStringLiteral("%1:%2 сек").arg(minutes).arg(seconds));
+        m_liveTimer->adjustSize();
+    }
+
+    void apply415WordsVisibility() {
+        // Один экран: кнопка скрывает слова на этом же экране.
+        // Dual: слова на 1-м всегда видны; кнопка скрывает только на 2-м (30.4 / 30.5).
+        const bool dual = m_patientRoot && m_patientRoot->isVisible();
+        if (m_wordsLabel) {
+            if (dual) {
+                m_wordsLabel->show();
+            } else {
+                m_wordsLabel->setVisible(!m_wordsHidden);
+            }
+        }
+        if (m_patientWords) {
+            m_patientWords->setVisible(!m_wordsHidden);
+        }
+        if (m_wordsToggle) {
+            m_wordsToggle->setImagePath(ExerciseAssets::exerciseFile(
+                QStringLiteral("4.1.5"),
+                m_wordsHidden ? QStringLiteral("show.png") : QStringLiteral("hide.png")));
+        }
+    }
+
+    void toggle415Words() {
+        m_wordsHidden = !m_wordsHidden;
+        apply415WordsVisibility();
+        layout415Chrome();
+    }
+
+    void ensurePatient415Ui(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientRoot->installEventFilter(this);
+            m_patientCanvas = new FlipCardCanvas(m_patientRoot);
+            m_patientCanvas->setCanvasBackground(Qt::white);
+            m_patientWords = new QLabel(m_patientRoot);
+            m_patientWords->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 16));
+            m_patientWords->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+            m_patientWords->setText(QStringLiteral("Игра, лес, зима, компот, работа, зубы"));
+            m_patientCanvas->onCardsChanged = [this]() { syncCardsFromPatient(); };
+        } else if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+        if (m_patientCanvas) {
+            m_patientCanvas->setCanvasBackground(
+                m_exerciseId == QStringLiteral("4.1.8") ? QColor(240, 240, 240) : Qt::white);
+        }
+        layoutPatient415Ui();
+        m_patientRoot->show();
+        if (m_patientCanvas) {
+            m_patientCanvas->show();
+            m_patientCanvas->lower();
+        }
+        if (m_patientWords) {
+            if (usesWordsChrome()) {
+                m_patientWords->setText(wordsChromeText());
+                m_patientWords->show();
+                m_patientWords->raise();
+            } else {
+                m_patientWords->hide();
+            }
+        }
+    }
+
+    void layoutPatient415Ui() {
+        if (!m_patientRoot || !m_patientRoot->parentWidget()) {
+            return;
+        }
+        QWidget *host = m_patientRoot->parentWidget();
+        m_patientRoot->setGeometry(0, 0, host->width(), host->height());
+        if (m_patientCanvas) {
+            m_patientCanvas->setGeometry(0, 0, m_patientRoot->width(), m_patientRoot->height());
+        }
+        if (m_patientWords) {
+            const qreal sx = m_patientRoot->width() > 0 ? m_patientRoot->width() / 1920.0 : 1.0;
+            const qreal sy = m_patientRoot->height() > 0 ? m_patientRoot->height() / 1080.0 : 1.0;
+            m_patientWords->adjustSize();
+            m_patientWords->move(qRound(1192 * sx), qRound(82 * sy));
+            m_patientWords->raise();
+        }
+    }
+
+    void teardownPatient415Ui() {
+        if (m_patientDisplay) {
+            m_patientDisplay->attachContentWidget(nullptr);
+        }
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
+    }
+
+    void syncCardsToPatient() {
+        if (m_syncingCards || !m_patientCanvas || !m_canvas) {
+            return;
+        }
+        m_syncingCards = true;
+        m_patientCanvas->setCards(m_canvas->cards());
+        m_syncingCards = false;
+    }
+
+    void syncCardsFromPatient() {
+        if (m_syncingCards || !m_patientCanvas || !m_canvas) {
+            return;
+        }
+        m_syncingCards = true;
+        m_canvas->setCards(m_patientCanvas->cards());
+        m_syncingCards = false;
     }
 
     void ensure418Ui() {
@@ -1986,10 +2460,11 @@ private:
                         if (row < 0 || row >= m_table418->rowCount()) {
                             return;
                         }
-                        QTableWidgetItem *item = m_table418->item(row, 3);
+                        // Колонка «Виды помощи» (индекс 4 при 7 колонках).
+                        QTableWidgetItem *item = m_table418->item(row, 4);
                         if (!item) {
                             item = new QTableWidgetItem;
-                            m_table418->setItem(row, 3, item);
+                            m_table418->setItem(row, 4, item);
                         }
                         const QString help = m_helpCombo->currentText().trimmed();
                         if (help.isEmpty()) {
@@ -1999,27 +2474,37 @@ private:
                         item->setText(prev.isEmpty() ? help : (prev + QLatin1Char(' ') + help));
                     });
 
-            m_table418 = new QTableWidget(5, 6, m_panel418);
+            m_table418 = new QTableWidget(5, 7, m_panel418);
             m_table418->setHorizontalHeaderLabels({
-                QStringLiteral("Выбранная картинка"),
+                QStringLiteral("Стимульные\nслова"),
+                QStringLiteral("Выбранная\nкартинка"),
                 QStringLiteral("Объяснение выбора"),
-                QStringLiteral("Воспроиз. до помощи"),
+                QStringLiteral("Воспроизведенное слово\nдо предъявления помощи"),
                 QStringLiteral("Виды помощи"),
-                QStringLiteral("Воспроиз. после помощи"),
+                QStringLiteral("Воспроизведенное слово\nпосле предъявления помощи"),
                 QStringLiteral("Баллы"),
             });
-            m_table418->verticalHeader()->setVisible(true);
-            m_table418->verticalHeader()->setMinimumWidth(90);
+            m_table418->verticalHeader()->setVisible(false);
             m_table418->verticalHeader()->setDefaultSectionSize(56);
-            m_table418->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+            m_table418->horizontalHeader()->setMinimumHeight(72);
+            m_table418->horizontalHeader()->setDefaultAlignment(Qt::AlignCenter | Qt::AlignVCenter);
+            m_table418->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+            m_table418->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+            m_table418->horizontalHeader()->setSectionResizeMode(6, QHeaderView::Fixed);
+            m_table418->setColumnWidth(0, 90);
+            m_table418->setColumnWidth(6, 56);
+            m_table418->setWordWrap(true);
+            m_table418->setStyleSheet(QStringLiteral(
+                "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
             for (int r = 0; r < 5; ++r) {
-                m_table418->setVerticalHeaderItem(r, new QTableWidgetItem(stimulusWords().at(r)));
-                for (int c = 0; c < 6; ++c) {
+                auto *wordItem = new QTableWidgetItem(stimulusWords().at(r));
+                wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                wordItem->setTextAlignment(Qt::AlignCenter);
+                m_table418->setItem(r, 0, wordItem);
+                for (int c = 1; c < 7; ++c) {
                     m_table418->setItem(r, c, new QTableWidgetItem);
                 }
             }
-            m_table418->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-            m_table418->setWordWrap(true);
         }
 
         if (!m_hideButton) {
@@ -2038,7 +2523,7 @@ private:
             return;
         }
         for (int r = 0; r < m_table418->rowCount(); ++r) {
-            for (int c = 0; c < m_table418->columnCount(); ++c) {
+            for (int c = 1; c < m_table418->columnCount(); ++c) {
                 QTableWidgetItem *item = m_table418->item(r, c);
                 if (!item) {
                     item = new QTableWidgetItem;
@@ -2046,6 +2531,14 @@ private:
                 }
                 item->setText(QString());
             }
+            QTableWidgetItem *wordItem = m_table418->item(r, 0);
+            if (!wordItem) {
+                wordItem = new QTableWidgetItem;
+                wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                wordItem->setTextAlignment(Qt::AlignCenter);
+                m_table418->setItem(r, 0, wordItem);
+            }
+            wordItem->setText(stimulusWords().value(r));
         }
         if (m_wordCombo) {
             m_wordCombo->setCurrentIndex(-1);
@@ -2053,6 +2546,8 @@ private:
         if (m_helpCombo) {
             m_helpCombo->setCurrentIndex(-1);
         }
+        m_wordsHidden = false;
+        apply418WordHeaderVisibility();
     }
 
     void layout418Ui() {
@@ -2078,13 +2573,25 @@ private:
         if (m_table418) {
             m_table418->setGeometry(
                 qRound(6 * sx), qRound(52 * sy), qRound(933 * sx), qRound(354 * sy));
-            m_table418->verticalHeader()->setMinimumWidth(qRound(90 * sx));
+            m_table418->setColumnWidth(0, qRound(90 * sx));
+            m_table418->setColumnWidth(6, qRound(56 * sx));
         }
+        // 32.2: «Показать/скрыть слова» над верхним левым углом таблицы.
         if (m_hideButton) {
-            m_hideButton->move(qRound(1339 * sx), qRound(29 * sy));
+            const int hideH = m_hideButton->height() > 0 ? m_hideButton->height() : 28;
+            m_hideButton->move(panelX + qRound(6 * sx), panelY - hideH - qRound(4 * sy));
             m_hideButton->raise();
         }
+        // 32.5: секундомер на 1-м экране (cards.Designer label2 @ 1479,31).
+        if (m_liveTimer && m_liveTimer->isVisible()) {
+            m_liveTimer->adjustSize();
+            m_liveTimer->move(qRound(1479 * sx), qRound(31 * sy));
+            m_liveTimer->raise();
+        }
         m_panel418->raise();
+        if (m_stop) {
+            m_stop->raise();
+        }
     }
 
     void apply418WordHeaderVisibility() {
@@ -2092,11 +2599,11 @@ private:
             return;
         }
         for (int r = 0; r < m_table418->rowCount(); ++r) {
-            QTableWidgetItem *header = m_table418->verticalHeaderItem(r);
-            if (!header) {
+            QTableWidgetItem *wordItem = m_table418->item(r, 0);
+            if (!wordItem) {
                 continue;
             }
-            header->setText(m_wordsHidden ? QString() : stimulusWords().value(r));
+            wordItem->setText(m_wordsHidden ? QString() : stimulusWords().value(r));
         }
     }
 
@@ -2117,7 +2624,8 @@ private:
         QStringList rows;
         for (int r = 0; r < m_table418->rowCount(); ++r) {
             QStringList cells;
-            for (int c = 0; c < m_table418->columnCount(); ++c) {
+            // Колонки 1..6 → sel/ex/re/hlp/rea/b (колонка 0 — стимульное слово).
+            for (int c = 1; c < m_table418->columnCount(); ++c) {
                 const QTableWidgetItem *item = m_table418->item(r, c);
                 cells << (item ? item->text().trimmed() : QString());
             }
@@ -2132,13 +2640,18 @@ private:
         if (m_exerciseId == QStringLiteral("4.1.8")) {
             result.additional = collect418Additional();
         }
-        m_canvas->hide();
+        if (m_canvas) {
+            m_canvas->stopTimer();
+            m_canvas->hide();
+        }
         if (m_panel418) {
             m_panel418->hide();
         }
         if (m_hideButton) {
             m_hideButton->hide();
         }
+        hide415Chrome();
+        teardownPatient415Ui();
         m_stop->hide();
         hide();
         emitFinished(result);
@@ -2147,13 +2660,21 @@ private:
     FlipCardCanvas *m_canvas = nullptr;
     ClickableLabel *m_stop = nullptr;
     ImageButton *m_hideButton = nullptr;
+    ImageButton *m_wordsToggle = nullptr;
+    QLabel *m_wordsLabel = nullptr;
+    QLabel *m_liveTimer = nullptr;
     QGroupBox *m_panel418 = nullptr;
     QLabel *m_helpWordLabel = nullptr;
     QLabel *m_helpTypeLabel = nullptr;
     QComboBox *m_wordCombo = nullptr;
     QComboBox *m_helpCombo = nullptr;
     QTableWidget *m_table418 = nullptr;
+    PatientDisplay *m_patientDisplay = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    FlipCardCanvas *m_patientCanvas = nullptr;
+    QLabel *m_patientWords = nullptr;
     bool m_wordsHidden = false;
+    bool m_syncingCards = false;
 };
 
 class E15Runner final : public ExerciseRunnerWidget {

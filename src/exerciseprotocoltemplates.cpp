@@ -346,7 +346,11 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
 
     double score = 0;
-    if (tmpl.id == QStringLiteral("4.1.4") || tmpl.scoreKind == QStringLiteral("timed414_result")) {
+    const bool manualBalls = tmpl.id == QStringLiteral("4.1.4")
+        || tmpl.scoreKind == QStringLiteral("manual_balls");
+    if (manualBalls) {
+        // Баллы вручную (время + число найденных картинок) — не автозаполнять.
+    } else if (tmpl.scoreKind == QStringLiteral("timed414_result")) {
         score = scoreExercise414(elapsedSeconds);
     } else if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
         // timed11_result в шаблонах: для 4.1.2 — шкала 45с; для прочих открытых — та же.
@@ -378,16 +382,20 @@ QMap<QString, QString> buildVariables(
             checkboxes.help.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
         score = qMax(0.0, score - 0.5 * helpParts.size());
     }
-    if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
+    if (manualBalls) {
+        vars.insert(QStringLiteral("{{SCORE}}"), QString());
+        vars.insert(QStringLiteral("{{LEVEL}}"), QString());
+    } else if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
         if (qFuzzyIsNull(score - std::floor(score))) {
             vars.insert(QStringLiteral("{{SCORE}}"), QString::number(static_cast<int>(score)));
         } else {
             vars.insert(QStringLiteral("{{SCORE}}"), QString::number(score, 'f', 1));
         }
+        vars.insert(QStringLiteral("{{LEVEL}}"), developmentLevel(static_cast<int>(score)).toHtmlEscaped());
     } else {
         vars.insert(QStringLiteral("{{SCORE}}"), QString::number(static_cast<int>(score)));
+        vars.insert(QStringLiteral("{{LEVEL}}"), developmentLevel(static_cast<int>(score)).toHtmlEscaped());
     }
-    vars.insert(QStringLiteral("{{LEVEL}}"), developmentLevel(static_cast<int>(score)).toHtmlEscaped());
 
     if (!session.capturedImagePath.isEmpty()) {
         vars.insert(QStringLiteral("{{SCAN}}"), scanLinkHtml(session.capturedImagePath));

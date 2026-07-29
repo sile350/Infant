@@ -16,6 +16,7 @@ public:
     void attachExercise(OnlyPExercise *exercise);
     void attachEmotionsCanvas(E126Canvas *source);
     void attachMirrorWidget(QWidget *source);
+    void attachContentWidget(QWidget *widget);
     void showOnSecondaryScreen();
     void hideDisplay();
     void switchStep(const QString &stepId);
@@ -31,6 +32,7 @@ private:
     E126Canvas *m_emotionsSource = nullptr;
     E126Canvas *m_patientEmotions = nullptr;
     QWidget *m_mirrorSource = nullptr;
+    QWidget *m_contentWidget = nullptr;
     QLabel *m_mirrorLabel = nullptr;
     QTimer *m_mirrorTimer = nullptr;
 };

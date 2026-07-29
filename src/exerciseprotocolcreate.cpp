@@ -403,22 +403,30 @@ QString createExerciseProtocolBodyFallback(
             "<td width='69' align='center'>Баллы</td></tr>");
         if (definition.id == QStringLiteral("4.1.2")) {
             const int score = scoreExercise412(elapsedSeconds);
-            QString body = dateSpecialistRow(userFio, 2);
+            const QString processHeader = QStringLiteral(
+                "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
+                "<colgroup><col width='300'><col width='300'><col width='71'></colgroup>"
+                "<tr><td width='300' align='center'>Характер деятельности ребенка</td>"
+                "<td width='300' align='center'>Виды помощи</td>"
+                "<td width='71' align='center'>Баллы</td></tr>");
+            QString body = dateSpecialistRow(userFio, 1);
             body += QStringLiteral(
-                "<tr><td>Результат:баллы (макс.) /<br>вывод об уровне развития</td><td>")
+                "<tr><td width='200'>Результат: баллы (макс.) /<br>вывод об уровне развития</td>"
+                "<td width='471'>")
                 + editableCell(QStringLiteral("%1(10)/%2").arg(score).arg(developmentLevel(score)))
                 + QStringLiteral("</td></tr>");
-            body += QStringLiteral("<tr><td>Примечание</td><td>") + editableCell()
-                + QStringLiteral("</td></tr>");
+            body += QStringLiteral("<tr><td width='200'>Примечание</td><td width='471'>")
+                + editableCell() + QStringLiteral("</td></tr>");
             body += QStringLiteral(
                 "<tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr>"
                 "</table><!--s-->");
-            body += header;
-            body += QStringLiteral("<tr><td valign='top'>")
+            body += processHeader;
+            body += QStringLiteral("<tr><td valign='top' width='300'>")
                 + editableCell(formatProtocolCellText(checkboxes.activity))
-                + QStringLiteral("</td><td valign='top'>")
+                + QStringLiteral("</td><td valign='top' width='300'>")
                 + editableCell(formatProtocolCellText(checkboxes.help))
-                + QStringLiteral("</td><td align='center'>") + editableCell(QString::number(score))
+                + QStringLiteral("</td><td align='center' width='71'>")
+                + editableCell(QString::number(score))
                 + QStringLiteral("</td></tr></table>");
             if (partly) {
                 return ExerciseProtocol::appendFullSessionToStoredBody(base, body);
@@ -587,7 +595,7 @@ QString buildProtocol418(
     static const char *kPrefixes[] = {"sel", "ex", "re", "hlp", "rea", "b"};
 
     const QStringList rows = session.additional.split(QLatin1Char('|'));
-    const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd/MM/yyyy hh:mm"));
+    const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm"));
 
     QString body;
     body += QStringLiteral(
@@ -599,7 +607,7 @@ QString buildProtocol418(
         "<td width='471' valign='top'><div contenteditable='true' id='idvivod'></div></td></tr>");
     body += QStringLiteral(
         "<tr><td width='200' valign='top'><p>Примечание</p></td>"
-        "<td width='471' valign='top'><div contenteditable='true'></div></td></tr>");
+        "<td width='471' valign='top'><div contenteditable='true' id='idnote'></div></td></tr>");
     body += QStringLiteral("</table><!--s-->");
     body += QStringLiteral(
         "<p align='center'><b>Процесс выполнения диагностической методики</b></p>");
@@ -613,12 +621,12 @@ QString buildProtocol418(
     body += QStringLiteral(
         "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
         "<tr>"
-        "<td width='85' valign='top'><p align='center'>Стимульные слова</p></td>"
-        "<td width='70' valign='top'><p align='center'>Выбранная картинка</p></td>"
+        "<td width='85' valign='top'><p align='center'>Стимульные<br>слова</p></td>"
+        "<td width='70' valign='top'><p align='center'>Выбранная<br>картинка</p></td>"
         "<td width='110' valign='top'><p align='center'>Объяснение выбора</p></td>"
-        "<td width='100' valign='top'><p align='center'>Воспроизв. слово до предъявления помощи</p></td>"
+        "<td width='100' valign='top'><p align='center'>Воспроизведенное слово<br>до предъявления помощи</p></td>"
         "<td width='140' valign='top'><p align='center'>Виды помощи</p></td>"
-        "<td width='110' valign='top'><p align='center'>Воспроизв. слово после предъявления помощи</p></td>"
+        "<td width='110' valign='top'><p align='center'>Воспроизведенное слово<br>после предъявления помощи</p></td>"
         "<td width='56' valign='top'><p align='center'>Баллы</p></td>"
         "</tr>");
 

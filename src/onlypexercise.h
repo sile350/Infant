@@ -9,6 +9,7 @@
 #include <QWidget>
 
 class QLabel;
+class QTextEdit;
 class QTimer;
 
 class OnlyPExercise final : public QWidget {
@@ -73,6 +74,9 @@ private:
     int overtimeThresholdSeconds() const;
     bool isCombineWordsExercise() const;
     bool combineWordsUsesText() const;
+    bool isFairyTaleExercise() const;
+    void ensureFairyTaleUi();
+    void updateFairyTaleLayout();
     void refreshCombineWordsStimulus(bool notifyMirrors = true);
     void updateCombineWordsNavVisibility();
     void ensureCombineWordsUi();
@@ -104,6 +108,7 @@ private:
     QLabel *m_navBackButton = nullptr;
     QLabel *m_navNextButton = nullptr;
     QLabel *m_wordLabel = nullptr;
+    QTextEdit *m_fairyText = nullptr;
     QTimer *m_timer = nullptr;
     QTimer *m_advanceTimer = nullptr;
     QPixmap m_picture2Source;

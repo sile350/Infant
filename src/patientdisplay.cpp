@@ -50,6 +50,7 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
 }
 
 void PatientDisplay::attachExercise(OnlyPExercise *exercise) {
+    m_contentWidget = nullptr;
     m_exercise = exercise;
     m_emotionsSource = nullptr;
     m_mirrorSource = nullptr;
@@ -155,6 +156,7 @@ void PatientDisplay::switchStep(const QString &stepId) {
 }
 
 void PatientDisplay::attachMirrorWidget(QWidget *source) {
+    m_contentWidget = nullptr;
     m_mirrorSource = source;
     m_exercise = nullptr;
     m_emotionsSource = nullptr;
@@ -168,6 +170,37 @@ void PatientDisplay::attachMirrorWidget(QWidget *source) {
         m_mirrorLabel->show();
     }
     m_mirrorTimer->start();
+}
+
+void PatientDisplay::attachContentWidget(QWidget *widget) {
+    m_mirrorSource = nullptr;
+    m_exercise = nullptr;
+    m_emotionsSource = nullptr;
+    if (m_mirrorTimer) {
+        m_mirrorTimer->stop();
+    }
+    if (m_mirrorLabel) {
+        m_mirrorLabel->hide();
+    }
+    if (m_mirrorExercise) {
+        m_mirrorExercise->hide();
+    }
+    if (m_patientEmotions) {
+        m_patientEmotions->hide();
+    }
+    if (m_contentWidget && m_contentWidget != widget) {
+        m_contentWidget->hide();
+    }
+    m_contentWidget = widget;
+    if (!widget) {
+        return;
+    }
+    if (widget->parentWidget() != this) {
+        widget->setParent(this);
+    }
+    widget->setGeometry(0, 0, width() > 0 ? width() : 1920, height() > 0 ? height() : 1080);
+    widget->show();
+    widget->raise();
 }
 
 void PatientDisplay::updateMirrorPixmap() {
@@ -228,6 +261,11 @@ void PatientDisplay::showOnSecondaryScreen() {
     if (m_mirrorLabel) {
         m_mirrorLabel->setGeometry(0, 0, geometry.width(), geometry.height());
     }
+    if (m_contentWidget) {
+        m_contentWidget->setGeometry(0, 0, geometry.width(), geometry.height());
+        m_contentWidget->show();
+        m_contentWidget->raise();
+    }
     if (m_emotionsSource && m_patientEmotions) {
         onEmotionsContentChanged();
         m_patientEmotions->show();
@@ -270,6 +308,10 @@ void PatientDisplay::hideDisplay() {
     }
     if (m_mirrorLabel) {
         m_mirrorLabel->hide();
+    }
+    if (m_contentWidget) {
+        m_contentWidget->hide();
+        m_contentWidget = nullptr;
     }
     m_mirrorSource = nullptr;
     m_emotionsSource = nullptr;

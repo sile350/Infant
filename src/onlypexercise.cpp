@@ -4,6 +4,7 @@
 #include "exerciseconfig.h"
 
 #include <QFont>
+#include <QFrame>
 #include <QMouseEvent>
 #include <QLabel>
 #include <QPaintEvent>
@@ -11,6 +12,7 @@
 #include <QPixmap>
 #include <QResizeEvent>
 #include <QShowEvent>
+#include <QTextEdit>
 #include <QTimer>
 #include <QtMath>
 #include <functional>
@@ -28,6 +30,50 @@ constexpr int kSpecialistPictureShiftLeft = 15;
 constexpr int kStopLeft = 80;
 constexpr int kStopTop = 72;
 constexpr int kRightLeft = 1280;
+// onlyp.cs f411 @ (12,151), size 800×800.
+constexpr int kFairyTextLeft = 12;
+constexpr int kFairyTextTop = 151;
+constexpr int kFairyTextW = 800;
+constexpr int kFairyTextH = 800;
+
+QString fairyTaleText411() {
+    return QStringLiteral(
+        "    Жили-были дед да баба. И была у них Курочка Ряба. Снесла курочка яичко, да не простое - золотое. "
+        "Дед бил - не разбил. Баба била - не разбила. А мышка бежала, хвостиком махнула, яичко упало и разбилось. "
+        "Плачет дед, плачет баба и говорит им Курочка Ряба:\n"
+        "- Не плачь, дед, не плачь, баба: снесу вам новое яичко не золотое, а простое!\n"
+        "\n"
+        "\n"
+        "    Красная Шапочка дернула за веревочку-дверь и открылась. Вошла девочка в домик, а Волк спрятался "
+        "под одеяло и говорит:\n"
+        "- Положи - ка, внучка, пирожок на стол, горшочек на полку поставь, а сама приляг рядом со мной! "
+        "Красная Шапочка прилегла рядом с Волком и спрашивает:\n"
+        "  -Бабушка, почему у вас такие большие руки?\n"
+        "-Это чтобы покрепче обнять тебя, дитя мое. \n"
+        " - Бабушка, почему у вас такие большие уши? \n"
+        " - Чтобы лучше слышать, дитя мое.\n"
+        " - Бабушка, почему у вас такие большие глаза? \n"
+        " - Чтобы лучше видеть, дитя мое.\n"
+        " - Бабушка, почему у вас такие большие зубы? \n"
+        "- А это чтоб скорее съесть тебя, дитя мое! Не успела Красная Шапочка и охнуть, как Волк бросился "
+        "на нее и проглотил\n"
+        "\n"
+        "\n"
+        "  Жил старик со своею старухой у самого синего моря. Они жили в ветхой землянке ровно тридцать лет "
+        "и три года. Старик ловил неводом рыбу, старуха пряла свою пряжу.\n"
+        "Раз он в море закинул невод — пришёл невод с одною тиной.\n"
+        "Он в другой раз закинул невод — пришёл невод с травой морскою.\n"
+        "В третий раз закинул он невод — пришёл невод с одною рыбкой, с не простою рыбкой — золотою.\n"
+        "\n"
+        "\n"
+        "    Осёл тихонько поставил передние ноги на подоконник, собака взобралась на спину ослу, кот вскочил "
+        "на спину собаке, а петух взлетел на голову коту. И тут они все разом закричали:осёл — по - ослиному, "
+        "собака — по - собачьи, кот — по - кошачьи, а петух закукарекал. Закричали они и ввалились через окно "
+        "в комнату. Испугались разбойники и убежали в лес. А осёл, собака, кот и петух сели вокруг стола и "
+        "принялись за еду. Ели - ели, пили - пили — наелись, напились и спать легли. Осёл растянулся во дворе "
+        "на сене, собака улеглась перед дверью, кот свернулся клубком на тёплой печи, а петух взлетел на ворота. "
+        "Потушили они огонь в доме и заснули.");
+}
 constexpr int kWrongLeft = 1420;
 constexpr int kAnswerTop = 72;
 constexpr int kAnswerButtonGap = 75;
@@ -318,9 +364,20 @@ void OnlyPExercise::updateWidgetLayout() {
     }
 
     if (!m_pictureSource.isNull()) {
+        // 4.1.1 dual (Specialist): только текст сказок на первом экране — картинка на Patient.
+        if (isFairyTaleExercise() && m_displayRole == DisplayRole::Specialist) {
+            m_picture->hide();
+            if (m_picture2) {
+                m_picture2->hide();
+            }
+        } else {
         const int pictureMargin = 12;
         QPixmap display = m_pictureSource;
-        const int availableW = qMax(40, width() - 2 * pictureMargin);
+        // Один экран 4.1.1: картинка в правой половине (слева текст ~800px).
+        const int leftReserve = (isFairyTaleExercise() && m_displayRole == DisplayRole::Primary)
+            ? qMax(pictureMargin, qMin(width() / 2, qRound(kFairyTextW * (width() > 0 ? width() / 1920.0 : 1.0)) + 24))
+            : pictureMargin;
+        const int availableW = qMax(40, width() - leftReserve - pictureMargin);
         const int availableH = qMax(40, height() - contentTop - pictureMargin);
         if (display.width() > availableW || display.height() > availableH) {
             display = m_pictureSource.scaled(
@@ -438,14 +495,28 @@ void OnlyPExercise::updateWidgetLayout() {
                     extraY = 40;
                 }
             }
+        } else if (m_exerciseId == QStringLiteral("4.1.1")) {
+            // Картинка справа; текст сказок слева (Primary). Dual Patient — по центру.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+                extraY = 40;
+            } else if (m_displayRole == DisplayRole::Patient) {
+                extraY = 40;
+            }
         } else if (m_exerciseId == QStringLiteral("4.1.2")) {
-            // onlyp.cs: Пример → (1300,500), «1» → (1300,170)
-            if (m_stepId == QStringLiteral("1")) {
-                extraX = 600;
-                extraY = -70;
+            // 28.6 один экран («1»): выше и левее → центр H/V.
+            // 28.7 dual («Пример»): выше и левее → центр правой половины / 2-го экрана.
+            // 28.8 dual («1»): ниже и левее → центр правой половины / 2-го экрана.
+            const bool isExample = m_stepId != QStringLiteral("1");
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 80;
+                extraY = 40;
+            } else if (isExample) {
+                extraX = -25;
+                extraY = -20;
             } else {
-                extraX = 600;
-                extraY = 260;
+                extraX = -25;
+                extraY = 40;
             }
         }
 
@@ -563,7 +634,7 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 2.10 / 3.1.x / 3.2.3 один экран: по центру экрана по вертикали (и чуть правее через extraX).
+            // 2.10 / 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
             if (m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")
                 || m_exerciseId == QStringLiteral("3.1.2")
@@ -575,9 +646,15 @@ void OnlyPExercise::updateWidgetLayout() {
                 || m_exerciseId == QStringLiteral("3.2.3")
                 || m_exerciseId == QStringLiteral("3.2.4")
                 || m_exerciseId == QStringLiteral("3.2.5")
+                || m_exerciseId == QStringLiteral("4.1.1")
+                || m_exerciseId == QStringLiteral("4.1.2")
                 || (m_exerciseId == QStringLiteral("3.2.11")
                     && m_stepId == QStringLiteral("2"))) {
                 pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
+            }
+            if (isFairyTaleExercise() && m_displayRole == DisplayRole::Primary) {
+                // Правее текста: центр правой половины.
+                pictureX = qMax(leftReserve, leftReserve + qMax(0, (availableW - display.width()) / 2));
             }
             m_picture->move(pictureX, pictureY);
             m_picture->show();
@@ -585,12 +662,15 @@ void OnlyPExercise::updateWidgetLayout() {
                 m_picture2->hide();
             }
         }
+        } // else (не Specialist+сказка)
     } else if (m_picture) {
         m_picture->hide();
         if (m_picture2) {
             m_picture2->hide();
         }
     }
+
+    updateFairyTaleLayout();
 
     if (isCombineWordsExercise() && combineWordsUsesText() && m_wordLabel
         && m_displayRole != DisplayRole::Headless) {
@@ -662,8 +742,9 @@ int OnlyPExercise::overtimeThresholdSeconds() const {
     if (m_exerciseId == QStringLiteral("3.1.18")) {
         return 120;
     }
+    // 4.1.2 «Пример»: время не учитывается; порог только для задания «1».
     if (m_exerciseId == QStringLiteral("4.1.2")) {
-        return 90;
+        return (m_stepId == QStringLiteral("1")) ? 90 : -1;
     }
     return -1;
 }
@@ -777,6 +858,7 @@ void OnlyPExercise::start(
     } else {
         loadPicture(1);
     }
+    updateFairyTaleLayout();
     m_timer->start();
     if (m_settings.autoAdvancePictures) {
         m_advanceTimer->start();
@@ -849,6 +931,68 @@ QString OnlyPExercise::imageFileName(int index) const {
 
 bool OnlyPExercise::isCombineWordsExercise() const {
     return m_exerciseId == QStringLiteral("3.2.3");
+}
+
+bool OnlyPExercise::isFairyTaleExercise() const {
+    return m_exerciseId == QStringLiteral("4.1.1");
+}
+
+void OnlyPExercise::ensureFairyTaleUi() {
+    if (m_fairyText) {
+        return;
+    }
+    m_fairyText = new QTextEdit(this);
+    m_fairyText->setReadOnly(true);
+    m_fairyText->setFrameShape(QFrame::NoFrame);
+    m_fairyText->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_fairyText->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_fairyText->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 12));
+    m_fairyText->setStyleSheet(QStringLiteral(
+        "QTextEdit { background:#ffffff; color:#000000; border:none; padding:4px; }"));
+    m_fairyText->hide();
+}
+
+void OnlyPExercise::updateFairyTaleLayout() {
+    if (!isFairyTaleExercise()) {
+        if (m_fairyText) {
+            m_fairyText->hide();
+        }
+        return;
+    }
+    ensureFairyTaleUi();
+    const bool showText = m_displayRole == DisplayRole::Primary
+        || m_displayRole == DisplayRole::Specialist;
+    if (!showText || m_displayRole == DisplayRole::Headless) {
+        m_fairyText->hide();
+        return;
+    }
+
+    m_fairyText->setPlainText(fairyTaleText411());
+    const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
+    const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
+    int textX = qRound(kFairyTextLeft * sx);
+    int textY = qRound(kFairyTextTop * sy);
+    int textW = qRound(kFairyTextW * sx);
+    int textH = qRound(kFairyTextH * sy);
+    if (m_displayRole == DisplayRole::Specialist) {
+        // Dual / первый экран: текст на всю доступную область (как «весь экран» для сказки).
+        constexpr int kMargin = 12;
+        int contentTop = kMargin;
+        if (m_stopButton && m_stopButton->isVisible()) {
+            contentTop = m_stopButton->geometry().bottom() + 12;
+        }
+        textX = kMargin;
+        textY = contentTop;
+        textW = qMax(200, width() - 2 * kMargin);
+        textH = qMax(200, height() - contentTop - kMargin);
+    } else {
+        // Один экран: слева текст, справа картинка (оригинал 800×800).
+        textW = qMin(textW, qMax(200, width() / 2 - 24));
+        textH = qMin(textH, qMax(200, height() - textY - 12));
+    }
+    m_fairyText->setGeometry(textX, textY, textW, textH);
+    m_fairyText->show();
+    m_fairyText->raise();
 }
 
 bool OnlyPExercise::combineWordsUsesText() const {
@@ -1118,6 +1262,9 @@ void OnlyPExercise::finishExercise() {
     m_advanceTimer->stop();
     if (m_overtimeLabel) {
         m_overtimeLabel->hide();
+    }
+    if (m_fairyText) {
+        m_fairyText->hide();
     }
     commitCurrentStepTime();
     if (!m_settings.answerButtons) {
