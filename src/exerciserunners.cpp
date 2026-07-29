@@ -684,6 +684,7 @@ public:
     explicit Remember2Runner(QWidget *parent = nullptr) : TimedSessionRunner(parent) {
         // Секундомер во время выполнения (remember2: ltime @ 1380,13) — только на 1-м экране.
         m_liveTimer = new QLabel(this);
+        markPatientControl(m_liveTimer);
         m_liveTimer->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 22));
         m_liveTimer->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
         m_liveTimer->hide();
@@ -718,13 +719,12 @@ public:
             m_showB = new ClickableLabel(this);
             markPatientControl(m_showB);
         }
+        // Карточки А/Б видны пациенту (не markPatientControl) — иначе зеркало закрашивает их белым.
         if (!m_cardA) {
             m_cardA = new QLabel(this);
-            markPatientControl(m_cardA);
         }
         if (!m_cardB) {
             m_cardB = new QLabel(this);
-            markPatientControl(m_cardB);
         }
         m_hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
         m_showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
