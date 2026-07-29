@@ -364,18 +364,15 @@ void OnlyPExercise::updateWidgetLayout() {
     }
 
     if (!m_pictureSource.isNull()) {
-        // 4.1.1 dual (Specialist): только текст сказок на первом экране — картинка на Patient.
-        if (isFairyTaleExercise() && m_displayRole == DisplayRole::Specialist) {
-            m_picture->hide();
-            if (m_picture2) {
-                m_picture2->hide();
-            }
-        } else {
         const int pictureMargin = 12;
         QPixmap display = m_pictureSource;
-        // Один экран 4.1.1: картинка в правой половине (слева текст ~800px).
-        const int leftReserve = (isFairyTaleExercise() && m_displayRole == DisplayRole::Primary)
-            ? qMax(pictureMargin, qMin(width() / 2, qRound(kFairyTextW * (width() > 0 ? width() / 1920.0 : 1.0)) + 24))
+        const qreal layoutSx = width() > 0 ? width() / 1920.0 : 1.0;
+        const bool fairySplitLayout = isFairyTaleExercise()
+            && (m_displayRole == DisplayRole::Primary
+                || m_displayRole == DisplayRole::Specialist);
+        // 4.1.1: слева текст (~800px), справа картинка (один экран и dual specialist).
+        const int leftReserve = fairySplitLayout
+            ? qMax(pictureMargin, qMin(width() / 2, qRound(kFairyTextW * layoutSx) + 24))
             : pictureMargin;
         const int availableW = qMax(40, width() - leftReserve - pictureMargin);
         const int availableH = qMax(40, height() - contentTop - pictureMargin);
@@ -496,8 +493,9 @@ void OnlyPExercise::updateWidgetLayout() {
                 }
             }
         } else if (m_exerciseId == QStringLiteral("4.1.1")) {
-            // Картинка справа; текст сказок слева (Primary). Dual Patient — по центру.
-            if (m_displayRole == DisplayRole::Primary) {
+            // Картинка справа; текст сказок слева (Primary / Specialist). Patient — по центру.
+            if (m_displayRole == DisplayRole::Primary
+                || m_displayRole == DisplayRole::Specialist) {
                 extraX = 80;
                 extraY = 40;
             } else if (m_displayRole == DisplayRole::Patient) {
@@ -613,10 +611,14 @@ void OnlyPExercise::updateWidgetLayout() {
         } else if (m_displayRole == DisplayRole::Specialist) {
             int pictureX = pictureMargin + qMax(0, (width() - display.width()) / 2)
                 - kSpecialistPictureShiftLeft + extraX;
-            if (pictureX + display.width() > width() - pictureMargin) {
-                pictureX = qMax(pictureMargin, width() - pictureMargin - display.width());
+            if (fairySplitLayout) {
+                pictureX = qMax(leftReserve, leftReserve + qMax(0, (availableW - display.width()) / 2));
+            } else {
+                if (pictureX + display.width() > width() - pictureMargin) {
+                    pictureX = qMax(pictureMargin, width() - pictureMargin - display.width());
+                }
+                pictureX = qMax(pictureMargin, pictureX);
             }
-            pictureX = qMax(pictureMargin, pictureX);
             // Не залезать на кнопки Стоп (extraY=-200 у 3.1.11 и др. иначе перекрывал клики).
             const int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             m_picture->move(pictureX, pictureY);
@@ -652,7 +654,7 @@ void OnlyPExercise::updateWidgetLayout() {
                     && m_stepId == QStringLiteral("2"))) {
                 pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             }
-            if (isFairyTaleExercise() && m_displayRole == DisplayRole::Primary) {
+            if (fairySplitLayout) {
                 // Правее текста: центр правой половины.
                 pictureX = qMax(leftReserve, leftReserve + qMax(0, (availableW - display.width()) / 2));
             }
@@ -662,7 +664,6 @@ void OnlyPExercise::updateWidgetLayout() {
                 m_picture2->hide();
             }
         }
-        } // else (не Specialist+сказка)
     } else if (m_picture) {
         m_picture->hide();
         if (m_picture2) {
@@ -974,22 +975,9 @@ void OnlyPExercise::updateFairyTaleLayout() {
     int textY = qRound(kFairyTextTop * sy);
     int textW = qRound(kFairyTextW * sx);
     int textH = qRound(kFairyTextH * sy);
-    if (m_displayRole == DisplayRole::Specialist) {
-        // Dual / первый экран: текст на всю доступную область (как «весь экран» для сказки).
-        constexpr int kMargin = 12;
-        int contentTop = kMargin;
-        if (m_stopButton && m_stopButton->isVisible()) {
-            contentTop = m_stopButton->geometry().bottom() + 12;
-        }
-        textX = kMargin;
-        textY = contentTop;
-        textW = qMax(200, width() - 2 * kMargin);
-        textH = qMax(200, height() - contentTop - kMargin);
-    } else {
-        // Один экран: слева текст, справа картинка (оригинал 800×800).
-        textW = qMin(textW, qMax(200, width() / 2 - 24));
-        textH = qMin(textH, qMax(200, height() - textY - 12));
-    }
+    // Один экран и dual specialist: слева текст, справа картинка (оригинал 800×800).
+    textW = qMin(textW, qMax(200, width() / 2 - 24));
+    textH = qMin(textH, qMax(200, height() - textY - 12));
     m_fairyText->setGeometry(textX, textY, textW, textH);
     m_fairyText->show();
     m_fairyText->raise();

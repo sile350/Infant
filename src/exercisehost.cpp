@@ -2572,7 +2572,7 @@ void ExerciseHost::runOnlyPExercise() {
             m_specialistExercise->setDisplayRole(OnlyPExercise::DisplayRole::Specialist);
             m_specialistExercise->setMirrorMode(true);
             m_specialistExercise->prepareMirrorUi(m_exerciseId);
-            // 4.1.1: текст сказок на первом экране на всю область (не только правая панель).
+            // 4.1.1: текст слева и картинка справа на всём экране специалиста.
             if (m_exerciseId == QStringLiteral("4.1.1")) {
                 setExerciseChromeVisible(false);
                 m_specialistExercise->setParent(this);
