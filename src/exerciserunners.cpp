@@ -866,7 +866,7 @@ public:
         };
 
         if (m_stop) {
-            m_stop->move(place(970, 70));
+            m_stop->move(place(820, 70));
             m_stop->show();
             m_stop->raise();
         }
@@ -891,7 +891,7 @@ public:
             m_cardB->raise();
         }
         if (m_liveTimer) {
-            m_liveTimer->move(place(1380, 13));
+            m_liveTimer->move(place(1380, 70));
             m_liveTimer->show();
             m_liveTimer->raise();
         }
