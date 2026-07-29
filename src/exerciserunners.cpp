@@ -1076,6 +1076,37 @@ public:
     ClickableLabel *m_toggle = nullptr;
 };
 
+// Тельняшка 4.2.1: полосы строго по Y строк (как f1.png), без серых прямоугольников под цифрами.
+class DigitsStripeBackground final : public QWidget {
+public:
+    explicit DigitsStripeBackground(QWidget *parent = nullptr) : QWidget(parent) {
+        setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        setAttribute(Qt::WA_OpaquePaintEvent, true);
+        setAutoFillBackground(false);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        // Цвета как в f1.png: белый / #f8f8f8.
+        painter.fillRect(rect(), Qt::white);
+        // Y строк из digits.Designer (radio / label).
+        static const int kRowY[] = {70, 104, 138, 172, 206, 240, 274, 308};
+        constexpr int kHeaderTop = 22;
+        constexpr int kContentBottom = 350;
+        // Шапка «А/Б» — серая полоса (как до старта на f1.png).
+        painter.fillRect(0, kHeaderTop, width(), kRowY[0] - kHeaderTop - 8, QColor(248, 248, 248));
+        for (int i = 0; i < 8; ++i) {
+            const int yTop = (i == 0) ? (kRowY[0] - 8) : ((kRowY[i - 1] + kRowY[i]) / 2);
+            const int yBot = (i == 7) ? kContentBottom : ((kRowY[i] + kRowY[i + 1]) / 2);
+            // 1-я строка цифр — белая, 2-я — серая, далее чередование (как f1.png).
+            if (i % 2 == 1) {
+                painter.fillRect(0, yTop, width(), qMax(1, yBot - yTop), QColor(248, 248, 248));
+            }
+        }
+    }
+};
+
 class DigitsRunner final : public TimedSessionRunner {
 public:
     using TimedSessionRunner::TimedSessionRunner;
@@ -1151,7 +1182,7 @@ public:
 
         const QFont groupFont(QStringLiteral("Microsoft Sans Serif"), 16);
         const QFont itemFont(QStringLiteral("Microsoft Sans Serif"), 20);
-        // 33.3: как f1.png — зелёная рамка и прозрачный фон (тельняшка рисуется в paintEvent).
+        // Как f1.png: зелёная рамка, номера заданий, прозрачные контролы поверх тельняшки.
         const QString boxStyle = QStringLiteral(
             "QGroupBox {"
             "  color:#000000; background-color:transparent;"
@@ -1161,62 +1192,74 @@ public:
             "  subcontrol-origin: margin; left:10px; padding:0 6px;"
             "  color:#000000; background-color:#ffffff;"
             "}"
-            "QRadioButton { color:#000000; background:transparent; spacing:8px; }"
-            "QRadioButton::indicator { width:18px; height:18px; }"
-            "QLabel { color:#000000; background:transparent; }");
+            "QRadioButton {"
+            "  color:#000000; background-color:transparent; border:none; spacing:8px;"
+            "}"
+            "QRadioButton::indicator { width:18px; height:18px; background:transparent; }"
+            "QLabel { color:#000000; background-color:transparent; border:none; }");
 
-        m_group1 = new QGroupBox(QStringLiteral("1"), this);
-        m_group1->setFont(groupFont);
-        m_group1->setStyleSheet(boxStyle);
-        m_group1->setAttribute(Qt::WA_TranslucentBackground, true);
-        auto *headerA1 = new QLabel(QStringLiteral("А"), m_group1);
-        headerA1->setFont(itemFont);
-        headerA1->move(28, 28);
-        auto *headerB1 = new QLabel(QStringLiteral("Б"), m_group1);
-        headerB1->setFont(itemFont);
-        headerB1->move(387, 28);
-        auto *excl1 = new QButtonGroup(m_group1);
-        for (int i = 0; i < 8; ++i) {
-            auto *radio = new QRadioButton(kGroup1A.at(i), m_group1);
-            radio->setFont(itemFont);
-            radio->move(32, kRadioY[i]);
-            radio->adjustSize();
-            radio->setProperty("digitValue", i + 1);
-            excl1->addButton(radio);
-            m_row1 << radio;
+        auto makeTransparent = [](QWidget *w) {
+            if (!w) {
+                return;
+            }
+            w->setAttribute(Qt::WA_TranslucentBackground, true);
+            w->setAutoFillBackground(false);
+            QPalette pal = w->palette();
+            pal.setColor(QPalette::Window, Qt::transparent);
+            pal.setColor(QPalette::Base, Qt::transparent);
+            pal.setColor(QPalette::Button, Qt::transparent);
+            w->setPalette(pal);
+        };
 
-            auto *label = new QLabel(kGroup1B.at(i), m_group1);
-            label->setFont(itemFont);
-            label->move(390, kLabelBY[i]);
-            label->adjustSize();
-        }
+        auto buildGroup = [&](const QString &title,
+                              const QStringList &colA,
+                              const QStringList &colB,
+                              int labelBX,
+                              bool ascendingValues,
+                              QList<QRadioButton *> *rowOut) -> QGroupBox * {
+            auto *box = new QGroupBox(title, this);
+            box->setFont(groupFont);
+            box->setStyleSheet(boxStyle);
+            makeTransparent(box);
 
-        m_group2 = new QGroupBox(QStringLiteral("2"), this);
-        m_group2->setFont(groupFont);
-        m_group2->setStyleSheet(boxStyle);
-        m_group2->setAttribute(Qt::WA_TranslucentBackground, true);
-        auto *headerA2 = new QLabel(QStringLiteral("А"), m_group2);
-        headerA2->setFont(itemFont);
-        headerA2->move(28, 28);
-        auto *headerB2 = new QLabel(QStringLiteral("Б"), m_group2);
-        headerB2->setFont(itemFont);
-        headerB2->move(387, 28);
-        auto *excl2 = new QButtonGroup(m_group2);
-        for (int i = 0; i < 8; ++i) {
-            auto *radio = new QRadioButton(kGroup2A.at(i), m_group2);
-            radio->setFont(itemFont);
-            radio->move(32, kRadioY[i]);
-            radio->adjustSize();
-            // radio16=8 … radio9=1
-            radio->setProperty("digitValue", 8 - i);
-            excl2->addButton(radio);
-            m_row2 << radio;
+            auto *stripes = new DigitsStripeBackground(box);
+            stripes->setGeometry(2, 2, 567, 401);
+            stripes->lower();
+            stripes->show();
 
-            auto *label = new QLabel(kGroup2B.at(i), m_group2);
-            label->setFont(itemFont);
-            label->move(368, kLabelBY[i]);
-            label->adjustSize();
-        }
+            auto *headerA = new QLabel(QStringLiteral("А"), box);
+            headerA->setFont(itemFont);
+            makeTransparent(headerA);
+            headerA->move(28, 28);
+            headerA->adjustSize();
+            auto *headerB = new QLabel(QStringLiteral("Б"), box);
+            headerB->setFont(itemFont);
+            makeTransparent(headerB);
+            headerB->move(387, 28);
+            headerB->adjustSize();
+
+            auto *excl = new QButtonGroup(box);
+            for (int i = 0; i < 8; ++i) {
+                auto *radio = new QRadioButton(colA.at(i), box);
+                radio->setFont(itemFont);
+                makeTransparent(radio);
+                radio->move(32, kRadioY[i]);
+                radio->adjustSize();
+                radio->setProperty("digitValue", ascendingValues ? (i + 1) : (8 - i));
+                excl->addButton(radio);
+                *rowOut << radio;
+
+                auto *label = new QLabel(colB.at(i), box);
+                label->setFont(itemFont);
+                makeTransparent(label);
+                label->move(labelBX, kLabelBY[i]);
+                label->adjustSize();
+            }
+            return box;
+        };
+
+        m_group1 = buildGroup(QStringLiteral("1"), kGroup1A, kGroup1B, 390, true, &m_row1);
+        m_group2 = buildGroup(QStringLiteral("2"), kGroup2A, kGroup2B, 368, false, &m_row2);
 
         setFocusPolicy(Qt::StrongFocus);
         setFocus();
@@ -1256,11 +1299,19 @@ public:
         // digits_Load: pstop @ (970,70)
         if (m_group1) {
             m_group1->setGeometry(1257, 117, 571, 405);
+            if (auto *stripes = m_group1->findChild<DigitsStripeBackground *>()) {
+                stripes->setGeometry(2, 14, m_group1->width() - 4, m_group1->height() - 16);
+                stripes->lower();
+            }
             m_group1->show();
             m_group1->raise();
         }
         if (m_group2) {
             m_group2->setGeometry(1257, 545, 571, 405);
+            if (auto *stripes = m_group2->findChild<DigitsStripeBackground *>()) {
+                stripes->setGeometry(2, 14, m_group2->width() - 4, m_group2->height() - 16);
+                stripes->lower();
+            }
             m_group2->show();
             m_group2->raise();
         }
@@ -1274,25 +1325,6 @@ protected:
         Q_UNUSED(event);
         QPainter painter(this);
         painter.fillRect(rect(), Qt::white);
-        // Тельняшка (горизонтальные полосы) под панелями заданий — как f1.png до старта.
-        auto paintStripes = [&](QGroupBox *box) {
-            if (!box || !box->isVisible()) {
-                return;
-            }
-            const QRect r = box->geometry().adjusted(2, 2, -2, -2);
-            painter.fillRect(r, Qt::white);
-            constexpr int kStripeH = 34;
-            bool dark = false;
-            for (int y = r.top() + 48; y < r.bottom(); y += kStripeH) {
-                if (dark) {
-                    painter.fillRect(
-                        r.left(), y, r.width(), qMin(kStripeH, r.bottom() - y), QColor(232, 232, 232));
-                }
-                dark = !dark;
-            }
-        };
-        paintStripes(m_group1);
-        paintStripes(m_group2);
     }
 
     void keyPressEvent(QKeyEvent *event) override {
