@@ -1414,6 +1414,85 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
+    // 5.2.1 «Расскажи по картинке»: Фрагменты речи / Частота — 500+171 = 671
+    // (wrapProtocolDocumentHtml ошибочно раздувает 500→506 → таблица шире стандарта).
+    {
+        const QRegularExpression processTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Фрагменты\\s+речи[\\s\\S]*?Частота\\s+употребления"
+                "[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 128);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            inner.prepend(QStringLiteral(
+                "<colgroup><col width='500'><col width='171'></colgroup>"));
+
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (tds.size() == 2) {
+                    const QStringList widths = {
+                        QStringLiteral("500"), QStringLiteral("171")};
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        newRow += td.captured(1) + setAttrWidth(td.captured(2), widths.at(i))
+                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                } else if (tds.size() == 1) {
+                    // «Задание №N» — colspan на всю ширину 671.
+                    const QRegularExpressionMatch &td = tds.at(0);
+                    QString attrs = setAttrWidth(td.captured(2), QStringLiteral("671"));
+                    attrs.replace(
+                        QRegularExpression(
+                            QStringLiteral("\\s*colspan\\s*=\\s*['\"][^'\"]*['\"]"),
+                            QRegularExpression::CaseInsensitiveOption),
+                        QString());
+                    attrs += QStringLiteral(" colspan='2'");
+                    rowInner = td.captured(1) + attrs + td.captured(3) + td.captured(4)
+                        + td.captured(5);
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
     // 5.4.2 «Сказка»: таблица процесса Вопросы/Ответы/Виды помощи — 219+226+226 = 671.
     {
         const QRegularExpression processTableRe(

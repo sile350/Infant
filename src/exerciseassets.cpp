@@ -329,8 +329,7 @@ QString ExerciseAssets::wrapProtocolDocumentHtml(const QString &html) {
     QString result = html;
     result.replace(QStringLiteral("width='186'"), QStringLiteral("width='190'"));
     result.replace(QStringLiteral("width=\"186\""), QStringLiteral("width=\"190\""));
-    result.replace(QStringLiteral("width='500'"), QStringLiteral("width='506'"));
-    result.replace(QStringLiteral("width=\"500\""), QStringLiteral("width=\"506\""));
+    // Не трогать width=500: в 5.2.1 колонки 500+171=671; замена на 506 раздувала таблицу заданий.
     result.replace(QStringLiteral("width='184'"), QStringLiteral("width='194'"));
     result.replace(QStringLiteral("width=\"184\""), QStringLiteral("width=\"194\""));
     result.replace(QStringLiteral("width='230'"), QStringLiteral("width='229'"));
@@ -339,6 +338,11 @@ QString ExerciseAssets::wrapProtocolDocumentHtml(const QString &html) {
     result.replace(QStringLiteral("width=\"162\""), QStringLiteral("width=\"160\""));
     result.replace(QStringLiteral("width='722'"), QStringLiteral("width='671'"));
     result.replace(QStringLiteral("width=\"722\""), QStringLiteral("width=\"671\""));
+    // Если где-то уже успели раздуть 500→506 рядом с «Частота» — вернуть стандарт 500/171.
+    if (result.contains(QStringLiteral("Частота"), Qt::CaseInsensitive)) {
+        result.replace(QStringLiteral("width='506'"), QStringLiteral("width='500'"));
+        result.replace(QStringLiteral("width=\"506\""), QStringLiteral("width=\"500\""));
+    }
     if (!result.contains(QStringLiteral("table-layout:fixed"), Qt::CaseInsensitive)) {
         const int headEnd = result.indexOf(QStringLiteral("</head>"), 0, Qt::CaseInsensitive);
         if (headEnd >= 0) {
