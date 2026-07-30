@@ -1078,30 +1078,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             m_elapsedSeconds = 0;
             m_stepElapsedSeconds.clear();
         }
-        if (m_dualScreen) {
-            if (m_specialistExercise) {
-                m_specialistExercise->hide();
-                if (m_rightPanel && m_specialistExercise->parentWidget() != m_rightPanel) {
-                    m_specialistExercise->setParent(m_rightPanel);
-                }
-            }
-            if (m_onlyP) {
-                m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
-                m_onlyP->hide();
-            }
-            if (m_previewImage) {
-                m_previewImage->hide();
-            }
-        } else {
-            restoreExerciseOverlay();
-        }
+        resetExerciseOverlays();
         setExerciseChromeVisible(true);
         updateChromeLayout();
         showResultLabels(answers, elapsedSeconds);
         emit exerciseOverlayChanged(false);
-        if (m_patientDisplay) {
-            m_patientDisplay->hideDisplay();
-        }
     });
 }
 
@@ -1352,6 +1333,8 @@ void ExerciseHost::openExercise(
     if (m_timeResultLabel) {
         m_timeResultLabel->hide();
     }
+    resetExerciseOverlays();
+    m_exerciseRunning = false;
     setExerciseChromeVisible(true);
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
@@ -2521,23 +2504,37 @@ void ExerciseHost::showExerciseOverlay() {
 
 void ExerciseHost::restoreExerciseOverlay() {
     m_exerciseRunning = false;
+    resetExerciseOverlays();
+    raise();
+    layoutStepCombo();
+    emit exerciseOverlayChanged(false);
+}
+
+void ExerciseHost::resetExerciseOverlays() {
+    if (m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
+    }
+    if (m_specialistExercise) {
+        m_specialistExercise->hide();
+        if (m_rightPanel) {
+            if (m_specialistExercise->parentWidget() != m_rightPanel) {
+                m_specialistExercise->setParent(m_rightPanel);
+            }
+            m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        }
+    }
     if (m_sessionRunner) {
         reparentOverlayWidget(m_sessionRunner);
+        m_sessionRunner->hide();
     }
     if (m_stepCombo && m_stepCombo->parentWidget() != this) {
         m_stepCombo->setParent(this);
     }
-    if (!m_onlyP) {
-        raise();
-        layoutStepCombo();
-        emit exerciseOverlayChanged(false);
-        return;
+    if (m_onlyP) {
+        m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
+        reparentOverlayWidget(m_onlyP);
+        m_onlyP->hide();
     }
-    reparentOverlayWidget(m_onlyP);
-    m_onlyP->hide();
-    raise();
-    layoutStepCombo();
-    emit exerciseOverlayChanged(false);
 }
 
 void ExerciseHost::setDualScreenEnabled(bool enabled) {
@@ -2813,6 +2810,7 @@ void ExerciseHost::runOnlyPExercise() {
     const QString stepId = m_sessionStepId;
 
     if (m_dualScreen) {
+        reparentOverlayWidget(m_onlyP);
         if (m_previewImage) {
             m_previewImage->hide();
         }
@@ -2856,6 +2854,9 @@ void ExerciseHost::runOnlyPExercise() {
         return;
     }
 
+    if (m_specialistExercise) {
+        m_specialistExercise->hide();
+    }
     setExerciseChromeVisible(false);
     showExerciseOverlay();
     m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);

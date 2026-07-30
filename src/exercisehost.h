@@ -103,6 +103,7 @@ private:
     void setExerciseChromeVisible(bool visible);
     void showExerciseOverlay();
     void restoreExerciseOverlay();
+    void resetExerciseOverlays();
     void updateExerciseOverlayGeometry();
     void presentOverlayWidget(QWidget *overlayWidget);
     void reparentOverlayWidget(QWidget *overlayWidget);
