@@ -1873,10 +1873,10 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
         sessions = QStringList{canonicalizeProtocol126Session(canonical)};
     }
 
-    const QString processHeading = QStringLiteral(
-        "<p align='center'><b>Процесс выполнения диагностического задания</b></p>");
+    const QString processRow = QStringLiteral(
+        "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
     const QString tableOpen = QStringLiteral(
-        "<table border='1' style='table-layout:fixed' cellspacing='0' width='674' cellpadding='0'>");
+        "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>");
 
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
@@ -1888,7 +1888,7 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
 
         summaryRows = cleanProtocol126SummaryRows(summaryRows);
         resultsBlock = resultsBlock.trimmed();
-        // Убрать старый <p>Процесс…</p> — добавим заново.
+        // Убрать старый <p>Процесс…</p> — заголовок теперь строка таблицы с границами.
         resultsBlock.replace(
             QRegularExpression(
                 QStringLiteral("<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания\\s*(?:</b>)?\\s*</p>\\s*"),
@@ -1905,6 +1905,9 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
         if (resultsBlock.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
             taskRows += resultsBlock;
         }
+        if (!taskRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+            taskRows.prepend(processRow);
+        }
 
         if (i == 0) {
             if (!headerFragment.trimmed().isEmpty()) {
@@ -1913,14 +1916,13 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
                 result += protocolSummaryTableOpenHtml();
             }
         } else {
-            result += QStringLiteral("<p>&nbsp;</p>");
+            // Без пустого <p>&nbsp;</p> — сессии стыкуются без разрыва.
             result += protocolSummaryTableOpenHtml();
         }
         if (!summaryRows.isEmpty()) {
             result += summaryRows;
         }
         result += QStringLiteral("</table>");
-        result += processHeading;
         if (!taskRows.trimmed().isEmpty()) {
             result += tableOpen + taskRows + QStringLiteral("</table>");
         }
@@ -2414,7 +2416,7 @@ QString joinProtocol126Sessions(const QStringList &sessions) {
             session = stripLeadingSummaryTableWrapper(session);
         } else {
             result = closeDanglingTables(result);
-            result += QStringLiteral("<p>&nbsp;</p>");
+            // Без <p>&nbsp;</p> — иначе разрыв между сессиями на странице «Протоколы».
             if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
                 session.prepend(protocolSummaryTableOpenHtml());
             }
@@ -2588,12 +2590,14 @@ QString canonicalizeProtocol126Session(QString session) {
     }
 
     QString result = summary + QStringLiteral("</table><!--s-->");
-    result += QStringLiteral(
-        "<p align='center'><b>Процесс выполнения диагностического задания</b></p>");
+    if (!taskRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+        taskRows.prepend(QStringLiteral(
+            "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>"));
+    }
     if (!taskRows.trimmed().isEmpty()) {
         result += QStringLiteral(
                       "<table border='1' style='table-layout:fixed' cellspacing='0' "
-                      "width='674' cellpadding='0'>")
+                      "width='671' cellpadding='0'>")
             + taskRows + QStringLiteral("</table>");
     }
     return result;
@@ -3203,6 +3207,7 @@ QString extractAnswerFromLabeledRow(const QString &html, const QString &rowLabel
 QString fillProtocol126RowScores(QString body) {
     const QStringList expected1 = expectedEmotionsTask1();
     for (int i = 0; i < expected1.size(); ++i) {
+        const QString id = QStringLiteral("col1%1").arg(i + 1);
         QString answer = htmlFragmentToPlainText(
             extractDivInnerById(body, QStringLiteral("ans1%1").arg(i + 1))).trimmed();
         if (answer.isEmpty()) {
@@ -3212,8 +3217,12 @@ QString fillProtocol126RowScores(QString body) {
             };
             answer = extractAnswerFromLabeledRow(body, kTask1Labels.at(i));
         }
+        if (answer.isEmpty()) {
+            // Не обнулять вручную введённые баллы, если ответа нет.
+            continue;
+        }
         const int score = scoreEmotionAnswer(answer, expected1.at(i));
-        body = replaceDivInnerById(body, QStringLiteral("col1%1").arg(i + 1), QString::number(score));
+        body = replaceDivInnerById(body, id, QString::number(score));
     }
 
     const QStringList expected2 = expectedEmotionsTask2();
@@ -3226,9 +3235,11 @@ QString fillProtocol126RowScores(QString body) {
     const bool hasCorrectColumn =
         body.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive);
     for (int i = 0; i < expected2.size(); ++i) {
+        const QString id = QStringLiteral("col2%1").arg(i + 1);
         // Только ответ ребёнка (ans2*), не колонка «Правильный ответ».
         QString answer = htmlFragmentToPlainText(
             extractDivInnerById(body, QStringLiteral("ans2%1").arg(i + 1))).trimmed();
+        const bool fromAnsId = !answer.isEmpty();
         if (answer.isEmpty() && !hasCorrectColumn) {
             // Старый формат без колонки эталона: № | ответ | баллы.
             answer = extractAnswerFromLabeledRow(body, QString::number(i + 1));
@@ -3247,8 +3258,8 @@ QString fillProtocol126RowScores(QString body) {
                 answer = htmlFragmentToPlainText(m4.captured(1)).trimmed();
             }
         }
-        // Эталон в колонке «Правильный ответ» не считать ответом ребёнка.
-        if (i < expectedPlain.size()
+        // Не считать эталон ответом ребёнка, только если ans2* пуст и 3-я колонка пуста.
+        if (!fromAnsId && i < expectedPlain.size()
             && answer.compare(expectedPlain.at(i), Qt::CaseInsensitive) == 0
             && hasCorrectColumn) {
             const QString escaped = QRegularExpression::escape(QString::number(i + 1));
@@ -3263,15 +3274,16 @@ QString fillProtocol126RowScores(QString body) {
             const QString third = m4.hasMatch()
                 ? htmlFragmentToPlainText(m4.captured(1)).trimmed()
                 : QString();
-            if (third.isEmpty()
-                || third.compare(expectedPlain.at(i), Qt::CaseInsensitive) == 0) {
+            if (third.isEmpty()) {
                 answer.clear();
-            } else {
-                answer = third;
             }
         }
+        if (answer.isEmpty()) {
+            // Не обнулять вручную введённые баллы.
+            continue;
+        }
         const int score = scoreEmotionAnswer(answer, expected2.at(i));
-        body = replaceDivInnerById(body, QStringLiteral("col2%1").arg(i + 1), QString::number(score));
+        body = replaceDivInnerById(body, id, QString::number(score));
     }
     return body;
 }
@@ -3461,8 +3473,9 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
         return applyManualScoresFromEditor(body);
     }
 
-    // «Подвести итог»: учесть правки ответов в редакторе, затем пересчитать баллы/суммы.
+    // «Подвести итог»: учесть правки ответов/баллов в редакторе, затем пересчитать.
     auto finalizeSums = [&](QString chunk) {
+        chunk = applyManualScoresFromEditor(chunk);
         chunk = applyAnswersFromEditor(chunk);
         chunk = fillProtocol126RowScores(chunk);
         const double sum1 = sumDivPrefix(chunk, QStringLiteral("col1"));
@@ -4471,9 +4484,9 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
         // Нет закрытой таблицы процесса — дописать целиком.
         if (!base.contains(QStringLiteral("Процесс выполнения диагностического задания"), Qt::CaseInsensitive)) {
             base += QStringLiteral("</table><!--s-->"
-                                   "<p align='center'><b>Процесс выполнения диагностического задания</b></p>"
                                    "<table border='1' style='table-layout:fixed' cellspacing='0' "
-                                   "width='674' cellpadding='0'>");
+                                   "width='671' cellpadding='0'>"
+                                   "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
             return base + rowsToInsert + QStringLiteral("</table>");
         }
         return base + rowsToInsert;
