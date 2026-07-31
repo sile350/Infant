@@ -319,6 +319,8 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; "
         "background-color:#ffffff; box-sizing:border-box; text-align:left; vertical-align:top; }"
         "td[align='center'], th[align='center'] { text-align:center; }"
+        /* <p> в header.html иначе раздувают шапку на вкладке «Протоколы». */
+        "td p, th p { margin:0; padding:0; }"
         "div[contenteditable='true'] { min-height:1.2em; text-align:left; }"
         ".protocol-page-break { page-break-before:always; break-before:page; height:0; margin:24px 0; }"
         "@media print { .protocol-page-break { page-break-before:always; break-before:page; } }"

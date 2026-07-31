@@ -2329,7 +2329,7 @@ void ExerciseHost::updateContentHeights() {
     }
     if (m_templateBrowser) {
         if (QTextDocument *doc = m_templateBrowser->document()) {
-            doc->setDocumentMargin(kTemplateViewportPadding / 2);
+            doc->setDocumentMargin(0);
             doc->setTextWidth(kTemplateTableWidth);
         }
         const int templateHeight = static_cast<int>(qCeil(m_templateBrowser->document()->size().height())) + 2;
@@ -3114,7 +3114,7 @@ void ExerciseHost::resetProtocolToInitialTemplate() {
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
@@ -3149,7 +3149,7 @@ void ExerciseHost::showLastProtocolInTemplate() {
                 m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
                 applyCompactLineHeight(m_templateBrowser->document());
                 if (QTextDocument *doc = m_templateBrowser->document()) {
-                    doc->setDocumentMargin(kTemplateViewportPadding / 2);
+                    doc->setDocumentMargin(0);
                     doc->setTextWidth(kTemplateTableWidth);
                 }
                 const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
@@ -3316,7 +3316,7 @@ void ExerciseHost::sumProtocol3110() {
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     updateContentHeights();
@@ -3359,7 +3359,7 @@ void ExerciseHost::sumProtocol418() {
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     updateContentHeights();
@@ -3403,7 +3403,7 @@ void ExerciseHost::sumProtocol126() {
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     updateContentHeights();
@@ -3446,7 +3446,7 @@ void ExerciseHost::sumProtocol1272() {
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     updateContentHeights();
@@ -3483,7 +3483,7 @@ void ExerciseHost::sumProtocol318() {
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     updateContentHeights();
@@ -3584,7 +3584,7 @@ void ExerciseHost::syncProtocol317BallsToResult() {
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     updateContentHeights();
@@ -3872,7 +3872,7 @@ void ExerciseHost::formProtocol() {
     }
     applyCompactLineHeight(m_templateBrowser->document());
     if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(kTemplateViewportPadding / 2);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
     const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;

@@ -51,6 +51,8 @@ public:
     static QString normalizeProtocol12Layout(const QString &protocolBody);
     // Дата/Результат/Примечание → 200/471 как в header.html (все методики).
     static QString normalizeSummaryColumnWidths(const QString &protocolBody);
+    // Шапка методики: единый <table> 671/200/471 без <p> (иначе Qt раздувает/сжимает ширину).
+    static QString canonicalizeProtocolHeaderFragment(const QString &headerFragment);
     static QString patientProtocolBody(const QString &protocolBody);
     static QString extractLastSessionStoredBody(const QString &protocolBody);
     // 1.26: последняя сессия по «Дата/специалист» без обрезки вложенных таблиц баллов.

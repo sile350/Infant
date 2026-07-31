@@ -89,8 +89,11 @@ QString protocolSummaryTableOpenHtml() {
     // Как в header.html методик: 200/471 — иначе 2-я сессия (новая <table>)
     // с 165/506 визуально не совпадает с первой (продолжает шапку).
     return QStringLiteral(
-        "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-        "<colgroup><col width='200'><col width='471'></colgroup>");
+        "<table border='1' style='table-layout:fixed;width:671px' cellspacing='0' cellpadding='0' width='671'>"
+        "<colgroup>"
+        "<col width='200' style='width:200px'>"
+        "<col width='471' style='width:471px'>"
+        "</colgroup>");
 }
 
 QString stripLeadingSummaryTableWrapper(QString chunk) {
@@ -1620,6 +1623,13 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 trLast = tr.capturedEnd();
             }
             rebuilt += inner.mid(trLast);
+            // Убрать <p> в шапке — иначе Qt раздувает ширину на вкладке «Протоколы».
+            rebuilt.replace(
+                QRegularExpression(QStringLiteral("<p\\b[^>]*>"), QRegularExpression::CaseInsensitiveOption),
+                QString());
+            rebuilt.replace(
+                QRegularExpression(QStringLiteral("</p\\s*>"), QRegularExpression::CaseInsensitiveOption),
+                QString());
             out += open + rebuilt + m.captured(3);
             last = m.capturedEnd();
         }
@@ -2194,7 +2204,7 @@ QString ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
 
         if (i == 0) {
             if (!headerFragment.trimmed().isEmpty()) {
-                result += headerFragment;
+                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment);
             } else {
                 result += protocolSummaryTableOpenHtml();
             }
@@ -2425,7 +2435,7 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
 
         if (i == 0) {
             if (!headerFragment.trimmed().isEmpty()) {
-                result += headerFragment;
+                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment);
             } else {
                 result += protocolSummaryTableOpenHtml();
             }
@@ -2520,6 +2530,82 @@ QString ExerciseProtocol::normalizeSummaryColumnWidths(const QString &protocolBo
         return {};
     }
     return normalizeSummaryColumnWidthsHtml(protocolBody);
+}
+
+QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(const QString &headerFragment) {
+    QString rows = headerFragment.trimmed();
+    if (rows.isEmpty()) {
+        return {};
+    }
+    // Убрать обёртку <table> / colgroup — откроем стандартную 671/200/471.
+    rows.replace(
+        QRegularExpression(
+            QStringLiteral("^<table\\b[^>]*>\\s*"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    rows.replace(
+        QRegularExpression(
+            QStringLiteral("^<colgroup\\b[^>]*>[\\s\\S]*?</colgroup\\s*>\\s*"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+        QString());
+    rows.replace(
+        QRegularExpression(
+            QStringLiteral("</table\\s*>\\s*$"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    // <p> в ячейках шапки раздувают ширину в QTextDocument (вкладка «Протоколы»).
+    rows.replace(
+        QRegularExpression(QStringLiteral("<p\\b[^>]*>"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+    rows.replace(
+        QRegularExpression(QStringLiteral("</p\\s*>"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+
+    // Жёстко 200/471 на двухколоночных строках шапки.
+    const QRegularExpression trRe(
+        QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QString rebuilt;
+    int trLast = 0;
+    QRegularExpressionMatchIterator trIt = trRe.globalMatch(rows);
+    while (trIt.hasNext()) {
+        const QRegularExpressionMatch tr = trIt.next();
+        rebuilt += rows.mid(trLast, tr.capturedStart() - trLast);
+        QString rowInner = tr.captured(2);
+        const QRegularExpression tdRe(
+            QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QList<QRegularExpressionMatch> tds;
+        QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+        while (tdIt.hasNext()) {
+            tds.append(tdIt.next());
+        }
+        if (tds.size() == 2) {
+            QString newRow;
+            int cellLast = 0;
+            for (int i = 0; i < tds.size(); ++i) {
+                const QRegularExpressionMatch &td = tds.at(i);
+                newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                QString attrs = td.captured(2);
+                attrs.remove(QRegularExpression(
+                    QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                    QRegularExpression::CaseInsensitiveOption));
+                attrs.remove(QRegularExpression(
+                    QStringLiteral("\\s*style\\s*=\\s*['\"][^'\"]*['\"]"),
+                    QRegularExpression::CaseInsensitiveOption));
+                const QString w = i == 0 ? QStringLiteral("200") : QStringLiteral("471");
+                attrs = QStringLiteral(" width='%1' style='width:%1px'").arg(w) + attrs;
+                newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
+                cellLast = td.capturedEnd();
+            }
+            newRow += rowInner.mid(cellLast);
+            rowInner = newRow;
+        }
+        rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+        trLast = tr.capturedEnd();
+    }
+    rebuilt += rows.mid(trLast);
+    return protocolSummaryTableOpenHtml() + rebuilt;
 }
 
 QString ExerciseProtocol::createProtocolHtml(

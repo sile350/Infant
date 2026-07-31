@@ -2847,6 +2847,7 @@ void InfantWindow::styleProtocolsView() {
                 "td, th { background-color: #ffffff; border:1px solid #000000; "
                 "text-align:left; vertical-align:top; }"
                 "td[align='center'], th[align='center'] { text-align:center; }"
+                "td p, th p { margin:0; padding:0; }"
                 "div[contenteditable='true'] { min-height:1.2em; text-align:left; }")
         );
     }
@@ -4420,8 +4421,20 @@ void InfantWindow::refreshProtocolsView() {
         const QString html = protocolsDocumentHtml(inner);
         m_protocolsView->setHtml(html);
         if (QTextDocument *doc = m_protocolsView->document()) {
-            doc->setDocumentMargin(12);
+            doc->setDocumentMargin(0);
             doc->setTextWidth(671);
+            // Как на странице упражнения: убрать поля абзацев у ячеек шапки.
+            QTextCursor cursor(doc);
+            cursor.beginEditBlock();
+            for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
+                QTextBlockFormat fmt = block.blockFormat();
+                fmt.setLineHeight(100, QTextBlockFormat::ProportionalHeight);
+                fmt.setTopMargin(0);
+                fmt.setBottomMargin(0);
+                cursor.setPosition(block.position());
+                cursor.mergeBlockFormat(fmt);
+            }
+            cursor.endEditBlock();
         }
         m_protocolsView->moveCursor(QTextCursor::Start);
     }

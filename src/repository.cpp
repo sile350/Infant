@@ -78,25 +78,29 @@ void appendProtocolRecord(
     if (continuation) {
         body += protocolPageBreakHtml();
     }
+    const QString rawHeader = continuation ? QString() : headerForExercise(uprid);
+    const QString header = rawHeader.isEmpty()
+        ? QString()
+        : ExerciseProtocol::canonicalizeProtocolHeaderFragment(rawHeader);
     QString record;
     if (uprid == QStringLiteral("1.2")) {
         record = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
-            continuation ? QString() : headerForExercise(uprid), protocolBody);
+            continuation ? QString() : rawHeader, protocolBody);
     } else if (uprid == QStringLiteral("1.26")) {
-        // Плоская сборка: summary </table> + <br> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
+        // Плоская сборка: summary </table> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
         record = ExerciseProtocol::buildProtocol126ViewRecord(
-            continuation ? QString() : headerForExercise(uprid), protocolBody);
+            continuation ? QString() : rawHeader, protocolBody);
     } else if (uprid == QStringLiteral("4.1.8")) {
         // Характер + таблица стимульных слов (две <table> после <!--s-->).
         QString flatBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody);
         flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(flatBody);
         if (continuation) {
             record = QStringLiteral(
-                          "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-                          "<colgroup><col width='200'><col width='471'></colgroup>")
+                          "<table border='1' style='table-layout:fixed;width:671px' cellspacing='0' cellpadding='0' width='671'>"
+                          "<colgroup><col width='200' style='width:200px'><col width='471' style='width:471px'></colgroup>")
                       + flatBody;
         } else {
-            record = headerForExercise(uprid) + flatBody;
+            record = header + flatBody;
         }
         if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             record += QStringLiteral("</table>");
@@ -107,11 +111,11 @@ void appendProtocolRecord(
             ExerciseProtocol::flattenStoredProtocolBody(protocolBody));
         if (continuation) {
             record = QStringLiteral(
-                          "<table border='1' style='table-layout:fixed' cellspacing='0' cellpadding='0' width='671'>"
-                          "<colgroup><col width='200'><col width='471'></colgroup>")
+                          "<table border='1' style='table-layout:fixed;width:671px' cellspacing='0' cellpadding='0' width='671'>"
+                          "<colgroup><col width='200' style='width:200px'><col width='471' style='width:471px'></colgroup>")
                       + flatBody;
         } else {
-            record = headerForExercise(uprid) + flatBody;
+            record = header + flatBody;
         }
         if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             record += QStringLiteral("</table>");
@@ -832,12 +836,16 @@ QString Repository::loadProtocolViewHtml(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
-        protocolBlock = exerciseHeaderFragment(exerciseId) + body;
+        protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
+                            exerciseHeaderFragment(exerciseId))
+            + body;
         if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             protocolBlock += QStringLiteral("</table>");
         }
     } else {
-        protocolBlock = exerciseHeaderFragment(exerciseId) + body;
+        protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
+                            exerciseHeaderFragment(exerciseId))
+            + body;
         if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             protocolBlock += QStringLiteral("</table>");
         }
