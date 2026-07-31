@@ -601,7 +601,7 @@ void OnlyPExercise::updateWidgetLayout() {
             // 1.1: строго по центру второго экрана.
             if (m_exerciseId == QStringLiteral("1.1")) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
-                pictureY = qMax(pictureMargin, (height() - display.height()) / 2 - 100);
+                pictureY = qMax(pictureMargin, (height() - display.height()) / 2 - 200);
             }
             m_picture->move(pictureX, pictureY);
             m_picture->show();
@@ -623,7 +623,7 @@ void OnlyPExercise::updateWidgetLayout() {
             // 1.1: строго по центру панели специалиста.
             if (m_exerciseId == QStringLiteral("1.1") && !fairySplitLayout) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
-                pictureY = qMax(contentTop, (height() - display.height()) / 2 - 100);
+                pictureY = qMax(contentTop, (height() - display.height()) / 2 - 200);
             }
             m_picture->move(pictureX, pictureY);
             m_picture->show();
@@ -643,7 +643,7 @@ void OnlyPExercise::updateWidgetLayout() {
             // 1.1: строго по центру экрана (H и V), на 100px выше.
             if (m_exerciseId == QStringLiteral("1.1")) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
-                pictureY = qMax(contentTop, (height() - display.height()) / 2 - 100);
+                pictureY = qMax(contentTop, (height() - display.height()) / 2 - 200);
             } else if (m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")
                 || m_exerciseId == QStringLiteral("3.1.2")
