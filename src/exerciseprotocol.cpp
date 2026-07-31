@@ -1112,9 +1112,8 @@ QString stripSpecialistSections(QString body) {
     return body;
 }
 
-// 1.26: Qt без width на <td> сжимает таблицу по содержимому; colgroup одного недостаточно.
-// На 4-ячеечных строках — 70+120+421+60; на 3-ячеечных (ответ colspan=2) — 70+541+60.
-// Не ставить width на «Характер»/«Виды помощи» (раньше 200 + 421 давало >671).
+// 1.26: ширины только на строках из 4 <td> без colspan (70+120+421+60=671).
+// Width на ячейке с colspan (например 541) Qt кладёт в одну колонку → таблица >> 671.
 QString applyProtocol126ProcessCellWidths(QString html) {
     html.replace(
         QRegularExpression(
@@ -1130,6 +1129,12 @@ QString applyProtocol126ProcessCellWidths(QString html) {
             QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
             QRegularExpression::CaseInsensitiveOption));
         return QStringLiteral(" width='%1'%2").arg(w, attrs);
+    };
+    auto stripWidth = [](QString attrs) {
+        attrs.remove(QRegularExpression(
+            QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+            QRegularExpression::CaseInsensitiveOption));
+        return attrs;
     };
 
     const QRegularExpression trRe(
@@ -1156,39 +1161,25 @@ QString applyProtocol126ProcessCellWidths(QString html) {
                 QStringLiteral("colspan\\s*="), QRegularExpression::CaseInsensitiveOption));
         };
 
-        QStringList widths;
-        if (tds.size() == 4
+        const bool fourPlain = tds.size() == 4
             && !hasColspan(tds.at(0).captured(2))
             && !hasColspan(tds.at(1).captured(2))
             && !hasColspan(tds.at(2).captured(2))
-            && !hasColspan(tds.at(3).captured(2))) {
-            widths << QStringLiteral("70") << QStringLiteral("120")
-                   << QStringLiteral("421") << QStringLiteral("60");
-        } else if (tds.size() == 3
-                   && !hasColspan(tds.at(0).captured(2))
-                   && hasColspan(tds.at(1).captured(2))
-                   && !hasColspan(tds.at(2).captured(2))) {
-            // Портрет / эмоция + ответ (colspan=2) + баллы
-            widths << QStringLiteral("70") << QStringLiteral("541") << QStringLiteral("60");
-        } else if (tds.size() == 2
-                   && (hasColspan(tds.at(0).captured(2)) || hasColspan(tds.at(1).captured(2)))) {
-            // Итог colspan=3 + баллы, либо Характер/Виды — только снять старые width
-            widths << QString() << QString();
-        }
+            && !hasColspan(tds.at(3).captured(2));
 
-        if (!widths.isEmpty()) {
+        if (!tds.isEmpty()) {
             QString newRow;
             int cellLast = 0;
             for (int i = 0; i < tds.size(); ++i) {
                 const QRegularExpressionMatch &td = tds.at(i);
                 newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
                 QString attrs = td.captured(2);
-                if (!widths.at(i).isEmpty()) {
-                    attrs = setWidthKeepColspan(attrs, widths.at(i));
+                if (fourPlain) {
+                    static const char *const kW[] = {"70", "120", "421", "60"};
+                    attrs = setWidthKeepColspan(attrs, QString::fromUtf8(kW[i]));
                 } else {
-                    attrs.remove(QRegularExpression(
-                        QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
-                        QRegularExpression::CaseInsensitiveOption));
+                    // С colspan / «Характер» — без width, иначе Qt суммирует колонки.
+                    attrs = stripWidth(attrs);
                 }
                 newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
                 cellLast = td.capturedEnd();
