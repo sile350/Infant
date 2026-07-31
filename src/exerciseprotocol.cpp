@@ -2517,7 +2517,20 @@ QString cleanProtocol126SummaryRows(QString summary) {
     summary.replace(
         QRegularExpression(
             QStringLiteral(
+                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*Процесс\\s+выполнения\\s+диагностической\\s+методики"
+                "[\\s\\S]*?</tr>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+        QString());
+    summary.replace(
+        QRegularExpression(
+            QStringLiteral(
                 "<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения\\s+диагностического\\s+задания\\s*(?:</b>)?\\s*</p>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    summary.replace(
+        QRegularExpression(
+            QStringLiteral(
+                "<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения\\s+диагностической\\s+методики\\s*(?:</b>)?\\s*</p>"),
             QRegularExpression::CaseInsensitiveOption),
         QString());
     summary.replace(

@@ -798,7 +798,8 @@ QString Repository::loadProtocolViewHtml(
     QString body = protocolBody;
     // На странице упражнения показываем только последний сформированный блок
     // (начиная с его «Дата/специалист»).
-    if (exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
+    if (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18")
+        || exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
         || exerciseId == QStringLiteral("2.8") || exerciseId == QStringLiteral("2.9")
         || exerciseId == QStringLiteral("2.10")
         || exerciseId == QStringLiteral("3.1.1") || exerciseId == QStringLiteral("3.1.2")

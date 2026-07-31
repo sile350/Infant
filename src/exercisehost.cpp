@@ -3876,19 +3876,7 @@ void ExerciseHost::formProtocol() {
     }
     m_currentProtocolId = protocolId;
 
-    if (m_exerciseId == QStringLiteral("1.17") || m_exerciseId == QStringLiteral("1.18")) {
-        const QString lastSession = ExerciseProtocol::extractLastProtocol126Session(protocolBody);
-        if (!lastSession.trimmed().isEmpty()) {
-            const QString header = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("header.html"));
-            const QString viewHtml =
-                ExerciseProtocol::buildProtocol126ViewRecord(header, lastSession);
-            m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-        } else {
-            const QString viewHtml = m_repository->loadProtocolViewHtml(
-                m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
-            m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-        }
-    } else {
+    {
         const QString viewHtml = m_repository->loadProtocolViewHtml(
             m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
         m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
