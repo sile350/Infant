@@ -479,7 +479,8 @@ QString buildProtocol126(
     const QString hlpText = formatProtocolCellText(checkboxes.help);
 
     const QString tableOpen = QStringLiteral(
-        "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>");
+        "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>"
+        "<colgroup><col width='70'><col width='120'><col width='421'><col width='60'></colgroup>");
     // «Процесс…» — первая строка таблицы процесса (с боковыми границами), не голый <p>.
     const QString processRow = QStringLiteral(
         "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
@@ -505,17 +506,17 @@ QString buildProtocol126(
         rows += QStringLiteral(
             "<tr><td colspan='4' align='center'> Задание 1 </td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='200'>Характер деятельности ребенка</td>"
+            "<tr><td>Характер деятельности ребенка</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='200'>Виды помощи</td>"
+            "<tr><td>Виды помощи</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='142' align='center'>Портретная картинка</td>"
+            "<tr><td align='center'>Портретная картинка</td>"
             "<td colspan='2' align='center'>Ответ ребенка</td>"
-            "<td align='center' width='60'>Баллы</td></tr>");
+            "<td align='center'>Баллы</td></tr>");
         const QStringList emotions = {
             QStringLiteral("Радость"), QStringLiteral("Злость"), QStringLiteral("Грусть"),
             QStringLiteral("Страх"), QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
@@ -541,28 +542,29 @@ QString buildProtocol126(
         // При дописке задания 2 заголовок «Процесс…» уже есть в таблице.
         rows += QStringLiteral("<tr><td colspan='4' align='center'><b>Задание 2</b></td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='200'>Характер деятельности ребенка</td>"
+            "<tr><td>Характер деятельности ребенка</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td width='200'>Виды помощи</td>"
+            "<tr><td>Виды помощи</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
-        // 70+120+421+60 = 671; «№ рассказа» уже, «Ответ ребенка» шире.
+        // Ширины только через colgroup таблицы (70+120+421+60=671) — без width на <td>,
+        // иначе Qt суммирует с колонками задания 1 и раздувает таблицу.
         rows += QStringLiteral(
-            "<tr><td width='70' align='center'><b>№ рассказа</b></td>"
-            "<td width='120' align='center'><b>Правильный ответ</b></td>"
-            "<td width='421' align='center'><b>Ответ ребенка</b></td>"
-            "<td width='60' align='center'><b>Баллы</b></td></tr>");
+            "<tr><td align='center'><b>№ рассказа</b></td>"
+            "<td align='center'><b>Правильный ответ</b></td>"
+            "<td align='center'><b>Ответ ребенка</b></td>"
+            "<td align='center'><b>Баллы</b></td></tr>");
         for (int i = 1; i <= 12; ++i) {
             const QString answerHtml = tmpAt(tmp, i + 1).isEmpty()
                 ? QStringLiteral("&nbsp;")
                 : tmpAt(tmp, i + 1);
-            rows += QStringLiteral("<tr><td width='70' align='center'>") + QString::number(i)
-                + QStringLiteral("</td><td width='120' align='center'>") + kTask2Correct.at(i - 1)
-                + QStringLiteral("</td><td width='421' align='left'>"
+            rows += QStringLiteral("<tr><td align='center'>") + QString::number(i)
+                + QStringLiteral("</td><td align='center'>") + kTask2Correct.at(i - 1)
+                + QStringLiteral("</td><td align='left'>"
                                  "<div id='ans2%1' contenteditable='true'>%2</div></td>"
-                                 "<td width='60' align='center' valign='middle'>"
+                                 "<td align='center' valign='middle'>"
                                  "<div id='col2%1' contenteditable='true' "
                                  "style='text-align:center'>&nbsp;</div></td></tr>")
                       .arg(i)

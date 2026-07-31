@@ -1603,6 +1603,14 @@ QStringList extractProtocol126SessionsByDate(const QString &body);
 QString joinProtocol126Sessions(const QStringList &sessions);
 QString extractTableInnerRows(const QString &tableHtml);
 QStringList extractProtocol126TaskTables(QString *htmlInOut);
+QString normalizeProtocol126TaskRows(QString taskRows);
+
+// Таблица процесса 1.26: ширины только через colgroup (70+120+421+60=671).
+// Width на <td> задания 1 (200/142) + задания 2 (70/120/421) Qt суммирует → шире 671.
+constexpr const char kProtocol126ProcessTableOpen[] =
+    "<table border='1' style='table-layout:fixed' cellspacing='0' "
+    "width='671' cellpadding='0'>"
+    "<colgroup><col width='70'><col width='120'><col width='421'><col width='60'></colgroup>";
 
 QString replaceDivInnerById(QString html, const QString &divId, const QString &innerHtml);
 QString extractDivInnerById(const QString &html, const QString &divId);
@@ -1875,8 +1883,7 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
 
     const QString processRow = QStringLiteral(
         "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
-    const QString tableOpen = QStringLiteral(
-        "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>");
+    const QString tableOpen = QString::fromUtf8(kProtocol126ProcessTableOpen);
 
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
@@ -1905,6 +1912,7 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
         if (resultsBlock.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
             taskRows += resultsBlock;
         }
+        taskRows = normalizeProtocol126TaskRows(taskRows);
         if (!taskRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
             taskRows.prepend(processRow);
         }
@@ -2553,6 +2561,24 @@ QString extractTableInnerRows(const QString &tableHtml) {
     return tableHtml.mid(openEnd + 1, close - (openEnd + 1)).trimmed();
 }
 
+QString normalizeProtocol126TaskRows(QString taskRows) {
+    taskRows.replace(
+        QRegularExpression(
+            QStringLiteral("<colgroup\\b[^>]*>[\\s\\S]*?</colgroup\\s*>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+        QString());
+    taskRows.replace(
+        QRegularExpression(QStringLiteral("<col\\b[^>]*/?>"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+    QRegularExpression widthOnCell(
+        QStringLiteral("(<t[dh]\\b[^>]*?)\\s+width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+        QRegularExpression::CaseInsensitiveOption);
+    for (int i = 0; i < 8 && taskRows.contains(widthOnCell); ++i) {
+        taskRows.replace(widthOnCell, QStringLiteral("\\1"));
+    }
+    return taskRows;
+}
+
 QString canonicalizeProtocol126Session(QString session) {
     session = stripLeadingSummaryTableWrapper(session.trimmed());
     if (session.isEmpty()) {
@@ -2588,6 +2614,7 @@ QString canonicalizeProtocol126Session(QString session) {
     if (bareRows.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
         taskRows += bareRows;
     }
+    taskRows = normalizeProtocol126TaskRows(taskRows);
 
     QString result = summary + QStringLiteral("</table><!--s-->");
     if (!taskRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
@@ -2595,9 +2622,7 @@ QString canonicalizeProtocol126Session(QString session) {
             "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>"));
     }
     if (!taskRows.trimmed().isEmpty()) {
-        result += QStringLiteral(
-                      "<table border='1' style='table-layout:fixed' cellspacing='0' "
-                      "width='671' cellpadding='0'>")
+        result += QString::fromUtf8(kProtocol126ProcessTableOpen)
             + taskRows + QStringLiteral("</table>");
     }
     return result;
@@ -4483,10 +4508,10 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
         }
         // Нет закрытой таблицы процесса — дописать целиком.
         if (!base.contains(QStringLiteral("Процесс выполнения диагностического задания"), Qt::CaseInsensitive)) {
-            base += QStringLiteral("</table><!--s-->"
-                                   "<table border='1' style='table-layout:fixed' cellspacing='0' "
-                                   "width='671' cellpadding='0'>"
-                                   "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
+            base += QStringLiteral("</table><!--s-->")
+                + QString::fromUtf8(kProtocol126ProcessTableOpen)
+                + QStringLiteral(
+                    "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
             return base + rowsToInsert + QStringLiteral("</table>");
         }
         return base + rowsToInsert;
