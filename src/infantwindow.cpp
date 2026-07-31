@@ -4415,6 +4415,7 @@ void InfantWindow::refreshProtocolsView() {
         if (QTextDocument *doc = m_protocolsView->document()) {
             doc->setDocumentMargin(0);
             doc->setTextWidth(671);
+            ExerciseProtocol::forceProtocolDocumentTableWidths(doc, 671);
         }
         m_protocolsView->moveCursor(QTextCursor::Start);
     } else {
@@ -4435,6 +4436,7 @@ void InfantWindow::refreshProtocolsView() {
                 cursor.mergeBlockFormat(fmt);
             }
             cursor.endEditBlock();
+            ExerciseProtocol::forceProtocolDocumentTableWidths(doc, 671);
         }
         m_protocolsView->moveCursor(QTextCursor::Start);
     }

@@ -10,7 +10,9 @@
 #include <QTextDocument>
 #include <QTextDocumentFragment>
 #include <QTextFrame>
+#include <QTextLength>
 #include <QTextTable>
+#include <QTextTableFormat>
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
@@ -93,16 +95,6 @@ QString protocolSummaryTableOpenHtml() {
         "<colgroup>"
         "<col width='200' style='width:200px'>"
         "<col width='471' style='width:471px'>"
-        "</colgroup>");
-}
-
-// 1.26: шапка визуально на ~2px уже стандарта — компенсируем второй колонкой 473 (200+473=673).
-QString protocol126SummaryTableOpenHtml() {
-    return QStringLiteral(
-        "<table border='1' style='table-layout:fixed;width:673px' cellspacing='0' cellpadding='0' width='673'>"
-        "<colgroup>"
-        "<col width='200' style='width:200px'>"
-        "<col width='473' style='width:473px'>"
         "</colgroup>");
 }
 
@@ -1540,7 +1532,6 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
     }
 
     // Шапка «Методика…»: всегда colgroup 200/471 (иначе Qt сжимает по длинной «Цели»).
-    // 1.26: вторая колонка 473 (200+473=673) — компенсация визуально более узкой шапки.
     {
         const QRegularExpression headerTableRe(
             QStringLiteral(
@@ -1564,16 +1555,11 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 last = m.capturedEnd();
                 continue;
             }
-            const bool is126Header = inner.contains(
-                QStringLiteral("распознаванию эмоциональных"), Qt::CaseInsensitive);
-            const QString secondCol = is126Header ? QStringLiteral("473") : QStringLiteral("471");
-            const QString tableW = is126Header ? QStringLiteral("673") : QStringLiteral("671");
             inner.remove(QRegularExpression(
                 QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
                 QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
             inner.prepend(QStringLiteral(
-                              "<colgroup><col width='200'><col width='%1'></colgroup>")
-                              .arg(secondCol));
+                "<colgroup><col width='200'><col width='471'></colgroup>"));
             // Явно фиксируем ширину шапки (атрибут + style), иначе Qt сжимает по «Цели».
             {
                 QString attrs = open.mid(6); // после "<table"
@@ -1583,25 +1569,24 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 attrs.remove(QRegularExpression(
                     QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
                     QRegularExpression::CaseInsensitiveOption));
-                const QString styleWidth = QStringLiteral("width:%1px").arg(tableW);
                 if (!attrs.contains(QStringLiteral("table-layout"), Qt::CaseInsensitive)) {
                     if (attrs.contains(QStringLiteral("style="), Qt::CaseInsensitive)) {
                         attrs.replace(
                             QRegularExpression(
                                 QStringLiteral("style\\s*=\\s*['\"]"),
                                 QRegularExpression::CaseInsensitiveOption),
-                            QStringLiteral("style='table-layout:fixed;%1; ").arg(styleWidth));
+                            QStringLiteral("style='table-layout:fixed;width:671px; "));
                     } else {
-                        attrs += QStringLiteral(" style='table-layout:fixed;%1'").arg(styleWidth);
+                        attrs += QStringLiteral(" style='table-layout:fixed;width:671px'");
                     }
-                } else if (!attrs.contains(styleWidth, Qt::CaseInsensitive)) {
+                } else if (!attrs.contains(QStringLiteral("width:671"), Qt::CaseInsensitive)) {
                     attrs.replace(
                         QRegularExpression(
                             QStringLiteral("style\\s*=\\s*['\"]"),
                             QRegularExpression::CaseInsensitiveOption),
-                        QStringLiteral("style='%1; ").arg(styleWidth));
+                        QStringLiteral("style='width:671px; "));
                 }
-                attrs += QStringLiteral(" width='%1'").arg(tableW);
+                attrs += QStringLiteral(" width='671'");
                 open = QStringLiteral("<table") + attrs + QLatin1Char('>');
             }
             const QRegularExpression trRe(
@@ -1629,9 +1614,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         const QRegularExpressionMatch &td = tds.at(i);
                         newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
                         newRow += td.captured(1)
-                            + setAttrWidth(
-                                  td.captured(2),
-                                  i == 0 ? QStringLiteral("200") : secondCol)
+                            + setAttrWidth(td.captured(2), i == 0 ? QStringLiteral("200") : QStringLiteral("471"))
                             + td.captured(3) + td.captured(4) + td.captured(5);
                         cellLast = td.capturedEnd();
                     }
@@ -1657,13 +1640,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
     }
 
     // Дата/Результат/Примечание: 200/471; снимаем лишний colspan у повторных сессий.
-    // 1.26: вторая колонка 473 (как у шапки методики).
     {
-        const bool is126Doc =
-            body.contains(QStringLiteral("распознаванию эмоциональных"), Qt::CaseInsensitive)
-            || body.contains(QStringLiteral("Портретная картинка"), Qt::CaseInsensitive)
-            || body.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive);
-        const QString sumSecond = is126Doc ? QStringLiteral("473") : QStringLiteral("471");
         const QRegularExpression summaryRowRe(
             QStringLiteral(
                 "(<tr[^>]*>\\s*<td\\b)([^>]*>)"
@@ -1679,73 +1656,11 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             const QRegularExpressionMatch m = it.next();
             out += body.mid(last, m.capturedStart() - last);
             out += m.captured(1) + setAttrWidth(m.captured(2), QStringLiteral("200"))
-                + m.captured(3) + setAttrWidth(m.captured(4), sumSecond);
+                + m.captured(3) + setAttrWidth(m.captured(4), QStringLiteral("471"));
             last = m.capturedEnd();
         }
         out += body.mid(last);
         body = out;
-
-        // Таблицы summary 1.26 без «Методика» (повторные сессии) — тоже 673.
-        if (is126Doc) {
-            const QRegularExpression summaryTableRe(
-                QStringLiteral(
-                    "(<table\\b[^>]*>)([\\s\\S]*?(?:Дата\\s*/\\s*специалист|Результат)[\\s\\S]*?)(</table>)"),
-                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-            QString out2;
-            out2.reserve(body.size() + 64);
-            int last2 = 0;
-            QRegularExpressionMatchIterator it2 = summaryTableRe.globalMatch(body);
-            while (it2.hasNext()) {
-                const QRegularExpressionMatch m = it2.next();
-                out2 += body.mid(last2, m.capturedStart() - last2);
-                QString open = m.captured(1);
-                QString inner = m.captured(2);
-                if (inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
-                    || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
-                    || inner.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
-                    || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)) {
-                    out2 += m.captured(0);
-                    last2 = m.capturedEnd();
-                    continue;
-                }
-                // Уже обработанная шапка с «Методика» тоже попадает сюда — ок, те же 673.
-                inner.remove(QRegularExpression(
-                    QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
-                    QRegularExpression::CaseInsensitiveOption
-                        | QRegularExpression::DotMatchesEverythingOption));
-                inner.prepend(QStringLiteral(
-                    "<colgroup><col width='200'><col width='473'></colgroup>"));
-                QString attrs = open.mid(6);
-                if (attrs.endsWith(QLatin1Char('>'))) {
-                    attrs.chop(1);
-                }
-                attrs.remove(QRegularExpression(
-                    QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
-                    QRegularExpression::CaseInsensitiveOption));
-                if (attrs.contains(QStringLiteral("style="), Qt::CaseInsensitive)) {
-                    attrs.replace(
-                        QRegularExpression(
-                            QStringLiteral("width\\s*:\\s*\\d+px"),
-                            QRegularExpression::CaseInsensitiveOption),
-                        QStringLiteral("width:673px"));
-                    if (!attrs.contains(QStringLiteral("width:673"), Qt::CaseInsensitive)) {
-                        attrs.replace(
-                            QRegularExpression(
-                                QStringLiteral("style\\s*=\\s*['\"]"),
-                                QRegularExpression::CaseInsensitiveOption),
-                            QStringLiteral("style='width:673px; "));
-                    }
-                } else {
-                    attrs += QStringLiteral(" style='table-layout:fixed;width:673px'");
-                }
-                attrs += QStringLiteral(" width='673'");
-                open = QStringLiteral("<table") + attrs + QLatin1Char('>');
-                out2 += open + inner + m.captured(3);
-                last2 = m.capturedEnd();
-            }
-            out2 += body.mid(last2);
-            body = out2;
-        }
     }
 
     // 1.26: задания 1 и 2 — отдельные таблицы по 671 (общая сетка раздувает ширину).
@@ -2522,13 +2437,13 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
 
         if (i == 0) {
             if (!headerFragment.trimmed().isEmpty()) {
-                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment, 473);
+                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment);
             } else {
-                result += protocol126SummaryTableOpenHtml();
+                result += protocolSummaryTableOpenHtml();
             }
         } else {
             // Без пустого <p>&nbsp;</p> — сессии стыкуются без разрыва.
-            result += protocol126SummaryTableOpenHtml();
+            result += protocolSummaryTableOpenHtml();
         }
         if (!summaryRows.isEmpty()) {
             result += summaryRows;
@@ -2619,21 +2534,12 @@ QString ExerciseProtocol::normalizeSummaryColumnWidths(const QString &protocolBo
     return normalizeSummaryColumnWidthsHtml(protocolBody);
 }
 
-QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(
-    const QString &headerFragment,
-    int secondColumnWidth) {
+QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(const QString &headerFragment) {
     QString rows = headerFragment.trimmed();
     if (rows.isEmpty()) {
         return {};
     }
-    if (secondColumnWidth < 1) {
-        secondColumnWidth = 471;
-    }
-    const int tableWidth = 200 + secondColumnWidth;
-    const QString secondW = QString::number(secondColumnWidth);
-    const QString tableW = QString::number(tableWidth);
-
-    // Убрать обёртку <table> / colgroup — откроем стандартную 200 + secondColumn.
+    // Убрать обёртку <table> / colgroup — откроем стандартную 671/200/471.
     rows.replace(
         QRegularExpression(
             QStringLiteral("^<table\\b[^>]*>\\s*"),
@@ -2657,6 +2563,7 @@ QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(
         QRegularExpression(QStringLiteral("</p\\s*>"), QRegularExpression::CaseInsensitiveOption),
         QString());
 
+    // Жёстко 200/471 на двухколоночных строках шапки.
     const QRegularExpression trRe(
         QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
@@ -2688,7 +2595,7 @@ QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(
                 attrs.remove(QRegularExpression(
                     QStringLiteral("\\s*style\\s*=\\s*['\"][^'\"]*['\"]"),
                     QRegularExpression::CaseInsensitiveOption));
-                const QString w = i == 0 ? QStringLiteral("200") : secondW;
+                const QString w = i == 0 ? QStringLiteral("200") : QStringLiteral("471");
                 attrs = QStringLiteral(" width='%1' style='width:%1px'").arg(w) + attrs;
                 newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
                 cellLast = td.capturedEnd();
@@ -2700,11 +2607,78 @@ QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(
         trLast = tr.capturedEnd();
     }
     rebuilt += rows.mid(trLast);
-
-    if (secondColumnWidth == 473) {
-        return protocol126SummaryTableOpenHtml() + rebuilt;
-    }
     return protocolSummaryTableOpenHtml() + rebuilt;
+}
+
+void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document, int widthPx) {
+    if (!document || widthPx <= 0) {
+        return;
+    }
+    QList<QTextTable *> tables;
+    collectTables(document->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table || table->columns() <= 0) {
+            continue;
+        }
+        QTextTableFormat fmt = table->format();
+        fmt.setWidth(QTextLength(QTextLength::FixedLength, widthPx));
+        fmt.setBorder(1);
+        fmt.setCellPadding(0);
+        fmt.setCellSpacing(0);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+        fmt.setBorderCollapse(true);
+#endif
+        const int cols = table->columns();
+        if (cols == 2) {
+            // Шапка / Дата / OR-HLP задания 2: всегда 200 + (671-200).
+            fmt.setColumnWidthConstraints({
+                QTextLength(QTextLength::FixedLength, 200),
+                QTextLength(QTextLength::FixedLength, widthPx - 200),
+            });
+        } else {
+            QVector<QTextLength> constraints = fmt.columnWidthConstraints();
+            if (constraints.size() == cols) {
+                qreal sum = 0;
+                bool allFixed = true;
+                for (const QTextLength &c : constraints) {
+                    if (c.type() != QTextLength::FixedLength) {
+                        allFixed = false;
+                        break;
+                    }
+                    sum += c.rawValue();
+                }
+                if (allFixed && sum > 1.0 && qAbs(sum - widthPx) > 0.5) {
+                    QVector<QTextLength> scaled;
+                    scaled.reserve(cols);
+                    qreal used = 0;
+                    for (int i = 0; i < cols; ++i) {
+                        if (i == cols - 1) {
+                            scaled.append(QTextLength(QTextLength::FixedLength, widthPx - used));
+                        } else {
+                            const qreal w = qRound(constraints.at(i).rawValue() * widthPx / sum);
+                            scaled.append(QTextLength(QTextLength::FixedLength, w));
+                            used += w;
+                        }
+                    }
+                    fmt.setColumnWidthConstraints(scaled);
+                }
+            } else if (cols == 3) {
+                fmt.setColumnWidthConstraints({
+                    QTextLength(QTextLength::FixedLength, 200),
+                    QTextLength(QTextLength::FixedLength, widthPx - 260),
+                    QTextLength(QTextLength::FixedLength, 60),
+                });
+            } else if (cols == 4) {
+                fmt.setColumnWidthConstraints({
+                    QTextLength(QTextLength::FixedLength, 70),
+                    QTextLength(QTextLength::FixedLength, 120),
+                    QTextLength(QTextLength::FixedLength, widthPx - 250),
+                    QTextLength(QTextLength::FixedLength, 60),
+                });
+            }
+        }
+        table->setFormat(fmt);
+    }
 }
 
 QString ExerciseProtocol::createProtocolHtml(

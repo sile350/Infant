@@ -424,6 +424,15 @@ void applyCompactLineHeight(QTextDocument *doc) {
     cursor.endEditBlock();
 }
 
+void finalizeProtocolTemplateDocument(QTextDocument *doc) {
+    applyCompactLineHeight(doc);
+    ExerciseProtocol::forceProtocolDocumentTableWidths(doc, kTemplateTableWidth);
+    if (doc) {
+        doc->setDocumentMargin(0);
+        doc->setTextWidth(kTemplateTableWidth);
+    }
+}
+
 int tightDocumentHeight(QTextDocument *doc) {
     if (!doc) {
         return 0;
@@ -2248,7 +2257,7 @@ void ExerciseHost::loadExercise() {
     m_protocolSavedThisSession = false;
     m_cursorInBallsColumn = false;
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-    applyCompactLineHeight(m_templateBrowser->document());
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateProtocolEditMode();
 
     if (m_donePanel) {
@@ -2331,6 +2340,7 @@ void ExerciseHost::updateContentHeights() {
         if (QTextDocument *doc = m_templateBrowser->document()) {
             doc->setDocumentMargin(0);
             doc->setTextWidth(kTemplateTableWidth);
+            ExerciseProtocol::forceProtocolDocumentTableWidths(doc, kTemplateTableWidth);
         }
         const int templateHeight = static_cast<int>(qCeil(m_templateBrowser->document()->size().height())) + 2;
         const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
@@ -3112,11 +3122,7 @@ void ExerciseHost::resetProtocolToInitialTemplate() {
     const QString rawTemplate = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("template.html"));
     const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
     m_templateBrowser->setFixedWidth(templateViewportWidth);
     if (m_templatePanel) {
@@ -3147,11 +3153,7 @@ void ExerciseHost::showLastProtocolInTemplate() {
                 m_exerciseId, lastId, m_patientFio, m_patientBirthDate);
             if (!viewHtml.trimmed().isEmpty()) {
                 m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-                applyCompactLineHeight(m_templateBrowser->document());
-                if (QTextDocument *doc = m_templateBrowser->document()) {
-                    doc->setDocumentMargin(0);
-                    doc->setTextWidth(kTemplateTableWidth);
-                }
+                finalizeProtocolTemplateDocument(m_templateBrowser->document());
                 const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
                 m_templateBrowser->setFixedWidth(templateViewportWidth);
                 if (m_templatePanel) {
@@ -3166,7 +3168,7 @@ void ExerciseHost::showLastProtocolInTemplate() {
     }
     m_currentProtocolId.clear();
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
-    applyCompactLineHeight(m_templateBrowser->document());
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateProtocolEditMode();
 }
 
@@ -3314,11 +3316,7 @@ void ExerciseHost::sumProtocol3110() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateContentHeights();
     updateProtocolEditMode();
     QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
@@ -3357,11 +3355,7 @@ void ExerciseHost::sumProtocol418() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateContentHeights();
     updateProtocolEditMode();
     QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
@@ -3401,11 +3395,7 @@ void ExerciseHost::sumProtocol126() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateContentHeights();
     updateProtocolEditMode();
     QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
@@ -3444,11 +3434,7 @@ void ExerciseHost::sumProtocol1272() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateContentHeights();
     updateProtocolEditMode();
     QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
@@ -3481,11 +3467,7 @@ void ExerciseHost::sumProtocol318() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateContentHeights();
     updateProtocolEditMode();
     QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
@@ -3582,11 +3564,7 @@ void ExerciseHost::syncProtocol317BallsToResult() {
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateContentHeights();
     updateProtocolEditMode();
     QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
@@ -3870,11 +3848,7 @@ void ExerciseHost::formProtocol() {
             m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
         m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
     }
-    applyCompactLineHeight(m_templateBrowser->document());
-    if (QTextDocument *doc = m_templateBrowser->document()) {
-        doc->setDocumentMargin(0);
-        doc->setTextWidth(kTemplateTableWidth);
-    }
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
     const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
     m_templateBrowser->setFixedWidth(templateViewportWidth);
     m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
