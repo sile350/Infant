@@ -505,17 +505,17 @@ QString buildProtocol126(
         rows += QStringLiteral(
             "<tr><td colspan='3' align='center'> Задание 1 </td></tr>");
         rows += QStringLiteral(
-            "<tr><td>Характер деятельности ребенка</td>"
+            "<tr><td width='200'>Характер деятельности ребенка</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td>Виды помощи</td>"
+            "<tr><td width='200'>Виды помощи</td>"
             "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
-        // 142+469+60=671 — три колонки как в оригинале (без 4-й и colspan из задания 2).
+        // 200+411+60=671; первая колонка = ширина «Характер»/«Виды помощи».
         rows += QStringLiteral(
-            "<tr><td width='142' align='center'>Портретная картинка</td>"
-            "<td width='469' align='center'>Ответ ребенка</td>"
+            "<tr><td width='200' align='center'>Портретная картинка</td>"
+            "<td width='411' align='center'>Ответ ребенка</td>"
             "<td width='60' align='center'>Баллы</td></tr>");
         const QStringList emotions = {
             QStringLiteral("Радость"), QStringLiteral("Злость"), QStringLiteral("Грусть"),
@@ -525,8 +525,8 @@ QString buildProtocol126(
             const QString answerHtml = tmpAt(tmp, i + 2).isEmpty()
                 ? QStringLiteral("&nbsp;")
                 : tmpAt(tmp, i + 2);
-            rows += QStringLiteral("<tr><td width='142'>") + emotions.at(i)
-                + QStringLiteral("</td><td width='469' align='left'>"
+            rows += QStringLiteral("<tr><td width='200'>") + emotions.at(i)
+                + QStringLiteral("</td><td width='411' align='left'>"
                                  "<div id='ans1%1' contenteditable='true'>%2</div></td>"
                                  "<td width='60' align='center' valign='middle'>"
                                  "<div id='col1%1' contenteditable='true' "
@@ -542,11 +542,11 @@ QString buildProtocol126(
         // Отдельная таблица задания 2 (4 колонки).
         rows += QStringLiteral("<tr><td colspan='4' align='center'><b>Задание 2</b></td></tr>");
         rows += QStringLiteral(
-            "<tr><td>Характер деятельности ребенка</td>"
+            "<tr><td width='200'>Характер деятельности ребенка</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
-            "<tr><td>Виды помощи</td>"
+            "<tr><td width='200'>Виды помощи</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(

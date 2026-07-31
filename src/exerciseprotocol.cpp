@@ -1121,22 +1121,9 @@ QString stripSpecialistSections(QString body) {
     return body;
 }
 
-// 1.26: задания 1 и 2 — РАЗНЫЕ таблицы (общая сетка колонок раздувает width > 671).
+// Задание 1: 3 колонки эмоций (142+469+60); «Процесс»/«Задание 1» — colspan=3;
+// «Характер»/«Виды помощи» — ровно 2 ячейки (200+471).
 QString applyProtocol126Task1CellWidths(QString html) {
-    // Старая 4-колоночная вёрстка задания 1 → три колонки 142+469+60.
-    html.replace(
-        QRegularExpression(QStringLiteral("\\s*colspan\\s*=\\s*['\"]2['\"]"),
-                           QRegularExpression::CaseInsensitiveOption),
-        QString());
-    html.replace(
-        QRegularExpression(QStringLiteral("\\s*colspan\\s*=\\s*['\"]3['\"]"),
-                           QRegularExpression::CaseInsensitiveOption),
-        QStringLiteral(" colspan='2'"));
-    html.replace(
-        QRegularExpression(QStringLiteral("\\s*colspan\\s*=\\s*['\"]4['\"]"),
-                           QRegularExpression::CaseInsensitiveOption),
-        QStringLiteral(" colspan='3'"));
-
     html.replace(
         QRegularExpression(
             QStringLiteral("<colgroup\\b[^>]*>[\\s\\S]*?</colgroup\\s*>"),
@@ -1157,6 +1144,12 @@ QString applyProtocol126Task1CellWidths(QString html) {
             QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
             QRegularExpression::CaseInsensitiveOption));
         return attrs;
+    };
+    auto setColspan = [](QString attrs, int span) {
+        attrs.remove(QRegularExpression(
+            QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+            QRegularExpression::CaseInsensitiveOption));
+        return QStringLiteral(" colspan='%1'%2").arg(span).arg(attrs);
     };
     auto hasColspan = [](const QString &attrs) {
         return attrs.contains(QRegularExpression(
@@ -1181,11 +1174,16 @@ QString applyProtocol126Task1CellWidths(QString html) {
         while (tdIt.hasNext()) {
             tds.append(tdIt.next());
         }
-        // 142+469+60=671 — как в оригинальном template (портрет / ответ / баллы).
-        const bool threePlain = tds.size() == 3
-            && !hasColspan(tds.at(0).captured(2))
-            && !hasColspan(tds.at(1).captured(2))
-            && !hasColspan(tds.at(2).captured(2));
+
+        const QString rowText = rowInner;
+        const bool isProcessOrTaskTitle =
+            rowText.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
+            || rowText.contains(QRegularExpression(
+                   QStringLiteral("Задание\\s*1\\b"), QRegularExpression::CaseInsensitiveOption));
+        const bool isCharacterOrHelp =
+            rowText.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+            || rowText.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive);
+
         if (!tds.isEmpty()) {
             QString newRow;
             int cellLast = 0;
@@ -1193,12 +1191,44 @@ QString applyProtocol126Task1CellWidths(QString html) {
                 const QRegularExpressionMatch &td = tds.at(i);
                 newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
                 QString attrs = td.captured(2);
-                if (threePlain) {
-                    static const char *const kW[] = {"142", "469", "60"};
+
+                if (isProcessOrTaskTitle && tds.size() == 1) {
+                    // На всю ширину трёх колонок.
+                    attrs = setColspan(stripWidth(attrs), 3);
+                } else if (isCharacterOrHelp && tds.size() == 2) {
+                    // Две ячейки: подпись 200 + данные на остаток (colspan=2).
+                    if (i == 0) {
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs = setWidth(attrs, QStringLiteral("200"));
+                    } else {
+                        attrs = setColspan(stripWidth(attrs), 2);
+                    }
+                } else if (tds.size() == 3 && !hasColspan(tds.at(0).captured(2))
+                           && !hasColspan(tds.at(1).captured(2))
+                           && !hasColspan(tds.at(2).captured(2))) {
+                    // 200+411+60=671 — первая колонка = ширина «Характер»/«Виды помощи».
+                    static const char *const kW[] = {"200", "411", "60"};
                     attrs = setWidth(attrs, QString::fromUtf8(kW[i]));
+                } else if (tds.size() == 3 && i == 1 && hasColspan(attrs)) {
+                    // Старый ответ с colspan=2 → одна ячейка 411.
+                    attrs.remove(QRegularExpression(
+                        QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                        QRegularExpression::CaseInsensitiveOption));
+                    attrs = setWidth(attrs, QStringLiteral("411"));
+                } else if (tds.size() == 2 && hasColspan(tds.at(0).captured(2)) == false
+                           && hasColspan(tds.at(1).captured(2))) {
+                    // Итог colspan=2 + баллы.
+                    if (i == 0) {
+                        attrs = setColspan(stripWidth(attrs), 2);
+                    } else {
+                        attrs = setWidth(stripWidth(attrs), QStringLiteral("60"));
+                    }
                 } else {
                     attrs = stripWidth(attrs);
                 }
+
                 newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
                 cellLast = td.capturedEnd();
             }
@@ -1210,7 +1240,7 @@ QString applyProtocol126Task1CellWidths(QString html) {
     }
     rebuilt += html.mid(trLast);
     rebuilt.prepend(QStringLiteral(
-        "<colgroup><col width='142'><col width='469'><col width='60'></colgroup>"));
+        "<colgroup><col width='200'><col width='411'><col width='60'></colgroup>"));
     return rebuilt;
 }
 
@@ -1264,6 +1294,9 @@ QString applyProtocol126Task2CellWidths(QString html) {
             && !hasColspan(tds.at(1).captured(2))
             && !hasColspan(tds.at(2).captured(2))
             && !hasColspan(tds.at(3).captured(2));
+        const bool isCharacterOrHelp =
+            rowInner.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+            || rowInner.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive);
         if (!tds.isEmpty()) {
             QString newRow;
             int cellLast = 0;
@@ -1271,7 +1304,23 @@ QString applyProtocol126Task2CellWidths(QString html) {
                 const QRegularExpressionMatch &td = tds.at(i);
                 newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
                 QString attrs = td.captured(2);
-                if (fourPlain) {
+                if (isCharacterOrHelp && tds.size() == 2) {
+                    // Как в задании 1: подпись 200, данные на остаток.
+                    if (i == 0) {
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs = setWidth(attrs, QStringLiteral("200"));
+                    } else {
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs = QStringLiteral(" colspan='3'") + attrs;
+                    }
+                } else if (fourPlain) {
                     static const char *const kW[] = {"70", "120", "421", "60"};
                     attrs = setWidth(attrs, QString::fromUtf8(kW[i]));
                 } else {
@@ -1357,6 +1406,78 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             }
             attrs += QStringLiteral(" width='671'");
             out += m.captured(1) + attrs + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
+    // Шапка «Методика…»: всегда colgroup 200/471 (иначе Qt сжимает по длинной «Цели»).
+    {
+        const QRegularExpression headerTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Методика[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 64);
+        int last = 0;
+        QRegularExpressionMatchIterator it = headerTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            // Не трогать таблицы процесса (там тоже может встретиться слово в тексте).
+            if (inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)) {
+                out += m.captured(0);
+                last = m.capturedEnd();
+                continue;
+            }
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            inner.prepend(QStringLiteral(
+                "<colgroup><col width='200'><col width='471'></colgroup>"));
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (tds.size() == 2) {
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        newRow += td.captured(1)
+                            + setAttrWidth(td.captured(2), i == 0 ? QStringLiteral("200") : QStringLiteral("471"))
+                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
             last = m.capturedEnd();
         }
         out += body.mid(last);
