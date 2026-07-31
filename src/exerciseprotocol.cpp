@@ -4172,11 +4172,10 @@ QString ExerciseProtocol::applyProtocol126SumFromDocument(
         return applyManualScoresFromEditor(body);
     }
 
-    // «Подвести итог»: учесть правки ответов/баллов в редакторе, затем пересчитать.
+    // «Подвести итог»: только сумма уже введённых баллов (без автоподстановки по ответам).
     auto finalizeSums = [&](QString chunk) {
         chunk = applyManualScoresFromEditor(chunk);
         chunk = applyAnswersFromEditor(chunk);
-        chunk = fillProtocol126RowScores(chunk);
         const double sum1 = sumDivPrefix(chunk, QStringLiteral("col1"));
         const double sum2 = sumDivPrefix(chunk, QStringLiteral("col2"));
         const int sum3 = static_cast<int>(sum1 + sum2);

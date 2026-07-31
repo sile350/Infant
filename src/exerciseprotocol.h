@@ -103,7 +103,8 @@ public:
         const QString &storedBody,
         QTextDocument *editorDocument);
 
-    // 1.26: перенос баллов из редактора → HTML; при computeSums — sum1/sum2/sum3/idvivod (bsum).
+    // 1.26: перенос баллов из редактора → HTML; при computeSums — сумма col* → sum1/sum2/sum3/idvivod
+    // (без автоподстановки баллов в строки по ответам).
     static QString applyProtocol126SumFromDocument(
         const QString &storedBody,
         QTextDocument *editorDocument,
