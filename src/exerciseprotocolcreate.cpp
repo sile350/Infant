@@ -539,17 +539,23 @@ QString buildProtocol126(
             "<td width='60' align='center' valign='middle'>"
             "<div id='sum1' contenteditable='true' style='text-align:center'></div></td></tr>");
     } else if (step == QStringLiteral("2")) {
-        // Отдельная таблица задания 2 (4 колонки).
-        rows += QStringLiteral("<tr><td colspan='4' align='center'><b>Задание 2</b></td></tr>");
-        rows += QStringLiteral(
+        // Две таблицы: OR/HLP 200+471 и рассказы 70+120+421+60 (иначе width=200 раздувает 4 колонки).
+        const QString orHlpOpen = QStringLiteral(
+            "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>"
+            "<colgroup><col width='200'><col width='471'></colgroup>");
+        QString orHlp;
+        orHlp += QStringLiteral("<tr><td colspan='2' align='center'><b>Задание 2</b></td></tr>");
+        orHlp += QStringLiteral(
             "<tr><td width='200'>Характер деятельности ребенка</td>"
-            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
+            "<td width='471' valign='top' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
-        rows += QStringLiteral(
+        orHlp += QStringLiteral(
             "<tr><td width='200'>Виды помощи</td>"
-            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
+            "<td width='471' valign='top' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
-        rows += QStringLiteral(
+
+        QString stories;
+        stories += QStringLiteral(
             "<tr><td width='70' align='center'><b>№ рассказа</b></td>"
             "<td width='120' align='center'><b>Правильный ответ</b></td>"
             "<td width='421' align='center'><b>Ответ ребенка</b></td>"
@@ -558,7 +564,7 @@ QString buildProtocol126(
             const QString answerHtml = tmpAt(tmp, i + 1).isEmpty()
                 ? QStringLiteral("&nbsp;")
                 : tmpAt(tmp, i + 1);
-            rows += QStringLiteral("<tr><td width='70' align='center'>") + QString::number(i)
+            stories += QStringLiteral("<tr><td width='70' align='center'>") + QString::number(i)
                 + QStringLiteral("</td><td width='120' align='center'>") + kTask2Correct.at(i - 1)
                 + QStringLiteral("</td><td width='421' align='left'>"
                                  "<div id='ans2%1' contenteditable='true'>%2</div></td>"
@@ -568,20 +574,40 @@ QString buildProtocol126(
                       .arg(i)
                       .arg(answerHtml);
         }
-        rows += QStringLiteral(
+        stories += QStringLiteral(
             "<tr><td colspan='3' align='left'>Итоговая оценка</td>"
             "<td align='center' valign='middle'>"
             "<div id='sum2' contenteditable='true' style='text-align:center'></div></td></tr>");
-        rows += QStringLiteral(
+        stories += QStringLiteral(
             "<tr><td colspan='3' align='left'>Индекс успешности по двум сериям</td>"
             "<td align='center' valign='middle'>"
             "<div id='sum3' contenteditable='true' style='text-align:center'></div></td></tr>");
+
+        const QString addition = orHlpOpen + orHlp + QStringLiteral("</table>")
+            + QStringLiteral(
+                  "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>"
+                  "<colgroup><col width='70'><col width='120'><col width='421'><col width='60'></colgroup>")
+            + stories + QStringLiteral("</table>");
+        if (partly) {
+            QString base = existingProtocolHtml.trimmed();
+            return ExerciseProtocol::canonicalizeProtocol126StoredBody(base + addition);
+        }
+        QString add = dateSpecialistRow(userFio, 1);
+        add += QStringLiteral(
+            "<tr><td width='200'>Результат: баллы (макс.) / вывод об уровне развития</td>"
+            "<td width='471'><div id='idvivod' contenteditable='true'>(36)</div></td></tr>");
+        add += QStringLiteral(
+            "<tr><td width='200'>Примечание</td>"
+            "<td width='471'><div contenteditable='true'></div></td></tr>");
+        add += QStringLiteral("</table><!--s-->");
+        add += addition;
+        return ExerciseProtocol::normalizeSummaryColumnWidths(add);
     } else {
         return QString();
     }
 
     if (partly) {
-        // Дописка задания 2 строками в ту же таблицу процесса (не новой <table>).
+        // Дописка задания 2 — выше (две таблицы).
         return ExerciseProtocol::canonicalizeProtocol126StoredBody(
             ExerciseProtocol::appendRowsToStoredBody(existingProtocolHtml, rows));
     }
