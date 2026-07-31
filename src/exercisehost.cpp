@@ -2422,29 +2422,21 @@ void ExerciseHost::presentOverlayWidget(QWidget *overlayWidget) {
     }
     m_exerciseRunning = true;
 
-    // Один экран: упражнение на весь физический монитор, даже если окно Infant уменьшено.
+    // Один экран: оверлей внутри главного окна (не отдельный fullscreen —
+    // иначе на том же мониторе остаётся пустое окно Infant).
     if (!m_dualScreen) {
-        QWidget *hostWindow = window();
-        QScreen *screen = nullptr;
-        if (hostWindow) {
-            if (QWindow *handle = hostWindow->windowHandle()) {
-                screen = handle->screen();
-            }
-            if (!screen) {
-                screen = QGuiApplication::screenAt(hostWindow->frameGeometry().center());
-            }
+        QWidget *overlayRoot = parentWidget();
+        if (!overlayRoot) {
+            overlayRoot = this;
         }
-        if (!screen) {
-            screen = QGuiApplication::primaryScreen();
+        if (overlayWidget->isWindow() || overlayWidget->parentWidget() != overlayRoot) {
+            overlayWidget->hide();
+            overlayWidget->setWindowFlags(Qt::Widget);
+            overlayWidget->setParent(overlayRoot);
         }
-        overlayWidget->setParent(nullptr);
-        overlayWidget->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-        if (screen) {
-            overlayWidget->setGeometry(screen->geometry());
-        }
-        overlayWidget->showFullScreen();
+        overlayWidget->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
+        overlayWidget->show();
         overlayWidget->raise();
-        overlayWidget->activateWindow();
         return;
     }
 
@@ -2468,21 +2460,12 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
     if (!overlayWidget) {
         return;
     }
-    if (!m_dualScreen && overlayWidget->isWindow()) {
-        QScreen *screen = overlayWidget->screen();
-        if (!screen && window() && window()->windowHandle()) {
-            screen = window()->windowHandle()->screen();
-        }
-        if (!screen) {
-            screen = QGuiApplication::primaryScreen();
-        }
-        if (screen) {
-            overlayWidget->setGeometry(screen->geometry());
-        }
+    QWidget *overlayRoot = overlayWidget->parentWidget();
+    if (!overlayRoot) {
         return;
     }
-    QWidget *overlayRoot = overlayWidget->parentWidget();
-    if (overlayRoot) {
+    // Dual: оверлей на корне; один экран — тоже на корне (без отдельного Window).
+    if (!m_dualScreen || overlayRoot == parentWidget() || overlayRoot == this) {
         overlayWidget->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
     }
 }
@@ -2772,11 +2755,14 @@ void ExerciseHost::runExerciseSession() {
 
     setExerciseChromeVisible(false);
     m_sessionStepId = currentStepId();
+    m_dualScreen = AppSettings::dualScreenEnabled();
+    if (m_patientDisplay && !m_dualScreen) {
+        m_patientDisplay->hideDisplay();
+    }
     presentOverlayWidget(m_sessionRunner);
     lower();
     emit exerciseOverlayChanged(true);
     m_sessionRunner->setSessionOptions(buildSessionOptions());
-    m_dualScreen = AppSettings::dualScreenEnabled();
     m_sessionRunner->startSession(m_exerciseId, *definition, m_sessionStepId);
     layoutStepCombo();
     QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
@@ -2856,6 +2842,9 @@ void ExerciseHost::runOnlyPExercise() {
 
     if (m_specialistExercise) {
         m_specialistExercise->hide();
+    }
+    if (m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
     }
     setExerciseChromeVisible(false);
     showExerciseOverlay();

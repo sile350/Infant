@@ -482,7 +482,7 @@ QString buildProtocol126(
         "<table border='1' style='table-layout:fixed' cellspacing='0' width='671' cellpadding='0'>");
     // «Процесс…» — первая строка таблицы процесса (с боковыми границами), не голый <p>.
     const QString processRow = QStringLiteral(
-        "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
+        "<tr><td colspan='3' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
 
     static const QStringList kTask2Correct = {
         QStringLiteral("Злость"),
@@ -503,19 +503,20 @@ QString buildProtocol126(
     if (step == QStringLiteral("1")) {
         rows += processRow;
         rows += QStringLiteral(
-            "<tr><td colspan='4' align='center'> Задание 1 </td></tr>");
+            "<tr><td colspan='3' align='center'> Задание 1 </td></tr>");
         rows += QStringLiteral(
             "<tr><td>Характер деятельности ребенка</td>"
-            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
+            "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + orText + QStringLiteral("</div></td></tr>");
         rows += QStringLiteral(
             "<tr><td>Виды помощи</td>"
-            "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
+            "<td valign='top' colspan='2' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
+        // 142+469+60=671 — три колонки как в оригинале (без 4-й и colspan из задания 2).
         rows += QStringLiteral(
-            "<tr><td align='center'>Портретная картинка</td>"
-            "<td colspan='2' align='center'>Ответ ребенка</td>"
-            "<td align='center'>Баллы</td></tr>");
+            "<tr><td width='142' align='center'>Портретная картинка</td>"
+            "<td width='469' align='center'>Ответ ребенка</td>"
+            "<td width='60' align='center'>Баллы</td></tr>");
         const QStringList emotions = {
             QStringLiteral("Радость"), QStringLiteral("Злость"), QStringLiteral("Грусть"),
             QStringLiteral("Страх"), QStringLiteral("Удивление"), QStringLiteral("Спокойствие"),
@@ -524,21 +525,21 @@ QString buildProtocol126(
             const QString answerHtml = tmpAt(tmp, i + 2).isEmpty()
                 ? QStringLiteral("&nbsp;")
                 : tmpAt(tmp, i + 2);
-            rows += QStringLiteral("<tr><td>") + emotions.at(i)
-                + QStringLiteral("</td><td colspan='2' align='left'>"
+            rows += QStringLiteral("<tr><td width='142'>") + emotions.at(i)
+                + QStringLiteral("</td><td width='469' align='left'>"
                                  "<div id='ans1%1' contenteditable='true'>%2</div></td>"
-                                 "<td align='center' valign='middle'>"
+                                 "<td width='60' align='center' valign='middle'>"
                                  "<div id='col1%1' contenteditable='true' "
                                  "style='text-align:center'>&nbsp;</div></td></tr>")
                       .arg(i + 1)
                       .arg(answerHtml);
         }
         rows += QStringLiteral(
-            "<tr><td align='left' colspan='3'>Итоговая оценка</td>"
-            "<td align='center' valign='middle'>"
+            "<tr><td align='left' colspan='2'>Итоговая оценка</td>"
+            "<td width='60' align='center' valign='middle'>"
             "<div id='sum1' contenteditable='true' style='text-align:center'></div></td></tr>");
     } else if (step == QStringLiteral("2")) {
-        // При дописке задания 2 заголовок «Процесс…» уже есть в таблице.
+        // Отдельная таблица задания 2 (4 колонки).
         rows += QStringLiteral("<tr><td colspan='4' align='center'><b>Задание 2</b></td></tr>");
         rows += QStringLiteral(
             "<tr><td>Характер деятельности ребенка</td>"
@@ -548,7 +549,6 @@ QString buildProtocol126(
             "<tr><td>Виды помощи</td>"
             "<td valign='top' colspan='3' align='left'><div contenteditable='true'>")
             + hlpText + QStringLiteral("</div></td></tr>");
-        // Только строки без colspan задают ширину (70+120+421+60=671).
         rows += QStringLiteral(
             "<tr><td width='70' align='center'><b>№ рассказа</b></td>"
             "<td width='120' align='center'><b>Правильный ответ</b></td>"
