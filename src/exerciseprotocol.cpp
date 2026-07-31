@@ -16,6 +16,15 @@
 #include <cmath>
 #include <utility>
 
+static int findProtocol126Task2RowStart(const QString &rows) {
+    const QRegularExpression re(
+        QStringLiteral(
+            "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*Задание\\s*2\\b"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch m = re.match(rows);
+    return m.hasMatch() ? m.capturedStart() : -1;
+}
+
 namespace {
 
 QString answerText(bool correct) {
@@ -1112,9 +1121,29 @@ QString stripSpecialistSections(QString body) {
     return body;
 }
 
-// 1.26: ширины только на строках из 4 <td> без colspan (70+120+421+60=671).
-// Width на ячейке с colspan (например 541) Qt кладёт в одну колонку → таблица >> 671.
-QString applyProtocol126ProcessCellWidths(QString html) {
+// 1.26: задания 1 и 2 — РАЗНЫЕ таблицы (общая сетка колонок раздувает width > 671).
+QString applyProtocol126Task1CellWidths(QString html) {
+    html.replace(
+        QRegularExpression(
+            QStringLiteral("<colgroup\\b[^>]*>[\\s\\S]*?</colgroup\\s*>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+        QString());
+    html.replace(
+        QRegularExpression(QStringLiteral("<col\\b[^>]*/?>"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+    QRegularExpression widthOnCell(
+        QStringLiteral("(<t[dh]\\b[^>]*?)\\s+width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+        QRegularExpression::CaseInsensitiveOption);
+    for (int i = 0; i < 8 && html.contains(widthOnCell); ++i) {
+        html.replace(widthOnCell, QStringLiteral("\\1"));
+    }
+    // Как у портретной колонки в шаблоне: 142 + (234+235) + 60 = 671.
+    html.prepend(QStringLiteral(
+        "<colgroup><col width='142'><col width='234'><col width='235'><col width='60'></colgroup>"));
+    return html;
+}
+
+QString applyProtocol126Task2CellWidths(QString html) {
     html.replace(
         QRegularExpression(
             QStringLiteral("<colgroup\\b[^>]*>[\\s\\S]*?</colgroup\\s*>"),
@@ -1124,7 +1153,7 @@ QString applyProtocol126ProcessCellWidths(QString html) {
         QRegularExpression(QStringLiteral("<col\\b[^>]*/?>"), QRegularExpression::CaseInsensitiveOption),
         QString());
 
-    auto setWidthKeepColspan = [](QString attrs, const QString &w) {
+    auto setWidth = [](QString attrs, const QString &w) {
         attrs.remove(QRegularExpression(
             QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
             QRegularExpression::CaseInsensitiveOption));
@@ -1135,6 +1164,10 @@ QString applyProtocol126ProcessCellWidths(QString html) {
             QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
             QRegularExpression::CaseInsensitiveOption));
         return attrs;
+    };
+    auto hasColspan = [](const QString &attrs) {
+        return attrs.contains(QRegularExpression(
+            QStringLiteral("colspan\\s*="), QRegularExpression::CaseInsensitiveOption));
     };
 
     const QRegularExpression trRe(
@@ -1155,18 +1188,11 @@ QString applyProtocol126ProcessCellWidths(QString html) {
         while (tdIt.hasNext()) {
             tds.append(tdIt.next());
         }
-
-        auto hasColspan = [](const QString &attrs) {
-            return attrs.contains(QRegularExpression(
-                QStringLiteral("colspan\\s*="), QRegularExpression::CaseInsensitiveOption));
-        };
-
         const bool fourPlain = tds.size() == 4
             && !hasColspan(tds.at(0).captured(2))
             && !hasColspan(tds.at(1).captured(2))
             && !hasColspan(tds.at(2).captured(2))
             && !hasColspan(tds.at(3).captured(2));
-
         if (!tds.isEmpty()) {
             QString newRow;
             int cellLast = 0;
@@ -1176,9 +1202,8 @@ QString applyProtocol126ProcessCellWidths(QString html) {
                 QString attrs = td.captured(2);
                 if (fourPlain) {
                     static const char *const kW[] = {"70", "120", "421", "60"};
-                    attrs = setWidthKeepColspan(attrs, QString::fromUtf8(kW[i]));
+                    attrs = setWidth(attrs, QString::fromUtf8(kW[i]));
                 } else {
-                    // С colspan / «Характер» — без width, иначе Qt суммирует колонки.
                     attrs = stripWidth(attrs);
                 }
                 newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
@@ -1194,6 +1219,18 @@ QString applyProtocol126ProcessCellWidths(QString html) {
     rebuilt.prepend(QStringLiteral(
         "<colgroup><col width='70'><col width='120'><col width='421'><col width='60'></colgroup>"));
     return rebuilt;
+}
+
+QString applyProtocol126ProcessCellWidths(QString html) {
+    const bool task2 = html.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
+        || html.contains(QRegularExpression(
+               QStringLiteral("id\\s*=\\s*['\"]col2"), QRegularExpression::CaseInsensitiveOption))
+        || (html.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+            && !html.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive));
+    if (task2) {
+        return applyProtocol126Task2CellWidths(html);
+    }
+    return applyProtocol126Task1CellWidths(html);
 }
 
 QString normalizeSummaryColumnWidthsHtml(QString body) {
@@ -1279,7 +1316,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
-    // 1.26 «Распознавание эмоциональных состояний»: 70+120+421+60 = 671.
+    // 1.26: задания 1 и 2 — отдельные таблицы по 671 (общая сетка раздувает ширину).
     {
         const QRegularExpression processTableRe(
             QStringLiteral(
@@ -1292,7 +1329,18 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         while (it.hasNext()) {
             const QRegularExpressionMatch m = it.next();
             out += body.mid(last, m.capturedStart() - last);
-            out += m.captured(1) + applyProtocol126ProcessCellWidths(m.captured(2)) + m.captured(3);
+            const QString open = m.captured(1);
+            QString inner = m.captured(2);
+            const int task2At = findProtocol126Task2RowStart(inner);
+            const bool hasPortrait = inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive);
+            if (task2At > 0 && hasPortrait) {
+                out += open + applyProtocol126Task1CellWidths(inner.left(task2At))
+                    + QStringLiteral("</table>");
+                out += open + applyProtocol126Task2CellWidths(inner.mid(task2At))
+                    + QStringLiteral("</table>");
+            } else {
+                out += open + applyProtocol126ProcessCellWidths(inner) + m.captured(3);
+            }
             last = m.capturedEnd();
         }
         out += body.mid(last);
@@ -2012,19 +2060,35 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
                 QRegularExpression::CaseInsensitiveOption),
             QString());
 
-        QString taskRows;
+        QStringList taskParts;
         QStringList taskTables = extractProtocol126TaskTables(&resultsBlock);
         for (const QString &table : taskTables) {
-            taskRows += extractTableInnerRows(table);
+            const QString rows = extractTableInnerRows(table).trimmed();
+            if (!rows.isEmpty()) {
+                taskParts.append(rows);
+            }
         }
         // Хвост resultsBlock может содержать голые <tr> без обёртки.
         resultsBlock = resultsBlock.trimmed();
         if (resultsBlock.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-            taskRows += resultsBlock;
+            taskParts.append(resultsBlock);
         }
-        taskRows = normalizeProtocol126TaskRows(taskRows);
-        if (!taskRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
-            taskRows.prepend(processRow);
+
+        QStringList flatParts;
+        for (const QString &part : taskParts) {
+            const int task2At = findProtocol126Task2RowStart(part);
+            if (task2At > 0) {
+                const QString left = part.left(task2At).trimmed();
+                const QString right = part.mid(task2At).trimmed();
+                if (!left.isEmpty()) {
+                    flatParts.append(left);
+                }
+                if (!right.isEmpty()) {
+                    flatParts.append(right);
+                }
+            } else if (!part.trimmed().isEmpty()) {
+                flatParts.append(part);
+            }
         }
 
         if (i == 0) {
@@ -2041,8 +2105,13 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
             result += summaryRows;
         }
         result += QStringLiteral("</table>");
-        if (!taskRows.trimmed().isEmpty()) {
-            result += tableOpen + taskRows + QStringLiteral("</table>");
+        bool needProcess = true;
+        for (QString rows : flatParts) {
+            if (needProcess && !rows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                rows.prepend(processRow);
+            }
+            needProcess = false;
+            result += tableOpen + rows + QStringLiteral("</table>");
         }
     }
     return ExerciseProtocol::normalizeSummaryColumnWidths(result);
@@ -2704,24 +2773,45 @@ QString canonicalizeProtocol126Session(QString session) {
         QString());
 
     QString summary = cleanProtocol126SummaryRows(beforeMarker);
-    QString taskRows;
+    QStringList taskParts;
     for (const QString &table : taskTables) {
-        taskRows += extractTableInnerRows(table);
+        const QString rows = extractTableInnerRows(table).trimmed();
+        if (!rows.isEmpty()) {
+            taskParts.append(rows);
+        }
     }
     const QString bareRows = afterMarker.trimmed();
     if (bareRows.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-        taskRows += bareRows;
+        taskParts.append(bareRows);
     }
-    taskRows = normalizeProtocol126TaskRows(taskRows);
+
+    // Разделить склеенные «Задание 1+2» на две таблицы (иначе width > 671).
+    QStringList flatParts;
+    for (const QString &part : taskParts) {
+        const int task2At = findProtocol126Task2RowStart(part);
+        if (task2At > 0) {
+            const QString left = part.left(task2At).trimmed();
+            const QString right = part.mid(task2At).trimmed();
+            if (!left.isEmpty()) {
+                flatParts.append(left);
+            }
+            if (!right.isEmpty()) {
+                flatParts.append(right);
+            }
+        } else if (!part.trimmed().isEmpty()) {
+            flatParts.append(part);
+        }
+    }
 
     QString result = summary + QStringLiteral("</table><!--s-->");
-    if (!taskRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
-        taskRows.prepend(QStringLiteral(
-            "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>"));
-    }
-    if (!taskRows.trimmed().isEmpty()) {
-        result += QString::fromUtf8(kProtocol126ProcessTableOpen)
-            + taskRows + QStringLiteral("</table>");
+    bool needProcess = true;
+    for (QString rows : flatParts) {
+        if (needProcess && !rows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+            rows.prepend(QStringLiteral(
+                "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>"));
+        }
+        needProcess = false;
+        result += QString::fromUtf8(kProtocol126ProcessTableOpen) + rows + QStringLiteral("</table>");
     }
     return ExerciseProtocol::normalizeSummaryColumnWidths(result);
 }
@@ -4569,8 +4659,8 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
         return addition;
     }
 
-    // 1.26: строки задания 2 вставляем ПЕРЕД </table> таблицы процесса
-    // (одна таблица на оба задания — иначе Qt вложит соседнюю <table>).
+    // 1.26: задание 2 — отдельная таблица после таблицы задания 1
+    // (общая сетка колонок в одной таблице раздувает width > 671).
     if (looksLikeProtocol126Body(base) || looksLikeProtocol126Body(addition)
         || addition.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
         || addition.contains(QStringLiteral("id='col2"), Qt::CaseInsensitive)
@@ -4591,6 +4681,9 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
             rowsToInsert.prepend(QStringLiteral("<tr>"));
         }
 
+        const QString task2Table = QString::fromUtf8(kProtocol126ProcessTableOpen)
+            + rowsToInsert + QStringLiteral("</table>");
+
         const int marker = base.lastIndexOf(QStringLiteral("<!--s-->"));
         int tableClose = -1;
         if (marker >= 0) {
@@ -4602,17 +4695,18 @@ QString appendRowsIntoSingleProtocolBody(const QString &existingBody, const QStr
             tableClose = base.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
         }
         if (tableClose >= 0) {
-            return base.left(tableClose) + rowsToInsert + base.mid(tableClose);
+            const int afterClose = tableClose + QStringLiteral("</table>").size();
+            return base.left(afterClose) + task2Table + base.mid(afterClose);
         }
         // Нет закрытой таблицы процесса — дописать целиком.
         if (!base.contains(QStringLiteral("Процесс выполнения диагностического задания"), Qt::CaseInsensitive)) {
             base += QStringLiteral("</table><!--s-->")
                 + QString::fromUtf8(kProtocol126ProcessTableOpen)
                 + QStringLiteral(
-                    "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>");
-            return base + rowsToInsert + QStringLiteral("</table>");
+                    "<tr><td colspan='4' align='center'><b>Процесс выполнения диагностического задания</b></td></tr>")
+                + QStringLiteral("</table>");
         }
-        return base + rowsToInsert;
+        return base + task2Table;
     }
 
     if (!addition.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)
