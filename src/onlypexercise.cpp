@@ -389,17 +389,9 @@ void OnlyPExercise::updateWidgetLayout() {
         int extraX = 0;
         int extraY = 0;
         if (m_exerciseId == QStringLiteral("1.1")) {
-            // Один экран: центр по вертикали, +200 вниз и +50 вправо.
-            // Dual Specialist: прежняя позиция выше. Patient — отдельно.
-            if (m_displayRole == DisplayRole::Primary) {
-                extraX = 50;
-                extraY = 200;
-            } else if (m_displayRole == DisplayRole::Specialist) {
-                extraX = 100;
-                extraY = -280;
-            } else if (m_displayRole == DisplayRole::Patient) {
-                extraX = 100;
-            }
+            // Центр картинки = центр экрана (один экран и dual).
+            extraX = 0;
+            extraY = 0;
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             if (m_displayRole == DisplayRole::Primary) {
                 // Один экран: по центру по вертикали (опустить чуть ниже).
@@ -606,11 +598,10 @@ void OnlyPExercise::updateWidgetLayout() {
             int pictureY = qMax(
                 pictureMargin,
                 (height() - display.height()) / 2 + kPatientPictureShiftDown + extraY);
-            // 1.1: базовая patient-позиция (extraY=-280 упирается в pictureMargin).
+            // 1.1: строго по центру второго экрана.
             if (m_exerciseId == QStringLiteral("1.1")) {
-                pictureY = qMax(
-                    pictureMargin,
-                    (height() - display.height()) / 2 + kPatientPictureShiftDown);
+                pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
+                pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
             }
             m_picture->move(pictureX, pictureY);
             m_picture->show();
@@ -628,8 +619,12 @@ void OnlyPExercise::updateWidgetLayout() {
                 }
                 pictureX = qMax(pictureMargin, pictureX);
             }
-            // Не залезать на кнопки Стоп (extraY=-200 у 3.1.11 и др. иначе перекрывал клики).
-            const int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
+            int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
+            // 1.1: строго по центру панели специалиста.
+            if (m_exerciseId == QStringLiteral("1.1") && !fairySplitLayout) {
+                pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
+                pictureY = qMax(contentTop, (height() - display.height()) / 2);
+            }
             m_picture->move(pictureX, pictureY);
             m_picture->show();
             if (m_picture2) {
@@ -645,9 +640,11 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 1.1 / 2.10 / 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
-            if (m_exerciseId == QStringLiteral("1.1")
-                || m_exerciseId == QStringLiteral("2.10")
+            // 1.1: строго по центру экрана (H и V).
+            if (m_exerciseId == QStringLiteral("1.1")) {
+                pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
+                pictureY = qMax(contentTop, (height() - display.height()) / 2);
+            } else if (m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")
                 || m_exerciseId == QStringLiteral("3.1.2")
                 || m_exerciseId == QStringLiteral("3.1.10")
@@ -662,6 +659,7 @@ void OnlyPExercise::updateWidgetLayout() {
                 || m_exerciseId == QStringLiteral("4.1.2")
                 || (m_exerciseId == QStringLiteral("3.2.11")
                     && m_stepId == QStringLiteral("2"))) {
+                // 2.10 / 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
                 pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             }
             if (fairySplitLayout) {
