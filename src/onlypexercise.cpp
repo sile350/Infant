@@ -389,10 +389,16 @@ void OnlyPExercise::updateWidgetLayout() {
         int extraX = 0;
         int extraY = 0;
         if (m_exerciseId == QStringLiteral("1.1")) {
-            extraX = 100;
-            // Primary/Specialist: поднять. Patient — отдельно (см. ветку Patient).
-            if (m_displayRole != DisplayRole::Patient) {
+            // Один экран: центр по вертикали, +200 вниз и +50 вправо.
+            // Dual Specialist: прежняя позиция выше. Patient — отдельно.
+            if (m_displayRole == DisplayRole::Primary) {
+                extraX = 50;
+                extraY = 200;
+            } else if (m_displayRole == DisplayRole::Specialist) {
+                extraX = 100;
                 extraY = -280;
+            } else if (m_displayRole == DisplayRole::Patient) {
+                extraX = 100;
             }
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             if (m_displayRole == DisplayRole::Primary) {
@@ -639,8 +645,9 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 2.10 / 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
-            if (m_exerciseId == QStringLiteral("2.10")
+            // 1.1 / 2.10 / 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
+            if (m_exerciseId == QStringLiteral("1.1")
+                || m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")
                 || m_exerciseId == QStringLiteral("3.1.2")
                 || m_exerciseId == QStringLiteral("3.1.10")
