@@ -1546,32 +1546,36 @@ public:
         m_bgLabel->lower();
 
         // Только индикаторы радиокнопок поверх f1.png (цифры уже на картинке).
+        // ~1.8× меньше стандартных 14px → 8px.
+        constexpr int kIndicator = 8;
         const QString radioStyle = QStringLiteral(
             "QRadioButton { background:transparent; border:none; spacing:0px; }"
-            "QRadioButton::indicator { width:14px; height:14px; }"
+            "QRadioButton::indicator { width:%1px; height:%1px; }"
             "QRadioButton::indicator:unchecked {"
-            "  border:1px solid #808080; border-radius:7px; background:#ffffff;"
+            "  border:1px solid #808080; border-radius:%2px; background:#ffffff;"
             "}"
             "QRadioButton::indicator:checked {"
-            "  border:1px solid #808080; border-radius:7px;"
+            "  border:1px solid #808080; border-radius:%2px;"
             "  background-color:qradialgradient("
             "    cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,"
             "    stop:0 #333333, stop:0.38 #333333, stop:0.39 #ffffff);"
-            "}");
+            "}")
+                                       .arg(kIndicator)
+                                       .arg(kIndicator / 2);
 
         auto *excl1 = new QButtonGroup(this);
         auto *excl2 = new QButtonGroup(this);
         for (int i = 0; i < 8; ++i) {
             auto *r1 = new QRadioButton(this);
             r1->setStyleSheet(radioStyle);
-            r1->setFixedSize(18, 18);
+            r1->setFixedSize(kIndicator + 2, kIndicator + 2);
             r1->setProperty("digitValue", i + 1);
             excl1->addButton(r1);
             m_row1 << r1;
 
             auto *r2 = new QRadioButton(this);
             r2->setStyleSheet(radioStyle);
-            r2->setFixedSize(18, 18);
+            r2->setFixedSize(kIndicator + 2, kIndicator + 2);
             r2->setProperty("digitValue", 8 - i);
             excl2->addButton(r2);
             m_row2 << r2;
@@ -1610,11 +1614,13 @@ public:
     }
 
     void layoutUi() override {
-        // f1.png 802×861 — как превью справа; галочки в колонке А обоих блоков.
+        // f1.png 802×861 — галочки в колонке А; смещения под кружки на картинке.
         static const int kRadioY[] = {70, 104, 138, 172, 206, 240, 274, 308};
         constexpr int kBox2Top = 428;
-        constexpr int kRadioX = 34;
+        constexpr int kRadioX = 24; // было 34; левее на 10
         constexpr int kTitlePad = 22;
+        constexpr int kGroup1NudgeY = 20; // первая группа ниже на 20
+        constexpr int kGroup2NudgeY = 40; // вторая группа ниже на 40
 
         QPixmap display = m_bgSource;
         int bgX = 0;
@@ -1646,8 +1652,8 @@ public:
             if (!m_row1.at(i)) {
                 continue;
             }
-            const int x = bgX + qRound((kRadioX) * sx);
-            const int y = bgY + qRound((kTitlePad + kRadioY[i]) * sy);
+            const int x = bgX + qRound(kRadioX * sx);
+            const int y = bgY + qRound((kTitlePad + kRadioY[i] + kGroup1NudgeY) * sy);
             m_row1.at(i)->move(x, y);
             m_row1.at(i)->show();
             m_row1.at(i)->raise();
@@ -1656,8 +1662,9 @@ public:
             if (!m_row2.at(i)) {
                 continue;
             }
-            const int x = bgX + qRound((kRadioX) * sx);
-            const int y = bgY + qRound((kBox2Top + kTitlePad + kRadioY[i]) * sy);
+            const int x = bgX + qRound(kRadioX * sx);
+            const int y =
+                bgY + qRound((kBox2Top + kTitlePad + kRadioY[i] + kGroup2NudgeY) * sy);
             m_row2.at(i)->move(x, y);
             m_row2.at(i)->show();
             m_row2.at(i)->raise();
