@@ -325,8 +325,6 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "td[align='center'] div[contenteditable='true'] { text-align:center; }"
         ".protocol-page-break { page-break-before:always; break-before:page; "
         "height:0; margin:0; padding:0; line-height:0; font-size:0; }"
-        "a[id^='dokit-pid-'] { display:inline; font-size:0; line-height:0; height:0; "
-        "margin:0; padding:0; border:0; text-decoration:none; }"
         "@media print { .protocol-page-break { page-break-before:always; break-before:page; } }"
         "</style>");
 }

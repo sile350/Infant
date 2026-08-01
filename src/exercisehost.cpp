@@ -603,18 +603,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     helpTitle->setStyleSheet(m_activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
-    // 3.1.10: курсивная подсказка под заголовком (как в or.html).
-    m_helpPenaltyHint = new WhiteLabel(
-        QStringLiteral("За каждый вид помощи оценка снижается на 0,5 балла"),
-        m_checkboxPanel);
-    m_helpPenaltyHint->setAlignment(Qt::AlignCenter);
-    m_helpPenaltyHint->setWordWrap(true);
-    m_helpPenaltyHint->setStyleSheet(QStringLiteral(
-        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-        "font-size:14px; font-style:italic; font-weight:normal; padding:2px 8px 6px 8px;"));
-    m_helpPenaltyHint->setVisible(false);
-    checkboxLayout->addWidget(m_helpPenaltyHint);
-
     m_stimHelpLabel = new WhiteLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
     m_stimHelpLabel->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
@@ -1068,11 +1056,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 m_sessionStepId = m_stepCombo->currentText().trimmed();
                 reloadPreviewForCurrentStep();
             }
-        }
-        // 3.1.12: одно задание — повторный Begin обнуляет протокол, Form пишет с нуля (INSERT).
-        if (m_exerciseId == QStringLiteral("3.1.12")) {
-            m_partly = false;
-            m_forceNewProtocolSession = false;
         }
         resetProtocolToInitialTemplate();
         runExerciseSession();
@@ -1765,9 +1748,7 @@ void ExerciseHost::updatePreviewLayout() {
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             extraY = -120;
         } else if (m_exerciseId == QStringLiteral("2.10")
-                   || m_exerciseId == QStringLiteral("3.1.2")
-                   || m_exerciseId == QStringLiteral("3.1.10")
-                   || m_exerciseId == QStringLiteral("3.1.12")) {
+                   || m_exerciseId == QStringLiteral("3.1.2")) {
             // Как 1.1: строго по центру правой панели (оба задания).
             extraX = 0;
             extraY = 0;
@@ -1796,7 +1777,9 @@ void ExerciseHost::updatePreviewLayout() {
             }
         } else if (m_exerciseId == QStringLiteral("2.8")
                    || m_exerciseId == QStringLiteral("2.9")
+                   || m_exerciseId == QStringLiteral("3.1.10")
                    || m_exerciseId == QStringLiteral("3.1.11")
+                   || m_exerciseId == QStringLiteral("3.1.12")
                    || m_exerciseId == QStringLiteral("3.1.17")
                    || m_exerciseId == QStringLiteral("3.1.18")
                    || m_exerciseId == QStringLiteral("3.2.1")
@@ -1813,7 +1796,8 @@ void ExerciseHost::updatePreviewLayout() {
                        || m_exerciseId == QStringLiteral("3.2.2")
                        || m_exerciseId == QStringLiteral("3.2.4")
                        || m_exerciseId == QStringLiteral("3.2.5")
-                       || m_exerciseId == QStringLiteral("3.1.11")) {
+                       || m_exerciseId == QStringLiteral("3.1.11")
+                       || m_exerciseId == QStringLiteral("3.1.12")) {
                 extraX = 80;
             }
         } else if (m_exerciseId == QStringLiteral("3.1.1")) {
@@ -1846,9 +1830,7 @@ void ExerciseHost::updatePreviewLayout() {
 
         if (m_exerciseId == QStringLiteral("2.10")
             || m_exerciseId == QStringLiteral("3.1.1")
-            || m_exerciseId == QStringLiteral("3.1.2")
-            || m_exerciseId == QStringLiteral("3.1.10")
-            || m_exerciseId == QStringLiteral("3.1.12")) {
+            || m_exerciseId == QStringLiteral("3.1.2")) {
             // Как 1.1 Specialist: строго геометрический центр панели.
             localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
             localY = qMax(kPictureMargin, (panelH - display.height()) / 2);
@@ -2074,17 +2056,6 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     if (m_teachHelpLabel) {
         m_teachHelpLabel->setVisible(!flatCustom);
     }
-    const bool showHelpPenaltyHint = m_exerciseId == QStringLiteral("3.1.10");
-    if (m_helpPenaltyHint) {
-        // Не опираться на isVisible(): пока панель ещё скрыта, Qt вернёт false
-        // и пункты вставлялись ПЕРЕД подсказкой (она оказывалась после списка).
-        m_helpPenaltyHint->setVisible(showHelpPenaltyHint);
-        if (showHelpPenaltyHint && m_helpChecksLayout) {
-            m_helpChecksLayout->removeWidget(m_helpPenaltyHint);
-            // Сразу под «Виды возможной помощи:» (индекс 0), до чекбоксов и подзаголовков.
-            m_helpChecksLayout->insertWidget(1, m_helpPenaltyHint);
-        }
-    }
 
     const int checkWidth = m_scrollArea && m_scrollArea->viewport()
         ? qMax(200, m_scrollArea->viewport()->width() - 40)
@@ -2099,13 +2070,8 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     };
 
     if (flatCustom) {
-        // Плоский список сразу после заголовка «Виды возможной помощи»
-        // (и подсказки 3.1.10 — до пунктов).
+        // Плоский список сразу после заголовка «Виды возможной помощи».
         int insertAt = 1;
-        if (showHelpPenaltyHint && m_helpPenaltyHint) {
-            const int hintIdx = m_helpChecksLayout->indexOf(m_helpPenaltyHint);
-            insertAt = hintIdx >= 0 ? hintIdx + 1 : 2;
-        }
         for (const QString &text : labels) {
             m_helpChecks << makeCheckRow(text, m_helpChecksLayout, checkWidth);
             if (QWidget *row = m_helpChecks.last().label

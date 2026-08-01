@@ -73,11 +73,6 @@ public:
     static QString buildProtocol126ViewRecord(
         const QString &headerFragment,
         const QString &storedBody);
-    // Плоская сборка сессий с <!--s-->: summary </table> + таблица процесса
-    // (иначе Qt вкладывает процесс в ячейку «Процесс выполнения» — 3.1.10 и др.).
-    static QString buildFlatMarkerSeparatedViewRecord(
-        const QString &headerFragment,
-        const QString &storedBody);
     static QString restrictExercisePageEditing(const QString &protocolHtml);
     static QString stripMethodologyFillForDocExport(const QString &protocolHtml);
     static QString stripProtocolRecordHeader(const QString &recordHtml, const QString &headerFragment);

@@ -391,9 +391,7 @@ void OnlyPExercise::updateWidgetLayout() {
         if (m_exerciseId == QStringLiteral("1.1")
             || m_exerciseId == QStringLiteral("1.25")
             || m_exerciseId == QStringLiteral("2.10")
-            || m_exerciseId == QStringLiteral("3.1.2")
-            || m_exerciseId == QStringLiteral("3.1.10")
-            || m_exerciseId == QStringLiteral("3.1.12")) {
+            || m_exerciseId == QStringLiteral("3.1.2")) {
             // Центр картинки = центр экрана (один экран и dual).
             extraX = 0;
             extraY = 0;
@@ -428,7 +426,9 @@ void OnlyPExercise::updateWidgetLayout() {
             } else {
                 extraY = 40;
             }
-        } else if (m_exerciseId == QStringLiteral("3.1.11")) {
+        } else if (m_exerciseId == QStringLiteral("3.1.10")
+                   || m_exerciseId == QStringLiteral("3.1.11")
+                   || m_exerciseId == QStringLiteral("3.1.12")) {
             // По центру экрана; один экран — чуть правее.
             if (m_displayRole == DisplayRole::Primary) {
                 extraX = 80;
@@ -578,13 +578,11 @@ void OnlyPExercise::updateWidgetLayout() {
             int pictureY = qMax(
                 pictureMargin,
                 (height() - display.height()) / 2 + kPatientPictureShiftDown + extraY);
-            // 1.1 / 1.25 / 2.10 / 3.1.2 / 3.1.10 / 3.1.12 / 1.18(№3): строго по центру второго экрана.
+            // 1.1 / 1.25 / 2.10 / 3.1.2 / 1.18(№3): строго по центру второго экрана.
             if (m_exerciseId == QStringLiteral("1.1")
                 || m_exerciseId == QStringLiteral("1.25")
                 || m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.2")
-                || m_exerciseId == QStringLiteral("3.1.10")
-                || m_exerciseId == QStringLiteral("3.1.12")
                 || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3"))) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
                 pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
@@ -606,13 +604,11 @@ void OnlyPExercise::updateWidgetLayout() {
                 pictureX = qMax(pictureMargin, pictureX);
             }
             int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
-            // 1.1 / 1.25 / 2.10 / 3.1.2 / 3.1.10 / 3.1.12 / 1.18(№3 dual specialist): строго по центру панели.
+            // 1.1 / 1.25 / 2.10 / 3.1.2 / 1.18(№3 dual specialist): строго по центру панели.
             if ((m_exerciseId == QStringLiteral("1.1")
                  || m_exerciseId == QStringLiteral("1.25")
                  || m_exerciseId == QStringLiteral("2.10")
                  || m_exerciseId == QStringLiteral("3.1.2")
-                 || m_exerciseId == QStringLiteral("3.1.10")
-                 || m_exerciseId == QStringLiteral("3.1.12")
                  || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")))
                 && !fairySplitLayout) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
@@ -633,18 +629,18 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 1.1 / 1.25 / 2.10 / 3.1.1 / 3.1.2 / 3.1.10 / 3.1.12 / 1.18(№3): строго по центру экрана.
+            // 1.1 / 1.25 / 2.10 / 3.1.1 / 3.1.2 / 1.18(№3): строго по центру экрана.
             if (m_exerciseId == QStringLiteral("1.1")
                 || m_exerciseId == QStringLiteral("1.25")
                 || m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")
                 || m_exerciseId == QStringLiteral("3.1.2")
-                || m_exerciseId == QStringLiteral("3.1.10")
-                || m_exerciseId == QStringLiteral("3.1.12")
                 || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3"))) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
                 pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
-            } else if (m_exerciseId == QStringLiteral("3.1.11")
+            } else if (m_exerciseId == QStringLiteral("3.1.10")
+                || m_exerciseId == QStringLiteral("3.1.11")
+                || m_exerciseId == QStringLiteral("3.1.12")
                 || m_exerciseId == QStringLiteral("3.2.1")
                 || m_exerciseId == QStringLiteral("3.2.2")
                 || m_exerciseId == QStringLiteral("3.2.3")
@@ -688,7 +684,7 @@ void OnlyPExercise::updateWidgetLayout() {
         m_wordLabel->hide();
     }
 
-    if (usesNavBrowseButtons() && m_displayRole != DisplayRole::Headless
+    if (isCombineWordsExercise() && m_displayRole != DisplayRole::Headless
         && m_displayRole != DisplayRole::Patient
         && m_navBackButton && m_navNextButton) {
         const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
@@ -859,11 +855,6 @@ void OnlyPExercise::start(
         m_browseIndex = 0;
         ensureCombineWordsUi();
         refreshCombineWordsStimulus();
-    } else if (isPictureBrowseExercise()) {
-        m_browseIndex = 0;
-        ensureCombineWordsUi();
-        loadPicture(1);
-        updateCombineWordsNavVisibility();
     } else {
         loadPicture(1);
     }
@@ -942,15 +933,6 @@ bool OnlyPExercise::isCombineWordsExercise() const {
     return m_exerciseId == QStringLiteral("3.2.3");
 }
 
-bool OnlyPExercise::isPictureBrowseExercise() const {
-    // 3.1.12: одно задание, картинки 1..N листаются Вперёд/Назад (без combo).
-    return m_exerciseId == QStringLiteral("3.1.12");
-}
-
-bool OnlyPExercise::usesNavBrowseButtons() const {
-    return isCombineWordsExercise() || isPictureBrowseExercise();
-}
-
 bool OnlyPExercise::isFairyTaleExercise() const {
     return m_exerciseId == QStringLiteral("4.1.1");
 }
@@ -1027,17 +1009,15 @@ void OnlyPExercise::updateCombineWordsNavVisibility() {
     if (!m_navBackButton || !m_navNextButton) {
         return;
     }
-    if (!usesNavBrowseButtons() || m_displayRole == DisplayRole::Headless
+    if (!isCombineWordsExercise() || m_displayRole == DisplayRole::Headless
         || m_displayRole == DisplayRole::Patient
-        || (isCombineWordsExercise() && m_stepId == QStringLiteral("2"))) {
-        // 3.2.3 задание 2 — одна картинка, листание не нужно.
+        || m_stepId == QStringLiteral("2")) {
+        // Задание 2 — одна картинка со всеми словами, листание не нужно.
         m_navBackButton->hide();
         m_navNextButton->hide();
         return;
     }
-    const int maxIndex = isPictureBrowseExercise()
-        ? qMax(0, m_settings.pictureCount - 1)
-        : 1;
+    const int maxIndex = 1;
     m_navBackButton->setVisible(m_browseIndex > 0 && !m_navBackSource.isNull());
     m_navNextButton->setVisible(m_browseIndex < maxIndex && !m_navNextSource.isNull());
 }
@@ -1091,19 +1071,6 @@ void OnlyPExercise::browseNext() {
         emit mirrorBrowseNextRequested();
         return;
     }
-    if (isPictureBrowseExercise()) {
-        const int maxIndex = qMax(0, m_settings.pictureCount - 1);
-        if (m_browseIndex >= maxIndex) {
-            return;
-        }
-        ++m_browseIndex;
-        loadPicture(m_browseIndex + 1);
-        m_picturesShown = qMax(m_picturesShown, m_browseIndex + 1);
-        updateWidgetLayout();
-        emit pictureChanged(m_browseIndex + 1);
-        emit browseStateChanged(m_browseIndex);
-        return;
-    }
     if (!isCombineWordsExercise() || m_stepId == QStringLiteral("2")) {
         return;
     }
@@ -1120,17 +1087,6 @@ void OnlyPExercise::browseBack() {
         emit mirrorBrowseBackRequested();
         return;
     }
-    if (isPictureBrowseExercise()) {
-        if (m_browseIndex <= 0) {
-            return;
-        }
-        --m_browseIndex;
-        loadPicture(m_browseIndex + 1);
-        updateWidgetLayout();
-        emit pictureChanged(m_browseIndex + 1);
-        emit browseStateChanged(m_browseIndex);
-        return;
-    }
     if (!isCombineWordsExercise() || m_stepId == QStringLiteral("2") || m_browseIndex <= 0) {
         return;
     }
@@ -1139,14 +1095,6 @@ void OnlyPExercise::browseBack() {
 }
 
 void OnlyPExercise::applyBrowseIndex(int index) {
-    if (isPictureBrowseExercise()) {
-        const int maxIndex = qMax(0, m_settings.pictureCount - 1);
-        m_browseIndex = qBound(0, index, maxIndex);
-        loadPicture(m_browseIndex + 1);
-        m_picturesShown = qMax(m_picturesShown, m_browseIndex + 1);
-        updateWidgetLayout();
-        return;
-    }
     if (!isCombineWordsExercise() || m_stepId == QStringLiteral("2")) {
         return;
     }
@@ -1194,11 +1142,6 @@ void OnlyPExercise::syncMirrorSession(
         refreshCombineWordsStimulus(false);
         return;
     }
-    if (isPictureBrowseExercise()) {
-        ensureCombineWordsUi();
-        loadPicture(1);
-        return;
-    }
     loadPicture(1);
 }
 
@@ -1239,7 +1182,7 @@ void OnlyPExercise::showPicture(int index) {
         }
         return;
     }
-    if (isCombineWordsExercise() || isPictureBrowseExercise()) {
+    if (isCombineWordsExercise()) {
         applyBrowseIndex(qMax(0, index - 1));
         return;
     }

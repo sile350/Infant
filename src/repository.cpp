@@ -110,7 +110,6 @@ void appendProtocolRecord(
         }
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
-        // 3.1.10 / 3.1.17 / 3.1.18 — тот же путь, что у 3.1.1 и др.
         const QString flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(
             ExerciseProtocol::flattenStoredProtocolBody(protocolBody));
         if (continuation) {
@@ -804,8 +803,8 @@ QString Repository::loadProtocolViewHtml(
     }
 
     QString body = protocolBody;
-    // На странице упражнения — только последний блок «Дата/специалист» (как 3.1.1 и др.).
-    // Вся история сессий остаётся в БД и на вкладке «Протоколы».
+    // На странице упражнения показываем только последний сформированный блок
+    // (начиная с его «Дата/специалист»).
     if (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18")
         || exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
         || exerciseId == QStringLiteral("2.8") || exerciseId == QStringLiteral("2.9")
@@ -823,15 +822,10 @@ QString Repository::loadProtocolViewHtml(
         || exerciseId == QStringLiteral("4.1.6")
         || exerciseId == QStringLiteral("4.1.8")
         || exerciseId == QStringLiteral("4.2.1")) {
+        // Разрез только по дате — вложенные таблицы баллов/строк не срезают предыдущие сессии.
         body = ExerciseProtocol::extractLastProtocol126Session(body);
     } else {
         body = ExerciseProtocol::extractLastSessionStoredBody(body);
-    }
-    // Плоско закрыть summary перед таблицей процесса (3.1.10/17/18 и аналоги).
-    if (exerciseId == QStringLiteral("3.1.10")
-        || exerciseId == QStringLiteral("3.1.17")
-        || exerciseId == QStringLiteral("3.1.18")) {
-        body = ExerciseProtocol::flattenStoredProtocolBody(body);
     }
     if (exerciseId == QStringLiteral("1.2")) {
         body = ExerciseProtocol::normalizeProtocol12Layout(body);
@@ -852,7 +846,6 @@ QString Repository::loadProtocolViewHtml(
             protocolBlock += QStringLiteral("</table>");
         }
     } else {
-        // Шапка Методики/Автора/Цели + тело (как у остальных упражнений).
         protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
                             exerciseHeaderFragment(exerciseId))
             + body;
