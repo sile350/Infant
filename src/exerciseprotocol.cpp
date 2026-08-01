@@ -188,6 +188,32 @@ QList<int> findDateSpecialistPositions(const QString &html) {
     return positions;
 }
 
+// Конец сессии — перед <tr> следующей «Дата/специалист», но без захвата
+// открывающего <table> следующей сессии (иначе 3-й+ протокол вкладывается в ячейку).
+int sessionEndBeforeNextDateRow(const QString &body, int rowStart, int nextRowStart) {
+    int endPos = nextRowStart;
+    if (endPos <= rowStart) {
+        return endPos;
+    }
+    const QString beforeNext = body.left(endPos);
+    const int lastTableOpen =
+        beforeNext.lastIndexOf(QStringLiteral("<table"), -1, Qt::CaseInsensitive);
+    const int lastTableClose =
+        beforeNext.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+    if (lastTableOpen >= rowStart && lastTableOpen > lastTableClose) {
+        endPos = lastTableOpen;
+    }
+    while (endPos > rowStart) {
+        const QChar ch = body.at(endPos - 1);
+        if (ch.isSpace()) {
+            --endPos;
+            continue;
+        }
+        break;
+    }
+    return endPos;
+}
+
 QString trimProtocolBodyTail(QString body) {
     const int pageBreak = body.indexOf(QStringLiteral("protocol-page-break"), 0, Qt::CaseInsensitive);
     if (pageBreak > 0) {
@@ -2923,7 +2949,7 @@ QStringList ExerciseProtocol::extractProtocolBodiesByDateRows(const QString &doc
         if (i + 1 < datePositions.size()) {
             const int nextRowStart = findRowStartBefore(documentHtml, datePositions.at(i + 1));
             if (nextRowStart > rowStart) {
-                endPos = nextRowStart;
+                endPos = sessionEndBeforeNextDateRow(documentHtml, rowStart, nextRowStart);
             }
         } else {
             endPos = findProtocolChunkEnd(documentHtml, rowStart, -1);
@@ -3127,7 +3153,7 @@ QStringList extractProtocol126SessionsByDate(const QString &body) {
         if (i + 1 < datePositions.size()) {
             const int nextRowStart = findRowStartBefore(body, datePositions.at(i + 1));
             if (nextRowStart > rowStart) {
-                endPos = nextRowStart;
+                endPos = sessionEndBeforeNextDateRow(body, rowStart, nextRowStart);
             }
         }
         const QString chunk = body.mid(rowStart, endPos - rowStart).trimmed();
@@ -3178,11 +3204,33 @@ bool ExerciseProtocol::numberedStepPresentInSessionHtml(
 }
 
 QString closeDanglingTables(QString html) {
-    const int opens = html.count(
-        QRegularExpression(QStringLiteral("<table\\b"), QRegularExpression::CaseInsensitiveOption));
-    const int closes = html.count(
-        QRegularExpression(QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption));
-    for (int i = closes; i < opens; ++i) {
+    // По глубине вложенности, не по «opens-closes»: иначе хвост `<table>` следующей
+    // сессии в конце куска не закрывается и 3-й протокол вкладывается в ячейку.
+    int depth = 0;
+    int pos = 0;
+    static const QRegularExpression openRe(
+        QStringLiteral("<table\\b"), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression closeRe(
+        QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption);
+    while (pos < html.size()) {
+        const QRegularExpressionMatch openMatch = openRe.match(html, pos);
+        const QRegularExpressionMatch closeMatch = closeRe.match(html, pos);
+        const int openPos = openMatch.hasMatch() ? openMatch.capturedStart() : -1;
+        const int closePos = closeMatch.hasMatch() ? closeMatch.capturedStart() : -1;
+        if (openPos < 0 && closePos < 0) {
+            break;
+        }
+        if (openPos >= 0 && (closePos < 0 || openPos < closePos)) {
+            ++depth;
+            pos = openMatch.capturedEnd();
+            continue;
+        }
+        if (depth > 0) {
+            --depth;
+        }
+        pos = closeMatch.capturedEnd();
+    }
+    while (depth-- > 0) {
         html += QStringLiteral("</table>");
     }
     return html;
@@ -3191,18 +3239,25 @@ QString closeDanglingTables(QString html) {
 QString joinProtocol126Sessions(const QStringList &sessions) {
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
-        QString session = sessions.at(i).trimmed();
+        // Каждую сессию привести к summary</table><!--s-->+process</table>.
+        QString session = ensureClosedProtocolSession(sessions.at(i));
         if (session.isEmpty()) {
             continue;
         }
-        // Убрать пустые абзацы/br в начале сессии (разрыв на «Протоколы»).
         session.replace(
             QRegularExpression(
                 QStringLiteral("^(?:\\s|<br\\s*/?>|<p\\b[^>]*>\\s*(?:&nbsp;|\\s)*\\s*</p\\s*>)+"),
                 QRegularExpression::CaseInsensitiveOption),
             QString());
+        // Срезать висячий незакрытый <table> в конце куска (артефакт extract).
+        session.replace(
+            QRegularExpression(
+                QStringLiteral("<table\\b[^>]*>\\s*$"),
+                QRegularExpression::CaseInsensitiveOption),
+            QString());
         if (i == 0) {
             session = stripLeadingSummaryTableWrapper(session);
+            session = ensureClosedProtocolSession(session);
         } else {
             result = closeDanglingTables(result);
             result.replace(
@@ -3210,17 +3265,18 @@ QString joinProtocol126Sessions(const QStringList &sessions) {
                     QStringLiteral("(?:\\s|<br\\s*/?>|<p\\b[^>]*>\\s*(?:&nbsp;|\\s)*\\s*</p\\s*>)+$"),
                     QRegularExpression::CaseInsensitiveOption),
                 QString());
-            // Без <p>&nbsp;</p> — иначе разрыв между сессиями на странице «Протоколы».
-            if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)
-                && !session.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-                session.prepend(protocolSummaryTableOpenHtml());
-            } else if (session.startsWith(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
+            result.replace(
+                QRegularExpression(
+                    QStringLiteral("<table\\b[^>]*>\\s*$"),
+                    QRegularExpression::CaseInsensitiveOption),
+                QString());
+            if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
                 session.prepend(protocolSummaryTableOpenHtml());
             }
         }
         result += session;
     }
-    return normalizeSummaryColumnWidthsHtml(result);
+    return normalizeSummaryColumnWidthsHtml(closeDanglingTables(result));
 }
 
 int findMatchingTableEnd(const QString &html, int tableStart) {
@@ -5380,11 +5436,30 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
         return existingBody;
     }
 
-    // Плоская дописка по «Дата/специалист» для всех методик (1.26, 3.1.x, …).
-    // Не ensureClosed — срезает вложенные таблицы баллов у 1.26.
-    QStringList sessions = extractProtocol126SessionsByDate(existingBody);
-    if (sessions.isEmpty() && !existingBody.trimmed().isEmpty()) {
-        sessions.append(stripLeadingSummaryTableWrapper(existingBody));
+    // Новая сессия — всегда законченный блок summary + process (закрытые </table>).
+    session = ensureClosedProtocolSession(stripLeadingSummaryTableWrapper(session));
+    if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+        session.prepend(protocolSummaryTableOpenHtml());
+    }
+    session = closeDanglingTables(session);
+
+    QString existing = existingBody.trimmed();
+    if (existing.isEmpty()) {
+        return normalizeSummaryColumnWidthsHtml(session);
+    }
+    // Закрыть висячие таблицы и не тащить хвост `<table>` следующей сессии.
+    existing = closeDanglingTables(existing);
+    existing.replace(
+        QRegularExpression(
+            QStringLiteral("<table\\b[^>]*>\\s*$"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+
+    // Плоская склейка соседних сессий (без потери границ из‑за extract).
+    // Если в existing уже есть даты — пересоберём через extract+join (с исправленным концом куска).
+    QStringList sessions = extractProtocol126SessionsByDate(existing);
+    if (sessions.isEmpty()) {
+        sessions.append(stripLeadingSummaryTableWrapper(existing));
     }
     sessions.append(stripLeadingSummaryTableWrapper(session));
     const QString joined = joinProtocol126Sessions(sessions);
