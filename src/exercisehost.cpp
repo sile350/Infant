@@ -1663,6 +1663,11 @@ QStringList words511Groups() {
 } // namespace
 
 void ExerciseHost::ensureWords511Panel() {
+    if (m_words511Panel && m_words511Table && m_words511Table->rowCount() != words511Groups().size() + 1) {
+        m_words511Panel->deleteLater();
+        m_words511Panel = nullptr;
+        m_words511Table = nullptr;
+    }
     if (m_words511Panel || !m_rightPanel) {
         return;
     }
@@ -1670,33 +1675,58 @@ void ExerciseHost::ensureWords511Panel() {
     m_words511Panel->setStyleSheet(QStringLiteral("background:transparent;"));
 
     const QStringList groups = words511Groups();
-    m_words511Table = new QTableWidget(groups.size(), 2, m_words511Panel);
-    m_words511Table->setHorizontalHeaderLabels({
-        QStringLiteral("Группы"),
-        QStringLiteral("Названные ребенком слова"),
-    });
+    // Как table.html: первая строка — заголовки, без QHeaderView (иначе чёрные ячейки).
+    m_words511Table = new QTableWidget(groups.size() + 1, 2, m_words511Panel);
+    m_words511Table->horizontalHeader()->setVisible(false);
     m_words511Table->verticalHeader()->setVisible(false);
-    m_words511Table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_words511Table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_words511Table->horizontalHeader()->setFixedHeight(40);
-    m_words511Table->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_words511Table->setShowGrid(true);
+    m_words511Table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_words511Table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_words511Table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_words511Table->setFocusPolicy(Qt::NoFocus);
+    m_words511Table->setSelectionMode(QAbstractItemView::NoSelection);
+    m_words511Table->setWordWrap(true);
     m_words511Table->setStyleSheet(QStringLiteral(
-        "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
-        "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
+        "QTableWidget {"
+        "  background-color:#f6f6f6; color:#000000; gridline-color:#000000;"
+        "  border:1px solid #000000; outline:none;"
+        "}"
+        "QTableWidget::item {"
+        "  background-color:#f6f6f6; color:#000000;"
+        "  border:none; padding:4px;"
+        "}"
+        "QTableWidget::item:selected {"
+        "  background-color:#f6f6f6; color:#000000;"
+        "}"));
+    m_words511Table->setColumnWidth(0, 266);
+    m_words511Table->setColumnWidth(1, 464);
+    auto makeCell = [](const QString &text, bool header = false) {
+        auto *item = new QTableWidgetItem(text);
+        item->setForeground(QBrush(Qt::black));
+        item->setBackground(QBrush(QColor(246, 246, 246)));
+        if (header) {
+            item->setTextAlignment(Qt::AlignCenter);
+            QFont f = item->font();
+            f.setBold(true);
+            item->setFont(f);
+        } else {
+            item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        }
+        item->setFlags(Qt::ItemIsEnabled);
+        return item;
+    };
+    m_words511Table->setItem(0, 0, makeCell(QStringLiteral("Группы"), true));
+    m_words511Table->setItem(0, 1, makeCell(QStringLiteral("Названные ребенком слова"), true));
+    m_words511Table->setRowHeight(0, 40);
     for (int i = 0; i < groups.size(); ++i) {
-        auto *groupItem = new QTableWidgetItem(groups.at(i));
-        groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-        m_words511Table->setItem(i, 0, groupItem);
-        auto *wordItem = new QTableWidgetItem;
+        m_words511Table->setItem(i + 1, 0, makeCell(groups.at(i)));
+        auto *wordItem = makeCell(QString());
         wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-        m_words511Table->setItem(i, 1, wordItem);
+        m_words511Table->setItem(i + 1, 1, wordItem);
+        m_words511Table->setRowHeight(i + 1, 36);
     }
-    const int tableH = m_words511Table->horizontalHeader()->height()
-        + m_words511Table->rowHeight(0) * groups.size()
-        + 2 * m_words511Table->frameWidth() + 2;
-    m_words511Table->setFixedSize(730, tableH);
+    const int tableH = 40 + 36 * groups.size() + 2 * m_words511Table->frameWidth() + 2;
+    m_words511Table->setFixedSize(266 + 464 + 2 * m_words511Table->frameWidth() + 2, tableH);
 }
 
 void ExerciseHost::setWords511TableEditable(bool editable) {
@@ -1705,7 +1735,10 @@ void ExerciseHost::setWords511TableEditable(bool editable) {
     }
     m_words511Table->setEditTriggers(editable ? QAbstractItemView::AllEditTriggers
                                               : QAbstractItemView::NoEditTriggers);
-    for (int r = 0; r < m_words511Table->rowCount(); ++r) {
+    m_words511Table->setFocusPolicy(editable ? Qt::StrongFocus : Qt::NoFocus);
+    m_words511Table->setSelectionMode(editable ? QAbstractItemView::SingleSelection
+                                               : QAbstractItemView::NoSelection);
+    for (int r = 1; r < m_words511Table->rowCount(); ++r) {
         QTableWidgetItem *groupItem = m_words511Table->item(r, 0);
         if (groupItem) {
             groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
@@ -1713,6 +1746,8 @@ void ExerciseHost::setWords511TableEditable(bool editable) {
         QTableWidgetItem *wordItem = m_words511Table->item(r, 1);
         if (!wordItem) {
             wordItem = new QTableWidgetItem;
+            wordItem->setForeground(QBrush(Qt::black));
+            wordItem->setBackground(QBrush(QColor(246, 246, 246)));
             m_words511Table->setItem(r, 1, wordItem);
         }
         wordItem->setFlags(editable
@@ -1729,11 +1764,14 @@ void ExerciseHost::layoutWords511Panel() {
         return;
     }
     ensureWords511Panel();
+    // Правая половина: +50 по X к центру; dual — ещё +100 по Y (ТЗ 35.1 / 35.3).
     constexpr int kPanelAbsLeft = 900;
     constexpr int kPanelAbsTop = 150;
+    constexpr int kNudgeX = 50;
+    const int dualNudgeY = AppSettings::dualScreenEnabled() ? 100 : 0;
     const int rightPanelLeft = kPanelX + kScrollWidth;
-    const int localX = qMax(0, kPanelAbsLeft - rightPanelLeft);
-    const int localY = kPanelAbsTop;
+    const int localX = qMax(0, kPanelAbsLeft - rightPanelLeft) + kNudgeX;
+    const int localY = kPanelAbsTop + dualNudgeY;
     const int panelW = qMax(400, m_rightPanel->width() - localX - 8);
     const int panelH = qMax(500, m_rightPanel->height() - localY - 8);
     m_words511Panel->setGeometry(localX, localY, panelW, panelH);
@@ -2946,9 +2984,10 @@ void ExerciseHost::syncPatientDisplay() {
     if (!m_patientDisplay) {
         return;
     }
-    // 4.2.1 / 4.2.2: без второго экрана даже в dual-режиме.
+    // 4.2.1 / 4.2.2 / 5.1.1: без второго экрана даже в dual-режиме.
     if (m_exerciseId == QStringLiteral("4.2.1")
-        || m_exerciseId == QStringLiteral("4.2.2")) {
+        || m_exerciseId == QStringLiteral("4.2.2")
+        || m_exerciseId == QStringLiteral("5.1.1")) {
         m_patientDisplay->hideDisplay();
         return;
     }

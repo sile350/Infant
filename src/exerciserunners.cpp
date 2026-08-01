@@ -2027,23 +2027,55 @@ public:
                 QStringLiteral("Способы выполнения человеком действий."),
                 QStringLiteral("Качества выполняемых человеком действий."),
             };
+            // Как table.html: заголовки в первой строке, без QHeaderView.
             m_table->setColumnCount(2);
-            m_table->setRowCount(groups.size());
-            m_table->setHorizontalHeaderLabels({
-                QStringLiteral("Группы"),
-                QStringLiteral("Названные ребенком слова"),
-            });
+            m_table->setRowCount(groups.size() + 1);
+            m_table->horizontalHeader()->setVisible(false);
             m_table->verticalHeader()->setVisible(false);
+            m_table->setShowGrid(true);
+            m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_table->setStyleSheet(QStringLiteral(
+                "QTableWidget {"
+                "  background-color:#f6f6f6; color:#000000; gridline-color:#000000;"
+                "  border:1px solid #000000; outline:none;"
+                "}"
+                "QTableWidget::item {"
+                "  background-color:#f6f6f6; color:#000000;"
+                "  border:none; padding:4px;"
+                "}"
+                "QTableWidget::item:selected {"
+                "  background-color:#d0e8ff; color:#000000;"
+                "}"));
+            m_table->setColumnWidth(0, 266);
+            m_table->setColumnWidth(1, 464);
+            auto makeCell = [](const QString &text, bool header = false) {
+                auto *item = new QTableWidgetItem(text);
+                item->setForeground(QBrush(Qt::black));
+                item->setBackground(QBrush(QColor(246, 246, 246)));
+                if (header) {
+                    item->setTextAlignment(Qt::AlignCenter);
+                    QFont f = item->font();
+                    f.setBold(true);
+                    item->setFont(f);
+                } else {
+                    item->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+                }
+                item->setFlags(Qt::ItemIsEnabled);
+                return item;
+            };
+            m_table->setItem(0, 0, makeCell(QStringLiteral("Группы"), true));
+            m_table->setItem(0, 1, makeCell(QStringLiteral("Названные ребенком слова"), true));
+            m_table->setRowHeight(0, 40);
             for (int i = 0; i < groups.size(); ++i) {
-                auto *groupItem = new QTableWidgetItem(groups.at(i));
-                groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-                m_table->setItem(i, 0, groupItem);
-                auto *wordItem = new QTableWidgetItem;
+                m_table->setItem(i + 1, 0, makeCell(groups.at(i)));
+                auto *wordItem = makeCell(QString());
                 wordItem->setFlags(Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-                m_table->setItem(i, 1, wordItem);
+                m_table->setItem(i + 1, 1, wordItem);
+                m_table->setRowHeight(i + 1, 36);
             }
-            m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+            const int tableH = 40 + 36 * groups.size() + 2 * m_table->frameWidth() + 2;
+            m_table->setFixedSize(266 + 464 + 2 * m_table->frameWidth() + 2, tableH);
             m_liveTimer = new QLabel(this);
             markPatientControl(m_liveTimer);
             m_liveTimer->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 16));
@@ -2057,9 +2089,6 @@ public:
                     updateLiveTimer511();
                     layoutTableUi();
                 }
-            });
-            connect(m_table, &QTableWidget::cellChanged, this, [this](int, int) {
-                syncPatientWords511View();
             });
         } else if (exerciseId == QStringLiteral("5.2.1")) {
             static const QStringList fragments = {
@@ -2150,9 +2179,7 @@ public:
         m_timer->start();
         show();
         raise();
-        if (m_exerciseId == QStringLiteral("5.1.1")) {
-            syncPatientWords511View();
-        } else if (m_exerciseId == QStringLiteral("5.2.1")) {
+        if (m_exerciseId == QStringLiteral("5.2.1")) {
             syncPatientPicture521();
         }
     }
@@ -2206,7 +2233,9 @@ public:
                               || m_exerciseId == QStringLiteral("5.2.1"))
             ? 1
             : 0;
-        for (int r = 0; r < m_table->rowCount(); ++r) {
+        // 5.1.1: строка 0 — заголовок («Группы» / «Названные…»).
+        const int startRow = m_exerciseId == QStringLiteral("5.1.1") ? 1 : 0;
+        for (int r = startRow; r < m_table->rowCount(); ++r) {
             const QTableWidgetItem *item = m_table->item(r, valueCol);
             parts << (item ? item->text().trimmed() : QString());
         }
@@ -2256,10 +2285,8 @@ public:
         if (!display) {
             return;
         }
+        // 5.1.1: второго экрана нет даже в dual.
         if (m_exerciseId == QStringLiteral("5.1.1")) {
-            ensurePatientWords511View(display);
-            syncPatientWords511View();
-            display->attachContentWidget(m_patientRoot);
             return;
         }
         if (m_exerciseId == QStringLiteral("5.2.1")) {
@@ -2299,6 +2326,14 @@ public:
             }
             m_stimulusLabel->raise();
             syncPatientPicture521();
+        } else if (m_exerciseId == QStringLiteral("5.1.1")) {
+            // Dual: таблица на 100 px ниже; по центру правой половины.
+            const int yOff = m_sessionOptions.dualScreen ? 100 : 0;
+            const int rightHalfLeft = width() / 2;
+            const int rightHalfW = qMax(m_table->width(), width() - rightHalfLeft);
+            const int x = rightHalfLeft + qMax(0, (rightHalfW - m_table->width()) / 2);
+            m_table->move(x, 120 + yOff);
+            m_table->raise();
         } else if (m_exerciseId != QStringLiteral("5.2.1")) {
             m_table->setGeometry(100, 120, qMax(400, width() - 200), qMax(300, height() - 200));
             m_table->raise();
@@ -2312,9 +2347,6 @@ public:
                 + qMax(0, (m_stop->height() - m_liveTimer->height()) / 2);
             m_liveTimer->move(timerX, timerY);
             m_liveTimer->raise();
-        }
-        if (m_exerciseId == QStringLiteral("5.1.1")) {
-            syncPatientWords511View();
         }
     }
 
@@ -2347,74 +2379,6 @@ private:
                 .arg(m_elapsed / 60)
                 .arg(m_elapsed % 60, 2, 10, QLatin1Char('0')));
         m_liveTimer->adjustSize();
-    }
-
-    void ensurePatientWords511View(PatientDisplay *display) {
-        if (!display) {
-            return;
-        }
-        if (m_patientRoot && m_patientPicture && !m_patientTable) {
-            m_patientRoot->deleteLater();
-            m_patientRoot = nullptr;
-            m_patientPicture = nullptr;
-        }
-        if (!m_patientRoot) {
-            m_patientRoot = new QWidget(display);
-            m_patientRoot->setStyleSheet(QStringLiteral("background:#ffffff;"));
-            m_patientTable = new QTableWidget(8, 2, m_patientRoot);
-            m_patientTable->setHorizontalHeaderLabels({
-                QStringLiteral("Группы"),
-                QStringLiteral("Названные ребенком слова"),
-            });
-            m_patientTable->verticalHeader()->setVisible(false);
-            m_patientTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            m_patientTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-            m_patientTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-            m_patientTable->setStyleSheet(QStringLiteral(
-                "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
-                "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
-            static const QStringList groups = {
-                QStringLiteral("Животные"),
-                QStringLiteral("Растения"),
-                QStringLiteral("Цвета предметов"),
-                QStringLiteral("Формы предметов"),
-                QStringLiteral("Другие признаки предметов, кроме формы и цвета."),
-                QStringLiteral("Действия человека."),
-                QStringLiteral("Способы выполнения человеком действий."),
-                QStringLiteral("Качества выполняемых человеком действий."),
-            };
-            for (int i = 0; i < groups.size(); ++i) {
-                auto *groupItem = new QTableWidgetItem(groups.at(i));
-                groupItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-                m_patientTable->setItem(i, 0, groupItem);
-                auto *wordItem = new QTableWidgetItem;
-                wordItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-                m_patientTable->setItem(i, 1, wordItem);
-            }
-            const int tableH = m_patientTable->horizontalHeader()->height()
-                + m_patientTable->rowHeight(0) * 8
-                + 2 * m_patientTable->frameWidth() + 2;
-            m_patientTable->setFixedSize(730, tableH);
-            m_patientTable->move(40, 40);
-        }
-    }
-
-    void syncPatientWords511View() {
-        if (!m_patientTable || !m_table || m_exerciseId != QStringLiteral("5.1.1")) {
-            return;
-        }
-        for (int r = 0; r < m_table->rowCount() && r < m_patientTable->rowCount(); ++r) {
-            const QTableWidgetItem *srcGroup = m_table->item(r, 0);
-            const QTableWidgetItem *srcWord = m_table->item(r, 1);
-            QTableWidgetItem *dstGroup = m_patientTable->item(r, 0);
-            QTableWidgetItem *dstWord = m_patientTable->item(r, 1);
-            if (dstGroup) {
-                dstGroup->setText(srcGroup ? srcGroup->text() : QString());
-            }
-            if (dstWord) {
-                dstWord->setText(srcWord ? srcWord->text() : QString());
-            }
-        }
     }
 
     void updateLiveTimer521() {
