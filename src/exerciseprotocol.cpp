@@ -82,9 +82,12 @@ QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
         return QStringLiteral("&nbsp;");
     }
-    // \u2028/\u2029 — Line/ParagraphSeparator из QTextEdit (Enter и <br> в ячейке).
-    const QStringList lines = text.split(
-        QRegularExpression(QStringLiteral("[\\r\\n\\u2028\\u2029;]+")), Qt::SkipEmptyParts);
+    // Line/ParagraphSeparator → \n до split (в QRegularExpression \uXXXX невалиден в Qt/PCRE).
+    QString normalized = text;
+    normalized.replace(QChar::LineSeparator, QLatin1Char('\n'));
+    normalized.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+    const QStringList lines =
+        normalized.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
     QStringList parts;
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
@@ -5441,8 +5444,11 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
 }
 
 int countHelpEntries3110(const QString &helpCell) {
-    const QStringList parts = helpCell.split(
-        QRegularExpression(QStringLiteral("[\\r\\n\\u2028\\u2029;]+")), Qt::SkipEmptyParts);
+    QString normalized = helpCell;
+    normalized.replace(QChar::LineSeparator, QLatin1Char('\n'));
+    normalized.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+    const QStringList parts =
+        normalized.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
     int count = 0;
     for (const QString &part : parts) {
         if (!part.trimmed().isEmpty()) {

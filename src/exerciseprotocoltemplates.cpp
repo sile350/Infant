@@ -79,8 +79,11 @@ QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
         return QStringLiteral("&nbsp;");
     }
-    const QStringList parts = text.split(
-        QRegularExpression(QStringLiteral("[\\r\\n\\u2028\\u2029;]+")), Qt::SkipEmptyParts);
+    QString normalized = text;
+    normalized.replace(QChar::LineSeparator, QLatin1Char('\n'));
+    normalized.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+    const QStringList parts =
+        normalized.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
     QStringList lines;
     for (const QString &part : parts) {
         const QString trimmed = part.trimmed();
