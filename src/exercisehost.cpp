@@ -1766,7 +1766,8 @@ void ExerciseHost::updatePreviewLayout() {
                    || m_exerciseId == QStringLiteral("3.1.2")
                    || m_exerciseId == QStringLiteral("3.1.10")
                    || m_exerciseId == QStringLiteral("3.1.12")
-                   || m_exerciseId == QStringLiteral("3.1.18")) {
+                   || m_exerciseId == QStringLiteral("3.1.18")
+                   || m_exerciseId == QStringLiteral("3.2.1")) {
             // Как 1.1: строго по центру правой панели.
             extraX = 0;
             extraY = 0;
@@ -1797,7 +1798,6 @@ void ExerciseHost::updatePreviewLayout() {
                    || m_exerciseId == QStringLiteral("2.9")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.17")
-                   || m_exerciseId == QStringLiteral("3.2.1")
                    || m_exerciseId == QStringLiteral("3.2.2")
                    || m_exerciseId == QStringLiteral("3.2.4")
                    || m_exerciseId == QStringLiteral("3.2.5")) {
@@ -1806,8 +1806,7 @@ void ExerciseHost::updatePreviewLayout() {
             if (m_exerciseId == QStringLiteral("3.1.17")) {
                 // Чуть левее относительно базового specialist-сдвига.
                 extraX = -25;
-            } else if (m_exerciseId == QStringLiteral("3.2.1")
-                       || m_exerciseId == QStringLiteral("3.2.2")
+            } else if (m_exerciseId == QStringLiteral("3.2.2")
                        || m_exerciseId == QStringLiteral("3.2.4")
                        || m_exerciseId == QStringLiteral("3.2.5")
                        || m_exerciseId == QStringLiteral("3.1.11")) {
@@ -1846,7 +1845,8 @@ void ExerciseHost::updatePreviewLayout() {
             || m_exerciseId == QStringLiteral("3.1.2")
             || m_exerciseId == QStringLiteral("3.1.10")
             || m_exerciseId == QStringLiteral("3.1.12")
-            || m_exerciseId == QStringLiteral("3.1.18")) {
+            || m_exerciseId == QStringLiteral("3.1.18")
+            || m_exerciseId == QStringLiteral("3.2.1")) {
             // Как 1.1 Specialist: строго геометрический центр панели.
             localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
             localY = qMax(kPictureMargin, (panelH - display.height()) / 2);

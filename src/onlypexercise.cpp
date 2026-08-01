@@ -394,7 +394,8 @@ void OnlyPExercise::updateWidgetLayout() {
             || m_exerciseId == QStringLiteral("3.1.2")
             || m_exerciseId == QStringLiteral("3.1.10")
             || m_exerciseId == QStringLiteral("3.1.12")
-            || m_exerciseId == QStringLiteral("3.1.18")) {
+            || m_exerciseId == QStringLiteral("3.1.18")
+            || m_exerciseId == QStringLiteral("3.2.1")) {
             // Центр картинки = центр экрана (один экран и dual).
             extraX = 0;
             extraY = 0;
@@ -440,8 +441,7 @@ void OnlyPExercise::updateWidgetLayout() {
         } else if (m_exerciseId == QStringLiteral("2.9")) {
             // 12.3: dual/full — чуть ниже, ближе к центру по вертикали.
             extraY = 80;
-        } else if (m_exerciseId == QStringLiteral("3.2.1")
-                   || m_exerciseId == QStringLiteral("3.2.2")
+        } else if (m_exerciseId == QStringLiteral("3.2.2")
                    || m_exerciseId == QStringLiteral("3.2.4")
                    || m_exerciseId == QStringLiteral("3.2.5")) {
             // Один экран: ниже и правее → центр. Dual: только ниже на обоих.
@@ -579,6 +579,7 @@ void OnlyPExercise::updateWidgetLayout() {
                 || m_exerciseId == QStringLiteral("3.1.10")
                 || m_exerciseId == QStringLiteral("3.1.12")
                 || m_exerciseId == QStringLiteral("3.1.18")
+                || m_exerciseId == QStringLiteral("3.2.1")
                 || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3"))) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
                 pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
@@ -600,7 +601,7 @@ void OnlyPExercise::updateWidgetLayout() {
                 pictureX = qMax(pictureMargin, pictureX);
             }
             int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
-            // 1.1 / … / 3.1.12 / 3.1.18 / 1.18(№3 dual specialist): строго по центру панели.
+            // 1.1 / … / 3.2.1 / 1.18(№3 dual specialist): строго по центру панели.
             if ((m_exerciseId == QStringLiteral("1.1")
                  || m_exerciseId == QStringLiteral("1.25")
                  || m_exerciseId == QStringLiteral("2.10")
@@ -608,6 +609,7 @@ void OnlyPExercise::updateWidgetLayout() {
                  || m_exerciseId == QStringLiteral("3.1.10")
                  || m_exerciseId == QStringLiteral("3.1.12")
                  || m_exerciseId == QStringLiteral("3.1.18")
+                 || m_exerciseId == QStringLiteral("3.2.1")
                  || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")))
                 && !fairySplitLayout) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
@@ -628,7 +630,7 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 1.1 / … / 3.1.12 / 3.1.18 / 1.18(№3): строго по центру экрана.
+            // 1.1 / … / 3.2.1 / 1.18(№3): строго по центру экрана.
             if (m_exerciseId == QStringLiteral("1.1")
                 || m_exerciseId == QStringLiteral("1.25")
                 || m_exerciseId == QStringLiteral("2.10")
@@ -637,11 +639,11 @@ void OnlyPExercise::updateWidgetLayout() {
                 || m_exerciseId == QStringLiteral("3.1.10")
                 || m_exerciseId == QStringLiteral("3.1.12")
                 || m_exerciseId == QStringLiteral("3.1.18")
+                || m_exerciseId == QStringLiteral("3.2.1")
                 || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3"))) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
                 pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
             } else if (m_exerciseId == QStringLiteral("3.1.11")
-                || m_exerciseId == QStringLiteral("3.2.1")
                 || m_exerciseId == QStringLiteral("3.2.2")
                 || m_exerciseId == QStringLiteral("3.2.3")
                 || m_exerciseId == QStringLiteral("3.2.4")
