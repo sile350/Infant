@@ -1765,8 +1765,9 @@ void ExerciseHost::updatePreviewLayout() {
         } else if (m_exerciseId == QStringLiteral("2.10")
                    || m_exerciseId == QStringLiteral("3.1.2")
                    || m_exerciseId == QStringLiteral("3.1.10")
-                   || m_exerciseId == QStringLiteral("3.1.12")) {
-            // Как 1.1: строго по центру правой панели (оба задания).
+                   || m_exerciseId == QStringLiteral("3.1.12")
+                   || m_exerciseId == QStringLiteral("3.1.18")) {
+            // Как 1.1: строго по центру правой панели.
             extraX = 0;
             extraY = 0;
         } else if (m_exerciseId == QStringLiteral("4.1.1")) {
@@ -1796,7 +1797,6 @@ void ExerciseHost::updatePreviewLayout() {
                    || m_exerciseId == QStringLiteral("2.9")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.17")
-                   || m_exerciseId == QStringLiteral("3.1.18")
                    || m_exerciseId == QStringLiteral("3.2.1")
                    || m_exerciseId == QStringLiteral("3.2.2")
                    || m_exerciseId == QStringLiteral("3.2.4")
@@ -1806,8 +1806,7 @@ void ExerciseHost::updatePreviewLayout() {
             if (m_exerciseId == QStringLiteral("3.1.17")) {
                 // Чуть левее относительно базового specialist-сдвига.
                 extraX = -25;
-            } else if (m_exerciseId == QStringLiteral("3.1.18")
-                       || m_exerciseId == QStringLiteral("3.2.1")
+            } else if (m_exerciseId == QStringLiteral("3.2.1")
                        || m_exerciseId == QStringLiteral("3.2.2")
                        || m_exerciseId == QStringLiteral("3.2.4")
                        || m_exerciseId == QStringLiteral("3.2.5")
@@ -1846,7 +1845,8 @@ void ExerciseHost::updatePreviewLayout() {
             || m_exerciseId == QStringLiteral("3.1.1")
             || m_exerciseId == QStringLiteral("3.1.2")
             || m_exerciseId == QStringLiteral("3.1.10")
-            || m_exerciseId == QStringLiteral("3.1.12")) {
+            || m_exerciseId == QStringLiteral("3.1.12")
+            || m_exerciseId == QStringLiteral("3.1.18")) {
             // Как 1.1 Specialist: строго геометрический центр панели.
             localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
             localY = qMax(kPictureMargin, (panelH - display.height()) / 2);
@@ -3699,13 +3699,14 @@ void ExerciseHost::syncProtocol317BallsToResult() {
     }
     const QString updated = ExerciseProtocol::applyProtocol318SumFromDocument(
         storedBody, m_templateBrowser->document());
-    if (updated == storedBody) {
-        return;
+    if (updated != storedBody) {
+        QString error;
+        if (!m_repository->updateProtocolBody(m_currentProtocolId, updated, &error)) {
+            return;
+        }
     }
-    QString error;
-    if (!m_repository->updateProtocolBody(m_currentProtocolId, updated, &error)) {
-        return;
-    }
+    // Всегда обновляем UI: autosave мог уже записать БД, а «Результат» на экране упражнения
+    // оставался старым из‑за early-return при updated == storedBody.
     if (m_protocolSaveTimer) {
         m_protocolSaveTimer->stop();
     }

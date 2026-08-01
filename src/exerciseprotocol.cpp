@@ -5439,10 +5439,15 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
     const bool multi = sessions.size() > 1;
     QString chunk = multi ? sessions.last() : body;
 
-    QString ballsPlain = extractDivInnerById(chunk, QStringLiteral("idballs"));
-    if (ballsPlain.trimmed().isEmpty() && editorDocument) {
+    // Сначала балл из живой таблицы редактора (ввод с клавиатуры), потом idballs в HTML.
+    QString ballsPlain;
+    if (editorDocument) {
         QList<QTextTable *> tables;
-        collectTables(editorDocument->rootFrame(), tables);
+        if (processTable) {
+            tables.append(processTable);
+        } else {
+            collectTables(editorDocument->rootFrame(), tables);
+        }
         for (QTextTable *table : tables) {
             if (!table || table->columns() < 3) {
                 continue;
@@ -5474,6 +5479,9 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
                 break;
             }
         }
+    }
+    if (ballsPlain.trimmed().isEmpty()) {
+        ballsPlain = extractDivInnerById(chunk, QStringLiteral("idballs"));
     }
 
     // «8», «8 баллов», «8,5» → число.
