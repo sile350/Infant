@@ -7,9 +7,12 @@
 #include <QFile>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTextBlock>
+#include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextDocumentFragment>
+#include <QTextFragment>
 #include <QTextFrame>
 #include <QTextLength>
 #include <QTextTable>
@@ -5029,6 +5032,61 @@ QList<QTextTable *> ExerciseProtocol::collectOrHlpProcessTables(QTextDocument *d
     return result;
 }
 
+QTextTable *ExerciseProtocol::findOrHlpProcessTableForProtocol(
+    QTextDocument *document,
+    const QString &protocolId) {
+    if (!document || protocolId.trimmed().isEmpty()) {
+        return nullptr;
+    }
+    const QString startName = QStringLiteral("dokit-pid-%1-start").arg(protocolId);
+    const QString endName = QStringLiteral("dokit-pid-%1-end").arg(protocolId);
+    int startPos = -1;
+    int endPos = -1;
+    for (QTextBlock block = document->begin(); block.isValid(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !(it.atEnd()); ++it) {
+            const QTextFragment frag = it.fragment();
+            if (!frag.isValid()) {
+                continue;
+            }
+            const QTextCharFormat fmt = frag.charFormat();
+            if (!fmt.isAnchor()) {
+                continue;
+            }
+            const QStringList names = fmt.anchorNames();
+            if (startPos < 0 && names.contains(startName)) {
+                startPos = frag.position();
+            }
+            if (endPos < 0 && names.contains(endName)) {
+                endPos = frag.position();
+            }
+        }
+    }
+    if (startPos < 0) {
+        return nullptr;
+    }
+    if (endPos < 0) {
+        endPos = document->characterCount();
+    }
+
+    const QList<QTextTable *> tables = collectOrHlpProcessTables(document);
+    QTextTable *inRange = nullptr;
+    for (QTextTable *table : tables) {
+        if (!table || table->rows() <= 0 || table->columns() <= 0) {
+            continue;
+        }
+        const QTextTableCell cell = table->cellAt(0, 0);
+        if (!cell.isValid()) {
+            continue;
+        }
+        const int pos = cell.firstCursorPosition().position();
+        if (pos >= startPos && pos < endPos) {
+            // При нескольких сессиях в одном протоколе — последняя таблица процесса.
+            inRange = table;
+        }
+    }
+    return inRange;
+}
+
 QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     const QString &storedBody,
     QTextDocument *editorDocument,
@@ -5207,6 +5265,11 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         }
 
         auto findStoredRowIndex = [&](const EditorRow &er, const QSet<int> &used) -> int {
+            // 3-кол. OR/HLP без «№» (3.1.11 и др.): stepKey = текст характера —
+            // после правки с клавиатуры ключ меняется, сопоставление только по порядку.
+            if (activityCol == 0 && helpCol == 1) {
+                return -1;
+            }
             if (!er.stepKey.isEmpty()) {
                 for (int i = 0; i < dataRows.size(); ++i) {
                     if (used.contains(i)) {
@@ -5282,10 +5345,19 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             replacements.append(qMakePair(activityCol, makeEditable(er.activity)));
             replacements.append(qMakePair(helpCol, makeEditable(er.help)));
             if (ballsCol >= 0 && ballsCol < tds.size()) {
+                QString scoreId = QStringLiteral("idballs");
+                const QRegularExpression existingIdRe(
+                    QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
+                    QRegularExpression::CaseInsensitiveOption);
+                const QRegularExpressionMatch idMatch = existingIdRe.match(tds.at(ballsCol).captured(2));
+                if (idMatch.hasMatch()) {
+                    scoreId = idMatch.captured(1);
+                }
                 replacements.append(qMakePair(
                     ballsCol,
-                    QStringLiteral("<div id='idballs' contenteditable='true'>%1</div>")
-                        .arg(er.score.toHtmlEscaped())));
+                    QStringLiteral(
+                        "<div id='%1' contenteditable='true' style='text-align:center'>%2</div>")
+                        .arg(scoreId, er.score.toHtmlEscaped())));
             }
             std::sort(replacements.begin(), replacements.end(),
                       [](const QPair<int, QString> &a, const QPair<int, QString> &b) {

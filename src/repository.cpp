@@ -876,11 +876,6 @@ bool Repository::updateProtocolsFromEditedDocument(
 
     const QMap<QString, QString> bodiesById =
         ExerciseProtocol::extractProtocolBodiesById(document->toHtml());
-    // Живые таблицы OR/HLP из редактируемого документа (без setHtml-roundtrip секции):
-    // иначе правки в ячейках, заполненных из чекбоксов, не попадают в merge.
-    const QList<QTextTable *> liveOrHlpTables =
-        ExerciseProtocol::collectOrHlpProcessTables(document);
-    int liveOrHlpIndex = 0;
 
     auto usesOrHlpMerge = [](const QString &uprid) {
         return uprid == QStringLiteral("1.1")
@@ -919,6 +914,11 @@ bool Repository::updateProtocolsFromEditedDocument(
             || uprid == QStringLiteral("5.3.1");
     };
 
+    // Fallback по порядку, если якоря dokit-pid потеряны после roundtrip Qt.
+    const QList<QTextTable *> liveOrHlpTables =
+        ExerciseProtocol::collectOrHlpProcessTables(document);
+    int liveOrHlpIndex = 0;
+
     for (int i = 0; i < recordIdsInOrder.size(); ++i) {
         const QString protocolId = recordIdsInOrder.at(i);
         const QString storedBody = loadProtocolBodyById(protocolId);
@@ -936,9 +936,22 @@ bool Repository::updateProtocolsFromEditedDocument(
             sectionDocument.setHtml(
                 ExerciseAssets::buildProtocolDocumentHtml(sectionBody));
             QTextTable *liveOrHlpTable = nullptr;
-            if (usesOrHlpMerge(uprid) && liveOrHlpIndex < liveOrHlpTables.size()) {
-                liveOrHlpTable = liveOrHlpTables.at(liveOrHlpIndex);
-                ++liveOrHlpIndex;
+            if (usesOrHlpMerge(uprid)) {
+                // 3.1.10: 6-кол. с «Выбранная картинка» не в collectOrHlp — не забирать чужую таблицу.
+                if (uprid != QStringLiteral("3.1.10")) {
+                    liveOrHlpTable =
+                        ExerciseProtocol::findOrHlpProcessTableForProtocol(document, protocolId);
+                    if (!liveOrHlpTable && liveOrHlpIndex < liveOrHlpTables.size()) {
+                        liveOrHlpTable = liveOrHlpTables.at(liveOrHlpIndex);
+                        ++liveOrHlpIndex;
+                    } else if (liveOrHlpTable) {
+                        // Синхронизировать fallback-индекс с фактически взятой таблицей.
+                        const int foundAt = liveOrHlpTables.indexOf(liveOrHlpTable);
+                        if (foundAt >= liveOrHlpIndex) {
+                            liveOrHlpIndex = foundAt + 1;
+                        }
+                    }
+                }
             }
             // OR/HLP читаем из liveOrHlpTable (если есть); Результат/Примечание — из sectionDocument.
             if (uprid == QStringLiteral("1.1")

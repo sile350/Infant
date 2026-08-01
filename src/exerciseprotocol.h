@@ -143,6 +143,11 @@ public:
     // Таблицы процесса с колонками «Характер деятельности» + «Виды помощи» (порядок в документе).
     static QList<QTextTable *> collectOrHlpProcessTables(QTextDocument *document);
 
+    // OR/HLP-таблица внутри маркеров протокола dokit-pid-<id> (вкладка «Протоколы»).
+    static QTextTable *findOrHlpProcessTableForProtocol(
+        QTextDocument *document,
+        const QString &protocolId);
+
     // 3.1.18 «Времена года»: idballs → Результат N(10)/уровень (последняя сессия).
     static QString applyProtocol318SumFromDocument(
         const QString &storedBody,
