@@ -784,6 +784,7 @@ public:
                 m_cardB->hide();
             }
         }
+        layoutPatientRemember2();
     }
 
     void toggleCardA() {
@@ -838,12 +839,92 @@ public:
         m_liveTimer->adjustSize();
     }
 
+    void ensurePatientView(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientCardA = new QLabel(m_patientRoot);
+            m_patientCardB = new QLabel(m_patientRoot);
+            m_patientCardA->setStyleSheet(QStringLiteral("background:transparent;"));
+            m_patientCardB->setStyleSheet(QStringLiteral("background:transparent;"));
+            m_patientRoot->installEventFilter(this);
+        } else if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+    }
+
+    void layoutPatientRemember2() {
+        if (!m_patientRoot || !m_patientCardA || !m_patientCardB) {
+            return;
+        }
+        const int pw = qMax(1, m_patientRoot->width());
+        const int ph = qMax(1, m_patientRoot->height());
+        // Полный экран пациента: исходный размер PNG, позиции как remember2.Designer.
+        const qreal sx = pw / 1920.0;
+        const qreal sy = ph / 1080.0;
+        constexpr int kNudgeLeft = 40;
+        constexpr int kNudgeDown = 40;
+        constexpr int kShiftUp = 100;
+        const int cardAW = m_pixmapA.isNull() ? 538 : m_pixmapA.width();
+        const int cardAH = m_pixmapA.isNull() ? 637 : m_pixmapA.height();
+        const int cardBW = m_pixmapB.isNull() ? 530 : m_pixmapB.width();
+        const int cardBH = m_pixmapB.isNull() ? 638 : m_pixmapB.height();
+        constexpr int kDesignLeft = 708;
+        constexpr int kDesignTop = 13;
+        const int designRight = qMax(1380 + 104, 1284 + cardBW);
+        const int designBottom = qMax(174 + cardAH, 174 + cardBH);
+        const int groupW = qMax(1, designRight - kDesignLeft);
+        const int groupH = qMax(1, designBottom - kDesignTop);
+        const int designCX = kDesignLeft + groupW / 2;
+        const int designCY = kDesignTop + groupH / 2;
+        const int offsetX = pw / 2 - qRound(designCX * sx) - kNudgeLeft;
+        const int offsetY = ph / 2 - qRound(designCY * sy) + kNudgeDown - kShiftUp;
+        auto place = [&](int designX, int designY) {
+            return QPoint(qRound(designX * sx) + offsetX, qRound(designY * sy) + offsetY);
+        };
+
+        if (m_cardAVisible && !m_pixmapA.isNull()) {
+            m_patientCardA->setPixmap(m_pixmapA);
+            m_patientCardA->setFixedSize(m_pixmapA.size());
+            m_patientCardA->move(place(708, 174));
+            m_patientCardA->show();
+            m_patientCardA->raise();
+        } else {
+            m_patientCardA->hide();
+        }
+        if (m_cardBVisible && !m_pixmapB.isNull()) {
+            m_patientCardB->setPixmap(m_pixmapB);
+            m_patientCardB->setFixedSize(m_pixmapB.size());
+            m_patientCardB->move(place(1284, 174));
+            m_patientCardB->show();
+            m_patientCardB->raise();
+        } else {
+            m_patientCardB->hide();
+        }
+        Q_UNUSED(cardAW);
+        Q_UNUSED(cardBH);
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        if (!display) {
+            return;
+        }
+        ensurePatientView(display);
+        layoutPatientRemember2();
+        display->attachContentWidget(m_patientRoot);
+    }
+
     void layoutRemember2Compact() {
-        // Dual / узкая панель: картинки и «Показать/скрыть» на правой половине.
+        // Dual / узкая панель специалиста: картинки и «Показать/скрыть» на правой половине.
+        // Картинки — только native или downscale (без увеличения).
         constexpr int kMargin = 12;
         constexpr int kGap = 16;
         constexpr int kBtnTop = 12;
-        constexpr int kGroupDown = 100; // 29.3: сдвиг картинок+кнопок вниз.
+        constexpr int kGroupDown = 100;
         const int btnH = m_showA ? m_showA->height() : 34;
         const int contentTop = 56 + kGroupDown;
         const int availW = qMax(80, width() - 2 * kMargin);
@@ -868,7 +949,6 @@ public:
             if (!src.isNull()) {
                 disp = pixmapNativeOrDownscale(src, halfW, availH);
             }
-            const int picH = disp.isNull() ? 0 : disp.height();
             const int picW = disp.isNull() ? 0 : disp.width();
             const int colCenterX = colX + halfW / 2;
             if (btn) {
@@ -887,7 +967,6 @@ public:
                     card->hide();
                 }
             }
-            Q_UNUSED(picH);
         };
 
         placeColumn(m_cardA, m_showA, m_cardAVisible, m_pixmapA, kMargin);
@@ -901,10 +980,11 @@ public:
         if (m_showB) {
             m_showB->raise();
         }
+        layoutPatientRemember2();
     }
 
     void layoutRemember2() {
-        // Dual / узкая панель — как 2.8: компактная раскладка на правой половине.
+        // Dual / узкая панель — компакт на правой половине специалиста.
         if (m_sessionOptions.dualScreen || width() < 1400) {
             layoutRemember2Compact();
             return;
@@ -926,7 +1006,6 @@ public:
         const int groupH = qMax(1, designBottom - kDesignTop);
         const int designCX = kDesignLeft + groupW / 2;
         const int designCY = kDesignTop + groupH / 2;
-        // Чуть левее центра; 29.4: опустить картинки+кнопки на ~100px (было kShiftUp=200).
         constexpr int kNudgeLeft = 40;
         constexpr int kNudgeDown = 40;
         constexpr int kShiftUp = 100;
@@ -975,12 +1054,16 @@ public:
             m_liveTimer->show();
             m_liveTimer->raise();
         }
+        layoutPatientRemember2();
         Q_UNUSED(btnH);
     }
 
     void finish() override {
         if (m_liveTimer) {
             m_liveTimer->hide();
+        }
+        if (m_patientRoot) {
+            m_patientRoot->hide();
         }
         TimedSessionRunner::finish();
     }
@@ -997,11 +1080,22 @@ public:
         layoutRemember2();
     }
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == m_patientRoot && event->type() == QEvent::Resize) {
+            layoutPatientRemember2();
+        }
+        return TimedSessionRunner::eventFilter(watched, event);
+    }
+
     ClickableLabel *m_showA = nullptr;
     ClickableLabel *m_showB = nullptr;
     QLabel *m_cardA = nullptr;
     QLabel *m_cardB = nullptr;
     QLabel *m_liveTimer = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    QLabel *m_patientCardA = nullptr;
+    QLabel *m_patientCardB = nullptr;
     QPixmap m_pixmapA;
     QPixmap m_pixmapB;
     QString m_showPath;
