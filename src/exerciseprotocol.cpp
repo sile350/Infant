@@ -5624,9 +5624,18 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     // (особенно после дописки задания 2) и правки по №1 с уже заполненными ячейками теряются.
     QString body = storedBody;
 
+    // 5.2.1: на каждое «Задание №N» — своя таблица OR/HLP. Нужны все таблицы документа,
+    // иначе после break сохранялась только первая (или при одной live-таблице — не та строка).
     QList<QTextTable *> tables;
     if (processTable) {
-        tables.append(processTable);
+        QTextDocument *liveDoc = processTable->document();
+        const QList<QTextTable *> allLive =
+            liveDoc ? collectOrHlpProcessTables(liveDoc) : QList<QTextTable *>();
+        if (allLive.size() > 1) {
+            tables = allLive;
+        } else {
+            tables.append(processTable);
+        }
     } else {
         tables = collectOrHlpProcessTables(editorDocument);
     }
@@ -5638,6 +5647,19 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         const QRegularExpressionMatch m = numRe.match(key);
         return m.hasMatch() ? m.captured(1) : key;
     };
+
+    struct EditorRow {
+        QString stepKey;
+        QString activity;
+        QString help;
+        QString score;
+        int activityCol = 0;
+        int helpCol = 1;
+        int ballsCol = -1;
+        bool activityInFirstCol = false;
+    };
+    QList<EditorRow> editorDataRows;
+    bool anyActivityInFirstCol = false;
 
     for (QTextTable *table : tables) {
         if (!table || table->columns() < 2) {
@@ -5684,108 +5706,11 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         if (headerRow < 0 || activityCol < 0 || helpCol < 0) {
             continue;
         }
-
-        const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
-        if (marker < 0) {
-            continue;
-        }
-        const QString head = body.left(marker + QStringLiteral("<!--s-->").size());
-        QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
-
-        const QRegularExpression trRe(
-            QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        const QRegularExpression stepMarkerRe(
-            QStringLiteral("<!--\\s*step\\s*([^\\s>]+)\\s*-->"),
-            QRegularExpression::CaseInsensitiveOption);
-        struct RowPos {
-            int start = 0;
-            int len = 0;
-            QString open;
-            QString inner;
-            QString close;
-            QString stepKey;
-        };
-        QList<RowPos> dataRows;
-        QRegularExpressionMatchIterator it = trRe.globalMatch(tail);
-        while (it.hasNext()) {
-            const QRegularExpressionMatch m = it.next();
-            const QString rowInner = m.captured(2);
-            const QRegularExpressionMatch stepMark = stepMarkerRe.match(rowInner);
-            const QRegularExpression firstTdRe(
-                QStringLiteral("<td\\b[^>]*>([\\s\\S]*?)</td>"),
-                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-            const QRegularExpressionMatch firstTd = firstTdRe.match(rowInner);
-            const QString firstPlain = firstTd.hasMatch()
-                ? htmlFragmentToPlainText(firstTd.captured(1)).trimmed()
-                : QString();
-            QString stepKey = stepMark.hasMatch()
-                ? normalizeStepKey(stepMark.captured(1))
-                : normalizeStepKey(firstPlain);
-            // Заголовок — только по первой ячейке / маркеру, не по тексту OR/HLP.
-            // 3-кол. без «№» (3.1.17/18): в col0 — текст характера; фильтр «Задание»
-            // иначе отбрасывал строку с чекбоксом «…выполнить задание» и правки
-            // с клавиатуры на «Протоколы» не сохранялись.
-            const bool activityInFirstCol = (activityCol == 0 && helpCol == 1);
-            if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
-                || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
-                || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
-                || firstPlain.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0
-                || firstPlain.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
-                || (firstPlain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
-                    && firstPlain.length() < 20)
-                || firstPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
-                || (!activityInFirstCol
-                    && (firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
-                        || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
-                        || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
-                        || firstPlain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
-                        || firstPlain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
-                        || firstPlain.contains(
-                            QStringLiteral("Частота употребления"), Qt::CaseInsensitive)))) {
-                continue;
-            }
-            RowPos row;
-            row.start = m.capturedStart();
-            row.len = m.capturedLength();
-            row.open = m.captured(1);
-            row.inner = rowInner;
-            row.close = m.captured(3);
-            row.stepKey = stepKey;
-            {
-                const QRegularExpression tdCountRe(
-                    QStringLiteral("<td\\b"),
-                    QRegularExpression::CaseInsensitiveOption);
-                int tdCount = 0;
-                QRegularExpressionMatchIterator tdCountIt = tdCountRe.globalMatch(row.inner);
-                while (tdCountIt.hasNext()) {
-                    tdCountIt.next();
-                    ++tdCount;
-                }
-                if (tdCount != 3 && tdCount != 4) {
-                    continue;
-                }
-            }
-            dataRows.append(row);
-        }
-        if (dataRows.isEmpty()) {
-            continue;
+        const bool activityInFirstCol = (activityCol == 0 && helpCol == 1);
+        if (activityInFirstCol) {
+            anyActivityInFirstCol = true;
         }
 
-        auto makeEditable = [](const QString &text) {
-            return QStringLiteral("<div contenteditable='true' style='text-align:left'>%1</div>")
-                .arg(formatProtocolCellText(text));
-        };
-
-        struct EditorRow {
-            int row = -1;
-            QString stepKey;
-            QString activity;
-            QString help;
-            QString score;
-        };
-        QList<EditorRow> editorDataRows;
         for (int r = headerRow + 1; r < table->rows(); ++r) {
             const QString label = readTableCellText(table, r, 0);
             if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
@@ -5797,139 +5722,234 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                 continue;
             }
             EditorRow er;
-            er.row = r;
             er.stepKey = normalizeStepKey(label);
             er.activity = readTableCellMultilineText(table, r, activityCol);
             er.help = readTableCellMultilineText(table, r, helpCol);
             er.score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
+            er.activityCol = activityCol;
+            er.helpCol = helpCol;
+            er.ballsCol = ballsCol;
+            er.activityInFirstCol = activityInFirstCol;
             editorDataRows.append(er);
         }
-        if (editorDataRows.isEmpty()) {
+    }
+    if (editorDataRows.isEmpty()) {
+        body = mergeLimitedEditableFieldsIntoStoredBody(body, editorDocument);
+        return body;
+    }
+
+    const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
+    if (marker < 0) {
+        body = mergeLimitedEditableFieldsIntoStoredBody(body, editorDocument);
+        return body;
+    }
+    const QString head = body.left(marker + QStringLiteral("<!--s-->").size());
+    QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
+
+    const QRegularExpression trRe(
+        QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpression stepMarkerRe(
+        QStringLiteral("<!--\\s*step\\s*([^\\s>]+)\\s*-->"),
+        QRegularExpression::CaseInsensitiveOption);
+    struct RowPos {
+        int start = 0;
+        int len = 0;
+        QString open;
+        QString inner;
+        QString close;
+        QString stepKey;
+    };
+    QList<RowPos> dataRows;
+    QRegularExpressionMatchIterator it = trRe.globalMatch(tail);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const QString rowInner = m.captured(2);
+        const QRegularExpressionMatch stepMark = stepMarkerRe.match(rowInner);
+        const QRegularExpression firstTdRe(
+            QStringLiteral("<td\\b[^>]*>([\\s\\S]*?)</td>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpressionMatch firstTd = firstTdRe.match(rowInner);
+        const QString firstPlain = firstTd.hasMatch()
+            ? htmlFragmentToPlainText(firstTd.captured(1)).trimmed()
+            : QString();
+        QString stepKey = stepMark.hasMatch()
+            ? normalizeStepKey(stepMark.captured(1))
+            : normalizeStepKey(firstPlain);
+        // Заголовок — только по первой ячейке / маркеру, не по тексту OR/HLP.
+        // 3-кол. без «№» (3.1.17/18, 5.2.1): в col0 — текст характера; фильтр «Задание»
+        // иначе отбрасывал строку с чекбоксом «…выполнить задание».
+        if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
+            || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
+            || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+            || firstPlain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+            || firstPlain.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0
+            || firstPlain.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+            || (firstPlain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                && firstPlain.length() < 20)
+            || firstPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
+            || (!anyActivityInFirstCol
+                && (firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
+                    || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                    || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                    || firstPlain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                    || firstPlain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
+                    || firstPlain.contains(
+                        QStringLiteral("Частота употребления"), Qt::CaseInsensitive)))) {
             continue;
         }
-
-        auto findStoredRowIndex = [&](const EditorRow &er, const QSet<int> &used) -> int {
-            // 3-кол. OR/HLP без «№» (3.1.11 и др.): stepKey = текст характера —
-            // после правки с клавиатуры ключ меняется, сопоставление только по порядку.
-            if (activityCol == 0 && helpCol == 1) {
-                return -1;
+        RowPos row;
+        row.start = m.capturedStart();
+        row.len = m.capturedLength();
+        row.open = m.captured(1);
+        row.inner = rowInner;
+        row.close = m.captured(3);
+        row.stepKey = stepKey;
+        {
+            const QRegularExpression tdCountRe(
+                QStringLiteral("<td\\b"),
+                QRegularExpression::CaseInsensitiveOption);
+            int tdCount = 0;
+            QRegularExpressionMatchIterator tdCountIt = tdCountRe.globalMatch(row.inner);
+            while (tdCountIt.hasNext()) {
+                tdCountIt.next();
+                ++tdCount;
             }
-            if (!er.stepKey.isEmpty()) {
-                for (int i = 0; i < dataRows.size(); ++i) {
-                    if (used.contains(i)) {
-                        continue;
-                    }
-                    if (dataRows.at(i).stepKey.compare(er.stepKey, Qt::CaseInsensitive) == 0) {
-                        return i;
-                    }
+            if (tdCount != 3 && tdCount != 4) {
+                continue;
+            }
+        }
+        dataRows.append(row);
+    }
+    if (dataRows.isEmpty()) {
+        body = mergeLimitedEditableFieldsIntoStoredBody(body, editorDocument);
+        return body;
+    }
+
+    auto makeEditable = [](const QString &text) {
+        return QStringLiteral("<div contenteditable='true' style='text-align:left'>%1</div>")
+            .arg(formatProtocolCellText(text));
+    };
+
+    auto findStoredRowIndex = [&](const EditorRow &er, const QSet<int> &used) -> int {
+        // 3-кол. OR/HLP без «№» (3.1.11 / 5.2.1 и др.): stepKey = текст характера —
+        // после правки с клавиатуры ключ меняется, сопоставление только по порядку.
+        if (er.activityInFirstCol) {
+            return -1;
+        }
+        if (!er.stepKey.isEmpty()) {
+            for (int i = 0; i < dataRows.size(); ++i) {
+                if (used.contains(i)) {
+                    continue;
+                }
+                if (dataRows.at(i).stepKey.compare(er.stepKey, Qt::CaseInsensitive) == 0) {
+                    return i;
                 }
             }
-            return -1;
-        };
+        }
+        return -1;
+    };
 
-        QVector<int> storedForEditor(editorDataRows.size(), -1);
-        QSet<int> usedStored;
-        for (int ei = 0; ei < editorDataRows.size(); ++ei) {
-            const int si = findStoredRowIndex(editorDataRows.at(ei), usedStored);
-            if (si >= 0) {
-                storedForEditor[ei] = si;
-                usedStored.insert(si);
-            }
-        }
-        QList<int> freeEditors;
-        QList<int> freeStored;
-        for (int ei = 0; ei < editorDataRows.size(); ++ei) {
-            if (storedForEditor.at(ei) < 0) {
-                freeEditors.append(ei);
-            }
-        }
-        for (int si = 0; si < dataRows.size(); ++si) {
-            if (!usedStored.contains(si)) {
-                freeStored.append(si);
-            }
-        }
-        const int pairFree = qMin(freeEditors.size(), freeStored.size());
-        // Свободные пары — по порядку (№1→№1, №2→№2), не с хвоста:
-        // иначе после дописки задания 2 правка №1 могла писаться не в ту строку.
-        for (int i = 0; i < pairFree; ++i) {
-            const int ei = freeEditors.at(i);
-            const int si = freeStored.at(i);
+    QVector<int> storedForEditor(editorDataRows.size(), -1);
+    QSet<int> usedStored;
+    for (int ei = 0; ei < editorDataRows.size(); ++ei) {
+        const int si = findStoredRowIndex(editorDataRows.at(ei), usedStored);
+        if (si >= 0) {
             storedForEditor[ei] = si;
             usedStored.insert(si);
         }
-
-        QList<QPair<int, int>> applyOrder; // storedIndex, editorIndex
-        for (int ei = 0; ei < editorDataRows.size(); ++ei) {
-            if (storedForEditor.at(ei) >= 0) {
-                applyOrder.append(qMakePair(storedForEditor.at(ei), ei));
-            }
+    }
+    QList<int> freeEditors;
+    QList<int> freeStored;
+    for (int ei = 0; ei < editorDataRows.size(); ++ei) {
+        if (storedForEditor.at(ei) < 0) {
+            freeEditors.append(ei);
         }
-        std::sort(applyOrder.begin(), applyOrder.end(),
-                  [](const QPair<int, int> &a, const QPair<int, int> &b) {
+    }
+    for (int si = 0; si < dataRows.size(); ++si) {
+        if (!usedStored.contains(si)) {
+            freeStored.append(si);
+        }
+    }
+    const int pairFree = qMin(freeEditors.size(), freeStored.size());
+    // Свободные пары — по порядку (задание1→1, задание2→2), не с хвоста.
+    for (int i = 0; i < pairFree; ++i) {
+        const int ei = freeEditors.at(i);
+        const int si = freeStored.at(i);
+        storedForEditor[ei] = si;
+        usedStored.insert(si);
+    }
+
+    QList<QPair<int, int>> applyOrder; // storedIndex, editorIndex
+    for (int ei = 0; ei < editorDataRows.size(); ++ei) {
+        if (storedForEditor.at(ei) >= 0) {
+            applyOrder.append(qMakePair(storedForEditor.at(ei), ei));
+        }
+    }
+    std::sort(applyOrder.begin(), applyOrder.end(),
+              [](const QPair<int, int> &a, const QPair<int, int> &b) {
+                  return a.first > b.first;
+              });
+
+    for (const auto &pair : applyOrder) {
+        const EditorRow &er = editorDataRows.at(pair.second);
+        RowPos &htmlRow = dataRows[pair.first];
+
+        const QRegularExpression tdRe(
+            QStringLiteral("(<td[^>]*>)([\\s\\S]*?)(</td>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QList<QRegularExpressionMatch> tds;
+        QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(htmlRow.inner);
+        while (tdIt.hasNext()) {
+            tds.append(tdIt.next());
+        }
+        if (tds.size() <= qMax(er.activityCol, er.helpCol)) {
+            continue;
+        }
+
+        QList<QPair<int, QString>> replacements;
+        replacements.append(qMakePair(er.activityCol, makeEditable(er.activity)));
+        replacements.append(qMakePair(er.helpCol, makeEditable(er.help)));
+        if (er.ballsCol >= 0 && er.ballsCol < tds.size()) {
+            QString scoreId = QStringLiteral("idballs");
+            const QRegularExpression existingIdRe(
+                QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
+                QRegularExpression::CaseInsensitiveOption);
+            const QRegularExpressionMatch idMatch = existingIdRe.match(tds.at(er.ballsCol).captured(2));
+            if (idMatch.hasMatch()) {
+                scoreId = idMatch.captured(1);
+            }
+            replacements.append(qMakePair(
+                er.ballsCol,
+                QStringLiteral(
+                    "<div id='%1' contenteditable='true' style='text-align:center'>%2</div>")
+                    .arg(scoreId, er.score.toHtmlEscaped())));
+        }
+        std::sort(replacements.begin(), replacements.end(),
+                  [](const QPair<int, QString> &a, const QPair<int, QString> &b) {
                       return a.first > b.first;
                   });
 
-        for (const auto &pair : applyOrder) {
-            const EditorRow &er = editorDataRows.at(pair.second);
-            RowPos &htmlRow = dataRows[pair.first];
-
-            const QRegularExpression tdRe(
-                QStringLiteral("(<td[^>]*>)([\\s\\S]*?)(</td>)"),
-                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-            QList<QRegularExpressionMatch> tds;
-            QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(htmlRow.inner);
+        QString inner = htmlRow.inner;
+        for (const auto &rep : replacements) {
+            tds.clear();
+            tdIt = tdRe.globalMatch(inner);
             while (tdIt.hasNext()) {
                 tds.append(tdIt.next());
             }
-            if (tds.size() <= qMax(activityCol, helpCol)) {
+            if (rep.first < 0 || rep.first >= tds.size()) {
                 continue;
             }
-
-            QList<QPair<int, QString>> replacements;
-            replacements.append(qMakePair(activityCol, makeEditable(er.activity)));
-            replacements.append(qMakePair(helpCol, makeEditable(er.help)));
-            if (ballsCol >= 0 && ballsCol < tds.size()) {
-                QString scoreId = QStringLiteral("idballs");
-                const QRegularExpression existingIdRe(
-                    QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
-                    QRegularExpression::CaseInsensitiveOption);
-                const QRegularExpressionMatch idMatch = existingIdRe.match(tds.at(ballsCol).captured(2));
-                if (idMatch.hasMatch()) {
-                    scoreId = idMatch.captured(1);
-                }
-                replacements.append(qMakePair(
-                    ballsCol,
-                    QStringLiteral(
-                        "<div id='%1' contenteditable='true' style='text-align:center'>%2</div>")
-                        .arg(scoreId, er.score.toHtmlEscaped())));
-            }
-            std::sort(replacements.begin(), replacements.end(),
-                      [](const QPair<int, QString> &a, const QPair<int, QString> &b) {
-                          return a.first > b.first;
-                      });
-
-            QString inner = htmlRow.inner;
-            for (const auto &rep : replacements) {
-                tds.clear();
-                tdIt = tdRe.globalMatch(inner);
-                while (tdIt.hasNext()) {
-                    tds.append(tdIt.next());
-                }
-                if (rep.first < 0 || rep.first >= tds.size()) {
-                    continue;
-                }
-                const QRegularExpressionMatch &td = tds.at(rep.first);
-                inner.replace(
-                    td.capturedStart(),
-                    td.capturedLength(),
-                    td.captured(1) + rep.second + td.captured(3));
-            }
-            const QString newRow = htmlRow.open + inner + htmlRow.close;
-            tail.replace(htmlRow.start, htmlRow.len, newRow);
+            const QRegularExpressionMatch &td = tds.at(rep.first);
+            inner.replace(
+                td.capturedStart(),
+                td.capturedLength(),
+                td.captured(1) + rep.second + td.captured(3));
         }
-        body = head + tail;
-        break;
+        const QString newRow = htmlRow.open + inner + htmlRow.close;
+        tail.replace(htmlRow.start, htmlRow.len, newRow);
     }
+    body = head + tail;
 
     body = mergeLimitedEditableFieldsIntoStoredBody(body, editorDocument);
     return body;
