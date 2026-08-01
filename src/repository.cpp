@@ -843,6 +843,16 @@ QString Repository::loadProtocolViewHtml(
         if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             protocolBlock += QStringLiteral("</table>");
         }
+    } else if (exerciseId == QStringLiteral("1.272")) {
+        // Плоская сборка 2 таблиц: шапка 200/471 + процесс 120+250+251+50.
+        body = ExerciseProtocol::normalizeSummaryColumnWidths(
+            ExerciseProtocol::flattenStoredProtocolBody(body));
+        protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
+                            exerciseHeaderFragment(exerciseId))
+            + body;
+        if (!protocolBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            protocolBlock += QStringLiteral("</table>");
+        }
     } else {
         protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
                             exerciseHeaderFragment(exerciseId))
