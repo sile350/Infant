@@ -1062,10 +1062,35 @@ public:
         }
     }
 
+    void bindPatientDisplay(PatientDisplay *display) override {
+        if (!display) {
+            return;
+        }
+        ensurePatientView(display);
+        layoutPatientE28();
+        display->attachContentWidget(m_patientRoot);
+    }
+
     void layoutUi() override {
         layoutE28();
     }
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == m_patientRoot && event->type() == QEvent::Resize) {
+            layoutPatientE28();
+        }
+        return TimedSessionRunner::eventFilter(watched, event);
+    }
+
+    void finish() override {
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
+        TimedSessionRunner::finish();
+    }
+
+private:
     void layoutE28() {
         const bool compact = m_sessionOptions.dualScreen || width() < 1400;
         if (compact) {
@@ -1073,6 +1098,7 @@ public:
         } else {
             layoutE28Full();
         }
+        layoutPatientE28();
     }
 
     void layoutE28Full() {
@@ -1138,7 +1164,8 @@ public:
             m_stop->show();
             m_stop->raise();
         }
-        const int btnX = m_stop ? (m_stop->x() + m_stop->width() + 16) : (kMargin + 150);
+        // Далее / Показать-скрыть — на 100px правее «Стоп».
+        const int btnX = m_stop ? (m_stop->x() + m_stop->width() + 100) : (kMargin + 150);
         if (m_next && m_next->isVisible()) {
             m_next->move(btnX, kBtnTop);
             m_next->raise();
@@ -1209,6 +1236,56 @@ public:
         }
     }
 
+    void ensurePatientView(PatientDisplay *display) {
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientRoot->installEventFilter(this);
+            m_patientTask = new QLabel(m_patientRoot);
+            m_patientRef = new QLabel(m_patientRoot);
+            m_patientTask->setStyleSheet(QStringLiteral("background:transparent;"));
+            m_patientRef->setStyleSheet(QStringLiteral("background:transparent;"));
+            m_patientTask->setScaledContents(false);
+            m_patientRef->setScaledContents(false);
+            m_patientTask->hide();
+            m_patientRef->hide();
+        } else if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+    }
+
+    void layoutPatientE28() {
+        if (!m_patientRoot || !m_patientTask || !m_patientRef) {
+            return;
+        }
+        const int pw = qMax(1, m_patientRoot->width());
+        const int ph = qMax(1, m_patientRoot->height());
+        // Как e28.Designer на полном экране: исходный размер, позиции (228,246) / (1043,246).
+        const qreal sx = pw / 1920.0;
+        const qreal sy = ph / 1080.0;
+        const bool showTask = m_phaseTask && !m_taskSource.isNull();
+        const bool showHint = m_hintVisible && !m_refSource.isNull();
+
+        if (showTask) {
+            m_patientTask->setPixmap(m_taskSource);
+            m_patientTask->setFixedSize(m_taskSource.size());
+            m_patientTask->move(qRound(228 * sx), qRound(246 * sy));
+            m_patientTask->show();
+            m_patientTask->raise();
+        } else {
+            m_patientTask->hide();
+        }
+        if (showHint) {
+            m_patientRef->setPixmap(m_refSource);
+            m_patientRef->setFixedSize(m_refSource.size());
+            m_patientRef->move(qRound(1043 * sx), qRound(246 * sy));
+            m_patientRef->show();
+            m_patientRef->raise();
+        } else {
+            m_patientRef->hide();
+        }
+    }
+
     QLabel *m_reference = nullptr;
     QLabel *m_task = nullptr;
     ClickableLabel *m_next = nullptr;
@@ -1217,6 +1294,9 @@ public:
     QPixmap m_taskSource;
     bool m_phaseTask = false;
     bool m_hintVisible = true;
+    QWidget *m_patientRoot = nullptr;
+    QLabel *m_patientTask = nullptr;
+    QLabel *m_patientRef = nullptr;
 };
 
 // Тельняшка 4.2.1: полосы строго по Y строк (как f1.png), без серых прямоугольников под цифрами.
