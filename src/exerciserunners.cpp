@@ -2302,27 +2302,23 @@ public:
             return;
         }
         if (m_exerciseId == QStringLiteral("5.2.1") && m_stimulusLabel) {
-            // Как в РП: таблица слева (ширина протокола 671), картинка по центру правой половины.
-            constexpr int kTableW = 671;
-            constexpr int kTableLeft = 40;
-            constexpr int kTableTop = 120;
+            // Как e521.Designer: table @ (51,81), picture @ (1175,106), stop @ (970,70).
+            // Dual: тот же полноэкранный вид на первом мониторе, что и при одном экране.
+            constexpr int kTableLeft = 51;
+            constexpr int kTableTop = 81;
             m_table->move(kTableLeft, kTableTop);
             m_table->raise();
 
-            const int rightHalfLeft = width() / 2;
-            const int rightHalfW = qMax(100, width() - rightHalfLeft);
             QPixmap src = m_stimulusPixmap;
             if (!src.isNull()) {
-                const int maxW = qMax(80, rightHalfW - 40);
-                const int maxH = qMax(80, height() - kTableTop - 40);
+                const int maxW = qMax(80, width() - 1175 - 24);
+                const int maxH = qMax(80, height() - 106 - 24);
                 if (src.width() > maxW || src.height() > maxH) {
                     src = src.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
                 }
                 m_stimulusLabel->setPixmap(src);
                 m_stimulusLabel->setFixedSize(src.size());
-                const int picX = rightHalfLeft + qMax(0, (rightHalfW - src.width()) / 2);
-                const int picY = qMax(kTableTop, (height() - src.height()) / 2);
-                m_stimulusLabel->move(picX, picY);
+                m_stimulusLabel->move(1175, 106);
             }
             m_stimulusLabel->raise();
             syncPatientPicture521();

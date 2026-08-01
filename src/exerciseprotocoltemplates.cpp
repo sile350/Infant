@@ -328,12 +328,16 @@ void fillWolfVariables(const QString &additional, QMap<QString, QString> *vars) 
         answerParts = parts.at(1).split(QLatin1Char(';'));
     }
     for (int i = 0; i < 7; ++i) {
+        const QString help = i < helpParts.size() ? helpParts.at(i).trimmed() : QString();
+        const QString answer = i < answerParts.size() ? answerParts.at(i).trimmed() : QString();
         vars->insert(
             QStringLiteral("{{HELP%1}}").arg(i),
-            i < helpParts.size() ? helpParts.at(i).toHtmlEscaped() : QString());
+            QStringLiteral("<div contenteditable='true'>%1</div>")
+                .arg(help.isEmpty() ? QStringLiteral("&nbsp;") : help.toHtmlEscaped()));
         vars->insert(
             QStringLiteral("{{ANSWER%1}}").arg(i),
-            i < answerParts.size() ? answerParts.at(i).toHtmlEscaped() : QString());
+            QStringLiteral("<div contenteditable='true'>%1</div>")
+                .arg(answer.isEmpty() ? QStringLiteral("&nbsp;") : answer.toHtmlEscaped()));
     }
 }
 

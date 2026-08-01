@@ -1143,8 +1143,20 @@ void ExerciseHost::resizeEvent(QResizeEvent *event) {
 }
 
 void ExerciseHost::updateChromeLayout() {
-    if (m_exerciseRunning && !m_dualScreen) {
+    // Dual + chrome намеренно открыт (задание на правой панели / OnlyP-зеркало).
+    // Если chrome скрыт (полноэкранный оверлей: 5.2.1, 5.4.2, …) — не поднимать
+    // описание и превью поверх таблицы/картинки.
+    const bool dualKeepsChrome = m_dualScreen && m_exerciseRunning
+        && m_scrollArea && m_scrollArea->isVisible()
+        && ((m_sessionRunner && m_rightPanel
+             && m_sessionRunner->parentWidget() == m_rightPanel)
+            || (m_specialistExercise && m_specialistExercise->isVisible()));
+
+    if (m_exerciseRunning && !dualKeepsChrome) {
         updateExerciseOverlayGeometry();
+        if (m_sessionRunner && m_sessionRunner->isVisible()) {
+            m_sessionRunner->raise();
+        }
         if (m_onlyP && m_onlyP->isVisible()) {
             m_onlyP->raise();
         }
@@ -4061,7 +4073,8 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("4.2.2")
                || m_exerciseId == QStringLiteral("5.1.1")
                || m_exerciseId == QStringLiteral("5.2.1")
-               || m_exerciseId == QStringLiteral("5.3.1")) {
+               || m_exerciseId == QStringLiteral("5.3.1")
+               || m_exerciseId == QStringLiteral("5.4.2")) {
         body = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
     } else if (m_exerciseId == QStringLiteral("3.1.17")

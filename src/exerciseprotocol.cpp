@@ -5270,6 +5270,7 @@ QList<QTextTable *> ExerciseProtocol::collectOrHlpProcessTables(QTextDocument *d
             continue;
         }
         bool hasActivity = false;
+        bool hasAnswers = false;
         bool hasHelp = false;
         bool isSelectedPic = false;
         for (int r = 0; r < qMin(3, table->rows()) && !isSelectedPic; ++r) {
@@ -5282,13 +5283,18 @@ QList<QTextTable *> ExerciseProtocol::collectOrHlpProcessTables(QTextDocument *d
                 if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
                     hasActivity = true;
                 }
+                if (h.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+                    || h.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
+                    hasAnswers = true;
+                }
                 if (h.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
                     && !h.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
                     hasHelp = true;
                 }
             }
         }
-        if (!isSelectedPic && hasActivity && hasHelp) {
+        // OR/HLP или 5.4.2 «Сказка» (Вопросы / Ответы ребенка / Виды помощи).
+        if (!isSelectedPic && hasHelp && (hasActivity || hasAnswers)) {
             result.append(table);
         }
     }
@@ -5396,12 +5402,20 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                     activityCol = c;
                     headerRow = r;
                 }
+                // 5.4.2: колонка «Ответы ребенка» — как редактируемое поле (вместо OR).
+                if (activityCol < 0
+                    && (h.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+                        || h.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive))) {
+                    activityCol = c;
+                    headerRow = r;
+                }
                 if (h.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
                     && !h.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
                     helpCol = c;
                     headerRow = r;
                 }
-                if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12) {
+                if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12
+                    && c > 0) {
                     ballsCol = c;
                     headerRow = r;
                 }
@@ -5457,6 +5471,8 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                 || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
                 || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
                 || firstPlain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                || firstPlain.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0
+                || firstPlain.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
                 || firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
                 || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
                 || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
@@ -5512,7 +5528,10 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             const QString label = readTableCellText(table, r, 0);
             if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
                 || label.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
-                || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
+                || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                || label.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0
+                || (label.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                    && label.length() < 20)) {
                 continue;
             }
             EditorRow er;

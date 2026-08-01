@@ -41,6 +41,8 @@ bool isLockedHeaderCell(const QString &cellText) {
         || trimmed.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)
         || trimmed.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
         || trimmed.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)
+        || trimmed.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+        || trimmed.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0
         || trimmed.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
         || (trimmed.contains(QStringLiteral("№"), Qt::CaseInsensitive)
             && trimmed.contains(QStringLiteral("рассказ"), Qt::CaseInsensitive));
@@ -136,11 +138,33 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
                 && (header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
                     || (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
                         && header.length() <= 12))) {
+                // 5.4.2: «Баллы» в col0 последней строки — подпись строки, не заголовок колонки.
+                if (c == 0
+                    && header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0) {
+                    bool rowHasOtherHeaders = false;
+                    for (int c2 = 1; c2 < table->columns(); ++c2) {
+                        const QString h2 = readProtocolTableCellText(table, r, c2);
+                        if (h2.contains(QStringLiteral("Ответ"), Qt::CaseInsensitive)
+                            || h2.contains(QStringLiteral("помощи"), Qt::CaseInsensitive)
+                            || h2.contains(QStringLiteral("деятельности"), Qt::CaseInsensitive)
+                            || h2.contains(QStringLiteral("Вопрос"), Qt::CaseInsensitive)) {
+                            rowHasOtherHeaders = true;
+                            break;
+                        }
+                    }
+                    if (!rowHasOtherHeaders) {
+                        continue;
+                    }
+                }
                 ballsCol = c;
-                ballsHeaderRow = r;
+                // Не затирать уже найденную строку заголовков (Ответы/Виды помощи).
+                if (ballsHeaderRow < 0) {
+                    ballsHeaderRow = r;
+                }
             }
             if (answerCol < 0
-                && header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)) {
+                && (header.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)
+                    || header.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive))) {
                 answerCol = c;
                 if (ballsHeaderRow < 0) {
                     ballsHeaderRow = r;
