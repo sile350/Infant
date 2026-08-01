@@ -23,7 +23,8 @@ namespace {
 
 QString protocolPageBreakHtml() {
     return QStringLiteral(
-        "<div class='protocol-page-break' style='page-break-before:always; break-before:page; height:0;'></div>");
+        "<div class='protocol-page-break' style='height:0;margin:0;padding:0;border:none;"
+        "font-size:0;line-height:0;overflow:hidden'></div>");
 }
 
 QString scanHrefForProtocol(const QString &protocolId, int slot) {

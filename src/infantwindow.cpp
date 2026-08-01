@@ -2848,7 +2848,10 @@ void InfantWindow::styleProtocolsView() {
                 "text-align:left; vertical-align:top; }"
                 "td[align='center'], th[align='center'] { text-align:center; }"
                 "td p, th p { margin:0; padding:0; }"
-                "div[contenteditable='true'] { min-height:1.2em; text-align:left; }")
+                "div[contenteditable='true'] { min-height:1.2em; text-align:left; }"
+                "td[align='center'] div[contenteditable='true'] { text-align:center; }"
+                ".protocol-page-break { height:0; margin:0; padding:0; border:none; "
+                "font-size:0; line-height:0; overflow:hidden; }")
         );
     }
     if (QWidget *corner = m_protocolsView->cornerWidget()) {

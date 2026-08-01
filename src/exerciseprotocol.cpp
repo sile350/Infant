@@ -1813,7 +1813,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 last = m.capturedEnd();
                 continue;
             }
-            // Пропускаем 4+ колоночные таблицы (с № / картинкой и т.п.) — кроме «Кол-во цифр».
+            // 1.272: №/ответ | Характер | Виды помощи | Баллы → 120+250+251+50=671.
             {
                 const QRegularExpression firstTrRe(
                     QStringLiteral("<tr\\b[^>]*>([\\s\\S]*?)</tr>"),
@@ -1822,6 +1822,83 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 if (firstTr.hasMatch()) {
                     const int tdCount = firstTr.captured(1).count(
                         QRegularExpression(QStringLiteral("<td\\b"), QRegularExpression::CaseInsensitiveOption));
+                    const bool numAnswerTable =
+                        inner.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
+                        || inner.contains(QStringLiteral("N/ответ"), Qt::CaseInsensitive)
+                        || (tdCount == 4
+                            && inner.contains(QRegularExpression(
+                                   QStringLiteral(">\\s*№\\s*<"), QRegularExpression::CaseInsensitiveOption))
+                            && inner.contains(QStringLiteral("ids"), Qt::CaseInsensitive));
+                    if (tdCount == 4 && numAnswerTable) {
+                        inner.remove(QRegularExpression(
+                            QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                            QRegularExpression::CaseInsensitiveOption
+                                | QRegularExpression::DotMatchesEverythingOption));
+                        inner.prepend(QStringLiteral(
+                            "<colgroup><col width='120'><col width='250'>"
+                            "<col width='251'><col width='50'></colgroup>"));
+                        const QRegularExpression trRe(
+                            QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                            QRegularExpression::CaseInsensitiveOption
+                                | QRegularExpression::DotMatchesEverythingOption);
+                        QString rebuilt;
+                        int trLast = 0;
+                        QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+                        const QStringList widths = {
+                            QStringLiteral("120"),
+                            QStringLiteral("250"),
+                            QStringLiteral("251"),
+                            QStringLiteral("50")};
+                        while (trIt.hasNext()) {
+                            const QRegularExpressionMatch tr = trIt.next();
+                            rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                            QString rowInner = tr.captured(2);
+                            const QRegularExpression tdRe(
+                                QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                                QRegularExpression::CaseInsensitiveOption
+                                    | QRegularExpression::DotMatchesEverythingOption);
+                            QList<QRegularExpressionMatch> tds;
+                            QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                            while (tdIt.hasNext()) {
+                                tds.append(tdIt.next());
+                            }
+                            if (tds.size() == 4
+                                || (tds.size() == 2
+                                    && rowInner.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive))) {
+                                QString newRow;
+                                int cellLast = 0;
+                                for (int i = 0; i < tds.size(); ++i) {
+                                    const QRegularExpressionMatch &td = tds.at(i);
+                                    newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                                    QString attrs = td.captured(2);
+                                    if (tds.size() == 4) {
+                                        attrs = setAttrWidth(attrs, widths.at(i));
+                                        if (i == 0 || i == 3) {
+                                            if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                                                attrs += QStringLiteral(" align='center'");
+                                            }
+                                        }
+                                    } else if (i == tds.size() - 1) {
+                                        attrs = setAttrWidth(attrs, QStringLiteral("50"));
+                                        if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                                            attrs += QStringLiteral(" align='center'");
+                                        }
+                                    }
+                                    newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4)
+                                        + td.captured(5);
+                                    cellLast = td.capturedEnd();
+                                }
+                                newRow += rowInner.mid(cellLast);
+                                rowInner = newRow;
+                            }
+                            rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                            trLast = tr.capturedEnd();
+                        }
+                        rebuilt += inner.mid(trLast);
+                        out += open + rebuilt + m.captured(3);
+                        last = m.capturedEnd();
+                        continue;
+                    }
                     const bool digitsTable = inner.contains(
                         QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive);
                     if (tdCount == 4 && digitsTable) {
@@ -2635,6 +2712,62 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                 QTextLength(QTextLength::FixedLength, 200),
                 QTextLength(QTextLength::FixedLength, widthPx - 200),
             });
+        } else if (cols == 4) {
+            const QString h0 = readTableCellText(table, 0, 0);
+            const QString h3 = table->columns() > 3 ? readTableCellText(table, 0, 3) : QString();
+            const bool numAnswer =
+                h0.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
+                || h0.contains(QStringLiteral("N/ответ"), Qt::CaseInsensitive)
+                || ((h0.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
+                     || h0.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0)
+                    && h3.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive));
+            const bool stories =
+                h0.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
+                || h0.contains(QStringLiteral("рассказа"), Qt::CaseInsensitive);
+            if (numAnswer) {
+                // 1.272: 120+250+251+50 = 671
+                fmt.setColumnWidthConstraints({
+                    QTextLength(QTextLength::FixedLength, 120),
+                    QTextLength(QTextLength::FixedLength, 250),
+                    QTextLength(QTextLength::FixedLength, 251),
+                    QTextLength(QTextLength::FixedLength, 50),
+                });
+            } else if (stories) {
+                fmt.setColumnWidthConstraints({
+                    QTextLength(QTextLength::FixedLength, 70),
+                    QTextLength(QTextLength::FixedLength, 120),
+                    QTextLength(QTextLength::FixedLength, widthPx - 250),
+                    QTextLength(QTextLength::FixedLength, 60),
+                });
+            } else {
+                QVector<QTextLength> constraints = fmt.columnWidthConstraints();
+                if (constraints.size() == cols) {
+                    qreal sum = 0;
+                    bool allFixed = true;
+                    for (const QTextLength &c : constraints) {
+                        if (c.type() != QTextLength::FixedLength) {
+                            allFixed = false;
+                            break;
+                        }
+                        sum += c.rawValue();
+                    }
+                    if (allFixed && sum > 1.0 && qAbs(sum - widthPx) > 0.5) {
+                        QVector<QTextLength> scaled;
+                        scaled.reserve(cols);
+                        qreal used = 0;
+                        for (int i = 0; i < cols; ++i) {
+                            if (i == cols - 1) {
+                                scaled.append(QTextLength(QTextLength::FixedLength, widthPx - used));
+                            } else {
+                                const qreal w = qRound(constraints.at(i).rawValue() * widthPx / sum);
+                                scaled.append(QTextLength(QTextLength::FixedLength, w));
+                                used += w;
+                            }
+                        }
+                        fmt.setColumnWidthConstraints(scaled);
+                    }
+                }
+            }
         } else {
             QVector<QTextLength> constraints = fmt.columnWidthConstraints();
             if (constraints.size() == cols) {
@@ -2666,13 +2799,6 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                 fmt.setColumnWidthConstraints({
                     QTextLength(QTextLength::FixedLength, 200),
                     QTextLength(QTextLength::FixedLength, widthPx - 260),
-                    QTextLength(QTextLength::FixedLength, 60),
-                });
-            } else if (cols == 4) {
-                fmt.setColumnWidthConstraints({
-                    QTextLength(QTextLength::FixedLength, 70),
-                    QTextLength(QTextLength::FixedLength, 120),
-                    QTextLength(QTextLength::FixedLength, widthPx - 250),
                     QTextLength(QTextLength::FixedLength, 60),
                 });
             }

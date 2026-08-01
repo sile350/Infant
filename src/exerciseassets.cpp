@@ -322,7 +322,12 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         /* <p> в header.html иначе раздувают шапку на вкладке «Протоколы». */
         "td p, th p { margin:0; padding:0; }"
         "div[contenteditable='true'] { min-height:1.2em; text-align:left; }"
-        ".protocol-page-break { page-break-before:always; break-before:page; height:0; margin:24px 0; }"
+        "td[align='center'] div[contenteditable='true'] { text-align:center; }"
+        /* Без margin — иначе между протоколами одного упражнения пустые строки. */
+        ".protocol-page-break { height:0; margin:0; padding:0; border:none; "
+        "font-size:0; line-height:0; overflow:hidden; }"
+        "a[id^='dokit-pid-'] { font-size:0; line-height:0; height:0; margin:0; padding:0; "
+        "display:inline; text-decoration:none; }"
         "@media print { .protocol-page-break { page-break-before:always; break-before:page; } }"
         "</style>");
 }
