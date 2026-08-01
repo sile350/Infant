@@ -22,9 +22,10 @@
 namespace {
 
 QString protocolPageBreakHtml() {
+    // Без margin/высоты — иначе на «Протоколы» между повторными сессиями виден разрыв.
     return QStringLiteral(
-        "<div class='protocol-page-break' style='height:0;margin:0;padding:0;border:none;"
-        "font-size:0;line-height:0;overflow:hidden'></div>");
+        "<div class='protocol-page-break' style='page-break-before:always;break-before:page;"
+        "height:0;margin:0;padding:0;line-height:0;font-size:0;'></div>");
 }
 
 QString scanHrefForProtocol(const QString &protocolId, int slot) {
@@ -90,9 +91,6 @@ void appendProtocolRecord(
     } else if (uprid == QStringLiteral("1.26")) {
         // Плоская сборка: summary </table> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
         record = ExerciseProtocol::buildProtocol126ViewRecord(
-            continuation ? QString() : rawHeader, protocolBody);
-    } else if (uprid == QStringLiteral("1.272")) {
-        record = ExerciseProtocol::buildProtocol1272ViewRecord(
             continuation ? QString() : rawHeader, protocolBody);
     } else if (uprid == QStringLiteral("4.1.8")) {
         // Характер + таблица стимульных слов (две <table> после <!--s-->).
@@ -730,8 +728,6 @@ bool Repository::saveExerciseProtocol(
         storedHtml = ExerciseProtocol::canonicalizeProtocol12StoredBody(storedHtml);
     } else if (exerciseId == QStringLiteral("1.26")) {
         storedHtml = ExerciseProtocol::canonicalizeProtocol126StoredBody(storedHtml);
-    } else if (exerciseId == QStringLiteral("1.272")) {
-        storedHtml = ExerciseProtocol::canonicalizeProtocol1272StoredBody(storedHtml);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         storedHtml = ExerciseProtocol::canonicalizeProtocol418StoredBody(storedHtml);
     }
@@ -839,9 +835,6 @@ QString Repository::loadProtocolViewHtml(
     QString protocolBlock;
     if (exerciseId == QStringLiteral("1.26")) {
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
-            exerciseHeaderFragment(exerciseId), body);
-    } else if (exerciseId == QStringLiteral("1.272")) {
-        protocolBlock = ExerciseProtocol::buildProtocol1272ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
@@ -980,8 +973,6 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("1.26")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol126StoredBody(normalizedBody);
-    } else if (uprid == QStringLiteral("1.272")) {
-        normalizedBody = ExerciseProtocol::canonicalizeProtocol1272StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("4.1.8")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(normalizedBody);
     }

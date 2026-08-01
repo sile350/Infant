@@ -999,8 +999,5 @@ QString createExerciseProtocolFromTemplate(
             body.replace(QStringLiteral("скачать"), link);
         }
     }
-    if (exerciseId == QStringLiteral("1.272")) {
-        return ExerciseProtocol::canonicalizeProtocol1272StoredBody(body);
-    }
     return ExerciseProtocol::normalizeSummaryColumnWidths(body);
 }
