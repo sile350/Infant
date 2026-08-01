@@ -2846,7 +2846,7 @@ void InfantWindow::styleProtocolsView() {
                 "table { table-layout:fixed; width:671px; max-width:671px; min-width:671px; "
                 "border-collapse:collapse; border:1px solid #000000; }"
                 "td, th { background-color: #ffffff; border:1px solid #000000; "
-                "text-align:left; vertical-align:top; }"
+                "text-align:left; vertical-align:top; overflow:visible; }"
                 "td[align='center'], th[align='center'] { text-align:center; }"
                 "td p, th p { margin:0; padding:0; }"
                 "div[contenteditable='true'] { min-height:1.2em; text-align:left; }"

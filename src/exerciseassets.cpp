@@ -316,7 +316,7 @@ QString ExerciseAssets::protocolTableStyleHtml() {
         "table { table-layout:fixed; width:671px; max-width:671px; min-width:671px; "
         "border-collapse:collapse; border:1px solid #000000; background-color:#ffffff; "
         "box-sizing:border-box; }"
-        "td,th { border:1px solid #000000; overflow:hidden; word-wrap:break-word; "
+        "td,th { border:1px solid #000000; overflow:visible; word-wrap:break-word; "
         "background-color:#ffffff; box-sizing:border-box; text-align:left; vertical-align:top; }"
         "td[align='center'], th[align='center'] { text-align:center; }"
         /* <p> в header.html иначе раздувают шапку на вкладке «Протоколы». */

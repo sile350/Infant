@@ -16,6 +16,7 @@
 #include <QTextFrame>
 #include <QTextLength>
 #include <QTextTable>
+#include <QTextTableCellFormat>
 #include <QTextTableFormat>
 #include <QVector>
 #include <QtMath>
@@ -2982,6 +2983,31 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
             }
         }
         table->setFormat(fmt);
+
+        // 3.2.2 / 3.2.3 и др.: при 1 короткой строке процесса (только «Выполнение»)
+        // QTextEdit с overflow обрезает нижнюю линию у колонки «Факт выполнения/время».
+        // Не трогаем border (иначе линии толстеют) — только нижний padding последней строки.
+        if (table->rows() >= 1 && cols >= 3) {
+            QString headerJoin;
+            for (int c = 0; c < cols; ++c) {
+                headerJoin += readTableCellText(table, 0, c) + QLatin1Char(' ');
+            }
+            if (headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
+                const int lastRow = table->rows() - 1;
+                for (int c = 0; c < cols; ++c) {
+                    QTextTableCell cell = table->cellAt(lastRow, c);
+                    if (!cell.isValid()) {
+                        continue;
+                    }
+                    QTextTableCellFormat cellFmt = cell.format().toTableCellFormat();
+                    if (cellFmt.bottomPadding() < 2.0) {
+                        cellFmt.setBottomPadding(2.0);
+                        cell.setFormat(cellFmt);
+                    }
+                }
+            }
+        }
     }
 }
 
