@@ -2687,6 +2687,77 @@ QString ExerciseProtocol::canonicalizeProtocol418StoredBody(const QString &proto
     return joinProtocol126Sessions(flat);
 }
 
+QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &protocolBody) {
+    if (protocolBody.trimmed().isEmpty()) {
+        return {};
+    }
+
+    // Как в оригинальном createP("1.18"): заголовок «Процесс выполнения…» —
+    // последняя строка summary (colspan=2) перед </table><!--s-->.
+    // Если он оказался первой строкой таблицы процесса — Qt при склейке с header.html
+    // вкладывает весь процесс в последнюю ячейку шапки («Цель»).
+    auto fixSession = [](QString session) {
+        session = stripLeadingSummaryTableWrapper(session.trimmed());
+        if (session.isEmpty()) {
+            return session;
+        }
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        if (marker < 0) {
+            return ensureClosedProtocolSession(session);
+        }
+
+        QString summary = session.left(marker);
+        QString process = session.mid(marker + QStringLiteral("<!--s-->").size());
+
+        summary.replace(
+            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        summary = summary.trimmed();
+
+        const QRegularExpression processTitleInSummary(
+            QStringLiteral(
+                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*Процесс\\s+выполнения\\s+диагностической\\s+методики"
+                "\\s*</td>\\s*</tr>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const bool titleAlreadyInSummary = processTitleInSummary.match(summary).hasMatch();
+
+        const QRegularExpression processTitleInProcess(
+            QStringLiteral(
+                "<tr\\b[^>]*>\\s*<td\\b[^>]*colspan\\s*=\\s*['\"]?\\d+['\"]?[^>]*>\\s*"
+                "Процесс\\s+выполнения\\s+диагностической\\s+методики\\s*</td>\\s*</tr>\\s*"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpressionMatch titleInProcess = processTitleInProcess.match(process);
+        if (titleInProcess.hasMatch()) {
+            process.remove(titleInProcess.capturedStart(), titleInProcess.capturedLength());
+            if (!titleAlreadyInSummary) {
+                summary += QStringLiteral(
+                    "<tr><td align='center' colspan='2'>"
+                    "Процесс выполнения диагностической методики</td></tr>");
+            }
+        } else if (!titleAlreadyInSummary) {
+            summary += QStringLiteral(
+                "<tr><td align='center' colspan='2'>"
+                "Процесс выполнения диагностической методики</td></tr>");
+        }
+
+        return ensureClosedProtocolSession(summary + QStringLiteral("</table><!--s-->") + process);
+    };
+
+    QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
+    if (sessions.isEmpty()) {
+        return normalizeSummaryColumnWidthsHtml(fixSession(protocolBody));
+    }
+    QStringList flat;
+    flat.reserve(sessions.size());
+    for (const QString &session : sessions) {
+        const QString cleaned = fixSession(session);
+        if (!cleaned.isEmpty()) {
+            flat.append(cleaned);
+        }
+    }
+    return joinProtocol126Sessions(flat);
+}
+
 QString ExerciseProtocol::buildProtocol126ViewRecord(
     const QString &headerFragment,
     const QString &storedBody) {
