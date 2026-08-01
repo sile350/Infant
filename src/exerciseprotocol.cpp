@@ -1546,11 +1546,16 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             out += body.mid(last, m.capturedStart() - last);
             QString open = m.captured(1);
             QString inner = m.captured(2);
-            // Не трогать таблицы процесса (там тоже может встретиться слово в тексте).
+            // Не трогать таблицы процесса и «схлопнутые» шапка+процесс.
             if (inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
-                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)) {
+                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
+                || inner.contains(QRegularExpression(
+                       QStringLiteral("id\\s*=\\s*['\"]ids\\d+"),
+                       QRegularExpression::CaseInsensitiveOption))) {
                 out += m.captured(0);
                 last = m.capturedEnd();
                 continue;
@@ -2584,6 +2589,107 @@ constexpr const char kProtocol1272ProcessTableOpen[] =
     "<col width='120'><col width='250'><col width='251'><col width='50'>"
     "</colgroup>";
 
+// Qt иногда вкладывает соседние <table>; явный блочный разделитель это ломает.
+constexpr const char kProtocol1272TableSplit[] =
+    "<p class='dokit-1272-split' style='margin:0;padding:0;font-size:1px;line-height:0;'>&nbsp;</p>";
+
+bool isProtocol1272SummaryFirstCell(const QString &plain) {
+    const QString t = plain.simplified();
+    if (t.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+        return false;
+    }
+    return t.contains(QStringLiteral("Дата/специалист"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Дата / специалист"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Дата /специалист"), Qt::CaseInsensitive)
+        || t.startsWith(QStringLiteral("Результат"), Qt::CaseInsensitive)
+        || t.startsWith(QStringLiteral("Примечание"), Qt::CaseInsensitive);
+}
+
+QString plainCellTextFor1272(const QString &tdInner) {
+    QString t = tdInner;
+    t.replace(QRegularExpression(QStringLiteral("<[^>]+>")), QString());
+    t.replace(QStringLiteral("&nbsp;"), QStringLiteral(" "));
+    t.replace(QStringLiteral("&#160;"), QStringLiteral(" "));
+    return t.trimmed();
+}
+
+// Оставить в summary только строки Дата / Результат / Примечание.
+QString keepOnlyProtocol1272SummaryRows(const QString &html) {
+    const QRegularExpression trRe(
+        QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QString out;
+    QRegularExpressionMatchIterator it = trRe.globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const QString inner = m.captured(2);
+        const QRegularExpression tdRe(
+            QStringLiteral("<td\\b[^>]*>([\\s\\S]*?)</td>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpressionMatch td = tdRe.match(inner);
+        if (!td.hasMatch()) {
+            continue;
+        }
+        if (isProtocol1272SummaryFirstCell(plainCellTextFor1272(td.captured(1)))) {
+            out += m.captured(0);
+        }
+    }
+    return out;
+}
+
+bool isProtocol1272ProcessFirstCell(const QString &plain) {
+    const QString t = plain.simplified();
+    if (t.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("N/ответ"), Qt::CaseInsensitive)
+        || t.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
+        || t.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
+        || t.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Грусть"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Страх"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Удивление"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Злость"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Радость"), Qt::CaseInsensitive)
+        || t.contains(QStringLiteral("Спокойствие"), Qt::CaseInsensitive)) {
+        return true;
+    }
+    // «1. …» / просто номер шага
+    static const QRegularExpression stepRe(QStringLiteral("^\\d+([.\\s]|$)"));
+    return stepRe.match(t).hasMatch();
+}
+
+QString keepOnlyProtocol1272ProcessRows(const QString &html) {
+    const QRegularExpression trRe(
+        QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QString out;
+    QRegularExpressionMatchIterator it = trRe.globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const QString inner = m.captured(2);
+        if (inner.contains(QRegularExpression(
+                QStringLiteral("\\bid\\s*=\\s*['\"]ids\\d+['\"]"),
+                QRegularExpression::CaseInsensitiveOption))
+            || inner.contains(QRegularExpression(
+                QStringLiteral("\\bid\\s*=\\s*['\"]idsum['\"]"),
+                QRegularExpression::CaseInsensitiveOption))) {
+            out += m.captured(0);
+            continue;
+        }
+        const QRegularExpression tdRe(
+            QStringLiteral("<td\\b[^>]*>([\\s\\S]*?)</td>"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpressionMatch td = tdRe.match(inner);
+        if (!td.hasMatch()) {
+            continue;
+        }
+        if (isProtocol1272ProcessFirstCell(plainCellTextFor1272(td.captured(1)))) {
+            out += m.captured(0);
+        }
+    }
+    return out;
+}
+
 bool isProtocol1272ProcessTable(const QString &tableHtml) {
     // Не брать внешнюю summary-таблицу, внутри которой уже вложен процесс
     // (иначе «Процесс…» остаётся в ячейке «Примечание»).
@@ -2598,6 +2704,7 @@ bool isProtocol1272ProcessTable(const QString &tableHtml) {
     }
     return tableHtml.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
         || tableHtml.contains(QStringLiteral("N/ответ"), Qt::CaseInsensitive)
+        || tableHtml.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
         || (tableHtml.contains(QRegularExpression(
                 QStringLiteral("id\\s*=\\s*['\"]ids\\d+"),
                 QRegularExpression::CaseInsensitiveOption))
@@ -2639,55 +2746,6 @@ QString extractAndRemoveNested1272ProcessTables(QString *htmlInOut, QStringList 
     return extracted;
 }
 
-QString cleanProtocol1272SummaryRows(QString summary) {
-    summary = stripLeadingSummaryTableWrapper(summary.trimmed());
-    summary.replace(QStringLiteral("<!--s-->"), QString());
-    summary.replace(
-        QRegularExpression(QStringLiteral("</table\\s*>"), QRegularExpression::CaseInsensitiveOption),
-        QString());
-    // Открытый <table> процесса, попавший в summary после поломки разметки.
-    summary.replace(
-        QRegularExpression(
-            QStringLiteral("^\\s*<table\\b[^>]*>\\s*"),
-            QRegularExpression::CaseInsensitiveOption),
-        QString());
-    // «Процесс…» не должен жить в summary — только в таблице процесса.
-    summary.replace(
-        QRegularExpression(
-            QStringLiteral(
-                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*Процесс\\s+выполнения"
-                "[\\s\\S]*?</tr>"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
-        QString());
-    summary.replace(
-        QRegularExpression(
-            QStringLiteral(
-                "<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс\\s+выполнения[\\s\\S]*?</p>"),
-            QRegularExpression::CaseInsensitiveOption),
-        QString());
-    // Строки процесса (№/ответ, ids*, Итоговая), если Qt вложил их в summary.
-    summary.replace(
-        QRegularExpression(
-            QStringLiteral(
-                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*№\\s*/\\s*ответ"
-                "[\\s\\S]*?</tr>"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
-        QString());
-    summary.replace(
-        QRegularExpression(
-            QStringLiteral(
-                "<tr\\b[^>]*>[\\s\\S]*?\\bid\\s*=\\s*['\"]ids\\d+['\"][\\s\\S]*?</tr>"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
-        QString());
-    summary.replace(
-        QRegularExpression(
-            QStringLiteral(
-                "<tr\\b[^>]*>[\\s\\S]*?\\bid\\s*=\\s*['\"]idsum['\"][\\s\\S]*?</tr>"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
-        QString());
-    return summary.trimmed();
-}
-
 QString ensureProtocol1272ProcessRows(QString rows) {
     rows = rows.trimmed();
     rows.replace(
@@ -2723,37 +2781,6 @@ QString ensureProtocol1272ProcessRows(QString rows) {
     return rows;
 }
 
-QString pullProtocol1272ProcessRowsFromSummary(QString *summaryInOut) {
-    if (!summaryInOut) {
-        return {};
-    }
-    QString &summary = *summaryInOut;
-    QString pulled;
-    // Вырезать из summary блок начиная с «Процесс…» / «№/ответ» / ids* — это не Date/Result/Note.
-    const QRegularExpression startRe(
-        QStringLiteral(
-            "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*(?:"
-            "Процесс\\s+выполнения|№\\s*/\\s*ответ|N\\s*/\\s*ответ)"),
-        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    const QRegularExpression idsStartRe(
-        QStringLiteral("<tr\\b[^>]*>[\\s\\S]*?\\bid\\s*=\\s*['\"]ids\\d+['\"]"),
-        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    int cut = -1;
-    const QRegularExpressionMatch m1 = startRe.match(summary);
-    if (m1.hasMatch()) {
-        cut = m1.capturedStart();
-    }
-    const QRegularExpressionMatch m2 = idsStartRe.match(summary);
-    if (m2.hasMatch() && (cut < 0 || m2.capturedStart() < cut)) {
-        cut = m2.capturedStart();
-    }
-    if (cut >= 0) {
-        pulled = summary.mid(cut);
-        summary = summary.left(cut);
-    }
-    return pulled;
-}
-
 QString canonicalizeProtocol1272Session(QString session) {
     session = stripLeadingSummaryTableWrapper(session.trimmed());
     if (session.isEmpty()) {
@@ -2774,9 +2801,7 @@ QString canonicalizeProtocol1272Session(QString session) {
         summary = session;
     }
 
-    // Таблицы процесса после маркера (и любые вложенные — уже вынуты выше).
     extractAndRemoveNested1272ProcessTables(&afterMarker, &processTables);
-    // Голые <tr> процесса без обёртки.
     if (afterMarker.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)
         && (afterMarker.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
             || afterMarker.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
@@ -2786,22 +2811,19 @@ QString canonicalizeProtocol1272Session(QString session) {
         afterMarker.clear();
     }
 
-    // Процесс-строки, оставшиеся в summary (без отдельной <table>).
-    const QString leaked = pullProtocol1272ProcessRowsFromSummary(&summary);
-    if (!leaked.trimmed().isEmpty()) {
-        processTables.append(QStringLiteral("<table>") + leaked + QStringLiteral("</table>"));
+    // Любые process-<tr> из «summary» (в т.ч. одна общая таблица с шапкой).
+    const QString leakedProcess = keepOnlyProtocol1272ProcessRows(summary);
+    if (!leakedProcess.trimmed().isEmpty()) {
+        processTables.prepend(QStringLiteral("<table>") + leakedProcess + QStringLiteral("</table>"));
     }
-
-    summary = cleanProtocol1272SummaryRows(summary);
-    // Хвост afterMarker без таблиц — обычно мусор/br; не кладём в summary.
+    summary = keepOnlyProtocol1272SummaryRows(summary);
 
     QString processRows;
     for (const QString &table : processTables) {
         const QString rows = extractTableInnerRows(table).trimmed();
         if (!rows.isEmpty()) {
             if (!processRows.isEmpty()) {
-                // Убрать повторный заголовок «Процесс»/«№/ответ» у дописок.
-                QString extra = rows;
+                QString extra = keepOnlyProtocol1272ProcessRows(rows);
                 extra.replace(
                     QRegularExpression(
                         QStringLiteral(
@@ -2820,13 +2842,18 @@ QString canonicalizeProtocol1272Session(QString session) {
                     QString());
                 processRows += extra;
             } else {
-                processRows += rows;
+                processRows += keepOnlyProtocol1272ProcessRows(rows);
+                if (processRows.trimmed().isEmpty()) {
+                    processRows = rows;
+                }
             }
         }
     }
     processRows = ensureProtocol1272ProcessRows(processRows);
 
-    QString result = summary + QStringLiteral("</table><!--s-->");
+    // Плоская структура: summary </table> + split + process <table>.
+    QString result = summary + QStringLiteral("</table><!--s-->")
+        + QString::fromUtf8(kProtocol1272TableSplit);
     if (!processRows.trimmed().isEmpty()) {
         result += QString::fromUtf8(kProtocol1272ProcessTableOpen) + processRows
             + QStringLiteral("</table>");
@@ -2872,12 +2899,15 @@ QString ExerciseProtocol::buildProtocol1272ViewRecord(
     for (int i = 0; i < sessions.size(); ++i) {
         QString session = sessions.at(i);
         const int marker = session.indexOf(QStringLiteral("<!--s-->"));
-        QString summaryRows = marker >= 0 ? session.left(marker) : session;
+        QString summaryPart = marker >= 0 ? session.left(marker) : session;
         QString resultsBlock =
             marker >= 0 ? session.mid(marker + QStringLiteral("<!--s-->").size()) : QString();
 
-        summaryRows = cleanProtocol1272SummaryRows(summaryRows);
-        resultsBlock = resultsBlock.trimmed();
+        // Жёстко: в шапку только Дата/Результат/Примечание — ничего из процесса.
+        QString summaryRows = keepOnlyProtocol1272SummaryRows(summaryPart);
+        if (summaryRows.isEmpty()) {
+            summaryRows = keepOnlyProtocol1272SummaryRows(session);
+        }
 
         QString processRows;
         QStringList processTables;
@@ -2885,8 +2915,12 @@ QString ExerciseProtocol::buildProtocol1272ViewRecord(
         for (const QString &table : processTables) {
             processRows += extractTableInnerRows(table);
         }
-        if (resultsBlock.contains(QStringLiteral("<tr"), Qt::CaseInsensitive)) {
-            processRows += resultsBlock;
+        processRows += keepOnlyProtocol1272ProcessRows(resultsBlock);
+        // Если процесс всё ещё в summaryPart (старая одна таблица) — забрать оттуда.
+        if (!processRows.contains(QStringLiteral("ids"), Qt::CaseInsensitive)
+            && !processRows.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)) {
+            processRows += keepOnlyProtocol1272ProcessRows(summaryPart);
+            processRows += keepOnlyProtocol1272ProcessRows(session);
         }
         processRows = ensureProtocol1272ProcessRows(processRows);
 
@@ -2897,12 +2931,15 @@ QString ExerciseProtocol::buildProtocol1272ViewRecord(
                 result += protocolSummaryTableOpenHtml();
             }
         } else {
+            result += QString::fromUtf8(kProtocol1272TableSplit);
             result += protocolSummaryTableOpenHtml();
         }
         if (!summaryRows.isEmpty()) {
             result += summaryRows;
         }
+        // Закрыть шапку ДО процесса — обязательно, иначе Qt вложит процесс внутрь.
         result += QStringLiteral("</table>");
+        result += QString::fromUtf8(kProtocol1272TableSplit);
         if (!processRows.trimmed().isEmpty()) {
             result += QString::fromUtf8(kProtocol1272ProcessTableOpen) + processRows
                 + QStringLiteral("</table>");
