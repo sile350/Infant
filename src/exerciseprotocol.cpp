@@ -1727,39 +1727,38 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 while (tdIt.hasNext()) {
                     tds.append(tdIt.next());
                 }
-                if (tds.size() == 2) {
-                    QString newRow;
-                    int cellLast = 0;
-                    for (int i = 0; i < tds.size(); ++i) {
-                        const QRegularExpressionMatch &td = tds.at(i);
-                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
-                        newRow += td.captured(1)
-                            + setAttrWidth(td.captured(2), i == 0 ? QStringLiteral("200") : QStringLiteral("471"))
-                            + td.captured(3) + td.captured(4) + td.captured(5);
-                        cellLast = td.capturedEnd();
+                if (tds.size() >= 1) {
+                    bool isProcessBanner = false;
+                    QString processInner;
+                    for (const QRegularExpressionMatch &td : tds) {
+                        const QString cellPlain =
+                            htmlFragmentToPlainText(td.captured(4)).trimmed();
+                        if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                            isProcessBanner = true;
+                            processInner = td.captured(4);
+                            break;
+                        }
                     }
-                    newRow += rowInner.mid(cellLast);
-                    rowInner = newRow;
-                } else if (tds.size() == 1) {
-                    // «Процесс выполнения…» — на всю ширину шапки; без colspan справа пустая колонка.
-                    const QString cellPlain =
-                        htmlFragmentToPlainText(tds.at(0).captured(4)).trimmed();
-                    if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
-                        const QRegularExpressionMatch &td = tds.at(0);
-                        QString attrs = td.captured(2);
-                        attrs.remove(QRegularExpression(
-                            QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
-                            QRegularExpression::CaseInsensitiveOption));
-                        attrs.remove(QRegularExpression(
-                            QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
-                            QRegularExpression::CaseInsensitiveOption));
-                        attrs.remove(QRegularExpression(
-                            QStringLiteral("\\s*align\\s*=\\s*(?:'[^']*'|\"[^\"]*\")"),
-                            QRegularExpression::CaseInsensitiveOption));
-                        attrs += QStringLiteral(
-                            " colspan='2' align='center' width='671' style='width:671px'");
-                        rowInner = td.captured(1) + attrs + td.captured(3) + td.captured(4)
-                            + td.captured(5);
+                    if (isProcessBanner) {
+                        // Всегда одна ячейка на всю ширину (как в остальных методиках).
+                        rowInner = QStringLiteral(
+                            "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
+                                       .arg(processInner);
+                    } else if (tds.size() == 2) {
+                        QString newRow;
+                        int cellLast = 0;
+                        for (int i = 0; i < tds.size(); ++i) {
+                            const QRegularExpressionMatch &td = tds.at(i);
+                            newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                            newRow += td.captured(1)
+                                + setAttrWidth(
+                                    td.captured(2),
+                                    i == 0 ? QStringLiteral("200") : QStringLiteral("471"))
+                                + td.captured(3) + td.captured(4) + td.captured(5);
+                            cellLast = td.capturedEnd();
+                        }
+                        newRow += rowInner.mid(cellLast);
+                        rowInner = newRow;
                     }
                 }
                 rebuilt += tr.captured(1) + rowInner + tr.captured(3);
@@ -1780,40 +1779,45 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
-    // «Процесс выполнения…» во всех 2-кол. summary (в т.ч. повторная сессия без «Методика»):
-    // без colspan='2' справа остаётся пустая колонка.
+    // «Процесс выполнения…»: Qt после roundtrip часто даёт 2 <td> вместо одной с colspan —
+    // схлопнуть в одну ячейку на всю ширину (как в остальных упражнениях).
     {
-        const QRegularExpression processBannerRe(
-            QStringLiteral(
-                "(<tr\\b[^>]*>\\s*<td\\b)([^>]*)(>)("
-                "\\s*(?:<(?:p|div|span|b|strong|font)\\b[^>]*>\\s*)*"
-                "Процесс\\s+выполнения\\s+диагностическ(?:ого|ой)\\s+(?:задания|методики)"
-                "[\\s\\S]*?)(</td>\\s*</tr>)"),
+        const QRegularExpression trRe(
+            QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
         QString out;
         out.reserve(body.size() + 64);
         int last = 0;
-        QRegularExpressionMatchIterator it = processBannerRe.globalMatch(body);
-        while (it.hasNext()) {
-            const QRegularExpressionMatch m = it.next();
-            out += body.mid(last, m.capturedStart() - last);
-            QString attrs = m.captured(2);
-            attrs.remove(QRegularExpression(
-                QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
-                QRegularExpression::CaseInsensitiveOption));
-            attrs.remove(QRegularExpression(
-                QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
-                QRegularExpression::CaseInsensitiveOption));
-            attrs.remove(QRegularExpression(
-                QStringLiteral("\\s*align\\s*=\\s*(?:'[^']*'|\"[^\"]*\")"),
-                QRegularExpression::CaseInsensitiveOption));
-            attrs.remove(QRegularExpression(
-                QStringLiteral("\\s*style\\s*=\\s*['\"][^'\"]*['\"]"),
-                QRegularExpression::CaseInsensitiveOption));
-            attrs += QStringLiteral(
-                " colspan='2' align='center' width='671' style='width:671px'");
-            out += m.captured(1) + attrs + m.captured(3) + m.captured(4) + m.captured(5);
-            last = m.capturedEnd();
+        QRegularExpressionMatchIterator trIt = trRe.globalMatch(body);
+        while (trIt.hasNext()) {
+            const QRegularExpressionMatch tr = trIt.next();
+            out += body.mid(last, tr.capturedStart() - last);
+            QString rowInner = tr.captured(2);
+            const QRegularExpression tdRe(
+                QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QList<QRegularExpressionMatch> tds;
+            QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+            while (tdIt.hasNext()) {
+                tds.append(tdIt.next());
+            }
+            QString processInner;
+            for (const QRegularExpressionMatch &td : tds) {
+                const QString cellPlain = htmlFragmentToPlainText(td.captured(4)).trimmed();
+                if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                    processInner = td.captured(4);
+                    break;
+                }
+            }
+            if (!processInner.isEmpty()) {
+                rowInner = QStringLiteral(
+                    "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
+                               .arg(processInner);
+                out += tr.captured(1) + rowInner + tr.captured(3);
+            } else {
+                out += tr.captured(0);
+            }
+            last = tr.capturedEnd();
         }
         out += body.mid(last);
         body = out;
