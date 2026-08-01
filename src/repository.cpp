@@ -838,7 +838,8 @@ QString Repository::loadProtocolViewHtml(
         || exerciseId == QStringLiteral("4.1.5")
         || exerciseId == QStringLiteral("4.1.6")
         || exerciseId == QStringLiteral("4.1.8")
-        || exerciseId == QStringLiteral("4.2.1")) {
+        || exerciseId == QStringLiteral("4.2.1")
+        || exerciseId == QStringLiteral("5.4.2")) {
         // Разрез только по дате — вложенные таблицы баллов/строк не срезают предыдущие сессии.
         body = ExerciseProtocol::extractLastProtocol126Session(body);
     } else {
@@ -856,6 +857,10 @@ QString Repository::loadProtocolViewHtml(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("1.18")) {
         protocolBlock = ExerciseProtocol::buildProtocol118ViewRecord(
+            exerciseHeaderFragment(exerciseId), body);
+    } else if (exerciseId == QStringLiteral("5.4.2")) {
+        // Не header+body: иначе 3-кол. процесс вливается в шапку при повторном form на месте.
+        protocolBlock = ExerciseProtocol::buildProtocol542ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
