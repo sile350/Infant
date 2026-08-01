@@ -1740,6 +1740,27 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     }
                     newRow += rowInner.mid(cellLast);
                     rowInner = newRow;
+                } else if (tds.size() == 1) {
+                    // «Процесс выполнения…» — на всю ширину шапки; без colspan справа пустая колонка.
+                    const QString cellPlain =
+                        htmlFragmentToPlainText(tds.at(0).captured(4)).trimmed();
+                    if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                        const QRegularExpressionMatch &td = tds.at(0);
+                        QString attrs = td.captured(2);
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs.remove(QRegularExpression(
+                            QStringLiteral("\\s*align\\s*=\\s*(?:'[^']*'|\"[^\"]*\")"),
+                            QRegularExpression::CaseInsensitiveOption));
+                        attrs += QStringLiteral(
+                            " colspan='2' align='center' width='671' style='width:671px'");
+                        rowInner = td.captured(1) + attrs + td.captured(3) + td.captured(4)
+                            + td.captured(5);
+                    }
                 }
                 rebuilt += tr.captured(1) + rowInner + tr.captured(3);
                 trLast = tr.capturedEnd();
@@ -1753,6 +1774,45 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 QRegularExpression(QStringLiteral("</p\\s*>"), QRegularExpression::CaseInsensitiveOption),
                 QString());
             out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
+    // «Процесс выполнения…» во всех 2-кол. summary (в т.ч. повторная сессия без «Методика»):
+    // без colspan='2' справа остаётся пустая колонка.
+    {
+        const QRegularExpression processBannerRe(
+            QStringLiteral(
+                "(<tr\\b[^>]*>\\s*<td\\b)([^>]*)(>)("
+                "\\s*(?:<(?:p|div|span|b|strong|font)\\b[^>]*>\\s*)*"
+                "Процесс\\s+выполнения\\s+диагностическ(?:ого|ой)\\s+(?:задания|методики)"
+                "[\\s\\S]*?)(</td>\\s*</tr>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 64);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processBannerRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString attrs = m.captured(2);
+            attrs.remove(QRegularExpression(
+                QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                QRegularExpression::CaseInsensitiveOption));
+            attrs.remove(QRegularExpression(
+                QStringLiteral("\\s*colspan\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                QRegularExpression::CaseInsensitiveOption));
+            attrs.remove(QRegularExpression(
+                QStringLiteral("\\s*align\\s*=\\s*(?:'[^']*'|\"[^\"]*\")"),
+                QRegularExpression::CaseInsensitiveOption));
+            attrs.remove(QRegularExpression(
+                QStringLiteral("\\s*style\\s*=\\s*['\"][^'\"]*['\"]"),
+                QRegularExpression::CaseInsensitiveOption));
+            attrs += QStringLiteral(
+                " colspan='2' align='center' width='671' style='width:671px'");
+            out += m.captured(1) + attrs + m.captured(3) + m.captured(4) + m.captured(5);
             last = m.capturedEnd();
         }
         out += body.mid(last);
