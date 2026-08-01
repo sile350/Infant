@@ -1546,8 +1546,8 @@ public:
         m_bgLabel->lower();
 
         // Только индикаторы радиокнопок поверх f1.png (цифры уже на картинке).
-        // ~1.8× меньше стандартных 14px → 8px.
-        constexpr int kIndicator = 8;
+        // ~1.3× меньше стандартных 14px → 11px.
+        constexpr int kIndicator = 11;
         const QString radioStyle = QStringLiteral(
             "QRadioButton { background:transparent; border:none; spacing:0px; }"
             "QRadioButton::indicator { width:%1px; height:%1px; }"
@@ -1617,10 +1617,10 @@ public:
         // f1.png 802×861 — галочки в колонке А; смещения под кружки на картинке.
         static const int kRadioY[] = {70, 104, 138, 172, 206, 240, 274, 308};
         constexpr int kBox2Top = 428;
-        constexpr int kRadioX = 14; // ещё левее на 10 (было 24)
+        constexpr int kRadioX = 24; // было 34; левее на 10
         constexpr int kTitlePad = 22;
-        constexpr int kGroup1NudgeY = 8;  // выше на 12 (было +20)
-        constexpr int kGroup2NudgeY = 20; // выше на 20 (было +40)
+        constexpr int kGroup1NudgeY = 20; // первая группа ниже на 20
+        constexpr int kGroup2NudgeY = 40; // вторая группа ниже на 40
 
         QPixmap display = m_bgSource;
         int bgX = 0;
