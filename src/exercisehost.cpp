@@ -2074,8 +2074,16 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     if (m_teachHelpLabel) {
         m_teachHelpLabel->setVisible(!flatCustom);
     }
+    const bool showHelpPenaltyHint = m_exerciseId == QStringLiteral("3.1.10");
     if (m_helpPenaltyHint) {
-        m_helpPenaltyHint->setVisible(m_exerciseId == QStringLiteral("3.1.10"));
+        // Не опираться на isVisible(): пока панель ещё скрыта, Qt вернёт false
+        // и пункты вставлялись ПЕРЕД подсказкой (она оказывалась после списка).
+        m_helpPenaltyHint->setVisible(showHelpPenaltyHint);
+        if (showHelpPenaltyHint && m_helpChecksLayout) {
+            m_helpChecksLayout->removeWidget(m_helpPenaltyHint);
+            // Сразу под «Виды возможной помощи:» (индекс 0), до чекбоксов и подзаголовков.
+            m_helpChecksLayout->insertWidget(1, m_helpPenaltyHint);
+        }
     }
 
     const int checkWidth = m_scrollArea && m_scrollArea->viewport()
@@ -2092,13 +2100,11 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     if (flatCustom) {
         // Плоский список сразу после заголовка «Виды возможной помощи»
-        // (и подсказки 3.1.10, если она видна).
+        // (и подсказки 3.1.10 — до пунктов).
         int insertAt = 1;
-        if (m_helpPenaltyHint && m_helpPenaltyHint->isVisible()) {
+        if (showHelpPenaltyHint && m_helpPenaltyHint) {
             const int hintIdx = m_helpChecksLayout->indexOf(m_helpPenaltyHint);
-            if (hintIdx >= 0) {
-                insertAt = hintIdx + 1;
-            }
+            insertAt = hintIdx >= 0 ? hintIdx + 1 : 2;
         }
         for (const QString &text : labels) {
             m_helpChecks << makeCheckRow(text, m_helpChecksLayout, checkWidth);

@@ -672,6 +672,8 @@ bool speechTaskPresentInHtml(const QString &html, const QString &stepId) {
 
 QString trimTrailingSummaryRow(QString body) {
     // Как trim1 в оригинале: срезать последнюю <tr> (строка «Итоговая оценка»).
+    // Сохраняем </table> (и хвост после него) — иначе процесс остаётся незакрытым и
+    // при повторной сессии sessionEndBeforeNextDateRow отрезает таблицу процесса.
     int index = body.lastIndexOf(QStringLiteral("<tr"), -1, Qt::CaseInsensitive);
     if (index < 0) {
         return body;
@@ -680,7 +682,12 @@ QString trimTrailingSummaryRow(QString body) {
     if (!tail.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
         return body;
     }
-    return body.left(index);
+    QString result = body.left(index);
+    const int closePos = tail.indexOf(QStringLiteral("</table>"), 0, Qt::CaseInsensitive);
+    if (closePos >= 0) {
+        result += tail.mid(closePos);
+    }
+    return result;
 }
 
 QString createExerciseProtocolFromTemplate(

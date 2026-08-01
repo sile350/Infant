@@ -194,6 +194,8 @@ QList<int> findDateSpecialistPositions(const QString &html) {
 
 // Конец сессии — перед <tr> следующей «Дата/специалист», но без захвата
 // открывающего <table> следующей сессии (иначе 3-й+ протокол вкладывается в ячейку).
+// Если таблица процесса после <!--s--> ещё не закрыта (типично после trim1/дописки строк
+// 3.1.10) — не резать на её <table>, иначе «Процесс выполнения» прошлого протокола пропадает.
 int sessionEndBeforeNextDateRow(const QString &body, int rowStart, int nextRowStart) {
     int endPos = nextRowStart;
     if (endPos <= rowStart) {
@@ -205,7 +207,18 @@ int sessionEndBeforeNextDateRow(const QString &body, int rowStart, int nextRowSt
     const int lastTableClose =
         beforeNext.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
     if (lastTableOpen >= rowStart && lastTableOpen > lastTableClose) {
-        endPos = lastTableOpen;
+        const int marker = beforeNext.lastIndexOf(QStringLiteral("<!--s-->"));
+        const int openAfterMarker = marker >= rowStart
+            ? beforeNext.indexOf(QStringLiteral("<table"), marker, Qt::CaseInsensitive)
+            : -1;
+        const int closeAfterMarker = marker >= rowStart
+            ? beforeNext.indexOf(QStringLiteral("</table>"), marker, Qt::CaseInsensitive)
+            : -1;
+        const bool unclosedProcessTable = openAfterMarker >= 0
+            && (closeAfterMarker < 0 || openAfterMarker < closeAfterMarker);
+        if (!unclosedProcessTable) {
+            endPos = lastTableOpen;
+        }
     }
     while (endPos > rowStart) {
         const QChar ch = body.at(endPos - 1);
@@ -1598,7 +1611,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             if (inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
-                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)) {
+                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive)) {
                 out += m.captured(0);
                 last = m.capturedEnd();
                 continue;
@@ -3753,6 +3768,46 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         return joinProtocol126Sessions(sessions);
     }
 
+    // 3.1.10 и др. с idb*/«Выбранная картинка»: extract+join как у 1.26 —
+    // joinClosed/ensureClosed на кусках без закрытого процесса отрезал таблицу.
+    const bool multiStepBallsBody =
+        storedBody.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+        || storedBody.contains(QRegularExpression(
+               QStringLiteral("id\\s*=\\s*['\"]idb\\d"),
+               QRegularExpression::CaseInsensitiveOption));
+    if (multiStepBallsBody) {
+        QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+        if (sessions.isEmpty()) {
+            QString body = storedBody;
+            if (parsed.hasResult) {
+                if (body.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+                    body = replaceDivInnerById(
+                        body, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+                } else {
+                    body = replaceResultRowSecondCell(body, parsed.resultText);
+                }
+            }
+            if (parsed.hasNote) {
+                body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
+            }
+            return ensureClosedProtocolSession(body);
+        }
+        QString last = sessions.last();
+        if (parsed.hasResult) {
+            if (last.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+                last = replaceDivInnerById(
+                    last, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+            } else {
+                last = replaceResultRowSecondCell(last, parsed.resultText);
+            }
+        }
+        if (parsed.hasNote) {
+            last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
+        }
+        sessions[sessions.size() - 1] = last;
+        return joinProtocol126Sessions(sessions);
+    }
+
     QStringList sessions = extractProtocolBodiesByDateRows(storedBody);
     if (sessions.isEmpty()) {
         QString body = storedBody;
@@ -5806,6 +5861,19 @@ QString ExerciseProtocol::appendRowsToStoredBody(const QString &existingBody, co
             appendRowsIntoSingleProtocolBody(existingBody, rowsHtml));
     }
 
+    // 3.1.10: то же — дописка строк только в последнюю сессию по дате.
+    if (existingBody.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+        || existingBody.contains(QRegularExpression(
+               QStringLiteral("id\\s*=\\s*['\"]idb\\d"),
+               QRegularExpression::CaseInsensitiveOption))) {
+        QStringList sessions = extractProtocol126SessionsByDate(existingBody);
+        if (sessions.size() > 1) {
+            sessions[sessions.size() - 1] =
+                appendRowsIntoSingleProtocolBody(sessions.last(), rowsHtml);
+            return joinProtocol126Sessions(sessions);
+        }
+    }
+
     return appendRowsIntoSingleProtocolBody(existingBody, rowsHtml);
 }
 
@@ -5867,6 +5935,17 @@ QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody)
         || protocolBody.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)) {
         return normalizeSummaryColumnWidthsHtml(
             ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody));
+    }
+    // 3.1.10: 6-колоночный процесс; незакрытая таблица после trim1 — через date-extract+join.
+    if (protocolBody.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+        || protocolBody.contains(QRegularExpression(
+               QStringLiteral("id\\s*=\\s*['\"]idb\\d"),
+               QRegularExpression::CaseInsensitiveOption))) {
+        QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
+        if (sessions.isEmpty()) {
+            return normalizeSummaryColumnWidthsHtml(ensureClosedProtocolSession(protocolBody));
+        }
+        return joinProtocol126Sessions(sessions);
     }
     // 5.2.1: после <!--s--> несколько таблиц (Задание №N + OR/HLP) — не отрезать.
     if (protocolBody.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
