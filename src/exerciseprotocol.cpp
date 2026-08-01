@@ -3,6 +3,7 @@
 #include "exerciseassets.h"
 #include "exerciseconfig.h"
 
+#include <QBrush>
 #include <QDateTime>
 #include <QFile>
 #include <QRegularExpression>
@@ -14,8 +15,10 @@
 #include <QTextDocumentFragment>
 #include <QTextFragment>
 #include <QTextFrame>
+#include <QTextFrameFormat>
 #include <QTextLength>
 #include <QTextTable>
+#include <QTextTableCellFormat>
 #include <QTextTableFormat>
 #include <QVector>
 #include <QtMath>
@@ -2866,7 +2869,11 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         QTextTableFormat fmt = table->format();
         fmt.setWidth(QTextLength(QTextLength::FixedLength, widthPx));
         fmt.setBorder(1);
-        fmt.setCellPadding(0);
+        fmt.setBorderBrush(QBrush(Qt::black));
+        fmt.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+        // 1px padding: иначе у короткой последней строки (только «Выполнение»)
+        // нижняя граница ячейки «Факт выполнения/время» часто пропадает в QTextEdit.
+        fmt.setCellPadding(1);
         fmt.setCellSpacing(0);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
         fmt.setBorderCollapse(true);
@@ -2982,6 +2989,34 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
             }
         }
         table->setFormat(fmt);
+
+        // Явные границы ячеек: при 1 строке процесса (только факт выполнения / пустые OR·HLP)
+        // QTextEdit с border-collapse часто не рисует нижнюю линию у первой колонки.
+        for (int r = 0; r < table->rows(); ++r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                QTextTableCell cell = table->cellAt(r, c);
+                if (!cell.isValid()) {
+                    continue;
+                }
+                QTextTableCellFormat cellFmt = cell.format().toTableCellFormat();
+                cellFmt.setBorder(1);
+                cellFmt.setBorderBrush(QBrush(Qt::black));
+                cellFmt.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+                cellFmt.setTopBorder(1);
+                cellFmt.setBottomBorder(1);
+                cellFmt.setLeftBorder(1);
+                cellFmt.setRightBorder(1);
+                cellFmt.setTopBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+                cellFmt.setBottomBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+                cellFmt.setLeftBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+                cellFmt.setRightBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+                cellFmt.setTopBorderBrush(QBrush(Qt::black));
+                cellFmt.setBottomBorderBrush(QBrush(Qt::black));
+                cellFmt.setLeftBorderBrush(QBrush(Qt::black));
+                cellFmt.setRightBorderBrush(QBrush(Qt::black));
+                cell.setFormat(cellFmt);
+            }
+        }
     }
 }
 
