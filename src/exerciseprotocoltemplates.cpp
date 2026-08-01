@@ -857,11 +857,13 @@ QString createExerciseProtocolFromTemplate(
             return ExerciseProtocol::appendRowsToStoredBody(
                 trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
-        // 3.1.1 / 3.1.11 — одно задание за проход: при partly всегда новая «Дата/специалист»
-        // (не дописывать только строку процесса к предыдущей сессии).
+        // 3.1.1 / 3.1.11 / 3.1.17 / 3.1.18 — одно задание за проход: при partly всегда
+        // новая «Дата/специалист» (не дописывать только строку процесса к предыдущей сессии).
         if (tmpl.kind == QStringLiteral("or_hlp_balls")
             && (exerciseId == QStringLiteral("3.1.1")
-                || exerciseId == QStringLiteral("3.1.11"))) {
+                || exerciseId == QStringLiteral("3.1.11")
+                || exerciseId == QStringLiteral("3.1.17")
+                || exerciseId == QStringLiteral("3.1.18"))) {
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty()) {
                 stepIds << QStringLiteral("1");

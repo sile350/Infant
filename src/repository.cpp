@@ -808,6 +808,20 @@ QString Repository::loadProtocolViewHtml(
         return {};
     }
 
+    // 3.1.10 / 3.1.17 / 3.1.18: все сессии с «Дата/специалист» + таблицы процесса
+    // (extractLast + сырая склейка прятали прошлый протокол при повторном form).
+    if (exerciseId == QStringLiteral("3.1.10")
+        || exerciseId == QStringLiteral("3.1.17")
+        || exerciseId == QStringLiteral("3.1.18")) {
+        const QString protocolBlock = ExerciseProtocol::buildFlatMarkerSeparatedViewRecord(
+            exerciseHeaderFragment(exerciseId), protocolBody);
+        return QStringLiteral(
+                   "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
+                   "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                   "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Дата рождения:%2<br><br>%3")
+            .arg(patientFio.toHtmlEscaped(), patientBirthDate.toHtmlEscaped(), protocolBlock);
+    }
+
     QString body = protocolBody;
     // На странице упражнения показываем только последний сформированный блок
     // (начиная с его «Дата/специалист»).
@@ -816,9 +830,9 @@ QString Repository::loadProtocolViewHtml(
         || exerciseId == QStringLiteral("2.8") || exerciseId == QStringLiteral("2.9")
         || exerciseId == QStringLiteral("2.10")
         || exerciseId == QStringLiteral("3.1.1") || exerciseId == QStringLiteral("3.1.2")
-        || exerciseId == QStringLiteral("3.1.10") || exerciseId == QStringLiteral("3.1.11")
-        || exerciseId == QStringLiteral("3.1.12") || exerciseId == QStringLiteral("3.1.17")
-        || exerciseId == QStringLiteral("3.1.18") || exerciseId == QStringLiteral("3.2.1")
+        || exerciseId == QStringLiteral("3.1.11")
+        || exerciseId == QStringLiteral("3.1.12")
+        || exerciseId == QStringLiteral("3.2.1")
         || exerciseId == QStringLiteral("3.2.2") || exerciseId == QStringLiteral("3.2.3")
         || exerciseId == QStringLiteral("3.2.4") || exerciseId == QStringLiteral("3.2.5")
         || exerciseId == QStringLiteral("3.2.11") || exerciseId == QStringLiteral("4.1.1")
@@ -842,12 +856,6 @@ QString Repository::loadProtocolViewHtml(
     QString protocolBlock;
     if (exerciseId == QStringLiteral("1.26")) {
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
-            exerciseHeaderFragment(exerciseId), body);
-    } else if (exerciseId == QStringLiteral("3.1.10")
-               || exerciseId == QStringLiteral("3.1.17")
-               || exerciseId == QStringLiteral("3.1.18")) {
-        // Плоская сборка: иначе Qt вкладывает таблицу процесса в ячейку «Процесс…».
-        protocolBlock = ExerciseProtocol::buildFlatMarkerSeparatedViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);

@@ -3835,14 +3835,18 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         return joinProtocol126Sessions(sessions);
     }
 
-    // 3.1.10 и др. с idb*/«Выбранная картинка»: extract+join как у 1.26 —
-    // joinClosed/ensureClosed на кусках без закрытого процесса отрезал таблицу.
-    const bool multiStepBallsBody =
+    // 3.1.10 / 3.1.17 / 3.1.18: extract+join как у 1.26 —
+    // joinClosed/ensureClosed на кусках без закрытого процесса отрезал прошлые сессии.
+    const bool multiSessionOrHlpBody =
         storedBody.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+        || storedBody.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)
         || storedBody.contains(QRegularExpression(
                QStringLiteral("id\\s*=\\s*['\"]idb\\d"),
-               QRegularExpression::CaseInsensitiveOption));
-    if (multiStepBallsBody) {
+               QRegularExpression::CaseInsensitiveOption))
+        || (storedBody.contains(QStringLiteral("<!--s-->"))
+            && storedBody.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+            && storedBody.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive));
+    if (multiSessionOrHlpBody) {
         QStringList sessions = extractProtocol126SessionsByDate(storedBody);
         if (sessions.isEmpty()) {
             QString body = storedBody;
@@ -5060,23 +5064,38 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
     if (storedBody.trimmed().isEmpty() || !editorDocument) {
         return storedBody;
     }
-    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+    // Правки только в последней сессии — иначе №1.. из редактора попадают в прошлый протокол.
+    QStringList sessions = extractProtocol126SessionsByDate(storedBody);
+    const bool multi = sessions.size() > 1;
+    QString chunk = multi ? sessions.last() : storedBody;
+    chunk = mergeLimitedEditableFieldsIntoStoredBody(chunk, editorDocument);
 
     QList<QTextTable *> tables;
     collectTables(editorDocument->rootFrame(), tables);
+    QTextTable *processTable = nullptr;
     for (QTextTable *table : tables) {
         if (!table || table->columns() < 6) {
             continue;
         }
+        for (int r = 0; r < table->rows(); ++r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                if (readTableCellText(table, r, c).contains(
+                        QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+                    processTable = table; // последний подходящий — текущая сессия в редакторе
+                }
+            }
+        }
+    }
+    if (processTable) {
         int headerRow = -1;
         int picCol = -1;
         int explCol = -1;
         int activityCol = -1;
         int helpCol = -1;
         int ballsCol = -1;
-        for (int r = 0; r < table->rows() && headerRow < 0; ++r) {
-            for (int c = 0; c < table->columns(); ++c) {
-                const QString h = readTableCellText(table, r, c);
+        for (int r = 0; r < processTable->rows() && headerRow < 0; ++r) {
+            for (int c = 0; c < processTable->columns(); ++c) {
+                const QString h = readTableCellText(processTable, r, c);
                 if (h.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
                     picCol = c;
                     headerRow = r;
@@ -5100,26 +5119,33 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
                 }
             }
         }
-        if (headerRow < 0 || picCol < 0) {
-            continue;
-        }
-        for (int r = headerRow + 1; r < table->rows(); ++r) {
-            const QString stepNo = readTableCellText(table, r, 0).trimmed();
-            bool isNumber = false;
-            stepNo.toInt(&isNumber);
-            if (!isNumber) {
-                continue;
+        if (headerRow >= 0 && picCol >= 0) {
+            for (int r = headerRow + 1; r < processTable->rows(); ++r) {
+                const QString stepNo = readTableCellText(processTable, r, 0).trimmed();
+                bool isNumber = false;
+                stepNo.toInt(&isNumber);
+                if (!isNumber) {
+                    continue;
+                }
+                const QString picture = readTableCellText(processTable, r, picCol);
+                const QString explanation =
+                    explCol >= 0 ? readTableCellText(processTable, r, explCol) : QString();
+                const QString activity =
+                    activityCol >= 0 ? readTableCellText(processTable, r, activityCol) : QString();
+                const QString help =
+                    helpCol >= 0 ? readTableCellText(processTable, r, helpCol) : QString();
+                const QString score =
+                    ballsCol >= 0 ? readTableCellText(processTable, r, ballsCol) : QString();
+                chunk = replace3110ProcessRowCells(
+                    chunk, stepNo, picture, explanation, activity, help, score);
             }
-            const QString picture = readTableCellText(table, r, picCol);
-            const QString explanation = explCol >= 0 ? readTableCellText(table, r, explCol) : QString();
-            const QString activity = activityCol >= 0 ? readTableCellText(table, r, activityCol) : QString();
-            const QString help = helpCol >= 0 ? readTableCellText(table, r, helpCol) : QString();
-            const QString score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
-            body = replace3110ProcessRowCells(
-                body, stepNo, picture, explanation, activity, help, score);
         }
     }
-    return body;
+    if (multi) {
+        sessions[sessions.size() - 1] = chunk;
+        return joinProtocol126Sessions(sessions);
+    }
+    return chunk;
 }
 
 int countHelpEntries3110(const QString &helpCell) {
@@ -5949,13 +5975,10 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
     const QString &sessionHtml) {
     QString session = sessionHtml.trimmed();
     if (session.isEmpty()) {
-        if (looksLikeProtocol126Body(existingBody)) {
-            return ExerciseProtocol::canonicalizeProtocol126StoredBody(existingBody);
-        }
-        return existingBody;
+        return existingBody.trimmed();
     }
 
-    // Новая сессия — всегда законченный блок summary + process (закрытые </table>).
+    // Новая сессия — законченный блок summary + process.
     session = ensureClosedProtocolSession(stripLeadingSummaryTableWrapper(session));
     if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
         session.prepend(protocolSummaryTableOpenHtml());
@@ -5964,32 +5987,32 @@ QString ExerciseProtocol::appendFullSessionToStoredBody(
 
     QString existing = existingBody.trimmed();
     if (existing.isEmpty()) {
-        return normalizeSummaryColumnWidthsHtml(session);
+        // Первая сессия без ведущего <table> — шапка методики уже открывает таблицу.
+        return normalizeSummaryColumnWidthsHtml(stripLeadingSummaryTableWrapper(session));
     }
-    // Закрыть висячие таблицы и не тащить хвост `<table>` следующей сессии.
+
+    // Не пересобирать existing через extract+join: это срезало прошлые сессии (3.1.10/17/18).
+    // Только закрыть висячие таблицы и дописать новую сессию целиком.
     existing = closeDanglingTables(existing);
     existing.replace(
         QRegularExpression(
             QStringLiteral("<table\\b[^>]*>\\s*$"),
             QRegularExpression::CaseInsensitiveOption),
         QString());
+    {
+        const int marker = existing.lastIndexOf(QStringLiteral("<!--s-->"));
+        if (marker >= 0) {
+            const int closeAfter =
+                existing.indexOf(QStringLiteral("</table>"), marker, Qt::CaseInsensitive);
+            if (closeAfter < 0) {
+                existing += QStringLiteral("</table>");
+            }
+        } else if (!existing.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+            existing += QStringLiteral("</table>");
+        }
+    }
 
-    // Плоская склейка соседних сессий (без потери границ из‑за extract).
-    // Если в existing уже есть даты — пересоберём через extract+join (с исправленным концом куска).
-    QStringList sessions = extractProtocol126SessionsByDate(existing);
-    if (sessions.isEmpty()) {
-        sessions.append(stripLeadingSummaryTableWrapper(existing));
-    }
-    sessions.append(stripLeadingSummaryTableWrapper(session));
-    const QString joined = joinProtocol126Sessions(sessions);
-    if (looksLikeProtocol126Body(joined) || looksLikeProtocol126Body(session)) {
-        return ExerciseProtocol::canonicalizeProtocol126StoredBody(joined);
-    }
-    if (joined.contains(QStringLiteral("sel1"), Qt::CaseInsensitive)
-        && joined.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)) {
-        return ExerciseProtocol::canonicalizeProtocol418StoredBody(joined);
-    }
-    return normalizeSummaryColumnWidthsHtml(joined);
+    return normalizeSummaryColumnWidthsHtml(existing + session);
 }
 
 QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody) {
