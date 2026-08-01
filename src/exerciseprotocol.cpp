@@ -2786,6 +2786,73 @@ QString ExerciseProtocol::buildProtocol126ViewRecord(
     return ExerciseProtocol::normalizeSummaryColumnWidths(result);
 }
 
+QString ExerciseProtocol::buildFlatMarkerSeparatedViewRecord(
+    const QString &headerFragment,
+    const QString &storedBody) {
+    if (storedBody.trimmed().isEmpty()) {
+        return headerFragment;
+    }
+
+    // Режем по «Дата/специалист»; ensureClosed закрывает висячий процесс после trim1.
+    QStringList sessions = extractProtocol126SessionsByDate(storedBody.trimmed());
+    if (sessions.isEmpty()) {
+        sessions.append(ensureClosedProtocolSession(stripLeadingSummaryTableWrapper(storedBody)));
+    }
+
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = ensureClosedProtocolSession(sessions.at(i));
+        if (session.isEmpty()) {
+            continue;
+        }
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryRows = marker >= 0 ? session.left(marker) : session;
+        QString resultsBlock =
+            marker >= 0 ? session.mid(marker + QStringLiteral("<!--s-->").size()) : QString();
+
+        summaryRows = stripLeadingSummaryTableWrapper(summaryRows);
+        summaryRows.replace(
+            QRegularExpression(
+                QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        summaryRows = summaryRows.trimmed();
+        resultsBlock = resultsBlock.trimmed();
+        resultsBlock.replace(
+            QRegularExpression(
+                QStringLiteral("^(?:\\s|<br\\s*/?>|<p\\b[^>]*>\\s*(?:&nbsp;|\\s)*\\s*</p\\s*>)+"),
+                QRegularExpression::CaseInsensitiveOption),
+            QString());
+
+        if (i == 0) {
+            if (!headerFragment.trimmed().isEmpty()) {
+                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment);
+            } else {
+                result += protocolSummaryTableOpenHtml();
+            }
+        } else {
+            result += protocolSummaryTableOpenHtml();
+        }
+        if (!summaryRows.isEmpty()) {
+            result += summaryRows;
+        }
+        // Явно закрыть summary — иначе Qt кладёт <table> процесса в ячейку «Процесс…».
+        result += QStringLiteral("</table>");
+        if (!resultsBlock.isEmpty()) {
+            if (!resultsBlock.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+                resultsBlock.prepend(
+                    QStringLiteral(
+                        "<table border='1' style='table-layout:fixed;width:671px' "
+                        "cellspacing='0' cellpadding='0' width='671'>"));
+            }
+            result += resultsBlock;
+            if (!resultsBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                result += QStringLiteral("</table>");
+            }
+        }
+    }
+    return ExerciseProtocol::normalizeSummaryColumnWidths(result);
+}
+
 QString ExerciseProtocol::stripProtocolRecordHeader(
     const QString &recordHtml,
     const QString &headerFragment) {

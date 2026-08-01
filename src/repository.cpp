@@ -93,6 +93,12 @@ void appendProtocolRecord(
         // Плоская сборка: summary </table> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
         record = ExerciseProtocol::buildProtocol126ViewRecord(
             continuation ? QString() : rawHeader, protocolBody);
+    } else if (uprid == QStringLiteral("3.1.10")
+               || uprid == QStringLiteral("3.1.17")
+               || uprid == QStringLiteral("3.1.18")) {
+        // summary </table> + таблица процесса (иначе Qt прячет процесс в ячейке «Процесс…»).
+        record = ExerciseProtocol::buildFlatMarkerSeparatedViewRecord(
+            continuation ? QString() : rawHeader, protocolBody);
     } else if (uprid == QStringLiteral("4.1.8")) {
         // Характер + таблица стимульных слов (две <table> после <!--s-->).
         QString flatBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody);
@@ -836,6 +842,12 @@ QString Repository::loadProtocolViewHtml(
     QString protocolBlock;
     if (exerciseId == QStringLiteral("1.26")) {
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
+            exerciseHeaderFragment(exerciseId), body);
+    } else if (exerciseId == QStringLiteral("3.1.10")
+               || exerciseId == QStringLiteral("3.1.17")
+               || exerciseId == QStringLiteral("3.1.18")) {
+        // Плоская сборка: иначе Qt вкладывает таблицу процесса в ячейку «Процесс…».
+        protocolBlock = ExerciseProtocol::buildFlatMarkerSeparatedViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
