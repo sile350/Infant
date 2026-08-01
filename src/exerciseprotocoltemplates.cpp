@@ -84,7 +84,8 @@ QString formatProtocolCellText(const QString &text) {
     for (const QString &part : parts) {
         const QString trimmed = part.trimmed();
         if (!trimmed.isEmpty()) {
-            lines << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+            // Без ведущих &nbsp;: иначе правки в уже заполненных OR/HLP не сохраняются.
+            lines << trimmed.toHtmlEscaped();
         }
     }
     return lines.isEmpty() ? QStringLiteral("&nbsp;") : lines.join(QStringLiteral("<br>"));

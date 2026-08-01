@@ -4904,7 +4904,10 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     if (storedBody.trimmed().isEmpty() || !editorDocument) {
         return storedBody;
     }
-    QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
+    // Сначала OR/HLP по исходному HTML процесса, потом Результат/Примечание:
+    // иначе joinClosed/ensureClosed после mergeLimited может сдвинуть разметку строк
+    // (особенно после дописки задания 2) и правки по №1 с уже заполненными ячейками теряются.
+    QString body = storedBody;
 
     QList<QTextTable *> tables;
     if (processTable) {
@@ -4912,6 +4915,15 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     } else {
         tables = collectOrHlpProcessTables(editorDocument);
     }
+
+    auto normalizeStepKey = [](QString key) {
+        key.replace(QChar(0xA0), QLatin1Char(' '));
+        key = key.trimmed().simplified();
+        static const QRegularExpression numRe(QStringLiteral("^(\\d+)"));
+        const QRegularExpressionMatch m = numRe.match(key);
+        return m.hasMatch() ? m.captured(1) : key;
+    };
+
     for (QTextTable *table : tables) {
         if (!table || table->columns() < 2) {
             continue;
@@ -4960,6 +4972,9 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         const QRegularExpression trRe(
             QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpression stepMarkerRe(
+            QStringLiteral("<!--\\s*step\\s*([^\\s>]+)\\s*-->"),
+            QRegularExpression::CaseInsensitiveOption);
         struct RowPos {
             int start = 0;
             int len = 0;
@@ -4973,8 +4988,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         while (it.hasNext()) {
             const QRegularExpressionMatch m = it.next();
             const QString rowInner = m.captured(2);
-            // Заголовок определяем по первой ячейке — не по всему ряду:
-            // иначе строки с заполненным OR/HLP (текст чекбоксов) ошибочно отбрасывались.
+            const QRegularExpressionMatch stepMark = stepMarkerRe.match(rowInner);
             const QRegularExpression firstTdRe(
                 QStringLiteral("<td\\b[^>]*>([\\s\\S]*?)</td>"),
                 QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
@@ -4982,7 +4996,10 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             const QString firstPlain = firstTd.hasMatch()
                 ? htmlFragmentToPlainText(firstTd.captured(1)).trimmed()
                 : QString();
-            const QString plain = htmlFragmentToPlainText(rowInner).trimmed();
+            QString stepKey = stepMark.hasMatch()
+                ? normalizeStepKey(stepMark.captured(1))
+                : normalizeStepKey(firstPlain);
+            // Заголовок — только по первой ячейке / маркеру, не по тексту OR/HLP.
             if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
                 || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
                 || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
@@ -4992,10 +5009,10 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                 || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
                 || (firstPlain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
                     && firstPlain.length() < 20)
-                || plain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                || firstPlain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
                 continue;
             }
             RowPos row;
@@ -5004,7 +5021,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             row.open = m.captured(1);
             row.inner = rowInner;
             row.close = m.captured(3);
-            row.stepKey = firstPlain;
+            row.stepKey = stepKey;
             {
                 const QRegularExpression tdCountRe(
                     QStringLiteral("<td\\b"),
@@ -5047,7 +5064,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             }
             EditorRow er;
             er.row = r;
-            er.stepKey = label.trimmed();
+            er.stepKey = normalizeStepKey(label);
             er.activity = readTableCellMultilineText(table, r, activityCol);
             er.help = readTableCellMultilineText(table, r, helpCol);
             er.score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
@@ -5093,15 +5110,15 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             }
         }
         const int pairFree = qMin(freeEditors.size(), freeStored.size());
-        // Свободные пары — с конца (как раньше), чтобы хвост сессии совпадал.
+        // Свободные пары — по порядку (№1→№1, №2→№2), не с хвоста:
+        // иначе после дописки задания 2 правка №1 могла писаться не в ту строку.
         for (int i = 0; i < pairFree; ++i) {
-            const int ei = freeEditors.at(freeEditors.size() - pairFree + i);
-            const int si = freeStored.at(freeStored.size() - pairFree + i);
+            const int ei = freeEditors.at(i);
+            const int si = freeStored.at(i);
             storedForEditor[ei] = si;
             usedStored.insert(si);
         }
 
-        // С конца по позиции в HTML, чтобы replace не сдвигал более ранние offset'ы.
         QList<QPair<int, int>> applyOrder; // storedIndex, editorIndex
         for (int ei = 0; ei < editorDataRows.size(); ++ei) {
             if (storedForEditor.at(ei) >= 0) {
@@ -5165,6 +5182,8 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         body = head + tail;
         break;
     }
+
+    body = mergeLimitedEditableFieldsIntoStoredBody(body, editorDocument);
     return body;
 }
 
