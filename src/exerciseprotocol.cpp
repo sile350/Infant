@@ -1740,7 +1740,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         }
                     }
                     if (isProcessBanner) {
-                        // Всегда одна ячейка на всю ширину (как в остальных методиках).
+                        // Шапка 2 кол. — одна ячейка на всю ширину.
                         rowInner = QStringLiteral(
                             "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
                                        .arg(processInner);
@@ -1779,45 +1779,92 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
-    // «Процесс выполнения…»: Qt после roundtrip часто даёт 2 <td> вместо одной с colspan —
-    // схлопнуть в одну ячейку на всю ширину (как в остальных упражнениях).
+    // «Процесс выполнения…»: Qt после roundtrip часто даёт несколько <td> вместо одной с colspan.
+    // Важно: colspan = число колонок ТАБЛИЦЫ (в 5.4.2 процесс — 3 кол.; иначе colspan=2
+    // оставляет узкую пустую колонку справа — как на скрине).
     {
-        const QRegularExpression trRe(
-            QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+        const QRegularExpression tableRe(
+            QStringLiteral("(<table\\b[^>]*>)([\\s\\S]*?)(</table>)"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
         QString out;
         out.reserve(body.size() + 64);
         int last = 0;
-        QRegularExpressionMatchIterator trIt = trRe.globalMatch(body);
-        while (trIt.hasNext()) {
-            const QRegularExpressionMatch tr = trIt.next();
-            out += body.mid(last, tr.capturedStart() - last);
-            QString rowInner = tr.captured(2);
-            const QRegularExpression tdRe(
-                QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
-                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-            QList<QRegularExpressionMatch> tds;
-            QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
-            while (tdIt.hasNext()) {
-                tds.append(tdIt.next());
-            }
-            QString processInner;
-            for (const QRegularExpressionMatch &td : tds) {
-                const QString cellPlain = htmlFragmentToPlainText(td.captured(4)).trimmed();
-                if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
-                    processInner = td.captured(4);
-                    break;
+        QRegularExpressionMatchIterator tableIt = tableRe.globalMatch(body);
+        while (tableIt.hasNext()) {
+            const QRegularExpressionMatch tm = tableIt.next();
+            out += body.mid(last, tm.capturedStart() - last);
+            QString inner = tm.captured(2);
+            int tableCols = 2;
+            const QRegularExpression colRe(
+                QStringLiteral("<col\\b[^>]*>"), QRegularExpression::CaseInsensitiveOption);
+            const int colCount = inner.count(colRe);
+            if (colCount >= 2) {
+                tableCols = colCount;
+            } else if (inner.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)
+                       && (inner.contains(QStringLiteral("Ответы"), Qt::CaseInsensitive))
+                       && inner.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
+                tableCols = 3;
+            } else {
+                const QRegularExpression trRe(
+                    QStringLiteral("<tr\\b[^>]*>([\\s\\S]*?)</tr>"),
+                    QRegularExpression::CaseInsensitiveOption
+                        | QRegularExpression::DotMatchesEverythingOption);
+                QRegularExpressionMatchIterator trScan = trRe.globalMatch(inner);
+                while (trScan.hasNext()) {
+                    const QString rowInner = trScan.next().captured(1);
+                    if (htmlFragmentToPlainText(rowInner).contains(
+                            QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                        continue;
+                    }
+                    const int n = rowInner.count(
+                        QRegularExpression(QStringLiteral("<td\\b"), QRegularExpression::CaseInsensitiveOption));
+                    if (n > tableCols) {
+                        tableCols = n;
+                    }
                 }
             }
-            if (!processInner.isEmpty()) {
-                rowInner = QStringLiteral(
-                    "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
-                               .arg(processInner);
-                out += tr.captured(1) + rowInner + tr.captured(3);
-            } else {
-                out += tr.captured(0);
+
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption
+                        | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                QString processInner;
+                for (const QRegularExpressionMatch &td : tds) {
+                    const QString cellPlain = htmlFragmentToPlainText(td.captured(3)).trimmed();
+                    if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                        processInner = td.captured(3);
+                        break;
+                    }
+                }
+                if (!processInner.isEmpty()) {
+                    rowInner = QStringLiteral(
+                        "<td colspan='%1' align='center' width='671' style='width:671px'>%2</td>")
+                                   .arg(tableCols)
+                                   .arg(processInner);
+                    rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                } else {
+                    rebuilt += tr.captured(0);
+                }
+                trLast = tr.capturedEnd();
             }
-            last = tr.capturedEnd();
+            rebuilt += inner.mid(trLast);
+            out += tm.captured(1) + rebuilt + tm.captured(3);
+            last = tm.capturedEnd();
         }
         out += body.mid(last);
         body = out;
@@ -2452,7 +2499,22 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     }
                     newRow += rowInner.mid(cellLast);
                     rowInner = newRow;
-                } else if (tds.size() == 2) {
+                } else if (tds.size() >= 1) {
+                    QString processInner;
+                    for (const QRegularExpressionMatch &td : tds) {
+                        const QString cellPlain =
+                            htmlFragmentToPlainText(td.captured(4)).trimmed();
+                        if (cellPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                            processInner = td.captured(4);
+                            break;
+                        }
+                    }
+                    if (!processInner.isEmpty()) {
+                        // Баннер в 3-кол. таблице — colspan=3 (не 2: иначе узкая пустая колонка).
+                        rowInner = QStringLiteral(
+                            "<td colspan='3' align='center' width='671' style='width:671px'>%1</td>")
+                                       .arg(processInner);
+                    } else if (tds.size() == 2) {
                     // Строка «Баллы» — colspan второй ячейки на 452.
                     const QStringList widths = {
                         QStringLiteral("219"), QStringLiteral("452")};
@@ -2476,6 +2538,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     }
                     newRow += rowInner.mid(cellLast);
                     rowInner = newRow;
+                    }
                 }
                 rebuilt += tr.captured(1) + rowInner + tr.captured(3);
                 trLast = tr.capturedEnd();
@@ -3016,6 +3079,14 @@ QString ExerciseProtocol::buildProtocol542ViewRecord(
         sessions = QStringList{stripLeadingSummaryTableWrapper(flat)};
     }
 
+    const QRegularExpression processRowRe(
+        QStringLiteral(
+            "<tr\\b[^>]*>\\s*(?:<td\\b[^>]*>\\s*)*[\\s\\S]*?Процесс\\s+выполнения[\\s\\S]*?</tr>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    const QString processBannerRow = QStringLiteral(
+        "<tr><td align='center' colspan='2' width='671' style='width:671px'>"
+        "Процесс выполнения диагностического задания</td></tr>");
+
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
         QString session = ensureClosedProtocolSession(sessions.at(i));
@@ -3030,6 +3101,15 @@ QString ExerciseProtocol::buildProtocol542ViewRecord(
             QString());
         summaryRows = summaryRows.trimmed();
         resultsBlock = resultsBlock.trimmed();
+
+        // Баннер «Процесс…» всегда последняя строка 2-кол. шапки (как в шаблоне),
+        // не первая строка 3-кол. таблицы Вопросы — иначе справа узкая пустая колонка.
+        summaryRows.remove(processRowRe);
+        resultsBlock.remove(processRowRe);
+        summaryRows = summaryRows.trimmed();
+        if (!summaryRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+            summaryRows += processBannerRow;
+        }
 
         if (i == 0) {
             if (!headerFragment.trimmed().isEmpty()) {
@@ -3438,6 +3518,63 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
             }
         }
         table->setFormat(fmt);
+
+        // «Процесс выполнения…»: слить ячейки строки на всю ширину таблицы.
+        // Иначе после setHtml Qt оставляет 2-ю/3-ю пустую колонку (у 5.4.2 — узкая полоска справа).
+        if (cols >= 2 && table->rows() >= 1) {
+            for (int r = 0; r < table->rows(); ++r) {
+                int processCol = -1;
+                for (int c = 0; c < cols; ++c) {
+                    const QTextTableCell probe = table->cellAt(r, c);
+                    if (!probe.isValid()) {
+                        continue;
+                    }
+                    // Ячейка, поглощённая colspan предыдущей — cellAt всё равно валидна,
+                    // но firstCursorPosition совпадает; читаем текст только у «своих».
+                    if (probe.row() != r || probe.column() != c) {
+                        continue;
+                    }
+                    if (readTableCellText(table, r, c)
+                            .contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                        processCol = c;
+                        break;
+                    }
+                }
+                if (processCol < 0) {
+                    continue;
+                }
+                QTextTableCell cell = table->cellAt(r, processCol);
+                if (!cell.isValid()) {
+                    continue;
+                }
+                if (cell.columnSpan() < cols || processCol != 0) {
+                    // Сначала очистить хвост строки, иначе merge оставит артефакты границ.
+                    for (int c = cols - 1; c > processCol; --c) {
+                        QTextTableCell other = table->cellAt(r, c);
+                        if (!other.isValid() || other.row() != r || other.column() != c) {
+                            continue;
+                        }
+                        QTextCursor clearCur = other.firstCursorPosition();
+                        clearCur.setPosition(other.lastCursorPosition().position(),
+                                             QTextCursor::KeepAnchor);
+                        clearCur.removeSelectedText();
+                    }
+                    table->mergeCells(r, 0, 1, cols);
+                    cell = table->cellAt(r, 0);
+                }
+                if (cell.isValid()) {
+                    QTextTableCellFormat cellFmt = cell.format().toTableCellFormat();
+                    cellFmt.setLeftPadding(0);
+                    cellFmt.setRightPadding(0);
+                    cell.setFormat(cellFmt);
+                    QTextCursor cur = cell.firstCursorPosition();
+                    QTextBlockFormat bf = cur.blockFormat();
+                    bf.setAlignment(Qt::AlignHCenter);
+                    cur.mergeBlockFormat(bf);
+                }
+                break; // одна такая строка на таблицу
+            }
+        }
 
         // Колонка «Баллы» / «Кол-во цифр» (4.2.1): цифры по центру в QTextEdit.
         if (table->rows() >= 1 && cols >= 3) {
