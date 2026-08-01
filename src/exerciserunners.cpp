@@ -1549,11 +1549,12 @@ public:
         }
         setFocusPolicy(Qt::StrongFocus);
         setFocus();
-        layoutUi();
         if (m_stop) {
             m_stop->show();
-            m_stop->raise();
         }
+        // layoutUi после show: иначе isVisible()=false и Стоп остаётся у y=0
+        // (прилипает к вкладкам), а не на высоте «Начать упражнение» (y=12).
+        layoutUi();
         m_timer->start();
         show();
         raise();
@@ -1772,9 +1773,12 @@ public:
             m_group2->show();
             m_group2->raise();
         }
-        if (m_stop && m_stop->isVisible()) {
+        // Как «Начать упражнение» в ExerciseHost (y=12), не у верхнего края / вкладок.
+        if (m_stop) {
             m_stop->move(12, 12);
-            m_stop->raise();
+            if (m_stop->isVisible()) {
+                m_stop->raise();
+            }
         }
         update();
     }
