@@ -2693,8 +2693,68 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
     }
 
     // Хранение как у 1.17: summary (Дата/Результат/Примечание) </table><!--s--> + таблица процесса.
-    auto fixSession = [](QString session) {
-        session = stripLeadingSummaryTableWrapper(session.trimmed());
+    // Если процесс/повторные сессии вложены в ячейку шапки (баг QTextDocument) — вытащить наружу.
+    auto unpackNestedTables = [](QString html) {
+        // Вырезать целиком вложенные <table>…</table> из ячеек и дописать в конец сессии.
+        QString extracted;
+        const QRegularExpression nestedRe(
+            QStringLiteral("(<table\\b[^>]*>[\\s\\S]*?</table\\s*>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        // Только таблицы внутри ячеек: после <td…> до </td>, не корневые.
+        const QRegularExpression cellNestedRe(
+            QStringLiteral(
+                "(<td\\b[^>]*>)([\\s\\S]*?)(</td>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        int last = 0;
+        QRegularExpressionMatchIterator cellIt = cellNestedRe.globalMatch(html);
+        while (cellIt.hasNext()) {
+            const QRegularExpressionMatch cell = cellIt.next();
+            out += html.mid(last, cell.capturedStart() - last);
+            QString inner = cell.captured(2);
+            QRegularExpressionMatchIterator nestIt = nestedRe.globalMatch(inner);
+            QString cleaned = inner;
+            // Собрать вложенные таблицы с конца, чтобы индексы не плыли.
+            QList<QRegularExpressionMatch> nests;
+            while (nestIt.hasNext()) {
+                nests.append(nestIt.next());
+            }
+            for (int i = nests.size() - 1; i >= 0; --i) {
+                const QRegularExpressionMatch &n = nests.at(i);
+                const QString tableHtml = n.captured(1);
+                // Не трогать мелкую разметку без процесса/даты.
+                if (tableHtml.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
+                    || tableHtml.contains(QStringLiteral("Дата/специалист"), Qt::CaseInsensitive)
+                    || tableHtml.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                    || tableHtml.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                    extracted.prepend(tableHtml);
+                    cleaned.replace(n.capturedStart(), n.capturedLength(), QString());
+                }
+            }
+            // Пустая ячейка после вырезания — якорь для клика.
+            if (htmlFragmentToPlainText(cleaned).trimmed().isEmpty()
+                && cleaned.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)) {
+                cleaned = QStringLiteral("<div contenteditable='true'>&nbsp;</div>");
+            }
+            out += cell.captured(1) + cleaned + cell.captured(3);
+            last = cell.capturedEnd();
+        }
+        out += html.mid(last);
+        if (!extracted.isEmpty()) {
+            // Если маркера нет — закрыть summary и начать процесс.
+            if (!out.contains(QStringLiteral("<!--s-->"))) {
+                out.replace(
+                    QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+                    QString());
+                out += QStringLiteral("</table><!--s-->");
+            }
+            out += extracted;
+        }
+        return out;
+    };
+
+    auto fixSession = [&](QString session) {
+        session = unpackNestedTables(stripLeadingSummaryTableWrapper(session.trimmed()));
         if (session.isEmpty()) {
             return session;
         }
@@ -2717,9 +2777,21 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
                 "\\s*(?:</[^>]+>\\s*)*</td>\\s*</tr>\\s*"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
 
-        // Заголовок не в шапке — только в таблице процесса.
         summary.replace(processTitleRow, QString());
         summary = summary.trimmed();
+        // Убрать случайные теги <table> из summary (строки <tr> оставить).
+        summary.remove(QRegularExpression(
+            QStringLiteral("</?table\\b[^>]*>"), QRegularExpression::CaseInsensitiveOption));
+
+        if (!process.trimmed().startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+            // process может быть несколькими таблицами подряд после unpack.
+            if (!process.contains(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+                process.prepend(
+                    QStringLiteral(
+                        "<table border='1' style='table-layout:fixed;width:671px' "
+                        "cellspacing='0' cellpadding='0' width='671'>"));
+            }
+        }
 
         if (!processTitleRow.match(process).hasMatch()) {
             const QString titleRow = QStringLiteral(
@@ -2977,6 +3049,21 @@ QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(const QString &head
     if (rows.isEmpty()) {
         return {};
     }
+    // Убрать мусор до первой <table> (<strong>, &nbsp;, пустые теги) — иначе
+    // ^<table не снимается, открывается вторая <table> и Qt вкладывает процесс в ячейку.
+    {
+        const int tableAt = rows.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+        if (tableAt > 0) {
+            rows = rows.mid(tableAt);
+        } else if (tableAt < 0) {
+            // Только строки <tr> без обёртки.
+            rows.replace(
+                QRegularExpression(
+                    QStringLiteral("^(?:\\s|<(?:strong|b|span|div|p|br)\\b[^>]*>|</(?:strong|b|span|div|p)>|&nbsp;)+"),
+                    QRegularExpression::CaseInsensitiveOption),
+                QString());
+        }
+    }
     // Убрать обёртку <table> / colgroup — откроем стандартную 671/200/471.
     rows.replace(
         QRegularExpression(
@@ -2993,6 +3080,17 @@ QString ExerciseProtocol::canonicalizeProtocolHeaderFragment(const QString &head
             QStringLiteral("</table\\s*>\\s*$"),
             QRegularExpression::CaseInsensitiveOption),
         QString());
+    // На случай вложенной второй <table> в хвосте шапки — отрезать.
+    {
+        const int nested = rows.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+        if (nested >= 0) {
+            rows = rows.left(nested);
+        }
+        const int closeAt = rows.lastIndexOf(QStringLiteral("</table>"), -1, Qt::CaseInsensitive);
+        if (closeAt >= 0) {
+            rows = rows.left(closeAt);
+        }
+    }
     // <p> в ячейках шапки раздувают ширину в QTextDocument (вкладка «Протоколы»).
     rows.replace(
         QRegularExpression(QStringLiteral("<p\\b[^>]*>"), QRegularExpression::CaseInsensitiveOption),

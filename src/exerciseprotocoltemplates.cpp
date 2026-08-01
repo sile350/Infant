@@ -764,6 +764,10 @@ QString createExerciseProtocolFromTemplate(
         // Numbered multi-step (руководство / упр. 6): дописка строк или новая «Дата/специалист».
         if (tmpl.kind == QStringLiteral("numbered")
             && ExerciseConfig::usesAppendOnlyMultiStepLogic(exerciseId)) {
+            QString existing = existingProtocolHtml;
+            if (exerciseId == QStringLiteral("1.18")) {
+                existing = ExerciseProtocol::canonicalizeProtocol118StoredBody(existing);
+            }
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty() && !session.stepId.trimmed().isEmpty()) {
                 stepIds << session.stepId.trimmed();
@@ -772,9 +776,9 @@ QString createExerciseProtocolFromTemplate(
                 stepIds << QStringLiteral("1");
             }
             const QString lastSessionHtml =
-                ExerciseProtocol::extractLastProtocol126Session(existingProtocolHtml);
+                ExerciseProtocol::extractLastProtocol126Session(existing);
             const QString scopeHtml = lastSessionHtml.trimmed().isEmpty()
-                ? existingProtocolHtml
+                ? existing
                 : lastSessionHtml;
             QStringList newSteps;
             for (const QString &sid : stepIds) {
@@ -798,14 +802,14 @@ QString createExerciseProtocolFromTemplate(
                 if (!sessionBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
                     sessionBlock += QStringLiteral("</table>");
                 }
-                return ExerciseProtocol::appendFullSessionToStoredBody(existingProtocolHtml, sessionBlock);
+                return ExerciseProtocol::appendFullSessionToStoredBody(existing, sessionBlock);
             }
             ProtocolSessionInput appendSession = session;
             appendSession.stepIds = newSteps;
             const QString appendRows =
                 buildNumberedProcessRows(tmpl, vars, appendSession, elapsedSeconds);
             return ExerciseProtocol::appendRowsToStoredBody(
-                trimTrailingSummaryRow(existingProtocolHtml), appendRows);
+                trimTrailingSummaryRow(existing), appendRows);
         }
         // done_time / done_time_scan multi-step: дописка строк задания как у numbered.
         if ((tmpl.kind == QStringLiteral("done_time")

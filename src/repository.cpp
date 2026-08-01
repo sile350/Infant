@@ -571,6 +571,13 @@ QString Repository::exerciseHeaderFragment(const QString &uprid) const {
         fragment.replace(
             QRegularExpression(QStringLiteral("<tr\\s*>\\s*$"), QRegularExpression::CaseInsensitiveOption),
             QString());
+        // Мусор до первой <table> (<strong> и т.п.) — иначе canonicalize не снимает обёртку.
+        {
+            const int tableAt = fragment.indexOf(QStringLiteral("<table"), 0, Qt::CaseInsensitive);
+            if (tableAt > 0) {
+                fragment = fragment.mid(tableAt);
+            }
+        }
         return fragment.trimmed();
     }
     return QStringLiteral("<table border='1' cellspacing='0' style='table-layout:fixed' cellpadding='0' width='671'>");
