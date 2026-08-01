@@ -603,6 +603,16 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     helpTitle->setStyleSheet(m_activityTitle->styleSheet());
     checkboxLayout->addWidget(helpTitle);
 
+    m_helpPenaltyHintLabel = new WhiteLabel(
+        QStringLiteral("За каждый вид помощи оценка снижается на 0,5 балла"), m_checkboxPanel);
+    m_helpPenaltyHintLabel->setAlignment(Qt::AlignCenter);
+    m_helpPenaltyHintLabel->setWordWrap(true);
+    m_helpPenaltyHintLabel->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:13px; font-style:italic; font-weight:normal; padding:2px 8px 4px 8px;"));
+    m_helpPenaltyHintLabel->hide();
+    checkboxLayout->addWidget(m_helpPenaltyHintLabel);
+
     m_stimHelpLabel = new WhiteLabel(QStringLiteral("Стимулирующая помощь"), m_checkboxPanel);
     m_stimHelpLabel->setStyleSheet(QStringLiteral(
         "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
@@ -1748,7 +1758,8 @@ void ExerciseHost::updatePreviewLayout() {
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             extraY = -120;
         } else if (m_exerciseId == QStringLiteral("2.10")
-                   || m_exerciseId == QStringLiteral("3.1.2")) {
+                   || m_exerciseId == QStringLiteral("3.1.2")
+                   || m_exerciseId == QStringLiteral("3.1.10")) {
             // Как 1.1: строго по центру правой панели (оба задания).
             extraX = 0;
             extraY = 0;
@@ -1777,7 +1788,6 @@ void ExerciseHost::updatePreviewLayout() {
             }
         } else if (m_exerciseId == QStringLiteral("2.8")
                    || m_exerciseId == QStringLiteral("2.9")
-                   || m_exerciseId == QStringLiteral("3.1.10")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.12")
                    || m_exerciseId == QStringLiteral("3.1.17")
@@ -1830,7 +1840,8 @@ void ExerciseHost::updatePreviewLayout() {
 
         if (m_exerciseId == QStringLiteral("2.10")
             || m_exerciseId == QStringLiteral("3.1.1")
-            || m_exerciseId == QStringLiteral("3.1.2")) {
+            || m_exerciseId == QStringLiteral("3.1.2")
+            || m_exerciseId == QStringLiteral("3.1.10")) {
             // Как 1.1 Specialist: строго геометрический центр панели.
             localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
             localY = qMax(kPictureMargin, (panelH - display.height()) / 2);
@@ -2047,6 +2058,9 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         && (m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("3.1.10")
             || labels.size() != 5);
+    if (m_helpPenaltyHintLabel) {
+        m_helpPenaltyHintLabel->setVisible(m_exerciseId == QStringLiteral("3.1.10"));
+    }
     if (m_stimHelpLabel) {
         m_stimHelpLabel->setVisible(!flatCustom);
     }
@@ -2070,8 +2084,8 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     };
 
     if (flatCustom) {
-        // Плоский список сразу после заголовка «Виды возможной помощи».
-        int insertAt = 1;
+        // Плоский список сразу после заголовка «Виды возможной помощи» (и подсказки 3.1.10).
+        int insertAt = (m_helpPenaltyHintLabel && m_helpPenaltyHintLabel->isVisible()) ? 2 : 1;
         for (const QString &text : labels) {
             m_helpChecks << makeCheckRow(text, m_helpChecksLayout, checkWidth);
             if (QWidget *row = m_helpChecks.last().label

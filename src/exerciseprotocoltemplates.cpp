@@ -672,8 +672,6 @@ bool speechTaskPresentInHtml(const QString &html, const QString &stepId) {
 
 QString trimTrailingSummaryRow(QString body) {
     // Как trim1 в оригинале: срезать последнюю <tr> (строка «Итоговая оценка»).
-    // Сохраняем </table> (и хвост после него) — иначе процесс остаётся незакрытым и
-    // при повторной сессии sessionEndBeforeNextDateRow отрезает таблицу процесса.
     int index = body.lastIndexOf(QStringLiteral("<tr"), -1, Qt::CaseInsensitive);
     if (index < 0) {
         return body;
@@ -682,12 +680,7 @@ QString trimTrailingSummaryRow(QString body) {
     if (!tail.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
         return body;
     }
-    QString result = body.left(index);
-    const int closePos = tail.indexOf(QStringLiteral("</table>"), 0, Qt::CaseInsensitive);
-    if (closePos >= 0) {
-        result += tail.mid(closePos);
-    }
-    return result;
+    return body.left(index);
 }
 
 QString createExerciseProtocolFromTemplate(
@@ -857,13 +850,11 @@ QString createExerciseProtocolFromTemplate(
             return ExerciseProtocol::appendRowsToStoredBody(
                 trimTrailingSummaryRow(existingProtocolHtml), appendRows);
         }
-        // 3.1.1 / 3.1.11 / 3.1.17 / 3.1.18 — одно задание за проход: при partly всегда
-        // новая «Дата/специалист» (не дописывать только строку процесса к предыдущей сессии).
+        // 3.1.1 / 3.1.11 — одно задание за проход: при partly всегда новая «Дата/специалист»
+        // (не дописывать только строку процесса к предыдущей сессии).
         if (tmpl.kind == QStringLiteral("or_hlp_balls")
             && (exerciseId == QStringLiteral("3.1.1")
-                || exerciseId == QStringLiteral("3.1.11")
-                || exerciseId == QStringLiteral("3.1.17")
-                || exerciseId == QStringLiteral("3.1.18"))) {
+                || exerciseId == QStringLiteral("3.1.11"))) {
             QStringList stepIds = session.stepIds;
             if (stepIds.isEmpty()) {
                 stepIds << QStringLiteral("1");
