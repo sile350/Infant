@@ -91,6 +91,9 @@ void appendProtocolRecord(
         // Плоская сборка: summary </table> + таблицы заданий (иначе Qt вкладывает в «Процесс»).
         record = ExerciseProtocol::buildProtocol126ViewRecord(
             continuation ? QString() : rawHeader, protocolBody);
+    } else if (uprid == QStringLiteral("1.272")) {
+        record = ExerciseProtocol::buildProtocol1272ViewRecord(
+            continuation ? QString() : rawHeader, protocolBody);
     } else if (uprid == QStringLiteral("4.1.8")) {
         // Характер + таблица стимульных слов (две <table> после <!--s-->).
         QString flatBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody);
@@ -727,6 +730,8 @@ bool Repository::saveExerciseProtocol(
         storedHtml = ExerciseProtocol::canonicalizeProtocol12StoredBody(storedHtml);
     } else if (exerciseId == QStringLiteral("1.26")) {
         storedHtml = ExerciseProtocol::canonicalizeProtocol126StoredBody(storedHtml);
+    } else if (exerciseId == QStringLiteral("1.272")) {
+        storedHtml = ExerciseProtocol::canonicalizeProtocol1272StoredBody(storedHtml);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         storedHtml = ExerciseProtocol::canonicalizeProtocol418StoredBody(storedHtml);
     }
@@ -835,22 +840,15 @@ QString Repository::loadProtocolViewHtml(
     if (exerciseId == QStringLiteral("1.26")) {
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
+    } else if (exerciseId == QStringLiteral("1.272")) {
+        protocolBlock = ExerciseProtocol::buildProtocol1272ViewRecord(
+            exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
         protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
                             exerciseHeaderFragment(exerciseId))
             + body;
         if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            protocolBlock += QStringLiteral("</table>");
-        }
-    } else if (exerciseId == QStringLiteral("1.272")) {
-        // Плоская сборка 2 таблиц: шапка 200/471 + процесс 120+250+251+50.
-        body = ExerciseProtocol::normalizeSummaryColumnWidths(
-            ExerciseProtocol::flattenStoredProtocolBody(body));
-        protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
-                            exerciseHeaderFragment(exerciseId))
-            + body;
-        if (!protocolBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             protocolBlock += QStringLiteral("</table>");
         }
     } else {
@@ -982,6 +980,8 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
         normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("1.26")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol126StoredBody(normalizedBody);
+    } else if (uprid == QStringLiteral("1.272")) {
+        normalizedBody = ExerciseProtocol::canonicalizeProtocol1272StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("4.1.8")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol418StoredBody(normalizedBody);
     }
