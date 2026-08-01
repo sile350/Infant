@@ -4349,7 +4349,12 @@ void InfantWindow::saveProtocolsEdits(bool force) {
     if (!force && !m_protocolsViewDirty) {
         return;
     }
-    if (force && m_protocolsView->hasFocus()) {
+    // Всегда фиксируем правки в ячейках до чтения документа:
+    // иначе автосохранение по таймеру (фокус ещё в пустой/&nbsp; ячейке OR/HLP)
+    // читает старое значение и затирает ввод с клавиатуры (типично после одного экрана).
+    const bool viewFocused = m_protocolsView->hasFocus()
+        || (m_protocolsView->viewport() && m_protocolsView->viewport()->hasFocus());
+    if (viewFocused) {
         m_protocolsView->clearFocus();
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }

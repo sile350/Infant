@@ -1711,6 +1711,63 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
+    // Повторные summary-таблицы (после процесса): всегда colgroup 200/471.
+    {
+        const QRegularExpression summaryTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)(\\s*(?:<colgroup\\b[\\s\\S]*?</colgroup>\\s*)?)"
+                "(\\s*<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*"
+                "(?:<(?:p|div|span|font|b|strong)\\b[^>]*>\\s*)*"
+                "Дата\\s*/\\s*специалист)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 64);
+        int last = 0;
+        QRegularExpressionMatchIterator it = summaryTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            // Не трогать таблицы процесса (там нет ведущей «Дата/специалист»).
+            {
+                QString attrs = open.mid(6);
+                if (attrs.endsWith(QLatin1Char('>'))) {
+                    attrs.chop(1);
+                }
+                attrs.remove(QRegularExpression(
+                    QStringLiteral("\\s*width\\s*=\\s*(?:'[^']*'|\"[^\"]*\"|\\d+)"),
+                    QRegularExpression::CaseInsensitiveOption));
+                if (!attrs.contains(QStringLiteral("table-layout"), Qt::CaseInsensitive)) {
+                    if (attrs.contains(QStringLiteral("style="), Qt::CaseInsensitive)) {
+                        attrs.replace(
+                            QRegularExpression(
+                                QStringLiteral("style\\s*=\\s*['\"]"),
+                                QRegularExpression::CaseInsensitiveOption),
+                            QStringLiteral("style='table-layout:fixed;width:671px; "));
+                    } else {
+                        attrs += QStringLiteral(" style='table-layout:fixed;width:671px'");
+                    }
+                } else if (!attrs.contains(QStringLiteral("width:671"), Qt::CaseInsensitive)) {
+                    attrs.replace(
+                        QRegularExpression(
+                            QStringLiteral("style\\s*=\\s*['\"]"),
+                            QRegularExpression::CaseInsensitiveOption),
+                        QStringLiteral("style='width:671px; "));
+                }
+                attrs += QStringLiteral(" width='671'");
+                open = QStringLiteral("<table") + attrs + QLatin1Char('>');
+            }
+            out += open
+                + QStringLiteral(
+                      "<colgroup><col width='200' style='width:200px'>"
+                      "<col width='471' style='width:471px'></colgroup>")
+                + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
     // 1.26: задания 1 и 2 — отдельные таблицы по 671 (общая сетка раздувает ширину).
     {
         const QRegularExpression processTableRe(
@@ -1837,6 +1894,127 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         body = out;
     }
 
+    // 3.1.10 «Выбранная картинка»: 30+121+143+141+175+61 = 671; баллы по центру.
+    {
+        const QRegularExpression processTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Выбранная\\s+картинка[\\s\\S]*?Объяснение\\s+выбора"
+                "[\\s\\S]*?Характер\\s+деятельности[\\s\\S]*?Виды\\s+помощи"
+                "[\\s\\S]*?Баллы[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 128);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            const QRegularExpression firstTrRe(
+                QStringLiteral("<tr\\b[^>]*>([\\s\\S]*?)</tr>"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            const QRegularExpressionMatch firstTr = firstTrRe.match(inner);
+            const int tdCount = firstTr.hasMatch()
+                ? firstTr.captured(1).count(
+                      QRegularExpression(QStringLiteral("<td\\b"), QRegularExpression::CaseInsensitiveOption))
+                : 0;
+            if (tdCount != 6) {
+                out += m.captured(0);
+                last = m.capturedEnd();
+                continue;
+            }
+            const QStringList widths = {
+                QStringLiteral("30"), QStringLiteral("121"), QStringLiteral("143"),
+                QStringLiteral("141"), QStringLiteral("175"), QStringLiteral("61")};
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            inner.prepend(QStringLiteral(
+                "<colgroup><col width='30'><col width='121'><col width='143'>"
+                "<col width='141'><col width='175'><col width='61'></colgroup>"));
+
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (tds.size() == 6
+                    || (tds.size() == 2
+                        && tds.at(0).captured(2).contains(QStringLiteral("colspan"), Qt::CaseInsensitive))) {
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        QString attrs = td.captured(2);
+                        QString cellHtml = td.captured(4);
+                        if (tds.size() == 6) {
+                            attrs = setAttrWidth(attrs, widths.at(i));
+                            // № и Баллы — по центру.
+                            if (i == 0 || i == 5) {
+                                if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                                    attrs += QStringLiteral(" align='center'");
+                                }
+                                if (i == 5
+                                    && !attrs.contains(QStringLiteral("valign="), Qt::CaseInsensitive)) {
+                                    attrs += QStringLiteral(" valign='middle'");
+                                }
+                                if (i == 5
+                                    && !cellHtml.contains(
+                                           QStringLiteral("text-align:center"), Qt::CaseInsensitive)) {
+                                    cellHtml.replace(
+                                        QRegularExpression(
+                                            QStringLiteral("(<div\\b)(?![^>]*text-align)"),
+                                            QRegularExpression::CaseInsensitiveOption),
+                                        QStringLiteral("\\1 style='text-align:center'"));
+                                }
+                            }
+                        } else if (i == tds.size() - 1) {
+                            // «Итоговая оценка» + idsum.
+                            attrs = setAttrWidth(attrs, widths.last());
+                            if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                                attrs += QStringLiteral(" align='center'");
+                            }
+                            if (!cellHtml.contains(
+                                    QStringLiteral("text-align:center"), Qt::CaseInsensitive)) {
+                                cellHtml.replace(
+                                    QRegularExpression(
+                                        QStringLiteral("(<div\\b)(?![^>]*text-align)"),
+                                        QRegularExpression::CaseInsensitiveOption),
+                                    QStringLiteral("\\1 style='text-align:center'"));
+                            }
+                        }
+                        newRow += td.captured(1) + attrs + td.captured(3) + cellHtml + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
     // OR/HLP/Баллы (3 колонки): 300+300+71 = 671.
     {
         const QRegularExpression processTableRe(
@@ -1854,7 +2032,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             QString open = m.captured(1);
             QString inner = m.captured(2);
             // 1.26 и др. 4-колоночные с «Портретная»/«№ рассказа» — отдельный блок выше.
+            // 3.1.10 6-колоночные — отдельный блок выше.
             if (inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
                 || inner.contains(QRegularExpression(
                        QStringLiteral("№\\s*рассказа"), QRegularExpression::CaseInsensitiveOption))) {
                 out += m.captured(0);
@@ -2213,6 +2393,22 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         out += body.mid(last);
         body = out;
     }
+
+    // Убрать пустые разрывы между соседними таблицами протокола (повторные сессии).
+    body.replace(
+        QRegularExpression(
+            QStringLiteral(
+                "</table>\\s*(?:(?:<br\\s*/?>)|(?:<p\\b[^>]*>\\s*(?:&nbsp;|\\s)*\\s*</p\\s*>)"
+                "|(?:<div\\b[^>]*>\\s*(?:&nbsp;|\\s)*\\s*</div\\s*>)|\\s|&nbsp;)+\\s*(<table\\b)"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("</table>\\1"));
+    // Пустой page-break между записями не должен раздувать вертикальный зазор на экране.
+    body.replace(
+        QRegularExpression(
+            QStringLiteral(
+                "(</table>)\\s*(<div\\b[^>]*protocol-page-break[^>]*>\\s*</div\\s*>)\\s*(<table\\b)"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("\\1\\2\\3"));
 
     return body;
 }
@@ -2823,6 +3019,18 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                         QTextLength(QTextLength::FixedLength, 300),
                         QTextLength(QTextLength::FixedLength, 300),
                         QTextLength(QTextLength::FixedLength, 71),
+                    });
+                } else if (cols == 6
+                           && (headerJoin.contains(QStringLiteral("Выбранная"), Qt::CaseInsensitive)
+                               || header0.contains(QStringLiteral("№"), Qt::CaseInsensitive))) {
+                    // 3.1.10: 30+121+143+141+175+61 = 671
+                    fmt.setColumnWidthConstraints({
+                        QTextLength(QTextLength::FixedLength, 30),
+                        QTextLength(QTextLength::FixedLength, 121),
+                        QTextLength(QTextLength::FixedLength, 143),
+                        QTextLength(QTextLength::FixedLength, 141),
+                        QTextLength(QTextLength::FixedLength, 175),
+                        QTextLength(QTextLength::FixedLength, 61),
                     });
                 }
             }
@@ -4961,6 +5169,9 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         if (headerRow < 0 || activityCol < 0 || helpCol < 0) {
             continue;
         }
+        // 3.1.11 и др. (OR|HLP|Баллы): колонка 0 — текст «Характер», не № шага.
+        // stepKey из текста OR ломает сопоставление после правки с клавиатуры.
+        const bool orIsFirstColumn = (activityCol == 0);
 
         const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
         if (marker < 0) {
@@ -4996,9 +5207,12 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             const QString firstPlain = firstTd.hasMatch()
                 ? htmlFragmentToPlainText(firstTd.captured(1)).trimmed()
                 : QString();
-            QString stepKey = stepMark.hasMatch()
-                ? normalizeStepKey(stepMark.captured(1))
-                : normalizeStepKey(firstPlain);
+            QString stepKey;
+            if (stepMark.hasMatch()) {
+                stepKey = normalizeStepKey(stepMark.captured(1));
+            } else if (!orIsFirstColumn) {
+                stepKey = normalizeStepKey(firstPlain);
+            }
             // Заголовок — только по первой ячейке / маркеру, не по тексту OR/HLP.
             if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
                 || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
@@ -5064,7 +5278,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             }
             EditorRow er;
             er.row = r;
-            er.stepKey = normalizeStepKey(label);
+            er.stepKey = orIsFirstColumn ? QString() : normalizeStepKey(label);
             er.activity = readTableCellMultilineText(table, r, activityCol);
             er.help = readTableCellMultilineText(table, r, helpCol);
             er.score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
@@ -5150,10 +5364,19 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             replacements.append(qMakePair(activityCol, makeEditable(er.activity)));
             replacements.append(qMakePair(helpCol, makeEditable(er.help)));
             if (ballsCol >= 0 && ballsCol < tds.size()) {
+                QString ballsId = QStringLiteral("idballs");
+                const QRegularExpression idRe(
+                    QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
+                    QRegularExpression::CaseInsensitiveOption);
+                const QRegularExpressionMatch idMatch = idRe.match(tds.at(ballsCol).captured(2));
+                if (idMatch.hasMatch()) {
+                    ballsId = idMatch.captured(1);
+                }
                 replacements.append(qMakePair(
                     ballsCol,
-                    QStringLiteral("<div id='idballs' contenteditable='true'>%1</div>")
-                        .arg(er.score.toHtmlEscaped())));
+                    QStringLiteral(
+                        "<div id='%1' contenteditable='true' style='text-align:center'>%2</div>")
+                        .arg(ballsId, er.score.toHtmlEscaped())));
             }
             std::sort(replacements.begin(), replacements.end(),
                       [](const QPair<int, QString> &a, const QPair<int, QString> &b) {

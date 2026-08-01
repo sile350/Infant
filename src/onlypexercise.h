@@ -73,6 +73,8 @@ private:
     void updateOvertimeTimer();
     int overtimeThresholdSeconds() const;
     bool isCombineWordsExercise() const;
+    bool isPictureBrowseExercise() const;
+    bool usesNavBrowseButtons() const;
     bool combineWordsUsesText() const;
     bool isFairyTaleExercise() const;
     void ensureFairyTaleUi();

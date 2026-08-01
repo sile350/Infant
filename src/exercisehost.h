@@ -166,6 +166,7 @@ private:
     QLabel *m_activityTitle = nullptr;
     QWidget *m_checkboxPanel = nullptr;
     QVBoxLayout *m_helpChecksLayout = nullptr;
+    QLabel *m_helpPenaltyHint = nullptr;
     QLabel *m_stimHelpLabel = nullptr;
     QLabel *m_directHelpLabel = nullptr;
     QLabel *m_teachHelpLabel = nullptr;
