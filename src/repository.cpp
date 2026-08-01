@@ -109,19 +109,9 @@ void appendProtocolRecord(
             record += QStringLiteral("</table>");
         }
     } else if (uprid == QStringLiteral("1.18")) {
-        QString flatBody = ExerciseProtocol::canonicalizeProtocol118StoredBody(protocolBody);
-        flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(flatBody);
-        if (continuation) {
-            record = QStringLiteral(
-                          "<table border='1' style='table-layout:fixed;width:671px' cellspacing='0' cellpadding='0' width='671'>"
-                          "<colgroup><col width='200' style='width:200px'><col width='471' style='width:471px'></colgroup>")
-                      + flatBody;
-        } else {
-            record = header + flatBody;
-        }
-        if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            record += QStringLiteral("</table>");
-        }
+        // Явная склейка summary</table> + процесс (как 1.2/1.26) — иначе Qt вкладывает.
+        record = ExerciseProtocol::buildProtocol118ViewRecord(
+            continuation ? QString() : rawHeader, protocolBody);
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
         const QString flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(
@@ -854,13 +844,8 @@ QString Repository::loadProtocolViewHtml(
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("1.18")) {
-        body = ExerciseProtocol::canonicalizeProtocol118StoredBody(body);
-        protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
-                            exerciseHeaderFragment(exerciseId))
-            + body;
-        if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            protocolBlock += QStringLiteral("</table>");
-        }
+        protocolBlock = ExerciseProtocol::buildProtocol118ViewRecord(
+            exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
         protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(

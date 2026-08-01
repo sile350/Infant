@@ -2692,9 +2692,7 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
         return {};
     }
 
-    // Как у 1.17 и прочих numbered: шапка (Дата/Результат/Примечание) закрывается,
-    // «Процесс выполнения…» — первая строка ОТДЕЛЬНОЙ таблицы процесса (width 671, 4 кол.).
-    // Не держать заголовок в summary (colspan=2) — Qt раздувает ширину шапки.
+    // Хранение как у 1.17: summary (Дата/Результат/Примечание) </table><!--s--> + таблица процесса.
     auto fixSession = [](QString session) {
         session = stripLeadingSummaryTableWrapper(session.trimmed());
         if (session.isEmpty()) {
@@ -2719,20 +2717,18 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
                 "\\s*(?:</[^>]+>\\s*)*</td>\\s*</tr>\\s*"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
 
-        // Убрать заголовок из шапки, если он там (прошлый вариант / оригинал createP).
+        // Заголовок не в шапке — только в таблице процесса.
         summary.replace(processTitleRow, QString());
         summary = summary.trimmed();
 
-        const bool titleInProcess = processTitleRow.match(process).hasMatch();
-        if (!titleInProcess) {
-            // Вставить заголовок в начало таблицы процесса.
+        if (!processTitleRow.match(process).hasMatch()) {
+            const QString titleRow = QStringLiteral(
+                "<tr><td colspan='4' align='center'>"
+                "Процесс выполнения диагностической методики</td></tr>");
             const QRegularExpression tableOpenRe(
                 QStringLiteral("(<table\\b[^>]*>)"),
                 QRegularExpression::CaseInsensitiveOption);
             const QRegularExpressionMatch openMatch = tableOpenRe.match(process);
-            const QString titleRow = QStringLiteral(
-                "<tr><td colspan='4' align='center'>"
-                "Процесс выполнения диагностической методики</td></tr>");
             if (openMatch.hasMatch()) {
                 process.insert(openMatch.capturedEnd(), titleRow);
             } else {
@@ -2761,6 +2757,72 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
         }
     }
     return joinProtocol126Sessions(flat);
+}
+
+QString ExerciseProtocol::buildProtocol118ViewRecord(
+    const QString &headerFragment,
+    const QString &storedBody) {
+    if (storedBody.trimmed().isEmpty()) {
+        return headerFragment;
+    }
+
+    // Как buildProtocol12ProtocolsTabRecord / 1.26: закрыть summary </table>, затем
+    // отдельный блок процесса — без склейки header+body (Qt иначе вкладывает <table>).
+    const QString canonical = canonicalizeProtocol118StoredBody(storedBody);
+    QStringList sessions = extractProtocol126SessionsByDate(canonical);
+    if (sessions.isEmpty()) {
+        sessions = QStringList{stripLeadingSummaryTableWrapper(canonical)};
+    }
+
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = ensureClosedProtocolSession(sessions.at(i));
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryRows = marker >= 0 ? session.left(marker) : session;
+        QString resultsBlock =
+            marker >= 0 ? session.mid(marker + QStringLiteral("<!--s-->").size()) : QString();
+
+        summaryRows = stripLeadingSummaryTableWrapper(summaryRows);
+        summaryRows.replace(
+            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
+            QString());
+        summaryRows.replace(
+            QRegularExpression(
+                QStringLiteral(
+                    "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*Процесс\\s+выполнения\\s+"
+                    "диагностической\\s+методики\\s*(?:</[^>]+>\\s*)*</td>\\s*</tr>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+            QString());
+        summaryRows = summaryRows.trimmed();
+        resultsBlock = resultsBlock.trimmed();
+
+        if (i == 0) {
+            if (!headerFragment.trimmed().isEmpty()) {
+                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment);
+            } else {
+                result += protocolSummaryTableOpenHtml();
+            }
+        } else {
+            result += protocolSummaryTableOpenHtml();
+        }
+        if (!summaryRows.isEmpty()) {
+            result += summaryRows;
+        }
+        result += QStringLiteral("</table>");
+        if (!resultsBlock.isEmpty()) {
+            if (!resultsBlock.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+                resultsBlock.prepend(
+                    QStringLiteral(
+                        "<table border='1' style='table-layout:fixed;width:671px' "
+                        "cellspacing='0' cellpadding='0' width='671'>"));
+            }
+            result += resultsBlock;
+            if (!resultsBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                result += QStringLiteral("</table>");
+            }
+        }
+    }
+    return ExerciseProtocol::normalizeSummaryColumnWidths(result);
 }
 
 QString ExerciseProtocol::buildProtocol126ViewRecord(
