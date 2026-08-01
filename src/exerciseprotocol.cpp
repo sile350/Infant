@@ -3079,13 +3079,31 @@ QString ExerciseProtocol::buildProtocol542ViewRecord(
         sessions = QStringList{stripLeadingSummaryTableWrapper(flat)};
     }
 
-    const QRegularExpression processRowRe(
-        QStringLiteral(
-            "<tr\\b[^>]*>\\s*(?:<td\\b[^>]*>\\s*)*[\\s\\S]*?Процесс\\s+выполнения[\\s\\S]*?</tr>"),
-        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
     const QString processBannerRow = QStringLiteral(
         "<tr><td align='center' colspan='2' width='671' style='width:671px'>"
         "Процесс выполнения диагностического задания</td></tr>");
+    auto removeProcessBannerRows = [](QString html) {
+        // Только строки, где текст «Процесс…» — не трогать Дата/Результат/Примечание
+        // (жадный [\s\S]*? от первого <tr> до «Процесс» сжирал всю шапку).
+        const QRegularExpression trRe(
+            QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(html.size());
+        int last = 0;
+        QRegularExpressionMatchIterator it = trRe.globalMatch(html);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += html.mid(last, m.capturedStart() - last);
+            const QString plain = htmlFragmentToPlainText(m.captured(2));
+            if (!plain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                out += m.captured(0);
+            }
+            last = m.capturedEnd();
+        }
+        out += html.mid(last);
+        return out;
+    };
 
     QString result;
     for (int i = 0; i < sessions.size(); ++i) {
@@ -3104,9 +3122,8 @@ QString ExerciseProtocol::buildProtocol542ViewRecord(
 
         // Баннер «Процесс…» всегда последняя строка 2-кол. шапки (как в шаблоне),
         // не первая строка 3-кол. таблицы Вопросы — иначе справа узкая пустая колонка.
-        summaryRows.remove(processRowRe);
-        resultsBlock.remove(processRowRe);
-        summaryRows = summaryRows.trimmed();
+        summaryRows = removeProcessBannerRows(summaryRows).trimmed();
+        resultsBlock = removeProcessBannerRows(resultsBlock).trimmed();
         if (!summaryRows.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
             summaryRows += processBannerRow;
         }
