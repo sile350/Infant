@@ -83,6 +83,9 @@ private:
     void ensureWords511Panel();
     void layoutWords511Panel();
     void setWords511TableEditable(bool editable);
+    void ensureDigitsPreviewRunner();
+    void connectSessionRunnerFinished();
+    void handleSessionRunnerFinished(const ExerciseSessionResult &result);
     void runExerciseSession();
     void runOnlyPExercise();
     void showResultLabels(const QList<bool> &answers, int elapsedSeconds);

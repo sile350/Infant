@@ -19,6 +19,8 @@ public:
         const ExerciseDefinition &definition,
         const QString &stepId) = 0;
     virtual void stopSession() = 0;
+    // Показать задание на правой панели до «Начать» (4.2.1 и т.п.).
+    virtual void prepareStaticPreview(const QString &exerciseId) { Q_UNUSED(exerciseId); }
     virtual void switchStep(const QString &stepId) { Q_UNUSED(stepId); }
     // Текущие данные сессии без завершения (для 1.26 / 5.2.1 при смене задания).
     virtual QString currentAdditionalSnapshot() const { return {}; }

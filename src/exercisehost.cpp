@@ -1173,10 +1173,17 @@ void ExerciseHost::updateChromeLayout() {
         }
         m_specialistExercise->raise();
     }
-    if (m_dualScreen && m_exerciseRunning && m_sessionRunner
+    if (m_sessionRunner && m_sessionRunnerKind == ExerciseRunnerKind::Digits
+        && m_rightPanel
+        && m_sessionRunner->parentWidget() == m_rightPanel) {
+        m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        m_sessionRunner->raise();
+        if (m_beginButton && !m_exerciseRunning) {
+            m_beginButton->raise();
+        }
+    } else if (m_dualScreen && m_exerciseRunning && m_sessionRunner
         && (m_sessionRunnerKind == ExerciseRunnerKind::E28
-            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2
-            || m_sessionRunnerKind == ExerciseRunnerKind::Digits)
+            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2)
         && m_rightPanel
         && m_sessionRunner->parentWidget() == m_rightPanel) {
         m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
@@ -1684,14 +1691,17 @@ void ExerciseHost::layoutWords511Panel() {
 }
 
 void ExerciseHost::updatePreviewLayout() {
-    if (m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")) {
+    if (m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
+        || m_exerciseId == QStringLiteral("4.2.1")) {
         if (m_previewImage) {
             m_previewImage->hide();
         }
         if (m_exerciseId == QStringLiteral("4.2.2")) {
             layoutWords422Panel();
-        } else {
+        } else if (m_exerciseId == QStringLiteral("5.1.1")) {
             layoutWords511Panel();
+        } else if (!m_exerciseRunning) {
+            ensureDigitsPreviewRunner();
         }
         if (m_timeResultLabel && m_timeResultLabel->isVisible() && m_rightPanel) {
             const int rightPanelLeft = kPanelX + kScrollWidth;
@@ -1924,6 +1934,16 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         ensureWords511Panel();
         setWords511TableEditable(false);
         layoutWords511Panel();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("4.2.1")) {
+        m_previewSource = QPixmap();
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        if (!m_exerciseRunning) {
+            ensureDigitsPreviewRunner();
+        }
         return;
     }
     m_previewSource = QPixmap();
@@ -2486,6 +2506,125 @@ void ExerciseHost::destroySessionRunner() {
     runner->deleteLater();
 }
 
+void ExerciseHost::ensureDigitsPreviewRunner() {
+    if (m_exerciseId != QStringLiteral("4.2.1") || !m_rightPanel || m_exerciseRunning) {
+        return;
+    }
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    if (!definition || definition->runner != ExerciseRunnerKind::Digits) {
+        return;
+    }
+    if (!m_sessionRunner || m_sessionRunnerKind != ExerciseRunnerKind::Digits) {
+        destroySessionRunner();
+        m_sessionRunner = createExerciseRunner(ExerciseRunnerKind::Digits, m_rightPanel);
+        m_sessionRunnerKind = ExerciseRunnerKind::Digits;
+        connectSessionRunnerFinished();
+    }
+    if (m_sessionRunner->parentWidget() != m_rightPanel) {
+        m_sessionRunner->setParent(m_rightPanel);
+    }
+    m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+    m_sessionRunner->setSessionOptions(buildSessionOptions());
+    m_sessionRunner->prepareStaticPreview(m_exerciseId);
+    if (m_beginButton) {
+        m_beginButton->raise();
+    }
+}
+
+void ExerciseHost::connectSessionRunnerFinished() {
+    if (!m_sessionRunner) {
+        return;
+    }
+    connect(m_sessionRunner, &ExerciseRunnerWidget::sessionFinished, this,
+        &ExerciseHost::handleSessionRunnerFinished, Qt::UniqueConnection);
+}
+
+void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &result) {
+    m_answers = result.answers;
+    m_elapsedSeconds = result.elapsedSeconds;
+    const QString step = currentStepId();
+    if (!step.isEmpty()) {
+        m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
+    }
+    m_sessionAdditional = result.additional;
+    if (m_exerciseId == QStringLiteral("4.2.2")) {
+        m_words422Editable = true;
+        updateWords422Panel(result.additional);
+        setWords422TableEditable(m_words422Table, true);
+    }
+    if (m_exerciseId == QStringLiteral("5.2.1")) {
+        const QString stepKey = currentStepId().trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : currentStepId().trimmed();
+        QString payload = result.additional.trimmed();
+        if (!payload.startsWith(stepKey + QLatin1Char(';'))) {
+            payload = stepKey + QLatin1Char(';') + payload;
+        }
+        m_additionalByStep.insert(stepKey, payload);
+        m_sessionAdditional = payload;
+        if (m_sessionRunner) {
+            const QMap<QString, QString> byStep = m_sessionRunner->stepAdditionalMap();
+            for (auto it = byStep.constBegin(); it != byStep.constEnd(); ++it) {
+                const QString sid = it.key().trimmed();
+                if (sid.isEmpty()) {
+                    continue;
+                }
+                QString val = it.value();
+                if (!val.startsWith(sid + QLatin1Char(';'))) {
+                    val = sid + QLatin1Char(';') + val;
+                }
+                m_additionalByStep.insert(sid, val);
+            }
+        }
+    }
+    if (m_exerciseId == QStringLiteral("1.26")) {
+        const QStringList parts = result.additional.split(QLatin1Char(';'));
+        const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : parts.at(0).trimmed();
+        m_additionalByStep.insert(stepKey, result.additional);
+    } else if (m_exerciseId == QStringLiteral("1.272")) {
+        const QString stepKey = currentStepId().trimmed().isEmpty()
+            ? QStringLiteral("1")
+            : currentStepId().trimmed();
+        m_additionalByStep.insert(stepKey, stepKey);
+    }
+    m_picturesShown = result.picturesShown;
+    m_capturedImagePath = result.capturedImagePath;
+    if (!result.capturedImagePath.isEmpty()) {
+        m_previewSource.load(result.capturedImagePath);
+        updatePreviewLayout();
+    }
+    m_exerciseDone = true;
+    m_protocolFormed = false;
+    m_exerciseRunning = false;
+    if (m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
+    }
+    restoreExerciseOverlay();
+    clearRootExerciseOverlays();
+    setExerciseChromeVisible(true);
+    raise();
+    if (m_exerciseId == QStringLiteral("4.2.1") && m_sessionRunner
+        && m_sessionRunnerKind == ExerciseRunnerKind::Digits) {
+        if (m_sessionRunner->parentWidget() != m_rightPanel && m_rightPanel) {
+            m_sessionRunner->setParent(m_rightPanel);
+        }
+        if (m_rightPanel) {
+            m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        }
+        m_sessionRunner->prepareStaticPreview(m_exerciseId);
+        if (m_beginButton) {
+            m_beginButton->raise();
+        }
+    } else {
+        destroySessionRunner();
+    }
+    updateChromeLayout();
+    showResultLabels(result.answers, result.elapsedSeconds);
+    emit exerciseOverlayChanged(false);
+}
+
 void ExerciseHost::clearRootExerciseOverlays() {
     QWidget *overlayRoot = parentWidget();
     if (!overlayRoot) {
@@ -2573,11 +2712,17 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
     if (!overlayWidget) {
         return;
     }
-    // 2.8 / 4.1.4 / 4.2.1 dual: runner живёт на правой панели специалиста.
+    // 2.8 / 4.1.4 dual: runner на правой панели. 4.2.1 — всегда на правой панели.
+    if (m_sessionRunner && m_exerciseRunning
+        && m_sessionRunnerKind == ExerciseRunnerKind::Digits
+        && m_rightPanel
+        && overlayWidget->parentWidget() == m_rightPanel) {
+        overlayWidget->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        return;
+    }
     if (m_dualScreen && m_sessionRunner && m_exerciseRunning
         && (m_sessionRunnerKind == ExerciseRunnerKind::E28
-            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2
-            || m_sessionRunnerKind == ExerciseRunnerKind::Digits)
+            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2)
         && m_rightPanel
         && overlayWidget->parentWidget() == m_rightPanel) {
         overlayWidget->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
@@ -2805,81 +2950,13 @@ void ExerciseHost::runExerciseSession() {
         destroySessionRunner();
         m_sessionRunner = createExerciseRunner(definition->runner, this);
         m_sessionRunnerKind = definition->runner;
-        connect(m_sessionRunner, &ExerciseRunnerWidget::sessionFinished, this,
-            [this](const ExerciseSessionResult &result) {
-                m_answers = result.answers;
-                m_elapsedSeconds = result.elapsedSeconds;
-                const QString step = currentStepId();
-                if (!step.isEmpty()) {
-                    m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
-                }
-                m_sessionAdditional = result.additional;
-                if (m_exerciseId == QStringLiteral("4.2.2")) {
-                    m_words422Editable = true;
-                    updateWords422Panel(result.additional);
-                    setWords422TableEditable(m_words422Table, true);
-                }
-                if (m_exerciseId == QStringLiteral("5.2.1")) {
-                    const QString stepKey = currentStepId().trimmed().isEmpty()
-                        ? QStringLiteral("1")
-                        : currentStepId().trimmed();
-                    QString payload = result.additional.trimmed();
-                    if (!payload.startsWith(stepKey + QLatin1Char(';'))) {
-                        payload = stepKey + QLatin1Char(';') + payload;
-                    }
-                    m_additionalByStep.insert(stepKey, payload);
-                    m_sessionAdditional = payload;
-                    // Все задания, по которым заполняли таблицу при смене №.
-                    if (m_sessionRunner) {
-                        const QMap<QString, QString> byStep = m_sessionRunner->stepAdditionalMap();
-                        for (auto it = byStep.constBegin(); it != byStep.constEnd(); ++it) {
-                            const QString sid = it.key().trimmed();
-                            if (sid.isEmpty()) {
-                                continue;
-                            }
-                            QString val = it.value();
-                            if (!val.startsWith(sid + QLatin1Char(';'))) {
-                                val = sid + QLatin1Char(';') + val;
-                            }
-                            m_additionalByStep.insert(sid, val);
-                        }
-                    }
-                }
-                if (m_exerciseId == QStringLiteral("1.26")) {
-                    const QStringList parts = result.additional.split(QLatin1Char(';'));
-                    const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()
-                        ? QStringLiteral("1")
-                        : parts.at(0).trimmed();
-                    m_additionalByStep.insert(stepKey, result.additional);
-                } else if (m_exerciseId == QStringLiteral("1.272")) {
-                    const QString stepKey = currentStepId().trimmed().isEmpty()
-                        ? QStringLiteral("1")
-                        : currentStepId().trimmed();
-                    m_additionalByStep.insert(stepKey, stepKey);
-                }
-                m_picturesShown = result.picturesShown;
-                m_capturedImagePath = result.capturedImagePath;
-                if (!result.capturedImagePath.isEmpty()) {
-                    m_previewSource.load(result.capturedImagePath);
-                    updatePreviewLayout();
-                }
-                m_exerciseDone = true;
-                m_protocolFormed = false;
-                m_exerciseRunning = false;
-                if (m_patientDisplay) {
-                    m_patientDisplay->hideDisplay();
-                }
-                restoreExerciseOverlay();
-                destroySessionRunner();
-                clearRootExerciseOverlays();
-                setExerciseChromeVisible(true);
-                raise();
-                updateChromeLayout();
-                showResultLabels(result.answers, result.elapsedSeconds);
-                emit exerciseOverlayChanged(false);
-            });
+        connectSessionRunnerFinished();
     } else if (m_sessionRunner->parent() != this || m_sessionRunner->isWindow()) {
-        reparentOverlayWidget(m_sessionRunner);
+        // Digits уже на правой панели из превью — не переносим на корень.
+        if (!(definition->runner == ExerciseRunnerKind::Digits
+              && m_sessionRunner->parentWidget() == m_rightPanel)) {
+            reparentOverlayWidget(m_sessionRunner);
+        }
     }
 
     setExerciseChromeVisible(false);
@@ -2895,12 +2972,14 @@ void ExerciseHost::runExerciseSession() {
         m_specialistExercise->hide();
     }
 
-    // 2.8 / 4.1.4 / 4.2.1 + два экрана: задание на правой половине первого экрана
-    // (описание слева остаётся). 4.2.1: тот же f1.png + галочки, без fullscreen-оверлея.
-    if ((definition->runner == ExerciseRunnerKind::E28
-         || definition->runner == ExerciseRunnerKind::Remember2
-         || definition->runner == ExerciseRunnerKind::Digits)
-        && m_dualScreen && m_rightPanel) {
+    // 2.8 / 4.1.4 dual и 4.2.1 всегда: задание на правой панели (виджет, не f1.png).
+    const bool digitsOnRight =
+        definition->runner == ExerciseRunnerKind::Digits && m_rightPanel;
+    const bool dualRunnerOnRight =
+        (definition->runner == ExerciseRunnerKind::E28
+         || definition->runner == ExerciseRunnerKind::Remember2)
+        && m_dualScreen && m_rightPanel;
+    if (digitsOnRight || dualRunnerOnRight) {
         if (m_previewImage) {
             m_previewImage->hide();
         }
