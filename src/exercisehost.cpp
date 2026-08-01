@@ -2058,8 +2058,9 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         && (m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("3.1.10")
             || labels.size() != 5);
+    const bool showPenaltyHint = m_exerciseId == QStringLiteral("3.1.10");
     if (m_helpPenaltyHintLabel) {
-        m_helpPenaltyHintLabel->setVisible(m_exerciseId == QStringLiteral("3.1.10"));
+        m_helpPenaltyHintLabel->setVisible(showPenaltyHint);
     }
     if (m_stimHelpLabel) {
         m_stimHelpLabel->setVisible(!flatCustom);
@@ -2084,8 +2085,14 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     };
 
     if (flatCustom) {
-        // Плоский список сразу после заголовка «Виды возможной помощи» (и подсказки 3.1.10).
-        int insertAt = (m_helpPenaltyHintLabel && m_helpPenaltyHintLabel->isVisible()) ? 2 : 1;
+        // Пункты сразу после заголовка; для 3.1.10 — после курсивной подсказки.
+        // Нельзя опираться на isVisible(): при сборке UI родители ещё скрыты.
+        int insertAt = 1;
+        if (showPenaltyHint && m_helpPenaltyHintLabel) {
+            m_helpChecksLayout->removeWidget(m_helpPenaltyHintLabel);
+            m_helpChecksLayout->insertWidget(1, m_helpPenaltyHintLabel);
+            insertAt = insertAfter(m_helpPenaltyHintLabel);
+        }
         for (const QString &text : labels) {
             m_helpChecks << makeCheckRow(text, m_helpChecksLayout, checkWidth);
             if (QWidget *row = m_helpChecks.last().label
