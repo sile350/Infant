@@ -14,6 +14,7 @@
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
+#include <QBrush>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -1841,33 +1842,53 @@ public:
         m_wordsLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
         m_wordsLabel->setWordWrap(true);
 
-        m_table = new QTableWidget(6, 1, this);
-        m_table->setHorizontalHeaderLabels({QStringLiteral("Кол-во правильно названных слов")});
-        m_table->verticalHeader()->setVisible(true);
-        m_table->verticalHeader()->setDefaultSectionSize(36);
-        m_table->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-        m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-        m_table->horizontalHeader()->setFixedHeight(40);
+        // Как table2.html: 2 колонки, без QHeaderView (чёрные заголовки).
+        m_table = new QTableWidget(7, 2, this);
+        m_table->horizontalHeader()->setVisible(false);
+        m_table->verticalHeader()->setVisible(false);
+        m_table->setShowGrid(true);
         m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        m_table->setShowGrid(true);
-        m_table->setEditTriggers(
-            QAbstractItemView::AllEditTriggers);
+        m_table->setEditTriggers(QAbstractItemView::AllEditTriggers);
         m_table->setStyleSheet(QStringLiteral(
-            "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
-            "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
-        for (int i = 0; i < 6; ++i) {
-            m_table->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
-            auto *item = new QTableWidgetItem;
+            "QTableWidget {"
+            "  background-color:#f0f0f0; color:#000000; gridline-color:#000000;"
+            "  border:1px solid #000000; outline:none;"
+            "}"
+            "QTableWidget::item {"
+            "  background-color:#f0f0f0; color:#000000;"
+            "  border:none; padding:2px;"
+            "}"
+            "QTableWidget::item:selected {"
+            "  background-color:#d0e8ff; color:#000000;"
+            "}"));
+        m_table->setColumnWidth(0, 76);
+        m_table->setColumnWidth(1, 284);
+        auto makeCell = [](const QString &text, bool bold = false) {
+            auto *item = new QTableWidgetItem(text);
             item->setTextAlignment(Qt::AlignCenter);
-            item->setFlags(item->flags() | Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-            m_table->setItem(i, 0, item);
+            item->setForeground(QBrush(Qt::black));
+            item->setBackground(QBrush(QColor(240, 240, 240)));
+            if (bold) {
+                QFont f = item->font();
+                f.setBold(true);
+                item->setFont(f);
+            }
+            item->setFlags(Qt::ItemIsEnabled);
+            return item;
+        };
+        m_table->setItem(0, 0, makeCell(QStringLiteral("№ попытки"), true));
+        m_table->setItem(0, 1, makeCell(QStringLiteral("Кол-во правильно названных слов"), true));
+        m_table->setRowHeight(0, 40);
+        for (int i = 0; i < 6; ++i) {
+            m_table->setItem(i + 1, 0, makeCell(QString::number(i + 1)));
+            auto *value = makeCell(QString());
+            value->setFlags(Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            m_table->setItem(i + 1, 1, value);
+            m_table->setRowHeight(i + 1, 36);
         }
-        // Высота строго по строкам (без пустого растягивания).
-        const int tableH = m_table->horizontalHeader()->height()
-            + m_table->verticalHeader()->defaultSectionSize() * 6
-            + 2 * m_table->frameWidth() + 2;
-        m_table->setFixedSize(360, tableH);
+        const int tableH = 40 + 36 * 6 + 2 * m_table->frameWidth() + 2;
+        m_table->setFixedSize(76 + 284 + 2 * m_table->frameWidth() + 2, tableH);
         connect(m_table, &QTableWidget::cellChanged, this, [this](int, int) { syncPatientWordsView(); });
 
         setFocusPolicy(Qt::StrongFocus);
@@ -1880,8 +1901,8 @@ public:
         m_timer->start();
         show();
         raise();
-        m_table->setCurrentCell(0, 0);
-        m_table->editItem(m_table->item(0, 0));
+        m_table->setCurrentCell(1, 1);
+        m_table->editItem(m_table->item(1, 1));
         syncPatientWordsView();
     }
 
@@ -1910,8 +1931,8 @@ public:
             return {};
         }
         QStringList parts;
-        for (int r = 0; r < m_table->rowCount(); ++r) {
-            const QTableWidgetItem *item = m_table->item(r, 0);
+        for (int r = 0; r < 6; ++r) {
+            const QTableWidgetItem *item = m_table->item(r + 1, 1);
             parts << (item ? item->text().trimmed() : QString());
         }
         // Как в оригинале: всегда 6 значений через ';' (включая хвостовой из results += ...+";").
@@ -1919,13 +1940,14 @@ public:
     }
 
     void layoutUi() override {
+        // Dual: слова и таблица на 100 px ниже (ТЗ 34.4); второго экрана нет.
+        const int yOff = m_sessionOptions.dualScreen ? 100 : 0;
         if (m_wordsLabel) {
-            m_wordsLabel->setGeometry(984, 122, 886, 48);
+            m_wordsLabel->setGeometry(984, 122 + yOff, 886, 48);
             m_wordsLabel->raise();
         }
         if (m_table) {
-            // Компактная таблица у правого края, как webBrowser1.
-            m_table->move(1306, 170);
+            m_table->move(1306, 170 + yOff);
             m_table->raise();
         }
         m_stop->move(970, 70);
@@ -1934,12 +1956,8 @@ public:
     }
 
     void bindPatientDisplay(PatientDisplay *display) override {
-        if (!display) {
-            return;
-        }
-        ensurePatientWordsView(display);
-        syncPatientWordsView();
-        display->attachContentWidget(m_patientRoot);
+        Q_UNUSED(display);
+        // 4.2.2: второго экрана нет даже в dual.
     }
 
 protected:
@@ -1952,83 +1970,13 @@ protected:
     }
 
 private:
-    void ensurePatientWordsView(PatientDisplay *display) {
-        if (!display) {
-            return;
-        }
-        if (!m_patientRoot) {
-            m_patientRoot = new QWidget(display);
-            m_patientRoot->setStyleSheet(QStringLiteral("background:#ffffff;"));
-            m_patientWordsLabel = new QLabel(m_patientRoot);
-            m_patientWordsLabel->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 14));
-            m_patientWordsLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
-            m_patientWordsLabel->setWordWrap(true);
-
-            m_patientTable = new QTableWidget(6, 1, m_patientRoot);
-            m_patientTable->setHorizontalHeaderLabels(
-                {QStringLiteral("Кол-во правильно названных слов")});
-            m_patientTable->verticalHeader()->setVisible(true);
-            m_patientTable->verticalHeader()->setDefaultSectionSize(36);
-            m_patientTable->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-            m_patientTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-            m_patientTable->horizontalHeader()->setFixedHeight(40);
-            m_patientTable->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-            m_patientTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-            m_patientTable->setShowGrid(true);
-            m_patientTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-            m_patientTable->setStyleSheet(QStringLiteral(
-                "QTableWidget { background:#f0f0f0; gridline-color:#000000; color:#000000; }"
-                "QHeaderView::section { background:#f0f0f0; color:#000000; padding:4px; }"));
-            for (int i = 0; i < 6; ++i) {
-                m_patientTable->setVerticalHeaderItem(i, new QTableWidgetItem(QString::number(i + 1)));
-                auto *item = new QTableWidgetItem;
-                item->setTextAlignment(Qt::AlignCenter);
-                item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-                m_patientTable->setItem(i, 0, item);
-            }
-            const int tableH = m_patientTable->horizontalHeader()->height()
-                + m_patientTable->verticalHeader()->defaultSectionSize() * 6
-                + 2 * m_patientTable->frameWidth() + 2;
-            m_patientTable->setFixedSize(360, tableH);
-        } else if (m_patientRoot->parentWidget() != display) {
-            m_patientRoot->setParent(display);
-        }
-        m_patientRoot->setGeometry(0, 0, 1920, 1080);
-        if (m_patientWordsLabel) {
-            m_patientWordsLabel->setGeometry(984, 122, 886, 48);
-        }
-        if (m_patientTable) {
-            m_patientTable->move(1306, 170);
-        }
-    }
-
     void syncPatientWordsView() {
-        if (!m_patientRoot) {
-            return;
-        }
-        if (m_patientWordsLabel && m_wordsLabel) {
-            m_patientWordsLabel->setText(m_wordsLabel->text());
-        }
-        if (m_patientTable && m_table) {
-            for (int r = 0; r < 6; ++r) {
-                const QTableWidgetItem *src = m_table->item(r, 0);
-                QTableWidgetItem *dst = m_patientTable->item(r, 0);
-                if (!dst) {
-                    dst = new QTableWidgetItem;
-                    dst->setTextAlignment(Qt::AlignCenter);
-                    dst->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-                    m_patientTable->setItem(r, 0, dst);
-                }
-                dst->setText(src ? src->text() : QString());
-            }
-        }
+        // Пациентский экран отключён для 4.2.2.
     }
 
     QLabel *m_wordsLabel = nullptr;
     QTableWidget *m_table = nullptr;
     QWidget *m_patientRoot = nullptr;
-    QLabel *m_patientWordsLabel = nullptr;
-    QTableWidget *m_patientTable = nullptr;
 };
 
 class HtmlTableRunner final : public TimedSessionRunner {
