@@ -4416,7 +4416,7 @@ void InfantWindow::refreshProtocolsView() {
             .arg(ExerciseAssets::protocolTableStyleHtml()));
         m_protocolsView->setHtml(emptyHtml);
         if (QTextDocument *doc = m_protocolsView->document()) {
-            doc->setDocumentMargin(0);
+            doc->setDocumentMargin(1);
             doc->setTextWidth(671);
             ExerciseProtocol::forceProtocolDocumentTableWidths(doc, 671);
         }
@@ -4425,7 +4425,7 @@ void InfantWindow::refreshProtocolsView() {
         const QString html = protocolsDocumentHtml(inner);
         m_protocolsView->setHtml(html);
         if (QTextDocument *doc = m_protocolsView->document()) {
-            doc->setDocumentMargin(0);
+            doc->setDocumentMargin(1);
             doc->setTextWidth(671);
             // Как на странице упражнения: убрать поля абзацев у ячеек шапки.
             QTextCursor cursor(doc);
