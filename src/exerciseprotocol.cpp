@@ -5710,21 +5710,27 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                 ? normalizeStepKey(stepMark.captured(1))
                 : normalizeStepKey(firstPlain);
             // Заголовок — только по первой ячейке / маркеру, не по тексту OR/HLP.
+            // 3-кол. без «№» (3.1.17/18): в col0 — текст характера; фильтр «Задание»
+            // иначе отбрасывал строку с чекбоксом «…выполнить задание» и правки
+            // с клавиатуры на «Протоколы» не сохранялись.
+            const bool activityInFirstCol = (activityCol == 0 && helpCol == 1);
             if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
                 || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
                 || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
                 || firstPlain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
                 || firstPlain.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0
                 || firstPlain.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
                 || (firstPlain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
                     && firstPlain.length() < 20)
-                || firstPlain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
-                || firstPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                || firstPlain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)
+                || (!activityInFirstCol
+                    && (firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
+                        || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                        || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                        || firstPlain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                        || firstPlain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
+                        || firstPlain.contains(
+                            QStringLiteral("Частота употребления"), Qt::CaseInsensitive)))) {
                 continue;
             }
             RowPos row;
