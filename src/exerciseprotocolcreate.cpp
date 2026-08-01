@@ -704,7 +704,7 @@ QString buildProtocol418(
     body += QStringLiteral(
         "<tr><td colspan='6' valign='top'><p>Итоговая оценка</p></td>"
         "<td align='center' valign='middle' width='56'>"
-        "<div id='idsum' contenteditable='true' style='text-align:center'></div></td></tr>"
+        "<div id='idsum' contenteditable='false' style='text-align:center'></div></td></tr>"
         "</table>");
 
     if (partly && !existingProtocolHtml.trimmed().isEmpty()) {

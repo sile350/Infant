@@ -1011,7 +1011,15 @@ bool Repository::updateProtocolsFromEditedDocument(
             }
         } else {
             // Маркеры id потеряны после QTextDocument — не пишем i-ю дату чужой методики.
-            continue;
+            // 4.1.8 при одном протоколе пациента: всё же сохранить «Примечание» из документа.
+            const QString uprid = m_local.queryScalar(
+                "SELECT uprid FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
+            if (uprid == QStringLiteral("4.1.8") && recordIdsInOrder.size() == 1) {
+                mergedBody = ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
+                    storedBody, document);
+            } else {
+                continue;
+            }
         }
         if (!updateProtocolBody(protocolId, mergedBody, errorText)) {
             return false;

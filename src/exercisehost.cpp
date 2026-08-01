@@ -3481,17 +3481,108 @@ void ExerciseHost::sumProtocol418() {
         || !m_templateBrowser) {
         return;
     }
-    // Сначала сохранить правки (re/rea/b/…), затем только сумма b1..b5 — как bsum в оригинале.
-    saveProtocolEdits();
+    // Как bsum: подтянуть b* из редактора и посчитать сумму.
+    // Не вызывать saveProtocolEdits() отдельно — двойной merge мог затирать «Примечание».
     commitTextEditChanges(m_templateBrowser, true);
+
+    auto plainFromIdnoteInner = [](QString inner) {
+        inner.remove(QRegularExpression(QStringLiteral("<[^>]+>")));
+        inner.replace(QStringLiteral("&nbsp;"), QStringLiteral(" "));
+        inner.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
+        inner.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
+        inner.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
+        inner.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
+        return inner.trimmed();
+    };
+    auto readNotePlainFromDoc = [](QTextDocument *doc) -> QString {
+        if (!doc) {
+            return {};
+        }
+        QString note;
+        std::function<void(QTextFrame *)> walk;
+        walk = [&](QTextFrame *frame) {
+            if (!frame) {
+                return;
+            }
+            if (auto *table = qobject_cast<QTextTable *>(frame)) {
+                for (int r = 0; r < table->rows(); ++r) {
+                    if (table->columns() < 2) {
+                        continue;
+                    }
+                    QTextCursor c0 = table->cellAt(r, 0).firstCursorPosition();
+                    c0.setPosition(table->cellAt(r, 0).lastCursorPosition().position(),
+                                   QTextCursor::KeepAnchor);
+                    QString first = c0.selectedText();
+                    first.replace(QChar(0x2029), QLatin1Char(' '));
+                    first.replace(QChar::ParagraphSeparator, QLatin1Char(' '));
+                    first = first.trimmed();
+                    if (!first.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive)) {
+                        continue;
+                    }
+                    QTextCursor c1 = table->cellAt(r, 1).firstCursorPosition();
+                    c1.setPosition(table->cellAt(r, 1).lastCursorPosition().position(),
+                                   QTextCursor::KeepAnchor);
+                    QString second = c1.selectedText();
+                    second.replace(QChar(0x2029), QLatin1Char('\n'));
+                    second.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+                    second = second.trimmed();
+                    if (second.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)
+                        || second.contains(QStringLiteral("Выбранная"), Qt::CaseInsensitive)) {
+                        continue;
+                    }
+                    note = second;
+                }
+            }
+            for (QTextFrame::iterator it = frame->begin(); !it.atEnd(); ++it) {
+                if (QTextFrame *child = it.currentFrame()) {
+                    walk(child);
+                }
+            }
+        };
+        walk(doc->rootFrame());
+        return note;
+    };
+
+    const QString editorNotePlain = readNotePlainFromDoc(m_templateBrowser->document());
+
     QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    // Ещё раз подтянуть правки редактора (без joinClosed), затем сумма уже введённых b*.
+
+    const QRegularExpression idnoteRe(
+        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]idnote['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString preservedNotePlain = editorNotePlain;
+    if (preservedNotePlain.isEmpty()) {
+        QRegularExpressionMatchIterator it = idnoteRe.globalMatch(storedBody);
+        QRegularExpressionMatch last;
+        while (it.hasNext()) {
+            last = it.next();
+        }
+        if (last.hasMatch()) {
+            preservedNotePlain = plainFromIdnoteInner(last.captured(2));
+        }
+    }
+
     storedBody = ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
         storedBody, m_templateBrowser->document());
     storedBody = ExerciseProtocol::applyProtocolBPrefixSum(storedBody);
+
+    // После sum всегда вернуть «Примечание» из редактора (или БД), если оно было.
+    if (!preservedNotePlain.isEmpty()) {
+        QRegularExpressionMatchIterator it = idnoteRe.globalMatch(storedBody);
+        QRegularExpressionMatch last;
+        while (it.hasNext()) {
+            last = it.next();
+        }
+        if (last.hasMatch()) {
+            storedBody.replace(
+                last.capturedStart(0),
+                last.capturedLength(0),
+                last.captured(1) + preservedNotePlain.toHtmlEscaped() + last.captured(3));
+        }
+    }
 
     QString error;
     if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
@@ -3504,7 +3595,6 @@ void ExerciseHost::sumProtocol418() {
     }
     m_suppressProtocolAutosave = true;
 
-    // Только последний сформированный блок (как на вкладке упражнения до «Подвести итог»).
     const QString viewHtml = m_repository->loadProtocolViewHtml(
         m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
     m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));

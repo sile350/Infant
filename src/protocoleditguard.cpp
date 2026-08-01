@@ -228,10 +228,14 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         }
     }
     if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {
+        // 4.1.8: ячейка idsum в строке «Итоговая оценка» — не редактировать.
+        if (firstCell.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
+            return false;
+        }
         return !lockBalls;
     }
-    if (firstCell.contains(QStringLiteral("Итоговая оценка"), Qt::CaseInsensitive)) {
-        // 4.1.8 / 1.272: заполняется «Подвести итог», курсор запрещён.
+    if (firstCell.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
+        // Подпись и итоговые баллы заполняются «Подвести итог».
         return false;
     }
     if (firstCell.contains(QStringLiteral("Индекс успешности"), Qt::CaseInsensitive) && col >= 1) {
