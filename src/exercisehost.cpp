@@ -1067,6 +1067,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                 reloadPreviewForCurrentStep();
             }
         }
+        // 3.1.12: одно задание (листание картинок) — после Begin протокол с нуля, без дописки.
+        if (m_exerciseId == QStringLiteral("3.1.12")) {
+            m_partly = false;
+            m_forceNewProtocolSession = false;
+        }
         resetProtocolToInitialTemplate();
         runExerciseSession();
     });
@@ -1759,7 +1764,8 @@ void ExerciseHost::updatePreviewLayout() {
             extraY = -120;
         } else if (m_exerciseId == QStringLiteral("2.10")
                    || m_exerciseId == QStringLiteral("3.1.2")
-                   || m_exerciseId == QStringLiteral("3.1.10")) {
+                   || m_exerciseId == QStringLiteral("3.1.10")
+                   || m_exerciseId == QStringLiteral("3.1.12")) {
             // Как 1.1: строго по центру правой панели (оба задания).
             extraX = 0;
             extraY = 0;
@@ -1789,7 +1795,6 @@ void ExerciseHost::updatePreviewLayout() {
         } else if (m_exerciseId == QStringLiteral("2.8")
                    || m_exerciseId == QStringLiteral("2.9")
                    || m_exerciseId == QStringLiteral("3.1.11")
-                   || m_exerciseId == QStringLiteral("3.1.12")
                    || m_exerciseId == QStringLiteral("3.1.17")
                    || m_exerciseId == QStringLiteral("3.1.18")
                    || m_exerciseId == QStringLiteral("3.2.1")
@@ -1806,8 +1811,7 @@ void ExerciseHost::updatePreviewLayout() {
                        || m_exerciseId == QStringLiteral("3.2.2")
                        || m_exerciseId == QStringLiteral("3.2.4")
                        || m_exerciseId == QStringLiteral("3.2.5")
-                       || m_exerciseId == QStringLiteral("3.1.11")
-                       || m_exerciseId == QStringLiteral("3.1.12")) {
+                       || m_exerciseId == QStringLiteral("3.1.11")) {
                 extraX = 80;
             }
         } else if (m_exerciseId == QStringLiteral("3.1.1")) {
@@ -1841,7 +1845,8 @@ void ExerciseHost::updatePreviewLayout() {
         if (m_exerciseId == QStringLiteral("2.10")
             || m_exerciseId == QStringLiteral("3.1.1")
             || m_exerciseId == QStringLiteral("3.1.2")
-            || m_exerciseId == QStringLiteral("3.1.10")) {
+            || m_exerciseId == QStringLiteral("3.1.10")
+            || m_exerciseId == QStringLiteral("3.1.12")) {
             // Как 1.1 Specialist: строго геометрический центр панели.
             localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
             localY = qMax(kPictureMargin, (panelH - display.height()) / 2);
@@ -3945,7 +3950,8 @@ void ExerciseHost::formProtocol() {
             m_forceNewProtocolSession = false;
         }
     } else if (m_forceNewProtocolSession && saveAsPartly) {
-        // После Begin (3.1.11/12/17/18): новый блок со строки «Дата/специалист».
+        // После Begin (3.1.11/17/18): новый блок со строки «Дата/специалист».
+        // 3.1.12 сюда не попадает: Begin сбрасывает partly и формирует протокол с нуля.
         const QString newSession = ExerciseProtocol::createProtocolHtml(
             m_exerciseId,
             m_specialistFio,

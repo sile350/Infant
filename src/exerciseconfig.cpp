@@ -42,6 +42,14 @@ OnlyPictureSettings sequence(int count, bool answerButtons = false) {
     return settings;
 }
 
+OnlyPictureSettings numberedPictures(int count, const QString &pattern = QStringLiteral("%1.png")) {
+    // Картинки 1..N без combo заданий (листание Вперёд/Назад в раннере).
+    OnlyPictureSettings settings;
+    settings.pictureCount = count;
+    settings.imagePattern = pattern;
+    return settings;
+}
+
 OnlyPictureSettings autoAdvanceSequence(int count) {
     OnlyPictureSettings settings = sequence(count, false);
     settings.autoAdvancePictures = true;
@@ -159,9 +167,7 @@ const ExerciseDefinition kDefinitions[] = {
     def(QStringLiteral("3.1.11"), ExerciseRunnerKind::OnlyPicture, ExerciseProtocolKind::OrHlpBallsRow,
         single(QStringLiteral("10.png")), false, kYes),
     def(QStringLiteral("3.1.12"), ExerciseRunnerKind::OnlyPicture, ExerciseProtocolKind::DoneTimeOrHlp,
-        steps({QStringLiteral("1"), QStringLiteral("2"), QStringLiteral("3"), QStringLiteral("4"),
-               QStringLiteral("5")}, QStringLiteral("%1.png")),
-        false, kYes),
+        numberedPictures(5), false, kYes),
     def(QStringLiteral("3.1.15"), ExerciseRunnerKind::Puzzles, ExerciseProtocolKind::OrHlpBallsRow,
         steps({QStringLiteral("1"), QStringLiteral("2"), QStringLiteral("3"), QStringLiteral("4")}),
         false, kNo),
@@ -251,7 +257,7 @@ QString ExerciseConfig::unsupportedMessage(const QString &exerciseId) {
 
 bool ExerciseConfig::usesAppendOnlyMultiStepLogic(const QString &exerciseId) {
     // Упражнения из spravka с предупреждением «Только после формирования протокола…»
-    // и несколькими заданиями (+ 3.1.12 по той же схеме выполнения).
+    // и несколькими заданиями (combo № до Start).
     static const QStringList kIds = {
         QStringLiteral("1.7"),   QStringLiteral("1.11"),  QStringLiteral("1.14"),
         QStringLiteral("1.15"),  QStringLiteral("1.17"),  QStringLiteral("1.18"),
@@ -260,7 +266,7 @@ bool ExerciseConfig::usesAppendOnlyMultiStepLogic(const QString &exerciseId) {
         QStringLiteral("1.27"),  QStringLiteral("1.272"), QStringLiteral("1.28"),
         QStringLiteral("2.1"),   QStringLiteral("2.10"),  QStringLiteral("2.11"),
         QStringLiteral("2.12"),  QStringLiteral("3.1.2"), QStringLiteral("3.1.8"),
-        QStringLiteral("3.1.10"),QStringLiteral("3.1.12"),QStringLiteral("3.1.16"),
+        QStringLiteral("3.1.10"),QStringLiteral("3.1.16"),
         QStringLiteral("3.1.20"),QStringLiteral("3.1.21"),QStringLiteral("3.1.24"),
         QStringLiteral("3.2.1"), QStringLiteral("3.2.3"), QStringLiteral("3.2.11"),
         QStringLiteral("5.2.1"), QStringLiteral("5.3.1"),

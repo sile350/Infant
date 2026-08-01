@@ -1799,6 +1799,10 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 QRegularExpression(
                     QStringLiteral(">\\s*№\\s*<"),
                     QRegularExpression::CaseInsensitiveOption));
+            // 3.1.12 и др.: Факт + Характер + Виды помощи — 141+265+265 = 671.
+            const bool orHlpFact = !numbered
+                && inner.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                && inner.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive);
 
             inner.remove(QRegularExpression(
                 QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
@@ -1806,6 +1810,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             if (numbered) {
                 inner.prepend(QStringLiteral(
                     "<colgroup><col width='40'><col width='125'><col width='253'><col width='253'></colgroup>"));
+            } else if (orHlpFact) {
+                inner.prepend(QStringLiteral(
+                    "<colgroup><col width='141'><col width='265'><col width='265'></colgroup>"));
             } else {
                 inner.prepend(QStringLiteral(
                     "<colgroup><col width='125'><col width='273'><col width='273'></colgroup>"));
@@ -1834,6 +1841,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     if (numbered) {
                         widths << QStringLiteral("40") << QStringLiteral("125")
                                << QStringLiteral("253") << QStringLiteral("253");
+                    } else if (orHlpFact) {
+                        widths << QStringLiteral("141") << QStringLiteral("265")
+                               << QStringLiteral("265");
                     } else {
                         widths << QStringLiteral("125") << QStringLiteral("273")
                                << QStringLiteral("273");
@@ -2946,6 +2956,15 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                         QTextLength(QTextLength::FixedLength, 300),
                         QTextLength(QTextLength::FixedLength, 300),
                         QTextLength(QTextLength::FixedLength, 71),
+                    });
+                } else if (cols == 3
+                           && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
+                    // 3.1.12: 141+265+265 = 671
+                    fmt.setColumnWidthConstraints({
+                        QTextLength(QTextLength::FixedLength, 141),
+                        QTextLength(QTextLength::FixedLength, 265),
+                        QTextLength(QTextLength::FixedLength, 265),
                     });
                 } else if (cols == 6
                            && (headerJoin.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
