@@ -658,9 +658,9 @@ QString buildProtocol418(
         "<td width='471' valign='top'><div contenteditable='true' id='idnote'></div></td></tr>");
     body += QStringLiteral("</table><!--s-->");
     body += QStringLiteral(
-        "<p align='center'><b>Процесс выполнения диагностической методики</b></p>");
-    body += QStringLiteral(
         "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr><td colspan='2' align='center' valign='top' width='671'>"
+        "Процесс выполнения диагностической методики</td></tr>"
         "<tr><td width='200' valign='top'><p>Характер деятельности ребенка</p></td>"
         "<td width='471' valign='top'><div contenteditable='true' id='cidd'>%1</div></td></tr>"
         "</table>")
@@ -691,16 +691,20 @@ QString buildProtocol418(
                     .arg(QString::fromUtf8(kWords[r]));
         for (int c = 0; c < 6; ++c) {
             const QString id = QString::fromUtf8(kPrefixes[c]) + QString::number(r + 1);
-            const QString align = (c == 5) ? QStringLiteral(" align='center'") : QString();
+            const QString align = (c == 5)
+                ? QStringLiteral(" align='center' valign='middle'")
+                : QStringLiteral(" valign='top'");
+            const QString style = (c == 5) ? QStringLiteral(" style='text-align:center'") : QString();
             body += QStringLiteral(
-                        "<td%1 valign='top'><div id='%2' contenteditable='true'>%3</div></td>")
-                        .arg(align, id, cells.at(c).toHtmlEscaped());
+                        "<td%1><div id='%2' contenteditable='true'%3>%4</div></td>")
+                        .arg(align, id, style, cells.at(c).toHtmlEscaped());
         }
         body += QStringLiteral("</tr>");
     }
     body += QStringLiteral(
         "<tr><td colspan='6' valign='top'><p>Итоговая оценка</p></td>"
-        "<td align='center' width='56' valign='top'><div id='idsum' contenteditable='true'></div></td></tr>"
+        "<td align='center' valign='middle' width='56'>"
+        "<div id='idsum' contenteditable='true' style='text-align:center'></div></td></tr>"
         "</table>");
 
     if (partly && !existingProtocolHtml.trimmed().isEmpty()) {

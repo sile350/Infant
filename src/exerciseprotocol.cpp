@@ -772,6 +772,8 @@ ParsedProtocolFields parseProtocolFieldsFromDocument(QTextDocument *document, in
                 if (fields.noteText.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)
                     || fields.noteText.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
                     fields.noteText.clear();
+                    // Не считаем «пустым примечанием» — иначе merge затрёт реальный текст.
+                    fields.hasNote = false;
                 }
                 continue;
             }
@@ -2527,6 +2529,19 @@ QString canonicalizeProtocol418Session(QString session) {
         && !session.contains(QRegularExpression(
                QStringLiteral("Примечание[\\s\\S]{0,400}<table"),
                QRegularExpression::CaseInsensitiveOption))) {
+        // 32.1: «Процесс выполнения» вне таблицы → без боковых границ; завернуть в table.
+        const QRegularExpression processParaRe(
+            QStringLiteral(
+                "<p\\b[^>]*>\\s*(?:<b>)?\\s*Процесс выполнения диагностической методики\\s*(?:</b>)?\\s*</p>"),
+            QRegularExpression::CaseInsensitiveOption);
+        if (processParaRe.match(session).hasMatch()) {
+            session.replace(
+                processParaRe,
+                QStringLiteral(
+                    "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+                    "<tr><td colspan='2' align='center' valign='top' width='671'>"
+                    "Процесс выполнения диагностической методики</td></tr></table>"));
+        }
         // Убедимся, что стимульная таблица закрыта.
         if (!session.contains(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             session += QStringLiteral("</table>");
@@ -2570,9 +2585,9 @@ QString canonicalizeProtocol418Session(QString session) {
                 .arg(noteText.toHtmlEscaped());
     body += QStringLiteral("</table><!--s-->");
     body += QStringLiteral(
-        "<p align='center'><b>Процесс выполнения диагностической методики</b></p>");
-    body += QStringLiteral(
         "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+        "<tr><td colspan='2' align='center' valign='top' width='671'>"
+        "Процесс выполнения диагностической методики</td></tr>"
         "<tr><td width='200' valign='top'><p>Характер деятельности ребенка</p></td>"
         "<td width='471' valign='top'><div contenteditable='true' id='cidd'>%1</div></td></tr>"
         "</table>")
@@ -2595,16 +2610,20 @@ QString canonicalizeProtocol418Session(QString session) {
         for (int c = 0; c < 6; ++c) {
             const QString id = QString::fromUtf8(kPrefixes[c]) + QString::number(r + 1);
             const QString val = extractDivInnerById(session, id);
-            const QString align = (c == 5) ? QStringLiteral(" align='center'") : QString();
+            const QString align = (c == 5)
+                ? QStringLiteral(" align='center' valign='middle'")
+                : QStringLiteral(" valign='top'");
+            const QString style = (c == 5) ? QStringLiteral(" style='text-align:center'") : QString();
             body += QStringLiteral(
-                        "<td%1 valign='top'><div id='%2' contenteditable='true'>%3</div></td>")
-                        .arg(align, id, val);
+                        "<td%1><div id='%2' contenteditable='true'%3>%4</div></td>")
+                        .arg(align, id, style, val);
         }
         body += QStringLiteral("</tr>");
     }
     body += QStringLiteral(
         "<tr><td colspan='6' valign='top'><p>Итоговая оценка</p></td>"
-        "<td align='center' width='56' valign='top'><div id='idsum' contenteditable='true'>%1</div></td></tr>"
+        "<td align='center' valign='middle' width='56'>"
+        "<div id='idsum' contenteditable='true' style='text-align:center'>%1</div></td></tr>"
         "</table>")
                 .arg(idsum);
     return body;
@@ -3863,12 +3882,24 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
                 chunk = replaceResultRowSecondCell(chunk, parsed.resultText);
             }
         }
-        QString notePlain = parsed.hasNote ? parsed.noteText : QString();
-        const QString idnoteInner = extractDivInnerById(editorHtml, QStringLiteral("idnote"));
-        if (!idnoteInner.isEmpty()) {
-            notePlain = htmlFragmentToPlainText(idnoteInner);
+        // Примечание: предпочитаем idnote; иначе текст из таблицы.
+        // Не затираем сохранённое пустым значением, если idnote в редакторе потерян
+        // (после «Подвести итог» / Qt toHtml) — 32.3 / 32.4.
+        QString notePlain;
+        bool haveReliableNote = false;
+        const bool editorHasIdnote =
+            editorHtml.contains(QStringLiteral("id='idnote'"), Qt::CaseInsensitive)
+            || editorHtml.contains(QStringLiteral("id=\"idnote\""), Qt::CaseInsensitive)
+            || editorHtml.contains(QStringLiteral("id=idnote"), Qt::CaseInsensitive);
+        if (editorHasIdnote) {
+            notePlain = htmlFragmentToPlainText(
+                extractDivInnerById(editorHtml, QStringLiteral("idnote")));
+            haveReliableNote = true;
+        } else if (parsed.hasNote) {
+            notePlain = parsed.noteText;
+            haveReliableNote = true;
         }
-        if (parsed.hasNote || !idnoteInner.isEmpty()) {
+        if (haveReliableNote) {
             const QRegularExpression noteRowRe(
                 QStringLiteral(
                     "(<tr[^>]*>\\s*<td[^>]*>\\s*Примечание\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
@@ -3898,10 +3929,11 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
         }
     }
 
-    // Характер / дата / результат — по id (последняя сессия). Пустые значения не затирают.
+    // Характер / дата / результат / примечание — по id (последняя сессия).
     body = replace418DivFromEditor(body, editorHtml, QStringLiteral("cidd"), true);
     body = replace418DivFromEditor(body, editorHtml, QStringLiteral("idspc"), true);
     body = replace418DivFromEditor(body, editorHtml, QStringLiteral("idvivod"), true);
+    body = replace418DivFromEditor(body, editorHtml, QStringLiteral("idnote"), true);
 
     // Таблица стимулов: читаем ячейки из QTextTable (id часто теряются в toHtml).
     static const char *kWords[] = {"Школа", "Обед", "Утро", "Красота", "Прогулка"};

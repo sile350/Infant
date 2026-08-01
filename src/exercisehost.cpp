@@ -1174,7 +1174,9 @@ void ExerciseHost::updateChromeLayout() {
         m_specialistExercise->raise();
     }
     if (m_dualScreen && m_exerciseRunning && m_sessionRunner
-        && m_sessionRunnerKind == ExerciseRunnerKind::E28 && m_rightPanel
+        && (m_sessionRunnerKind == ExerciseRunnerKind::E28
+            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2)
+        && m_rightPanel
         && m_sessionRunner->parentWidget() == m_rightPanel) {
         m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
         m_sessionRunner->raise();
@@ -2570,9 +2572,11 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
     if (!overlayWidget) {
         return;
     }
-    // 2.8 dual: runner живёт на правой панели специалиста.
+    // 2.8 / 4.1.4 dual: runner живёт на правой панели специалиста.
     if (m_dualScreen && m_sessionRunner && m_exerciseRunning
-        && m_sessionRunnerKind == ExerciseRunnerKind::E28 && m_rightPanel
+        && (m_sessionRunnerKind == ExerciseRunnerKind::E28
+            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2)
+        && m_rightPanel
         && overlayWidget->parentWidget() == m_rightPanel) {
         overlayWidget->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
         return;
@@ -2889,9 +2893,11 @@ void ExerciseHost::runExerciseSession() {
         m_specialistExercise->hide();
     }
 
-    // 2.8 + два экрана: картинки и «Показать/скрыть» на правой половине первого экрана
+    // 2.8 / 4.1.4 + два экрана: картинки и «Показать/скрыть» на правой половине первого экрана
     // (описание слева остаётся), зеркало — на втором.
-    if (definition->runner == ExerciseRunnerKind::E28 && m_dualScreen && m_rightPanel) {
+    if ((definition->runner == ExerciseRunnerKind::E28
+         || definition->runner == ExerciseRunnerKind::Remember2)
+        && m_dualScreen && m_rightPanel) {
         if (m_previewImage) {
             m_previewImage->hide();
         }
@@ -3660,6 +3666,7 @@ bool ExerciseHost::isCursorInProtocolBallsColumn() const {
 void ExerciseHost::onProtocolCursorMoved() {
     const bool syncBalls = m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18")
+        || m_exerciseId == QStringLiteral("4.1.4")
         || m_exerciseId == QStringLiteral("4.2.1")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1");
@@ -3677,6 +3684,7 @@ void ExerciseHost::onProtocolCursorMoved() {
 void ExerciseHost::syncProtocol317BallsToResult() {
     const bool syncBalls = m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18")
+        || m_exerciseId == QStringLiteral("4.1.4")
         || m_exerciseId == QStringLiteral("4.2.1")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1");

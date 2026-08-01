@@ -682,6 +682,10 @@ protected:
 class Remember2Runner final : public TimedSessionRunner {
 public:
     explicit Remember2Runner(QWidget *parent = nullptr) : TimedSessionRunner(parent) {
+        // Как 2.8: непрозрачный белый фон на правой панели (dual) и на оверлее.
+        setAttribute(Qt::WA_StyledBackground, true);
+        setAutoFillBackground(true);
+        setStyleSheet(QStringLiteral("background-color:#ffffff;"));
         // Секундомер во время выполнения (remember2: ltime @ 1380,13) — только на 1-м экране.
         m_liveTimer = new QLabel(this);
         markPatientControl(m_liveTimer);
@@ -713,10 +717,12 @@ public:
         // Виджеты один раз — иначе при повторном Start остаются «старые» А/Б (29.4).
         if (!m_showA) {
             m_showA = new ClickableLabel(this);
+            m_showA->setCursor(Qt::PointingHandCursor);
             markPatientControl(m_showA);
         }
         if (!m_showB) {
             m_showB = new ClickableLabel(this);
+            m_showB->setCursor(Qt::PointingHandCursor);
             markPatientControl(m_showB);
         }
         // Карточки А/Б видны пациенту (не markPatientControl) — иначе зеркало закрашивает их белым.
@@ -832,19 +838,85 @@ public:
         m_liveTimer->adjustSize();
     }
 
+    void layoutRemember2Compact() {
+        // Dual / узкая панель: картинки и «Показать/скрыть» на правой половине.
+        constexpr int kMargin = 12;
+        constexpr int kGap = 16;
+        constexpr int kBtnTop = 12;
+        constexpr int kGroupDown = 100; // 29.3: сдвиг картинок+кнопок вниз.
+        const int btnH = m_showA ? m_showA->height() : 34;
+        const int contentTop = 56 + kGroupDown;
+        const int availW = qMax(80, width() - 2 * kMargin);
+        const int availH = qMax(80, height() - contentTop - btnH - 8 - kMargin);
+        const int halfW = qMax(40, (availW - kGap) / 2);
+
+        if (m_stop) {
+            m_stop->move(kMargin, kBtnTop);
+            m_stop->show();
+            m_stop->raise();
+        }
+        if (m_liveTimer) {
+            const int timerX = m_stop ? (m_stop->x() + m_stop->width() + 24) : (kMargin + 150);
+            m_liveTimer->move(timerX, kBtnTop);
+            m_liveTimer->show();
+            m_liveTimer->raise();
+        }
+
+        auto placeColumn = [&](QLabel *card, ClickableLabel *btn, bool visible,
+                               const QPixmap &src, int colX) {
+            QPixmap disp;
+            if (!src.isNull()) {
+                disp = pixmapNativeOrDownscale(src, halfW, availH);
+            }
+            const int picH = disp.isNull() ? 0 : disp.height();
+            const int picW = disp.isNull() ? 0 : disp.width();
+            const int colCenterX = colX + halfW / 2;
+            if (btn) {
+                btn->move(colCenterX - btn->width() / 2, contentTop);
+                btn->show();
+                btn->raise();
+            }
+            if (card) {
+                if (visible && !disp.isNull()) {
+                    card->setPixmap(disp);
+                    card->setFixedSize(disp.size());
+                    card->move(colCenterX - picW / 2, contentTop + btnH + 8);
+                    card->show();
+                    card->raise();
+                } else {
+                    card->hide();
+                }
+            }
+            Q_UNUSED(picH);
+        };
+
+        placeColumn(m_cardA, m_showA, m_cardAVisible, m_pixmapA, kMargin);
+        placeColumn(m_cardB, m_showB, m_cardBVisible, m_pixmapB, kMargin + halfW + kGap);
+        if (m_stop) {
+            m_stop->raise();
+        }
+        if (m_showA) {
+            m_showA->raise();
+        }
+        if (m_showB) {
+            m_showB->raise();
+        }
+    }
+
     void layoutRemember2() {
+        // Dual / узкая панель — как 2.8: компактная раскладка на правой половине.
+        if (m_sessionOptions.dualScreen || width() < 1400) {
+            layoutRemember2Compact();
+            return;
+        }
         // remember2.Designer: stop 970@70, кнопки 1120/1380@120, карточки 708/1284@174, ltime 1380@13.
-        // 29.2 / 29.5: всю группу чуть ниже и левее → центр экрана H/V.
         const qreal sx = width() / 1920.0;
         const qreal sy = height() / 1080.0;
-        const int cardAW = m_cardA ? m_cardA->width() : 538;
         const int cardAH = m_cardA ? m_cardA->height() : 637;
         const int cardBW = m_cardB ? m_cardB->width() : 530;
         const int cardBH = m_cardB ? m_cardB->height() : 638;
         const int btnW = m_showA ? m_showA->width() : 104;
         const int btnH = m_showA ? m_showA->height() : 34;
-        const int stopW = m_stop ? m_stop->width() : 134;
-        const int stopH = m_stop ? m_stop->height() : 29;
 
         constexpr int kDesignLeft = 708;
         constexpr int kDesignTop = 13;
@@ -854,10 +926,10 @@ public:
         const int groupH = qMax(1, designBottom - kDesignTop);
         const int designCX = kDesignLeft + groupW / 2;
         const int designCY = kDesignTop + groupH / 2;
-        // Чуть левее и ниже чистого центра; поднять всю группу на 200px.
+        // Чуть левее центра; 29.4: опустить картинки+кнопки на ~100px (было kShiftUp=200).
         constexpr int kNudgeLeft = 40;
         constexpr int kNudgeDown = 40;
-        constexpr int kShiftUp = 200;
+        constexpr int kShiftUp = 100;
         const int offsetX = width() / 2 - qRound(designCX * sx) - kNudgeLeft;
         const int offsetY = height() / 2 - qRound(designCY * sy) + kNudgeDown - kShiftUp;
 
@@ -881,11 +953,19 @@ public:
             m_showB->raise();
         }
         if (m_cardA && m_cardAVisible) {
+            if (!m_pixmapA.isNull()) {
+                m_cardA->setPixmap(m_pixmapA);
+                m_cardA->setFixedSize(m_pixmapA.size());
+            }
             m_cardA->move(place(708, 174));
             m_cardA->show();
             m_cardA->raise();
         }
         if (m_cardB && m_cardBVisible) {
+            if (!m_pixmapB.isNull()) {
+                m_cardB->setPixmap(m_pixmapB);
+                m_cardB->setFixedSize(m_pixmapB.size());
+            }
             m_cardB->move(place(1284, 174));
             m_cardB->show();
             m_cardB->raise();
@@ -895,8 +975,6 @@ public:
             m_liveTimer->show();
             m_liveTimer->raise();
         }
-        Q_UNUSED(stopW);
-        Q_UNUSED(stopH);
         Q_UNUSED(btnH);
     }
 

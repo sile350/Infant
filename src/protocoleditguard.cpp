@@ -230,8 +230,9 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
     if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {
         return !lockBalls;
     }
-    if (firstCell.contains(QStringLiteral("Итоговая оценка"), Qt::CaseInsensitive) && col >= 1) {
-        return true;
+    if (firstCell.contains(QStringLiteral("Итоговая оценка"), Qt::CaseInsensitive)) {
+        // 4.1.8 / 1.272: заполняется «Подвести итог», курсор запрещён.
+        return false;
     }
     if (firstCell.contains(QStringLiteral("Индекс успешности"), Qt::CaseInsensitive) && col >= 1) {
         return true;
