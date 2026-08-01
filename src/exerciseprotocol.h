@@ -70,8 +70,8 @@ public:
     static QString canonicalizeProtocol126StoredBody(const QString &protocolBody);
     // 4.1.8: summary </table><!--s--> + характер + таблица стимульных слов (без вложения в Примечание).
     static QString canonicalizeProtocol418StoredBody(const QString &protocolBody);
-    // 1.18: «Процесс выполнения…» — последняя строка шапки до </table><!--s--> (как в createP),
-    // иначе Qt вкладывает таблицу процесса в последнюю ячейку шапки.
+    // 1.18: «Процесс выполнения…» — отдельная таблица после </table><!--s--> (как 1.17),
+    // не строка шапки: иначе ширина тянется от 4-колоночного процесса.
     static QString canonicalizeProtocol118StoredBody(const QString &protocolBody);
     static QString buildProtocol126ViewRecord(
         const QString &headerFragment,

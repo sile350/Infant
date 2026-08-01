@@ -2692,10 +2692,9 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
         return {};
     }
 
-    // Как в оригинальном createP("1.18"): заголовок «Процесс выполнения…» —
-    // последняя строка summary (colspan=2) перед </table><!--s-->.
-    // Если он оказался первой строкой таблицы процесса — Qt при склейке с header.html
-    // вкладывает весь процесс в последнюю ячейку шапки («Цель»).
+    // Как у 1.17 и прочих numbered: шапка (Дата/Результат/Примечание) закрывается,
+    // «Процесс выполнения…» — первая строка ОТДЕЛЬНОЙ таблицы процесса (width 671, 4 кол.).
+    // Не держать заголовок в summary (colspan=2) — Qt раздувает ширину шапки.
     auto fixSession = [](QString session) {
         session = stripLeadingSummaryTableWrapper(session.trimmed());
         if (session.isEmpty()) {
@@ -2714,33 +2713,39 @@ QString ExerciseProtocol::canonicalizeProtocol118StoredBody(const QString &proto
             QString());
         summary = summary.trimmed();
 
-        const QRegularExpression processTitleInSummary(
+        const QRegularExpression processTitleRow(
             QStringLiteral(
-                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*Процесс\\s+выполнения\\s+диагностической\\s+методики"
-                "\\s*</td>\\s*</tr>"),
+                "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*Процесс\\s+выполнения\\s+диагностической\\s+методики"
+                "\\s*(?:</[^>]+>\\s*)*</td>\\s*</tr>\\s*"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        const bool titleAlreadyInSummary = processTitleInSummary.match(summary).hasMatch();
 
-        const QRegularExpression processTitleInProcess(
-            QStringLiteral(
-                "<tr\\b[^>]*>\\s*<td\\b[^>]*colspan\\s*=\\s*['\"]?\\d+['\"]?[^>]*>\\s*"
-                "Процесс\\s+выполнения\\s+диагностической\\s+методики\\s*</td>\\s*</tr>\\s*"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-        const QRegularExpressionMatch titleInProcess = processTitleInProcess.match(process);
-        if (titleInProcess.hasMatch()) {
-            process.remove(titleInProcess.capturedStart(), titleInProcess.capturedLength());
-            if (!titleAlreadyInSummary) {
-                summary += QStringLiteral(
-                    "<tr><td align='center' colspan='2'>"
-                    "Процесс выполнения диагностической методики</td></tr>");
-            }
-        } else if (!titleAlreadyInSummary) {
-            summary += QStringLiteral(
-                "<tr><td align='center' colspan='2'>"
+        // Убрать заголовок из шапки, если он там (прошлый вариант / оригинал createP).
+        summary.replace(processTitleRow, QString());
+        summary = summary.trimmed();
+
+        const bool titleInProcess = processTitleRow.match(process).hasMatch();
+        if (!titleInProcess) {
+            // Вставить заголовок в начало таблицы процесса.
+            const QRegularExpression tableOpenRe(
+                QStringLiteral("(<table\\b[^>]*>)"),
+                QRegularExpression::CaseInsensitiveOption);
+            const QRegularExpressionMatch openMatch = tableOpenRe.match(process);
+            const QString titleRow = QStringLiteral(
+                "<tr><td colspan='4' align='center'>"
                 "Процесс выполнения диагностической методики</td></tr>");
+            if (openMatch.hasMatch()) {
+                process.insert(openMatch.capturedEnd(), titleRow);
+            } else {
+                process.prepend(
+                    QStringLiteral(
+                        "<table border='1' style='table-layout:fixed;width:671px' "
+                        "cellspacing='0' cellpadding='0' width='671'>")
+                    + titleRow);
+            }
         }
 
-        return ensureClosedProtocolSession(summary + QStringLiteral("</table><!--s-->") + process);
+        return ensureClosedProtocolSession(
+            summary + QStringLiteral("</table><!--s-->") + process);
     };
 
     QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
