@@ -4169,6 +4169,13 @@ void ExerciseHost::formProtocol() {
         };
 
         if (continueTask2) {
+            // Баллы задания 1 могли остаться только в редакторе (без «Подвести итог»).
+            // Перед допиской задания 2 переносим их в HTML, не считая суммы.
+            if (m_templateBrowser) {
+                commitTextEditChanges(m_templateBrowser, true);
+                existingBody = ExerciseProtocol::applyProtocol126SumFromDocument(
+                    existingBody, m_templateBrowser->document(), false);
+            }
             protocolBody = ExerciseProtocol::createProtocolHtml(
                 m_exerciseId,
                 m_specialistFio,

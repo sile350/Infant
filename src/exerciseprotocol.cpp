@@ -5072,7 +5072,14 @@ QString ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
         if (!idProbe.match(editorHtml).hasMatch()) {
             return;
         }
-        const QString plain = extractDivInnerById(editorHtml, id);
+        // extractDivInnerById уже возвращает plain text.
+        const QString plain = extractDivInnerById(editorHtml, id).trimmed();
+        // Не затирать введённые баллы/ответы пустым чтением из редактора:
+        // без «Подвести итог» Qt часто отдаёт пустой div, а цифра ещё в ячейке
+        // или только в stored HTML — иначе при формировании задания 2 баллы №1 пропадают.
+        if (plain.isEmpty()) {
+            return;
+        }
         body = replaceDivInnerById(body, id, plain.toHtmlEscaped());
     };
 
