@@ -428,8 +428,7 @@ void finalizeProtocolTemplateDocument(QTextDocument *doc) {
     applyCompactLineHeight(doc);
     ExerciseProtocol::forceProtocolDocumentTableWidths(doc, kTemplateTableWidth);
     if (doc) {
-        // 1px: иначе нижняя граница последней строки процесса может обрезаться.
-        doc->setDocumentMargin(1);
+        doc->setDocumentMargin(0);
         doc->setTextWidth(kTemplateTableWidth);
     }
 }
@@ -1769,11 +1768,7 @@ void ExerciseHost::updatePreviewLayout() {
                    || m_exerciseId == QStringLiteral("3.1.12")
                    || m_exerciseId == QStringLiteral("3.1.18")
                    || m_exerciseId == QStringLiteral("3.2.1")
-                   || m_exerciseId == QStringLiteral("3.2.2")
-                   || m_exerciseId == QStringLiteral("3.2.5")
-                   || m_exerciseId == QStringLiteral("3.2.11")
-                   || (m_exerciseId == QStringLiteral("3.2.3")
-                       && currentStepId() == QStringLiteral("2"))) {
+                   || m_exerciseId == QStringLiteral("3.2.2")) {
             // Как 1.1: строго по центру правой панели.
             extraX = 0;
             extraY = 0;
@@ -1794,17 +1789,25 @@ void ExerciseHost::updatePreviewLayout() {
             // 36.14 / 37.10 / 38.2: чуть ниже и правее → центр правой половины.
             extraX = 80;
             extraY = 40;
+        } else if (m_exerciseId == QStringLiteral("3.2.11")) {
+            // 26.4: задания 1 и 3 — ниже к центру правой половины по вертикали.
+            const QString step = currentStepId();
+            if (step == QStringLiteral("1") || step == QStringLiteral("3") || step.isEmpty()) {
+                extraY = 40;
+            }
         } else if (m_exerciseId == QStringLiteral("2.8")
                    || m_exerciseId == QStringLiteral("2.9")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.17")
-                   || m_exerciseId == QStringLiteral("3.2.4")) {
+                   || m_exerciseId == QStringLiteral("3.2.4")
+                   || m_exerciseId == QStringLiteral("3.2.5")) {
             // До старта: по центру правой половины по вертикали.
             extraY = 40;
             if (m_exerciseId == QStringLiteral("3.1.17")) {
                 // Чуть левее относительно базового specialist-сдвига.
                 extraX = -25;
             } else if (m_exerciseId == QStringLiteral("3.2.4")
+                       || m_exerciseId == QStringLiteral("3.2.5")
                        || m_exerciseId == QStringLiteral("3.1.11")) {
                 extraX = 80;
             }
@@ -1843,11 +1846,7 @@ void ExerciseHost::updatePreviewLayout() {
             || m_exerciseId == QStringLiteral("3.1.12")
             || m_exerciseId == QStringLiteral("3.1.18")
             || m_exerciseId == QStringLiteral("3.2.1")
-            || m_exerciseId == QStringLiteral("3.2.2")
-            || m_exerciseId == QStringLiteral("3.2.5")
-            || m_exerciseId == QStringLiteral("3.2.11")
-            || (m_exerciseId == QStringLiteral("3.2.3")
-                && currentStepId() == QStringLiteral("2"))) {
+            || m_exerciseId == QStringLiteral("3.2.2")) {
             // Как 1.1 Specialist: строго геометрический центр панели.
             localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
             localY = qMax(kPictureMargin, (panelH - display.height()) / 2);

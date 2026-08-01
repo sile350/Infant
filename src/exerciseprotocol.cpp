@@ -2871,12 +2871,12 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         fmt.setBorder(1);
         fmt.setBorderBrush(QBrush(Qt::black));
         fmt.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
-        // Без collapse: у короткой последней строки (только «Выполнение»)
-        // нижняя граница «Факт выполнения/время» часто пропадает в QTextEdit.
-        fmt.setCellPadding(2);
+        // 1px padding: иначе у короткой последней строки (только «Выполнение»)
+        // нижняя граница ячейки «Факт выполнения/время» часто пропадает в QTextEdit.
+        fmt.setCellPadding(1);
         fmt.setCellSpacing(0);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-        fmt.setBorderCollapse(false);
+        fmt.setBorderCollapse(true);
 #endif
         const int cols = table->columns();
         if (cols == 2) {
@@ -2990,16 +2990,6 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         }
         table->setFormat(fmt);
 
-        QString headerJoin;
-        if (table->rows() > 0) {
-            for (int hc = 0; hc < cols; ++hc) {
-                headerJoin += readTableCellText(table, 0, hc) + QLatin1Char(' ');
-            }
-        }
-        const bool ballsTable = cols >= 3
-            && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
-            && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive);
-
         // Явные границы ячеек: при 1 строке процесса (только факт выполнения / пустые OR·HLP)
         // QTextEdit с border-collapse часто не рисует нижнюю линию у первой колонки.
         for (int r = 0; r < table->rows(); ++r) {
@@ -3024,29 +3014,6 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                 cellFmt.setBottomBorderBrush(QBrush(Qt::black));
                 cellFmt.setLeftBorderBrush(QBrush(Qt::black));
                 cellFmt.setRightBorderBrush(QBrush(Qt::black));
-                // Запас снизу у последней строки — иначе 1px линии срезается clip'ом.
-                if (r == table->rows() - 1) {
-                    cellFmt.setBottomPadding(qMax(2.0, cellFmt.bottomPadding()));
-                }
-                // Колонка «Баллы»: цифры по центру (4.1.2 и др.).
-                if (ballsTable && r > 0 && c == cols - 1) {
-                    cellFmt.setVerticalAlignment(QTextCharFormat::AlignMiddle);
-                    cell.setFormat(cellFmt);
-                    QTextCursor cur = cell.firstCursorPosition();
-                    const int endPos = cell.lastCursorPosition().position();
-                    while (cur.position() <= endPos) {
-                        QTextBlockFormat bf = cur.blockFormat();
-                        bf.setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-                        cur.setBlockFormat(bf);
-                        if (!cur.movePosition(QTextCursor::NextBlock)) {
-                            break;
-                        }
-                        if (cur.position() > endPos) {
-                            break;
-                        }
-                    }
-                    continue;
-                }
                 cell.setFormat(cellFmt);
             }
         }
