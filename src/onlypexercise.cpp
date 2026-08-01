@@ -389,7 +389,9 @@ void OnlyPExercise::updateWidgetLayout() {
         int extraX = 0;
         int extraY = 0;
         if (m_exerciseId == QStringLiteral("1.1")
-            || m_exerciseId == QStringLiteral("1.25")) {
+            || m_exerciseId == QStringLiteral("1.25")
+            || m_exerciseId == QStringLiteral("2.10")
+            || m_exerciseId == QStringLiteral("3.1.2")) {
             // Центр картинки = центр экрана (один экран и dual).
             extraX = 0;
             extraY = 0;
@@ -413,26 +415,22 @@ void OnlyPExercise::updateWidgetLayout() {
             } else if (m_displayRole == DisplayRole::Primary) {
                 extraX = 80;
             }
-        } else if (m_exerciseId == QStringLiteral("2.10")) {
-            // 13.5/13.6: по центру по вертикали; один экран — ещё чуть правее.
+        } else if (m_exerciseId == QStringLiteral("3.1.1")) {
+            // Один экран: центр как в 1.1. Dual patient: чуть вверх/правее (как было).
             if (m_displayRole == DisplayRole::Primary) {
-                extraX = 80;
-                extraY = 40;
+                extraX = 0;
+                extraY = 0;
+            } else if (m_displayRole == DisplayRole::Patient) {
+                extraX = 50;
+                extraY = -50;
             } else {
                 extraY = 40;
             }
-        } else if (m_exerciseId == QStringLiteral("3.1.1")
-                   || m_exerciseId == QStringLiteral("3.1.2")
-                   || m_exerciseId == QStringLiteral("3.1.10")
+        } else if (m_exerciseId == QStringLiteral("3.1.10")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.12")) {
             // По центру экрана; один экран — чуть правее.
-            // 3.1.1 экран пациента: вверх на 50 и правее на 50.
-            if (m_displayRole == DisplayRole::Patient
-                && m_exerciseId == QStringLiteral("3.1.1")) {
-                extraX = 50;
-                extraY = -50;
-            } else if (m_displayRole == DisplayRole::Primary) {
+            if (m_displayRole == DisplayRole::Primary) {
                 extraX = 80;
                 extraY = 40;
             } else {
@@ -580,9 +578,11 @@ void OnlyPExercise::updateWidgetLayout() {
             int pictureY = qMax(
                 pictureMargin,
                 (height() - display.height()) / 2 + kPatientPictureShiftDown + extraY);
-            // 1.1 / 1.25 / 1.18(№3): строго по центру второго экрана.
+            // 1.1 / 1.25 / 2.10 / 3.1.2 / 1.18(№3): строго по центру второго экрана.
             if (m_exerciseId == QStringLiteral("1.1")
                 || m_exerciseId == QStringLiteral("1.25")
+                || m_exerciseId == QStringLiteral("2.10")
+                || m_exerciseId == QStringLiteral("3.1.2")
                 || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3"))) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
                 pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
@@ -604,9 +604,11 @@ void OnlyPExercise::updateWidgetLayout() {
                 pictureX = qMax(pictureMargin, pictureX);
             }
             int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
-            // 1.1 / 1.25 / 1.18(№3 dual specialist): строго по центру панели.
+            // 1.1 / 1.25 / 2.10 / 3.1.2 / 1.18(№3 dual specialist): строго по центру панели.
             if ((m_exerciseId == QStringLiteral("1.1")
                  || m_exerciseId == QStringLiteral("1.25")
+                 || m_exerciseId == QStringLiteral("2.10")
+                 || m_exerciseId == QStringLiteral("3.1.2")
                  || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3")))
                 && !fairySplitLayout) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
@@ -627,16 +629,16 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 1.1 / 1.25 / 1.18(№3): строго по центру экрана (без сдвига и без clamp contentTop).
+            // 1.1 / 1.25 / 2.10 / 3.1.1 / 3.1.2 / 1.18(№3): строго по центру экрана.
             if (m_exerciseId == QStringLiteral("1.1")
                 || m_exerciseId == QStringLiteral("1.25")
+                || m_exerciseId == QStringLiteral("2.10")
+                || m_exerciseId == QStringLiteral("3.1.1")
+                || m_exerciseId == QStringLiteral("3.1.2")
                 || (m_exerciseId == QStringLiteral("1.18") && m_stepId == QStringLiteral("3"))) {
                 pictureX = qMax(pictureMargin, (width() - display.width()) / 2);
                 pictureY = qMax(pictureMargin, (height() - display.height()) / 2);
-            } else if (m_exerciseId == QStringLiteral("2.10")
-                || m_exerciseId == QStringLiteral("3.1.1")
-                || m_exerciseId == QStringLiteral("3.1.2")
-                || m_exerciseId == QStringLiteral("3.1.10")
+            } else if (m_exerciseId == QStringLiteral("3.1.10")
                 || m_exerciseId == QStringLiteral("3.1.11")
                 || m_exerciseId == QStringLiteral("3.1.12")
                 || m_exerciseId == QStringLiteral("3.2.1")
@@ -648,7 +650,7 @@ void OnlyPExercise::updateWidgetLayout() {
                 || m_exerciseId == QStringLiteral("4.1.2")
                 || (m_exerciseId == QStringLiteral("3.2.11")
                     && m_stepId == QStringLiteral("2"))) {
-                // 2.10 / 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
+                // 3.1.x / 3.2.x / 4.1.1 один экран: по центру экрана по вертикали.
                 pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
             }
             if (fairySplitLayout) {

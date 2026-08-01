@@ -114,7 +114,8 @@ QString formatProtocolCellText(const QString &text) {
     for (const QString &part : parts) {
         const QString trimmed = part.trimmed();
         if (!trimmed.isEmpty()) {
-            lines << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+            // Без ведущих &nbsp;: иначе правки на «Протоколы» в заполненных ячейках не сохраняются.
+            lines << trimmed.toHtmlEscaped();
         }
     }
     return lines.isEmpty() ? QStringLiteral("&nbsp;") : lines.join(QStringLiteral("<br>"));
@@ -262,7 +263,8 @@ QString buildOrHlpInitial(
     body += QStringLiteral("<tr><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.help));
     if (withBallsColumn) {
-        body += QStringLiteral("</td><td align='center'>") + editableCell();
+        body += QStringLiteral("</td><td align='center' valign='middle'>")
+            + editableCell(QString(), true);
     }
     body += QStringLiteral("</td></tr></table>");
     return body;
@@ -275,7 +277,8 @@ QString appendOrHlpRow(
     QString row = QStringLiteral("<tr><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.activity))
         + QStringLiteral("</td><td valign='top'>") + editableCell(formatProtocolCellText(checkboxes.help));
     if (withBallsColumn) {
-        row += QStringLiteral("</td><td align='center'>") + editableCell();
+        row += QStringLiteral("</td><td align='center' valign='middle'>")
+            + editableCell(QString(), true);
     }
     row += QStringLiteral("</td></tr>");
     return ExerciseProtocol::appendRowsToStoredBody(existing, row);
@@ -392,14 +395,17 @@ QString createExerciseProtocolBodyFallback(
     case ExerciseProtocolKind::OrHlpRow: {
         const QString header = QStringLiteral(
             "<table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'>"
+            "<colgroup><col width='300'><col width='300'><col width='71'></colgroup>"
             "<tr><td width='300' align='center'>Характер деятельности ребенка</td>"
             "<td width='300' align='center'>Виды помощи</td>"
-            "<td width='69' align='center'>Баллы</td></tr>");
+            "<td width='71' align='center'>Баллы</td></tr>");
+        // 3.1.1 «Нелепицы»: колонка «Баллы» обязательна (как в оригинале).
+        const bool withBalls = definition.id == QStringLiteral("3.1.1");
         if (partly) {
             return ExerciseProtocol::appendFullSessionToStoredBody(
-                base, buildOrHlpInitial(userFio, header, checkboxes, false));
+                base, buildOrHlpInitial(userFio, header, checkboxes, withBalls));
         }
-        return buildOrHlpInitial(userFio, header, checkboxes, false);
+        return buildOrHlpInitial(userFio, header, checkboxes, withBalls);
     }
     case ExerciseProtocolKind::OrHlpBallsRow: {
         const QString header = QStringLiteral(

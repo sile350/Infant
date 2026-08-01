@@ -22,6 +22,8 @@ struct ExerciseSessionOptions {
     int rotateCW = 0;
     // 1.26: префикс портретов до старта («d» / «m») из превью мальчик/девочка.
     QString genderPrefix;
+    // Dual: для 2.8 — компактная раскладка на правой половине первого экрана.
+    bool dualScreen = false;
 };
 
 #endif

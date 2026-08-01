@@ -1088,7 +1088,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             m_stepElapsedSeconds.clear();
         }
         resetExerciseOverlays();
+        clearRootExerciseOverlays();
         setExerciseChromeVisible(true);
+        raise();
         updateChromeLayout();
         showResultLabels(answers, elapsedSeconds);
         emit exerciseOverlayChanged(false);
@@ -1155,6 +1157,12 @@ void ExerciseHost::updateChromeLayout() {
             m_specialistExercise->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
         }
         m_specialistExercise->raise();
+    }
+    if (m_dualScreen && m_exerciseRunning && m_sessionRunner
+        && m_sessionRunnerKind == ExerciseRunnerKind::E28 && m_rightPanel
+        && m_sessionRunner->parentWidget() == m_rightPanel) {
+        m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        m_sessionRunner->raise();
     }
     if (m_beginButton) {
         m_beginButton->setGeometry(976, 12, 158, 33);
@@ -1342,9 +1350,7 @@ void ExerciseHost::openExercise(
     if (m_timeResultLabel) {
         m_timeResultLabel->hide();
     }
-    resetExerciseOverlays();
-    m_exerciseRunning = false;
-    setExerciseChromeVisible(true);
+    shutdownSessionUi();
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.box) {
@@ -1741,6 +1747,11 @@ void ExerciseHost::updatePreviewLayout() {
             extraY = -10; // было +40; поднять на 50px (как Specialist при dual)
         } else if (m_exerciseId == QStringLiteral("1.25")) {
             extraY = -120;
+        } else if (m_exerciseId == QStringLiteral("2.10")
+                   || m_exerciseId == QStringLiteral("3.1.2")) {
+            // Как 1.1: строго по центру правой панели (оба задания).
+            extraX = 0;
+            extraY = 0;
         } else if (m_exerciseId == QStringLiteral("4.1.1")) {
             // 27.2: чуть ниже и левее → центр правой половины.
             extraX = -25;
@@ -1766,9 +1777,6 @@ void ExerciseHost::updatePreviewLayout() {
             }
         } else if (m_exerciseId == QStringLiteral("2.8")
                    || m_exerciseId == QStringLiteral("2.9")
-                   || m_exerciseId == QStringLiteral("2.10")
-                   || m_exerciseId == QStringLiteral("3.1.1")
-                   || m_exerciseId == QStringLiteral("3.1.2")
                    || m_exerciseId == QStringLiteral("3.1.10")
                    || m_exerciseId == QStringLiteral("3.1.11")
                    || m_exerciseId == QStringLiteral("3.1.12")
@@ -1788,12 +1796,14 @@ void ExerciseHost::updatePreviewLayout() {
                        || m_exerciseId == QStringLiteral("3.2.2")
                        || m_exerciseId == QStringLiteral("3.2.4")
                        || m_exerciseId == QStringLiteral("3.2.5")
-                       || m_exerciseId == QStringLiteral("3.1.1")
-                       || m_exerciseId == QStringLiteral("3.1.2")
                        || m_exerciseId == QStringLiteral("3.1.11")
                        || m_exerciseId == QStringLiteral("3.1.12")) {
                 extraX = 80;
             }
+        } else if (m_exerciseId == QStringLiteral("3.1.1")) {
+            // Как 1.1: строго по центру правой панели.
+            extraX = 0;
+            extraY = 0;
         }
 
         int contentTop = kButtonMargin;
@@ -1818,13 +1828,21 @@ void ExerciseHost::updatePreviewLayout() {
                 availableW, availableH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
 
-        localX = kPictureMargin + qMax(0, (panelW - display.width()) / 2) - kSpecialistPictureShiftLeft
-            + extraX;
-        if (localX + display.width() > panelW - kPictureMargin) {
-            localX = qMax(kPictureMargin, panelW - kPictureMargin - display.width());
+        if (m_exerciseId == QStringLiteral("2.10")
+            || m_exerciseId == QStringLiteral("3.1.1")
+            || m_exerciseId == QStringLiteral("3.1.2")) {
+            // Как 1.1 Specialist: строго геометрический центр панели.
+            localX = qMax(kPictureMargin, (panelW - display.width()) / 2);
+            localY = qMax(kPictureMargin, (panelH - display.height()) / 2);
+        } else {
+            localX = kPictureMargin + qMax(0, (panelW - display.width()) / 2) - kSpecialistPictureShiftLeft
+                + extraX;
+            if (localX + display.width() > panelW - kPictureMargin) {
+                localX = qMax(kPictureMargin, panelW - kPictureMargin - display.width());
+            }
+            localX = qMax(kPictureMargin, localX);
+            localY = qMax(contentTop, (panelH - display.height()) / 2 + extraY);
         }
-        localX = qMax(kPictureMargin, localX);
-        localY = qMax(contentTop, (panelH - display.height()) / 2 + extraY);
 
         if (m_previewGenderPanel) {
             if (showGender) {
@@ -2426,35 +2444,95 @@ void ExerciseHost::reparentOverlayWidget(QWidget *overlayWidget) {
     overlayWidget->setGeometry(0, 0, width(), height());
 }
 
+void ExerciseHost::destroySessionRunner() {
+    if (!m_sessionRunner) {
+        m_sessionRunnerKind = ExerciseRunnerKind::NotImplemented;
+        return;
+    }
+    ExerciseRunnerWidget *runner = m_sessionRunner;
+    m_sessionRunner = nullptr;
+    m_sessionRunnerKind = ExerciseRunnerKind::NotImplemented;
+    runner->hide();
+    runner->setWindowFlags(Qt::Widget);
+    if (runner->parentWidget() && runner->parentWidget() != this) {
+        runner->setParent(this);
+    }
+    // deleteLater: безопасно из слота sessionFinished самого runner'а.
+    runner->deleteLater();
+}
+
+void ExerciseHost::clearRootExerciseOverlays() {
+    QWidget *overlayRoot = parentWidget();
+    if (!overlayRoot) {
+        return;
+    }
+    const QObjectList children = overlayRoot->children();
+    for (QObject *child : children) {
+        auto *widget = qobject_cast<QWidget *>(child);
+        if (!widget || widget == this) {
+            continue;
+        }
+        if (widget->objectName() != QLatin1String("dokitExerciseOverlay")) {
+            continue;
+        }
+        widget->hide();
+        if (widget == m_sessionRunner || widget == m_onlyP) {
+            widget->setParent(this);
+            continue;
+        }
+        // Потерянный оверлей после смены методики / аварийного выхода.
+        widget->setParent(nullptr);
+        widget->deleteLater();
+    }
+}
+
+void ExerciseHost::shutdownSessionUi() {
+    m_exerciseRunning = false;
+    if (m_patientDisplay) {
+        m_patientDisplay->hideDisplay();
+    }
+    // Не вызываем stopSession(): из openExercise/close это повторно шлёт sessionFinished
+    // и портит состояние уже выбранной новой методики.
+    if (m_sessionRunner) {
+        m_sessionRunner->hide();
+    }
+    if (m_onlyP) {
+        m_onlyP->hide();
+    }
+    clearRootExerciseOverlays();
+    resetExerciseOverlays();
+    destroySessionRunner();
+    if (m_onlyP) {
+        m_onlyP->setDisplayRole(OnlyPExercise::DisplayRole::Primary);
+        reparentOverlayWidget(m_onlyP);
+        m_onlyP->hide();
+    }
+    if (m_specialistExercise) {
+        m_specialistExercise->hide();
+    }
+    setExerciseChromeVisible(true);
+    raise();
+    emit exerciseOverlayChanged(false);
+}
+
 void ExerciseHost::presentOverlayWidget(QWidget *overlayWidget) {
     if (!overlayWidget) {
         return;
     }
     m_exerciseRunning = true;
+    overlayWidget->setObjectName(QStringLiteral("dokitExerciseOverlay"));
 
-    // Один экран: оверлей внутри главного окна (не отдельный fullscreen —
+    // Оверлей внутри главного окна (не отдельный fullscreen —
     // иначе на том же мониторе остаётся пустое окно Infant).
-    if (!m_dualScreen) {
-        QWidget *overlayRoot = parentWidget();
-        if (!overlayRoot) {
-            overlayRoot = this;
-        }
-        if (overlayWidget->isWindow() || overlayWidget->parentWidget() != overlayRoot) {
-            overlayWidget->hide();
-            overlayWidget->setWindowFlags(Qt::Widget);
-            overlayWidget->setParent(overlayRoot);
-        }
-        overlayWidget->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
-        overlayWidget->show();
-        overlayWidget->raise();
-        return;
-    }
-
     QWidget *overlayRoot = parentWidget();
     if (!overlayRoot) {
-        return;
+        overlayRoot = this;
     }
-    overlayWidget->setParent(overlayRoot);
+    overlayWidget->hide();
+    overlayWidget->setWindowFlags(Qt::Widget);
+    if (overlayWidget->parentWidget() != overlayRoot) {
+        overlayWidget->setParent(overlayRoot);
+    }
     overlayWidget->setGeometry(0, 0, overlayRoot->width(), overlayRoot->height());
     overlayWidget->show();
     overlayWidget->raise();
@@ -2470,6 +2548,13 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
     if (!overlayWidget) {
         return;
     }
+    // 2.8 dual: runner живёт на правой панели специалиста.
+    if (m_dualScreen && m_sessionRunner && m_exerciseRunning
+        && m_sessionRunnerKind == ExerciseRunnerKind::E28 && m_rightPanel
+        && overlayWidget->parentWidget() == m_rightPanel) {
+        overlayWidget->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        return;
+    }
     QWidget *overlayRoot = overlayWidget->parentWidget();
     if (!overlayRoot) {
         return;
@@ -2482,7 +2567,11 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
 
 void ExerciseHost::showExerciseOverlay() {
     QWidget *overlayWidget = nullptr;
-    if (m_sessionRunner && (m_exerciseRunning || m_sessionRunner->isVisible())) {
+    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    // OnlyPicture никогда не должен поднимать «залипший» session-runner (напр. после 2.8).
+    if (definition && definition->runner == ExerciseRunnerKind::OnlyPicture && m_onlyP) {
+        overlayWidget = m_onlyP;
+    } else if (m_sessionRunner && (m_exerciseRunning || m_sessionRunner->isVisible())) {
         overlayWidget = m_sessionRunner;
     } else if (m_onlyP) {
         overlayWidget = m_onlyP;
@@ -2685,8 +2774,7 @@ void ExerciseHost::runExerciseSession() {
     emit exerciseOverlayChanged(true);
 
     if (!m_sessionRunner || m_sessionRunnerKind != definition->runner) {
-        delete m_sessionRunner;
-        m_sessionRunner = nullptr;
+        destroySessionRunner();
         m_sessionRunner = createExerciseRunner(definition->runner, this);
         m_sessionRunnerKind = definition->runner;
         connect(m_sessionRunner, &ExerciseRunnerWidget::sessionFinished, this,
@@ -2754,7 +2842,10 @@ void ExerciseHost::runExerciseSession() {
                     m_patientDisplay->hideDisplay();
                 }
                 restoreExerciseOverlay();
+                destroySessionRunner();
+                clearRootExerciseOverlays();
                 setExerciseChromeVisible(true);
+                raise();
                 updateChromeLayout();
                 showResultLabels(result.answers, result.elapsedSeconds);
                 emit exerciseOverlayChanged(false);
@@ -2769,6 +2860,37 @@ void ExerciseHost::runExerciseSession() {
     if (m_patientDisplay && !m_dualScreen) {
         m_patientDisplay->hideDisplay();
     }
+    if (m_onlyP) {
+        m_onlyP->hide();
+    }
+    if (m_specialistExercise) {
+        m_specialistExercise->hide();
+    }
+
+    // 2.8 + два экрана: картинки и «Показать/скрыть» на правой половине первого экрана
+    // (описание слева остаётся), зеркало — на втором.
+    if (definition->runner == ExerciseRunnerKind::E28 && m_dualScreen && m_rightPanel) {
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        setExerciseChromeVisible(true);
+        raise();
+        if (m_sessionRunner->parentWidget() != m_rightPanel) {
+            m_sessionRunner->setParent(m_rightPanel);
+        }
+        m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
+        m_sessionRunner->setSessionOptions(buildSessionOptions());
+        m_sessionRunner->startSession(m_exerciseId, *definition, m_sessionStepId);
+        m_sessionRunner->show();
+        m_sessionRunner->raise();
+        emit exerciseOverlayChanged(false);
+        layoutStepCombo();
+        QTimer::singleShot(0, this, [this]() { layoutStepCombo(); });
+        syncPatientDisplay();
+        updateChromeLayout();
+        return;
+    }
+
     presentOverlayWidget(m_sessionRunner);
     lower();
     emit exerciseOverlayChanged(true);
@@ -2790,6 +2912,9 @@ void ExerciseHost::runOnlyPExercise() {
     if (m_beginButton) {
         m_beginButton->hide();
     }
+    // После 1.26/1.272/2.8 session-runner мог остаться на корне окна — убрать до OnlyP.
+    destroySessionRunner();
+    clearRootExerciseOverlays();
     emit exerciseOverlayChanged(true);
 
     const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
@@ -3996,6 +4121,7 @@ void ExerciseHost::updateExerciseOptionsPanel() {
 
 ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
     ExerciseSessionOptions options;
+    options.dualScreen = m_dualScreen;
     if (m_e15SelectRadio && m_e15SelectRadio->isChecked()) {
         options.e15SelectMode = true;
     }

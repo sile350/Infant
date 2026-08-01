@@ -49,6 +49,8 @@ public:
 
     void setDualScreenEnabled(bool enabled);
     void saveProtocolEdits();
+    // Остановить сессию и убрать оверлеи (в т.ч. с корня главного окна).
+    void shutdownSessionUi();
 
 signals:
     void closed();
@@ -104,6 +106,8 @@ private:
     void showExerciseOverlay();
     void restoreExerciseOverlay();
     void resetExerciseOverlays();
+    void destroySessionRunner();
+    void clearRootExerciseOverlays();
     void updateExerciseOverlayGeometry();
     void presentOverlayWidget(QWidget *overlayWidget);
     void reparentOverlayWidget(QWidget *overlayWidget);

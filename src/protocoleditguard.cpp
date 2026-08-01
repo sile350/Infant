@@ -30,15 +30,20 @@ QString readProtocolTableCellText(QTextTable *table, int row, int column) {
 }
 
 bool isLockedHeaderCell(const QString &cellText) {
-    return cellText.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
-        || cellText.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
-        || cellText.contains(QStringLiteral("Виды возможной помощи"), Qt::CaseInsensitive)
-        || cellText.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)
-        || cellText.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
-        || cellText.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)
-        || cellText.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
-        || (cellText.contains(QStringLiteral("№"), Qt::CaseInsensitive)
-            && cellText.contains(QStringLiteral("рассказ"), Qt::CaseInsensitive));
+    const QString trimmed = cellText.trimmed();
+    // Длинный текст — ячейка данных (в т.ч. после чекбоксов), не заголовок.
+    if (trimmed.length() > 48) {
+        return false;
+    }
+    return trimmed.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+        || trimmed.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+        || trimmed.contains(QStringLiteral("Виды возможной помощи"), Qt::CaseInsensitive)
+        || trimmed.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive)
+        || trimmed.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
+        || trimmed.contains(QStringLiteral("Ответ ребенка"), Qt::CaseInsensitive)
+        || trimmed.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
+        || (trimmed.contains(QStringLiteral("№"), Qt::CaseInsensitive)
+            && trimmed.contains(QStringLiteral("рассказ"), Qt::CaseInsensitive));
 }
 
 bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nullptr) {

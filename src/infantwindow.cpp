@@ -2141,6 +2141,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     if (m_exerciseOpen) {
         if (m_exerciseHost) {
             m_exerciseHost->saveProtocolEdits();
+            m_exerciseHost->shutdownSessionUi();
             m_exerciseHost->hide();
         }
         m_exerciseOpen = false;
@@ -4831,6 +4832,7 @@ void InfantWindow::raiseChromeWidgets() {
 void InfantWindow::closeExerciseHost() {
     if (m_exerciseHost) {
         m_exerciseHost->saveProtocolEdits();
+        m_exerciseHost->shutdownSessionUi();
         m_exerciseHost->hide();
     }
     m_exerciseOpen = false;

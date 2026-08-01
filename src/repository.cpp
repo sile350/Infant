@@ -14,6 +14,7 @@
 #include <QRegularExpression>
 #include <QStringList>
 #include <QTextDocument>
+#include <QTextTable>
 #include <QTimer>
 #include <QUrl>
 #include <algorithm>
@@ -875,6 +876,48 @@ bool Repository::updateProtocolsFromEditedDocument(
 
     const QMap<QString, QString> bodiesById =
         ExerciseProtocol::extractProtocolBodiesById(document->toHtml());
+    // Живые таблицы OR/HLP из редактируемого документа (без setHtml-roundtrip секции):
+    // иначе правки в ячейках, заполненных из чекбоксов, не попадают в merge.
+    const QList<QTextTable *> liveOrHlpTables =
+        ExerciseProtocol::collectOrHlpProcessTables(document);
+    int liveOrHlpIndex = 0;
+
+    auto usesOrHlpMerge = [](const QString &uprid) {
+        return uprid == QStringLiteral("1.1")
+            || uprid == QStringLiteral("1.2")
+            || uprid == QStringLiteral("1.4")
+            || uprid == QStringLiteral("1.8")
+            || uprid == QStringLiteral("1.13")
+            || uprid == QStringLiteral("1.17")
+            || uprid == QStringLiteral("1.18")
+            || uprid == QStringLiteral("1.25")
+            || uprid == QStringLiteral("2.8")
+            || uprid == QStringLiteral("2.9")
+            || uprid == QStringLiteral("2.10")
+            || uprid == QStringLiteral("3.1.1")
+            || uprid == QStringLiteral("3.1.2")
+            || uprid == QStringLiteral("3.1.10")
+            || uprid == QStringLiteral("3.1.11")
+            || uprid == QStringLiteral("3.1.12")
+            || uprid == QStringLiteral("3.1.17")
+            || uprid == QStringLiteral("3.1.18")
+            || uprid == QStringLiteral("3.2.1")
+            || uprid == QStringLiteral("3.2.2")
+            || uprid == QStringLiteral("3.2.3")
+            || uprid == QStringLiteral("3.2.4")
+            || uprid == QStringLiteral("3.2.5")
+            || uprid == QStringLiteral("3.2.11")
+            || uprid == QStringLiteral("4.1.1")
+            || uprid == QStringLiteral("4.1.2")
+            || uprid == QStringLiteral("4.1.4")
+            || uprid == QStringLiteral("4.1.5")
+            || uprid == QStringLiteral("4.1.6")
+            || uprid == QStringLiteral("4.2.1")
+            || uprid == QStringLiteral("4.2.2")
+            || uprid == QStringLiteral("5.1.1")
+            || uprid == QStringLiteral("5.2.1")
+            || uprid == QStringLiteral("5.3.1");
+    };
 
     for (int i = 0; i < recordIdsInOrder.size(); ++i) {
         const QString protocolId = recordIdsInOrder.at(i);
@@ -892,7 +935,12 @@ bool Repository::updateProtocolsFromEditedDocument(
             QTextDocument sectionDocument;
             sectionDocument.setHtml(
                 ExerciseAssets::buildProtocolDocumentHtml(sectionBody));
-            // OR/HLP/Баллы для методик с таблицей процесса; иначе — Результат/Примечание.
+            QTextTable *liveOrHlpTable = nullptr;
+            if (usesOrHlpMerge(uprid) && liveOrHlpIndex < liveOrHlpTables.size()) {
+                liveOrHlpTable = liveOrHlpTables.at(liveOrHlpIndex);
+                ++liveOrHlpIndex;
+            }
+            // OR/HLP читаем из liveOrHlpTable (если есть); Результат/Примечание — из sectionDocument.
             if (uprid == QStringLiteral("1.1")
                 || uprid == QStringLiteral("1.2")
                 || uprid == QStringLiteral("1.4")
@@ -925,16 +973,16 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("5.2.1")
                 || uprid == QStringLiteral("5.3.1")) {
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
-                    storedBody, &sectionDocument);
+                    storedBody, &sectionDocument, liveOrHlpTable);
             } else if (uprid == QStringLiteral("3.1.17")
                        || uprid == QStringLiteral("3.1.18")) {
                 mergedBody = ExerciseProtocol::applyProtocol318SumFromDocument(
-                    storedBody, &sectionDocument);
+                    storedBody, &sectionDocument, liveOrHlpTable);
             } else if (uprid == QStringLiteral("3.1.10")) {
                 mergedBody = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
                     storedBody, &sectionDocument);
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
-                    mergedBody, &sectionDocument);
+                    mergedBody, &sectionDocument, liveOrHlpTable);
             } else if (uprid == QStringLiteral("1.26")) {
                 mergedBody = ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
                     storedBody, &sectionDocument);

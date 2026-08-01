@@ -7,6 +7,7 @@
 #include <QStringList>
 
 class QTextDocument;
+class QTextTable;
 
 struct ProtocolSessionInput {
     QString additional;
@@ -133,14 +134,20 @@ public:
         QTextDocument *editorDocument);
 
     // or_hlp_balls (3.1.18 и др.): OR/HLP/Баллы из редактора без пересборки таблиц.
+    // processTable — конкретная таблица процесса (с «Протоколы»); иначе берётся первая подходящая.
     static QString mergeOrHlpBallsEditorIntoStoredBody(
         const QString &storedBody,
-        QTextDocument *editorDocument);
+        QTextDocument *editorDocument,
+        QTextTable *processTable = nullptr);
+
+    // Таблицы процесса с колонками «Характер деятельности» + «Виды помощи» (порядок в документе).
+    static QList<QTextTable *> collectOrHlpProcessTables(QTextDocument *document);
 
     // 3.1.18 «Времена года»: idballs → Результат N(10)/уровень (последняя сессия).
     static QString applyProtocol318SumFromDocument(
         const QString &storedBody,
-        QTextDocument *editorDocument);
+        QTextDocument *editorDocument,
+        QTextTable *processTable = nullptr);
 
     // 1.272: перенос баллов idsN / OR / HLP из редактора.
     static QString mergeProtocol1272EditorIntoStoredBody(

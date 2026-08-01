@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextDocumentFragment>
@@ -13,6 +14,7 @@
 #include <QTextLength>
 #include <QTextTable>
 #include <QTextTableFormat>
+#include <QVector>
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
@@ -81,7 +83,9 @@ QString formatProtocolCellText(const QString &text) {
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
         if (!trimmed.isEmpty()) {
-            parts << QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;%1").arg(trimmed.toHtmlEscaped());
+            // Без ведущих &nbsp;: иначе на «Протоколы» правки с клавиатуры в уже
+            // заполненных из чекбоксов ячейках теряются при roundtrip QTextDocument.
+            parts << trimmed.toHtmlEscaped();
         }
     }
     return parts.isEmpty() ? QStringLiteral("&nbsp;") : parts.join(QStringLiteral("<br>"));
@@ -2004,8 +2008,27 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     for (int i = 0; i < tds.size(); ++i) {
                         const QRegularExpressionMatch &td = tds.at(i);
                         newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
-                        newRow += td.captured(1) + setAttrWidth(td.captured(2), widths.at(i))
-                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        QString attrs = setAttrWidth(td.captured(2), widths.at(i));
+                        QString cellHtml = td.captured(4);
+                        // Колонка «Баллы»: цифры по центру (td align + div text-align).
+                        if (i == 2) {
+                            if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                                attrs += QStringLiteral(" align='center'");
+                            }
+                            if (!attrs.contains(QStringLiteral("valign="), Qt::CaseInsensitive)) {
+                                attrs += QStringLiteral(" valign='middle'");
+                            }
+                            if (!cellHtml.contains(
+                                    QStringLiteral("text-align:center"), Qt::CaseInsensitive)) {
+                                cellHtml.replace(
+                                    QRegularExpression(
+                                        QStringLiteral("(<div\\b)(?![^>]*text-align)"),
+                                        QRegularExpression::CaseInsensitiveOption),
+                                    QStringLiteral("\\1 style='text-align:center'"));
+                            }
+                        }
+                        newRow += td.captured(1) + attrs + td.captured(3) + cellHtml
+                            + td.captured(5);
                         cellLast = td.capturedEnd();
                     }
                     newRow += rowInner.mid(cellLast);
@@ -4837,16 +4860,58 @@ QString ExerciseProtocol::applyProtocol3110SumFromDocument(
     return joinProtocol126Sessions(sessions);
 }
 
+QList<QTextTable *> ExerciseProtocol::collectOrHlpProcessTables(QTextDocument *document) {
+    QList<QTextTable *> result;
+    if (!document) {
+        return result;
+    }
+    QList<QTextTable *> tables;
+    collectTables(document->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table || table->columns() < 2) {
+            continue;
+        }
+        bool hasActivity = false;
+        bool hasHelp = false;
+        bool isSelectedPic = false;
+        for (int r = 0; r < qMin(3, table->rows()) && !isSelectedPic; ++r) {
+            for (int c = 0; c < table->columns(); ++c) {
+                const QString h = readTableCellText(table, r, c);
+                if (h.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)) {
+                    isSelectedPic = true;
+                    break;
+                }
+                if (h.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                    hasActivity = true;
+                }
+                if (h.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    && !h.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
+                    hasHelp = true;
+                }
+            }
+        }
+        if (!isSelectedPic && hasActivity && hasHelp) {
+            result.append(table);
+        }
+    }
+    return result;
+}
+
 QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     const QString &storedBody,
-    QTextDocument *editorDocument) {
+    QTextDocument *editorDocument,
+    QTextTable *processTable) {
     if (storedBody.trimmed().isEmpty() || !editorDocument) {
         return storedBody;
     }
     QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
 
     QList<QTextTable *> tables;
-    collectTables(editorDocument->rootFrame(), tables);
+    if (processTable) {
+        tables.append(processTable);
+    } else {
+        tables = collectOrHlpProcessTables(editorDocument);
+    }
     for (QTextTable *table : tables) {
         if (!table || table->columns() < 2) {
             continue;
@@ -4901,28 +4966,45 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             QString open;
             QString inner;
             QString close;
+            QString stepKey;
         };
         QList<RowPos> dataRows;
         QRegularExpressionMatchIterator it = trRe.globalMatch(tail);
         while (it.hasNext()) {
             const QRegularExpressionMatch m = it.next();
-            const QString plain = htmlFragmentToPlainText(m.captured(2)).trimmed();
-            if (plain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
-                || (plain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && plain.length() < 40)
-                || plain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
-                || plain == QStringLiteral("№")) {
+            const QString rowInner = m.captured(2);
+            // Заголовок определяем по первой ячейке — не по всему ряду:
+            // иначе строки с заполненным OR/HLP (текст чекбоксов) ошибочно отбрасывались.
+            const QRegularExpression firstTdRe(
+                QStringLiteral("<td\\b[^>]*>([\\s\\S]*?)</td>"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            const QRegularExpressionMatch firstTd = firstTdRe.match(rowInner);
+            const QString firstPlain = firstTd.hasMatch()
+                ? htmlFragmentToPlainText(firstTd.captured(1)).trimmed()
+                : QString();
+            const QString plain = htmlFragmentToPlainText(rowInner).trimmed();
+            if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
+                || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
+                || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                || (firstPlain.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                    && firstPlain.length() < 20)
+                || plain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
+                || plain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
                 continue;
             }
             RowPos row;
             row.start = m.capturedStart();
             row.len = m.capturedLength();
             row.open = m.captured(1);
-            row.inner = m.captured(2);
+            row.inner = rowInner;
             row.close = m.captured(3);
-            // OR/HLP/Баллы — 3 <td>; numbered (1.17/5.3.1) — 4; «Частота употребления» (5.2.1) — 2.
+            row.stepKey = firstPlain;
             {
                 const QRegularExpression tdCountRe(
                     QStringLiteral("<td\\b"),
@@ -4937,44 +5019,103 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                     continue;
                 }
             }
-            if (plain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
-                || plain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
-                continue;
-            }
             dataRows.append(row);
         }
         if (dataRows.isEmpty()) {
             continue;
         }
 
-        auto makeEditable = [](const QString &text, bool emptyNbsp) {
-            const QString value = text.trimmed().isEmpty() && emptyNbsp
-                ? QStringLiteral("&nbsp;")
-                : text.toHtmlEscaped();
+        auto makeEditable = [](const QString &text) {
             return QStringLiteral("<div contenteditable='true' style='text-align:left'>%1</div>")
-                .arg(value);
+                .arg(formatProtocolCellText(text));
         };
 
-        QList<int> editorDataRows;
+        struct EditorRow {
+            int row = -1;
+            QString stepKey;
+            QString activity;
+            QString help;
+            QString score;
+        };
+        QList<EditorRow> editorDataRows;
         for (int r = headerRow + 1; r < table->rows(); ++r) {
             const QString label = readTableCellText(table, r, 0);
             if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
-                || label.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                || label.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                || label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
                 continue;
             }
-            editorDataRows.append(r);
+            EditorRow er;
+            er.row = r;
+            er.stepKey = label.trimmed();
+            er.activity = readTableCellMultilineText(table, r, activityCol);
+            er.help = readTableCellMultilineText(table, r, helpCol);
+            er.score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
+            editorDataRows.append(er);
         }
-        const int pairCount = qMin(editorDataRows.size(), dataRows.size());
-        for (int i = pairCount - 1; i >= 0; --i) {
-            const int editorRow = editorDataRows.at(editorDataRows.size() - pairCount + i);
-            RowPos &htmlRow = dataRows[dataRows.size() - pairCount + i];
-            const QString activity = readTableCellText(table, editorRow, activityCol);
-            const QString help = readTableCellText(table, editorRow, helpCol);
-            const QString score = ballsCol >= 0
-                ? readTableCellText(table, editorRow, ballsCol)
-                : QString();
+        if (editorDataRows.isEmpty()) {
+            continue;
+        }
+
+        auto findStoredRowIndex = [&](const EditorRow &er, const QSet<int> &used) -> int {
+            if (!er.stepKey.isEmpty()) {
+                for (int i = 0; i < dataRows.size(); ++i) {
+                    if (used.contains(i)) {
+                        continue;
+                    }
+                    if (dataRows.at(i).stepKey.compare(er.stepKey, Qt::CaseInsensitive) == 0) {
+                        return i;
+                    }
+                }
+            }
+            return -1;
+        };
+
+        QVector<int> storedForEditor(editorDataRows.size(), -1);
+        QSet<int> usedStored;
+        for (int ei = 0; ei < editorDataRows.size(); ++ei) {
+            const int si = findStoredRowIndex(editorDataRows.at(ei), usedStored);
+            if (si >= 0) {
+                storedForEditor[ei] = si;
+                usedStored.insert(si);
+            }
+        }
+        QList<int> freeEditors;
+        QList<int> freeStored;
+        for (int ei = 0; ei < editorDataRows.size(); ++ei) {
+            if (storedForEditor.at(ei) < 0) {
+                freeEditors.append(ei);
+            }
+        }
+        for (int si = 0; si < dataRows.size(); ++si) {
+            if (!usedStored.contains(si)) {
+                freeStored.append(si);
+            }
+        }
+        const int pairFree = qMin(freeEditors.size(), freeStored.size());
+        // Свободные пары — с конца (как раньше), чтобы хвост сессии совпадал.
+        for (int i = 0; i < pairFree; ++i) {
+            const int ei = freeEditors.at(freeEditors.size() - pairFree + i);
+            const int si = freeStored.at(freeStored.size() - pairFree + i);
+            storedForEditor[ei] = si;
+            usedStored.insert(si);
+        }
+
+        // С конца по позиции в HTML, чтобы replace не сдвигал более ранние offset'ы.
+        QList<QPair<int, int>> applyOrder; // storedIndex, editorIndex
+        for (int ei = 0; ei < editorDataRows.size(); ++ei) {
+            if (storedForEditor.at(ei) >= 0) {
+                applyOrder.append(qMakePair(storedForEditor.at(ei), ei));
+            }
+        }
+        std::sort(applyOrder.begin(), applyOrder.end(),
+                  [](const QPair<int, int> &a, const QPair<int, int> &b) {
+                      return a.first > b.first;
+                  });
+
+        for (const auto &pair : applyOrder) {
+            const EditorRow &er = editorDataRows.at(pair.second);
+            RowPos &htmlRow = dataRows[pair.first];
 
             const QRegularExpression tdRe(
                 QStringLiteral("(<td[^>]*>)([\\s\\S]*?)(</td>)"),
@@ -4989,13 +5130,13 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             }
 
             QList<QPair<int, QString>> replacements;
-            replacements.append(qMakePair(activityCol, makeEditable(activity, true)));
-            replacements.append(qMakePair(helpCol, makeEditable(help, true)));
+            replacements.append(qMakePair(activityCol, makeEditable(er.activity)));
+            replacements.append(qMakePair(helpCol, makeEditable(er.help)));
             if (ballsCol >= 0 && ballsCol < tds.size()) {
                 replacements.append(qMakePair(
                     ballsCol,
                     QStringLiteral("<div id='idballs' contenteditable='true'>%1</div>")
-                        .arg(score.toHtmlEscaped())));
+                        .arg(er.score.toHtmlEscaped())));
             }
             std::sort(replacements.begin(), replacements.end(),
                       [](const QPair<int, QString> &a, const QPair<int, QString> &b) {
@@ -5045,11 +5186,12 @@ QString developmentLevelFromBalls(int score) {
 
 QString ExerciseProtocol::applyProtocol318SumFromDocument(
     const QString &storedBody,
-    QTextDocument *editorDocument) {
+    QTextDocument *editorDocument,
+    QTextTable *processTable) {
     if (storedBody.trimmed().isEmpty()) {
         return storedBody;
     }
-    QString body = mergeOrHlpBallsEditorIntoStoredBody(storedBody, editorDocument);
+    QString body = mergeOrHlpBallsEditorIntoStoredBody(storedBody, editorDocument, processTable);
 
     QStringList sessions = extractProtocol126SessionsByDate(body);
     const bool multi = sessions.size() > 1;

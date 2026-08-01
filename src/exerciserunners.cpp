@@ -935,10 +935,17 @@ public:
 class E28Runner final : public TimedSessionRunner {
 public:
     explicit E28Runner(QWidget *parent = nullptr) : TimedSessionRunner(parent) {
+        setAttribute(Qt::WA_StyledBackground, true);
+        setAutoFillBackground(true);
+        setStyleSheet(QStringLiteral("background-color:#ffffff;"));
         m_reference = new QLabel(this);
         m_task = new QLabel(this);
         m_next = new ClickableLabel(this);
         m_toggle = new ClickableLabel(this);
+        m_reference->setStyleSheet(QStringLiteral("background:transparent;"));
+        m_task->setStyleSheet(QStringLiteral("background:transparent;"));
+        m_next->setCursor(Qt::PointingHandCursor);
+        m_toggle->setCursor(Qt::PointingHandCursor);
         markPatientControl(m_next);
         markPatientControl(m_toggle);
         m_reference->hide();
@@ -957,6 +964,10 @@ public:
         m_elapsed = 0;
         m_capturePath.clear();
         m_pixmap = QPixmap();
+        m_phaseTask = false;
+        m_hintVisible = true;
+        m_refSource = QPixmap();
+        m_taskSource = QPixmap();
         if (m_picture) {
             m_picture->hide();
         }
@@ -966,11 +977,12 @@ public:
             refPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("1.PNG"));
         }
         if (!refPath.isEmpty()) {
-            const QPixmap refPixmap(refPath);
-            m_reference->setPixmap(refPixmap);
-            m_reference->setFixedSize(refPixmap.size());
+            m_refSource = QPixmap(refPath);
+            m_reference->setPixmap(m_refSource);
+            m_reference->setFixedSize(m_refSource.size());
             m_reference->show();
         } else {
+            m_reference->clear();
             m_reference->hide();
         }
         m_task->clear();
@@ -989,13 +1001,17 @@ public:
                 taskPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("2.PNG"));
             }
             if (!taskPath.isEmpty()) {
-                const QPixmap taskPixmap(taskPath);
-                m_task->setPixmap(taskPixmap);
-                m_task->setFixedSize(taskPixmap.size());
+                m_taskSource = QPixmap(taskPath);
+                m_task->setPixmap(m_taskSource);
+                m_task->setFixedSize(m_taskSource.size());
                 m_task->show();
             }
+            // Как e28: pictureBox2.Image = null — подсказка скрыта до «Показать».
+            m_hintVisible = false;
+            m_reference->clear();
             m_reference->hide();
             m_next->hide();
+            m_phaseTask = true;
             const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
             if (!showPath.isEmpty()) {
                 const QPixmap showPixmap(showPath);
@@ -1009,8 +1025,13 @@ public:
         m_toggle->hide();
         m_toggle->onClick = [this, exerciseId]() {
             // Как в оригинале e28: Image==null → показать подсказку + hide.png; иначе скрыть + show.png.
-            if (!m_reference->isVisible() || m_reference->pixmap(Qt::ReturnByValue).isNull()) {
-                m_reference->show();
+            if (!m_hintVisible) {
+                m_hintVisible = true;
+                if (!m_refSource.isNull()) {
+                    m_reference->setPixmap(m_refSource);
+                    m_reference->setFixedSize(m_refSource.size());
+                    m_reference->show();
+                }
                 const QString hidePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("hide.png"));
                 if (!hidePath.isEmpty()) {
                     const QPixmap hidePixmap(hidePath);
@@ -1018,6 +1039,8 @@ public:
                     m_toggle->setFixedSize(hidePixmap.size());
                 }
             } else {
+                m_hintVisible = false;
+                m_reference->clear();
                 m_reference->hide();
                 const QString showPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("show.png"));
                 if (!showPath.isEmpty()) {
@@ -1033,47 +1056,167 @@ public:
         show();
         raise();
         layoutE28();
-        m_stop->move(970, 70);
-        m_stop->show();
-        m_stop->raise();
+        if (m_stop) {
+            m_stop->show();
+            m_stop->raise();
+        }
     }
 
     void layoutUi() override {
-        m_stop->move(970, 70);
-        m_stop->raise();
         layoutE28();
     }
 
     void layoutE28() {
+        const bool compact = m_sessionOptions.dualScreen || width() < 1400;
+        if (compact) {
+            layoutE28Compact();
+        } else {
+            layoutE28Full();
+        }
+    }
+
+    void layoutE28Full() {
         // Оригинал e28.Designer: pictureBox1 (задание/2.png) = (228,246),
-        // pictureBox2 (подсказка/1.png) = (1043,246) — иначе 2.png перекрывает подсказку.
-        if (m_reference) {
-            m_reference->move(1043, 246);
-            m_reference->raise();
+        // pictureBox2 (подсказка/1.png) = (1043,246); stop 970@70, show/next = stop+200.
+        const qreal sx = width() > 0 ? width() / 1920.0 : 1.0;
+        const qreal sy = height() > 0 ? height() / 1080.0 : 1.0;
+        auto place = [&](int x, int y) {
+            return QPoint(qRound(x * sx), qRound(y * sy));
+        };
+
+        if (m_stop) {
+            m_stop->move(place(970, 70));
+            m_stop->show();
+            m_stop->raise();
         }
-        if (m_task) {
-            m_task->move(228, 246);
-            m_task->raise();
-        }
-        if (m_next) {
-            m_next->move(m_stop->x() + m_stop->width() + 24, 70);
+        const QPoint btnPos = place(1170, 70);
+        if (m_next && m_next->isVisible()) {
+            m_next->move(btnPos);
             m_next->raise();
         }
-        if (m_toggle) {
-            m_toggle->move(m_stop->x() + m_stop->width() + 24, 70);
+        if (m_toggle && m_toggle->isVisible()) {
+            m_toggle->move(btnPos);
             m_toggle->raise();
         }
-        // Подсказка поверх задания, когда обе видны.
-        if (m_reference && m_reference->isVisible()) {
+
+        if (m_task && m_task->isVisible() && !m_taskSource.isNull()) {
+            m_task->setPixmap(m_taskSource);
+            m_task->setFixedSize(m_taskSource.size());
+            m_task->move(place(228, 246));
+            m_task->show();
+            m_task->raise();
+        }
+        if (m_reference && m_hintVisible && !m_refSource.isNull()) {
+            m_reference->setPixmap(m_refSource);
+            m_reference->setFixedSize(m_refSource.size());
+            m_reference->move(place(1043, 246));
+            m_reference->show();
             m_reference->raise();
         }
-        m_stop->raise();
+        if (m_stop) {
+            m_stop->raise();
+        }
+        if (m_toggle && m_toggle->isVisible()) {
+            m_toggle->raise();
+        }
+        if (m_next && m_next->isVisible()) {
+            m_next->raise();
+        }
+    }
+
+    void layoutE28Compact() {
+        // Dual / узкая панель: картинки и «Показать/скрыть» на правой половине.
+        constexpr int kMargin = 12;
+        constexpr int kGap = 16;
+        constexpr int kBtnTop = 12;
+        const int contentTop = 56;
+        const int availW = qMax(80, width() - 2 * kMargin);
+        const int availH = qMax(80, height() - contentTop - kMargin);
+
+        if (m_stop) {
+            m_stop->move(kMargin, kBtnTop);
+            m_stop->show();
+            m_stop->raise();
+        }
+        const int btnX = m_stop ? (m_stop->x() + m_stop->width() + 16) : (kMargin + 150);
+        if (m_next && m_next->isVisible()) {
+            m_next->move(btnX, kBtnTop);
+            m_next->raise();
+        }
+        if (m_toggle && m_toggle->isVisible()) {
+            m_toggle->move(btnX, kBtnTop);
+            m_toggle->raise();
+        }
+
+        const bool showTask = m_phaseTask && !m_taskSource.isNull();
+        const bool showHint = m_hintVisible && !m_refSource.isNull();
+
+        if (showTask && showHint) {
+            const int halfW = qMax(40, (availW - kGap) / 2);
+            const QPixmap taskDisp =
+                pixmapNativeOrDownscale(m_taskSource, halfW, availH);
+            const QPixmap refDisp =
+                pixmapNativeOrDownscale(m_refSource, halfW, availH);
+            const int maxH = qMax(taskDisp.height(), refDisp.height());
+            const int picY = contentTop + qMax(0, (availH - maxH) / 2);
+            m_task->setPixmap(taskDisp);
+            m_task->setFixedSize(taskDisp.size());
+            m_task->move(kMargin + qMax(0, (halfW - taskDisp.width()) / 2), picY);
+            m_task->show();
+            m_task->raise();
+            m_reference->setPixmap(refDisp);
+            m_reference->setFixedSize(refDisp.size());
+            m_reference->move(
+                kMargin + halfW + kGap + qMax(0, (halfW - refDisp.width()) / 2), picY);
+            m_reference->show();
+            m_reference->raise();
+        } else if (showTask) {
+            const QPixmap taskDisp =
+                pixmapNativeOrDownscale(m_taskSource, availW, availH);
+            m_task->setPixmap(taskDisp);
+            m_task->setFixedSize(taskDisp.size());
+            m_task->move(
+                kMargin + qMax(0, (availW - taskDisp.width()) / 2),
+                contentTop + qMax(0, (availH - taskDisp.height()) / 2));
+            m_task->show();
+            m_task->raise();
+            if (m_reference) {
+                m_reference->hide();
+            }
+        } else if (showHint) {
+            const QPixmap refDisp =
+                pixmapNativeOrDownscale(m_refSource, availW, availH);
+            m_reference->setPixmap(refDisp);
+            m_reference->setFixedSize(refDisp.size());
+            m_reference->move(
+                kMargin + qMax(0, (availW - refDisp.width()) / 2),
+                contentTop + qMax(0, (availH - refDisp.height()) / 2));
+            m_reference->show();
+            m_reference->raise();
+            if (m_task) {
+                m_task->hide();
+            }
+        }
+
+        if (m_stop) {
+            m_stop->raise();
+        }
+        if (m_toggle && m_toggle->isVisible()) {
+            m_toggle->raise();
+        }
+        if (m_next && m_next->isVisible()) {
+            m_next->raise();
+        }
     }
 
     QLabel *m_reference = nullptr;
     QLabel *m_task = nullptr;
     ClickableLabel *m_next = nullptr;
     ClickableLabel *m_toggle = nullptr;
+    QPixmap m_refSource;
+    QPixmap m_taskSource;
+    bool m_phaseTask = false;
+    bool m_hintVisible = true;
 };
 
 // Тельняшка 4.2.1: полосы строго по Y строк (как f1.png), без серых прямоугольников под цифрами.
