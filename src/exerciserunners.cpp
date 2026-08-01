@@ -1528,69 +1528,26 @@ public:
             m_group2->deleteLater();
             m_group2 = nullptr;
         }
+        if (m_bgLabel) {
+            m_bgLabel->deleteLater();
+            m_bgLabel = nullptr;
+        }
 
-        // digits.Designer.cs: groupBox «1»/«2», колонка А — radio, колонка Б — label (другие ряды).
-        static const QStringList kGroup1A = {
-            QStringLiteral("9"),
-            QStringLiteral("2 4"),
-            QStringLiteral("3 8 6"),
-            QStringLiteral("1 5 8 5"),
-            QStringLiteral("4 6 2 3 9"),
-            QStringLiteral("4 8 9 1 7 3"),
-            QStringLiteral("5 1 7 4 2 3 8"),
-            QStringLiteral("1 4 2 5 9 7 6 3"),
-        };
-        static const QStringList kGroup1B = {
-            QStringLiteral("3"),
-            QStringLiteral("7 9"),
-            QStringLiteral("1 5 4"),
-            QStringLiteral("6 8 5 2"),
-            QStringLiteral("3 5 9 6 1"),
-            QStringLiteral("7 9 6 4 8 3"),
-            QStringLiteral("9 8 5 2 1 6 3"),
-            QStringLiteral("4 2 7 0 1 8 9 5"),
-        };
-        // groupBox2: сверху длинный ряд (radio16=8) → снизу «3» (radio9=1)
-        static const QStringList kGroup2A = {
-            QStringLiteral("4 9 1 6 3 2 5 8"),
-            QStringLiteral("8 5 9 2 3 4 6"),
-            QStringLiteral("1 6 5 2 9 8"),
-            QStringLiteral("4 1 3 7 2"),
-            QStringLiteral("9 2 6 5"),
-            QStringLiteral("4 1 7"),
-            QStringLiteral("2 5"),
-            QStringLiteral("3"),
-        };
-        static const QStringList kGroup2B = {
-            QStringLiteral("4 5 7 1 9 2 8 3"),
-            QStringLiteral("1 7 9 5 8 4 6"),
-            QStringLiteral("3 1 7 6 9 2"),
-            QStringLiteral("2 8 5 9 1"),
-            QStringLiteral("4 9 3 7"),
-            QStringLiteral("1 5 2"),
-            QStringLiteral("8 3"),
-            QStringLiteral("6"),
-        };
-        // Y радиокнопок / подписей Б из Designer
-        static const int kRadioY[] = {70, 104, 138, 172, 206, 240, 274, 308};
-        static const int kLabelBY[] = {70, 104, 138, 172, 206, 244, 278, 308};
+        // 33.2: тот же вид, что превью f1.png — картинка + галочки поверх, без новой «тельняшки».
+        const QString bgPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("f1.png"));
+        m_bgSource = bgPath.isEmpty() ? QPixmap() : QPixmap(bgPath);
+        m_bgLabel = new QLabel(this);
+        m_bgLabel->setStyleSheet(QStringLiteral("background:transparent; border:none;"));
+        if (!m_bgSource.isNull()) {
+            m_bgLabel->setPixmap(m_bgSource);
+            m_bgLabel->setFixedSize(m_bgSource.size());
+        }
+        m_bgLabel->show();
+        m_bgLabel->lower();
 
-        const QFont groupFont(QStringLiteral("Microsoft Sans Serif"), 16);
-        const QFont itemFont(QStringLiteral("Microsoft Sans Serif"), 20);
-        // Как f1.png: зелёная рамка, номера заданий, полосы, видимые радиокнопки.
-        const QString boxStyle = QStringLiteral(
-            "QGroupBox {"
-            "  color:#000000; background-color:transparent;"
-            "  border:2px solid #228B22; margin-top:24px; padding-top:2px;"
-            "}"
-            "QGroupBox::title {"
-            "  subcontrol-origin: margin; subcontrol-position: top left;"
-            "  left:12px; top:2px; padding:0 8px;"
-            "  color:#000000; background-color:#ffffff;"
-            "}"
-            "QRadioButton {"
-            "  color:#000000; background-color:transparent; border:none; spacing:6px;"
-            "}"
+        // Только индикаторы радиокнопок поверх f1.png (цифры уже на картинке).
+        const QString radioStyle = QStringLiteral(
+            "QRadioButton { background:transparent; border:none; spacing:0px; }"
             "QRadioButton::indicator { width:14px; height:14px; }"
             "QRadioButton::indicator:unchecked {"
             "  border:1px solid #808080; border-radius:7px; background:#ffffff;"
@@ -1600,70 +1557,25 @@ public:
             "  background-color:qradialgradient("
             "    cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,"
             "    stop:0 #333333, stop:0.38 #333333, stop:0.39 #ffffff);"
-            "}"
-            "QLabel { color:#000000; background-color:transparent; border:none; }");
+            "}");
 
-        auto makeTransparent = [](QWidget *w) {
-            if (!w) {
-                return;
-            }
-            w->setAttribute(Qt::WA_TranslucentBackground, true);
-            w->setAutoFillBackground(false);
-            QPalette pal = w->palette();
-            pal.setColor(QPalette::Window, Qt::transparent);
-            pal.setColor(QPalette::Base, Qt::transparent);
-            pal.setColor(QPalette::Button, Qt::transparent);
-            w->setPalette(pal);
-        };
+        auto *excl1 = new QButtonGroup(this);
+        auto *excl2 = new QButtonGroup(this);
+        for (int i = 0; i < 8; ++i) {
+            auto *r1 = new QRadioButton(this);
+            r1->setStyleSheet(radioStyle);
+            r1->setFixedSize(18, 18);
+            r1->setProperty("digitValue", i + 1);
+            excl1->addButton(r1);
+            m_row1 << r1;
 
-        auto buildGroup = [&](const QString &title,
-                              const QStringList &colA,
-                              const QStringList &colB,
-                              int labelBX,
-                              bool ascendingValues,
-                              QList<QRadioButton *> *rowOut) -> QGroupBox * {
-            auto *box = new QGroupBox(title, this);
-            box->setFont(groupFont);
-            box->setStyleSheet(boxStyle);
-            makeTransparent(box);
-
-            auto *stripes = new DigitsStripeBackground(box);
-            stripes->setGeometry(2, 20, 567, 381);
-            stripes->lower();
-            stripes->show();
-
-            auto *headerA = new QLabel(QStringLiteral("А"), box);
-            headerA->setFont(itemFont);
-            makeTransparent(headerA);
-            headerA->move(28, 28);
-            headerA->adjustSize();
-            auto *headerB = new QLabel(QStringLiteral("Б"), box);
-            headerB->setFont(itemFont);
-            makeTransparent(headerB);
-            headerB->move(387, 28);
-            headerB->adjustSize();
-
-            auto *excl = new QButtonGroup(box);
-            for (int i = 0; i < 8; ++i) {
-                auto *radio = new QRadioButton(colA.at(i), box);
-                radio->setFont(itemFont);
-                radio->move(32, kRadioY[i]);
-                radio->adjustSize();
-                radio->setProperty("digitValue", ascendingValues ? (i + 1) : (8 - i));
-                excl->addButton(radio);
-                *rowOut << radio;
-
-                auto *label = new QLabel(colB.at(i), box);
-                label->setFont(itemFont);
-                makeTransparent(label);
-                label->move(labelBX, kLabelBY[i]);
-                label->adjustSize();
-            }
-            return box;
-        };
-
-        m_group1 = buildGroup(QStringLiteral("1"), kGroup1A, kGroup1B, 390, true, &m_row1);
-        m_group2 = buildGroup(QStringLiteral("2"), kGroup2A, kGroup2B, 368, false, &m_row2);
+            auto *r2 = new QRadioButton(this);
+            r2->setStyleSheet(radioStyle);
+            r2->setFixedSize(18, 18);
+            r2->setProperty("digitValue", 8 - i);
+            excl2->addButton(r2);
+            m_row2 << r2;
+        }
 
         setFocusPolicy(Qt::StrongFocus);
         setFocus();
@@ -1676,7 +1588,6 @@ public:
     }
 
     void finish() override {
-        // digits.cs pstop_Click: results = N; затем results = results + "/" + M
         QString results;
         for (QRadioButton *radio : m_row1) {
             if (radio && radio->isChecked()) {
@@ -1699,28 +1610,68 @@ public:
     }
 
     void layoutUi() override {
-        // digits.Designer: groupBox1 (1257,117,571,405), groupBox2 (1257,545,571,405);
-        // digits_Load: pstop @ (970,70)
-        if (m_group1) {
-            m_group1->setGeometry(1257, 117, 571, 405);
-            if (auto *stripes = m_group1->findChild<DigitsStripeBackground *>()) {
-                stripes->setGeometry(2, 20, m_group1->width() - 4, m_group1->height() - 22);
-                stripes->lower();
+        // f1.png 802×861 — как превью справа; галочки в колонке А обоих блоков.
+        static const int kRadioY[] = {70, 104, 138, 172, 206, 240, 274, 308};
+        constexpr int kBox2Top = 428;
+        constexpr int kRadioX = 34;
+        constexpr int kTitlePad = 22;
+
+        QPixmap display = m_bgSource;
+        int bgX = 0;
+        int bgY = 0;
+        if (!m_bgSource.isNull() && m_bgLabel) {
+            const int maxW = qMax(80, width() - 24);
+            const int maxH = qMax(80, height() - 80);
+            if (m_bgSource.width() > maxW || m_bgSource.height() > maxH) {
+                display = m_bgSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
             }
-            m_group1->show();
-            m_group1->raise();
-        }
-        if (m_group2) {
-            m_group2->setGeometry(1257, 545, 571, 405);
-            if (auto *stripes = m_group2->findChild<DigitsStripeBackground *>()) {
-                stripes->setGeometry(2, 20, m_group2->width() - 4, m_group2->height() - 22);
-                stripes->lower();
+            m_bgLabel->setPixmap(display);
+            m_bgLabel->setFixedSize(display.size());
+            bgX = qMax(0, (width() - display.width()) / 2);
+            bgY = qMax(40, (height() - display.height()) / 2);
+            // Dual / правая панель: ближе к тому же месту, что превью.
+            if (m_sessionOptions.dualScreen || width() < 1400) {
+                bgX = qMax(8, (width() - display.width()) / 2);
+                bgY = qMax(48, 60);
             }
-            m_group2->show();
-            m_group2->raise();
+            m_bgLabel->move(bgX, bgY);
+            m_bgLabel->show();
+            m_bgLabel->lower();
         }
-        m_stop->move(970, 70);
-        m_stop->raise();
+
+        const qreal sx = display.isNull() ? 1.0 : (display.width() / 802.0);
+        const qreal sy = display.isNull() ? 1.0 : (display.height() / 861.0);
+
+        for (int i = 0; i < m_row1.size(); ++i) {
+            if (!m_row1.at(i)) {
+                continue;
+            }
+            const int x = bgX + qRound((kRadioX) * sx);
+            const int y = bgY + qRound((kTitlePad + kRadioY[i]) * sy);
+            m_row1.at(i)->move(x, y);
+            m_row1.at(i)->show();
+            m_row1.at(i)->raise();
+        }
+        for (int i = 0; i < m_row2.size(); ++i) {
+            if (!m_row2.at(i)) {
+                continue;
+            }
+            const int x = bgX + qRound((kRadioX) * sx);
+            const int y = bgY + qRound((kBox2Top + kTitlePad + kRadioY[i]) * sy);
+            m_row2.at(i)->move(x, y);
+            m_row2.at(i)->show();
+            m_row2.at(i)->raise();
+        }
+
+        if (m_stop) {
+            if (m_sessionOptions.dualScreen || width() < 1400) {
+                m_stop->move(12, 12);
+            } else {
+                m_stop->move(970, 70);
+            }
+            m_stop->show();
+            m_stop->raise();
+        }
         update();
     }
 
@@ -1739,10 +1690,17 @@ protected:
         TimedSessionRunner::keyPressEvent(event);
     }
 
+    void resizeEvent(QResizeEvent *event) override {
+        TimedSessionRunner::resizeEvent(event);
+        layoutUi();
+    }
+
     QList<QRadioButton *> m_row1;
     QList<QRadioButton *> m_row2;
     QGroupBox *m_group1 = nullptr;
     QGroupBox *m_group2 = nullptr;
+    QLabel *m_bgLabel = nullptr;
+    QPixmap m_bgSource;
 };
 
 class WordsLearningRunner final : public TimedSessionRunner {

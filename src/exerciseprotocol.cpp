@@ -829,14 +829,34 @@ std::pair<bool, QString> extractSecondCellPlain(const QString &html, const QStri
 
 QString replaceRowSecondCell(QString body, const QString &rowLabel, const QString &plainText) {
     const QString escapedLabel = QRegularExpression::escape(rowLabel);
+    // Допускаем обёртки вроде <p>Примечание</p> внутри td.
     const QRegularExpression rowRe(
-        QStringLiteral("(<tr[^>]*>\\s*<td[^>]*>\\s*%1\\s*</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>[\\s\\S]*?%1[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)")
             .arg(escapedLabel),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
-                              ? QStringLiteral("<div contenteditable='true'>%1</div>").arg(plainText.toHtmlEscaped())
-                              : plainText.toHtmlEscaped();
-    return body.replace(rowRe, QStringLiteral("\\1") + inner + QStringLiteral("\\3"));
+    QString inner;
+    if (rowLabel.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive)
+        && body.contains(QStringLiteral("idnote"), Qt::CaseInsensitive)) {
+        inner = QStringLiteral("<div contenteditable='true' id='idnote'>%1</div>")
+                    .arg(plainText.toHtmlEscaped());
+    } else if (body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)) {
+        inner = QStringLiteral("<div contenteditable='true'>%1</div>").arg(plainText.toHtmlEscaped());
+    } else {
+        inner = plainText.toHtmlEscaped();
+    }
+    // Последнее совпадение (актуальная сессия).
+    QRegularExpressionMatchIterator it = rowRe.globalMatch(body);
+    QRegularExpressionMatch match;
+    while (it.hasNext()) {
+        match = it.next();
+    }
+    if (!match.hasMatch()) {
+        return body;
+    }
+    return body.left(match.capturedStart())
+        + match.captured(1) + inner + match.captured(3)
+        + body.mid(match.capturedEnd());
 }
 
 QString replaceResultRowSecondCell(QString body, const QString &plainText) {
@@ -1978,7 +1998,24 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                                     QString cellHtml = td.captured(4);
                                     if (tds.size() == 4) {
                                         attrs = setAttrWidth(attrs, widths.at(i));
-                                        if (i == 3 || (answerNoTable && i == 0)) {
+                                        // 4.2.1: «Кол-во цифр» (i=2) и «Баллы» (i=3) — по центру.
+                                        if (digitsTable && (i == 2 || i == 3)) {
+                                            if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
+                                                attrs += QStringLiteral(" align='center'");
+                                            }
+                                            if (!attrs.contains(QStringLiteral("valign="), Qt::CaseInsensitive)) {
+                                                attrs += QStringLiteral(" valign='middle'");
+                                            }
+                                            if (!cellHtml.contains(
+                                                    QStringLiteral("text-align:center"),
+                                                    Qt::CaseInsensitive)) {
+                                                cellHtml.replace(
+                                                    QRegularExpression(
+                                                        QStringLiteral("(<div\\b)(?![^>]*text-align)"),
+                                                        QRegularExpression::CaseInsensitiveOption),
+                                                    QStringLiteral("\\1 style='text-align:center'"));
+                                            }
+                                        } else if (i == 3 || (answerNoTable && i == 0)) {
                                             if (!attrs.contains(QStringLiteral("align="), Qt::CaseInsensitive)) {
                                                 attrs += QStringLiteral(" align='center'");
                                             }
@@ -3003,18 +3040,19 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         }
         table->setFormat(fmt);
 
-        // Колонка «Баллы» (3.1.17 / 4.1.2 и др.): цифры по центру в QTextEdit.
+        // Колонка «Баллы» / «Кол-во цифр» (4.2.1): цифры по центру в QTextEdit.
         if (table->rows() >= 1 && cols >= 3) {
-            int ballsCol = -1;
+            QVector<int> centerCols;
             for (int c = 0; c < cols; ++c) {
                 const QString h = readTableCellText(table, 0, c).trimmed();
                 if (h.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
-                    || (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12)) {
-                    ballsCol = c;
-                    break;
+                    || (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12)
+                    || h.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
+                    || h.contains(QStringLiteral("нарастание"), Qt::CaseInsensitive)) {
+                    centerCols.append(c);
                 }
             }
-            if (ballsCol >= 0) {
+            for (int ballsCol : centerCols) {
                 for (int r = 1; r < table->rows(); ++r) {
                     QTextTableCell cell = table->cellAt(r, ballsCol);
                     if (!cell.isValid()) {
@@ -3747,9 +3785,65 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         }
     }
     ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, editorSectionIndex);
+
+    // Примечание из таблицы / idnote (на «Протоколы» id часто теряется).
+    QString noteFromTable;
+    bool haveNoteFromTable = false;
+    {
+        QList<QTextTable *> tables;
+        collectTables(editorDocument->rootFrame(), tables);
+        for (QTextTable *table : tables) {
+            if (!table || table->columns() < 2) {
+                continue;
+            }
+            for (int r = 0; r < table->rows(); ++r) {
+                const QString first = readTableCellText(table, r, 0);
+                if (!first.contains(QStringLiteral("Примечание"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                QString second = readTableCellMultilineText(table, r, 1);
+                if (second.contains(QStringLiteral("Стимульные"), Qt::CaseInsensitive)
+                    || second.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+                    || second.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                noteFromTable = second.trimmed();
+                haveNoteFromTable = true;
+            }
+        }
+    }
+    if (haveNoteFromTable) {
+        parsed.hasNote = true;
+        parsed.noteText = noteFromTable;
+    } else {
+        const QString editorHtml = editorDocument->toHtml();
+        if (editorHtml.contains(QStringLiteral("idnote"), Qt::CaseInsensitive)) {
+            parsed.hasNote = true;
+            parsed.noteText =
+                htmlFragmentToPlainText(extractDivInnerById(editorHtml, QStringLiteral("idnote")));
+        }
+    }
+
     if (!parsed.hasResult && !parsed.hasNote) {
         return storedBody;
     }
+
+    auto applyNoteSafely = [](QString chunk, const ParsedProtocolFields &fields) {
+        if (!fields.hasNote) {
+            return chunk;
+        }
+        // Не затирать сохранённое примечание пустым чтением из редактора.
+        const QString existing =
+            htmlFragmentToPlainText(extractDivInnerById(chunk, QStringLiteral("idnote"))).trimmed();
+        if (fields.noteText.trimmed().isEmpty() && !existing.isEmpty()) {
+            return chunk;
+        }
+        if (chunk.contains(QStringLiteral("idnote"), Qt::CaseInsensitive)) {
+            return replaceDivInnerById(
+                chunk, QStringLiteral("idnote"), fields.noteText.toHtmlEscaped());
+        }
+        return replaceRowSecondCell(chunk, QStringLiteral("Примечание"), fields.noteText);
+    };
 
     // 1.26: только Результат/Примечание последней сессии — без joinClosed.
     if (looksLikeProtocol126Body(storedBody)) {
@@ -3759,9 +3853,7 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
             if (parsed.hasResult) {
                 body = replaceResultRowSecondCell(body, parsed.resultText);
             }
-            if (parsed.hasNote) {
-                body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
-            }
+            body = applyNoteSafely(body, parsed);
             return body;
         }
         QString last = sessions.last();
@@ -3772,9 +3864,7 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
                 last = replaceResultRowSecondCell(last, parsed.resultText);
             }
         }
-        if (parsed.hasNote) {
-            last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
-        }
+        last = applyNoteSafely(last, parsed);
         sessions[sessions.size() - 1] = last;
         return joinProtocol126Sessions(sessions);
     }
@@ -3785,9 +3875,7 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         if (parsed.hasResult) {
             body = replaceResultRowSecondCell(body, parsed.resultText);
         }
-        if (parsed.hasNote) {
-            body = replaceRowSecondCell(body, QStringLiteral("Примечание"), parsed.noteText);
-        }
+        body = applyNoteSafely(body, parsed);
         return ensureClosedProtocolSession(body);
     }
 
@@ -3799,9 +3887,7 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
             last = replaceResultRowSecondCell(last, parsed.resultText);
         }
     }
-    if (parsed.hasNote) {
-        last = replaceRowSecondCell(last, QStringLiteral("Примечание"), parsed.noteText);
-    }
+    last = applyNoteSafely(last, parsed);
     sessions[sessions.size() - 1] = last;
     return joinClosedProtocolSessions(sessions);
 }
@@ -5591,6 +5677,22 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
     if (storedBody.trimmed().isEmpty()) {
         return storedBody;
     }
+    // 33.3 / 4.2.1: перенос баллов → Результат не должен очищать «Примечание».
+    const QRegularExpression idnoteRe(
+        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]idnote['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+        QRegularExpression::CaseInsensitiveOption);
+    QString preservedNoteInner;
+    {
+        QRegularExpressionMatchIterator it = idnoteRe.globalMatch(storedBody);
+        QRegularExpressionMatch last;
+        while (it.hasNext()) {
+            last = it.next();
+        }
+        if (last.hasMatch()) {
+            preservedNoteInner = last.captured(2);
+        }
+    }
+
     QString body = mergeOrHlpBallsEditorIntoStoredBody(storedBody, editorDocument, processTable);
 
     QStringList sessions = extractProtocol126SessionsByDate(body);
@@ -5659,27 +5761,50 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
     if (!ok) {
         if (multi) {
             sessions[sessions.size() - 1] = chunk;
-            return joinProtocol126Sessions(sessions);
+            body = joinProtocol126Sessions(sessions);
+        } else {
+            body = chunk;
         }
-        return body;
-    }
-    const int scoreInt = qBound(0, qRound(value), 10);
-    const QString resultText = QStringLiteral("%1(10)/%2")
-                                   .arg(formatBallsNumber(scoreInt), developmentLevelFromBalls(scoreInt));
-    if (chunk.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)) {
-        chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
-    }
-    if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
-        chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
     } else {
-        chunk = replaceResultRowSecondCell(chunk, resultText);
+        const int scoreInt = qBound(0, qRound(value), 10);
+        const QString resultText = QStringLiteral("%1(10)/%2")
+                                       .arg(formatBallsNumber(scoreInt), developmentLevelFromBalls(scoreInt));
+        if (chunk.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)) {
+            chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
+        }
+        if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+            chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
+        } else {
+            chunk = replaceResultRowSecondCell(chunk, resultText);
+        }
+
+        if (multi) {
+            sessions[sessions.size() - 1] = chunk;
+            body = joinProtocol126Sessions(sessions);
+        } else {
+            body = chunk;
+        }
     }
 
-    if (multi) {
-        sessions[sessions.size() - 1] = chunk;
-        return joinProtocol126Sessions(sessions);
+    // Восстановить «Примечание», если merge его стёр.
+    if (!preservedNoteInner.isEmpty()) {
+        QRegularExpressionMatchIterator it = idnoteRe.globalMatch(body);
+        QRegularExpressionMatch last;
+        while (it.hasNext()) {
+            last = it.next();
+        }
+        if (last.hasMatch()) {
+            const QString after = htmlFragmentToPlainText(last.captured(2)).trimmed();
+            const QString before = htmlFragmentToPlainText(preservedNoteInner).trimmed();
+            if (after.isEmpty() && !before.isEmpty()) {
+                body.replace(
+                    last.capturedStart(0),
+                    last.capturedLength(0),
+                    last.captured(1) + preservedNoteInner + last.captured(3));
+            }
+        }
     }
-    return chunk;
+    return body;
 }
 
 QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(

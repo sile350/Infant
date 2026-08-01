@@ -1175,7 +1175,8 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_dualScreen && m_exerciseRunning && m_sessionRunner
         && (m_sessionRunnerKind == ExerciseRunnerKind::E28
-            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2)
+            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2
+            || m_sessionRunnerKind == ExerciseRunnerKind::Digits)
         && m_rightPanel
         && m_sessionRunner->parentWidget() == m_rightPanel) {
         m_sessionRunner->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
@@ -2572,10 +2573,11 @@ void ExerciseHost::updateExerciseOverlayGeometry() {
     if (!overlayWidget) {
         return;
     }
-    // 2.8 / 4.1.4 dual: runner живёт на правой панели специалиста.
+    // 2.8 / 4.1.4 / 4.2.1 dual: runner живёт на правой панели специалиста.
     if (m_dualScreen && m_sessionRunner && m_exerciseRunning
         && (m_sessionRunnerKind == ExerciseRunnerKind::E28
-            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2)
+            || m_sessionRunnerKind == ExerciseRunnerKind::Remember2
+            || m_sessionRunnerKind == ExerciseRunnerKind::Digits)
         && m_rightPanel
         && overlayWidget->parentWidget() == m_rightPanel) {
         overlayWidget->setGeometry(0, 0, m_rightPanel->width(), m_rightPanel->height());
@@ -2893,10 +2895,11 @@ void ExerciseHost::runExerciseSession() {
         m_specialistExercise->hide();
     }
 
-    // 2.8 / 4.1.4 + два экрана: картинки и «Показать/скрыть» на правой половине первого экрана
-    // (описание слева остаётся), зеркало — на втором.
+    // 2.8 / 4.1.4 / 4.2.1 + два экрана: задание на правой половине первого экрана
+    // (описание слева остаётся). 4.2.1: тот же f1.png + галочки, без fullscreen-оверлея.
     if ((definition->runner == ExerciseRunnerKind::E28
-         || definition->runner == ExerciseRunnerKind::Remember2)
+         || definition->runner == ExerciseRunnerKind::Remember2
+         || definition->runner == ExerciseRunnerKind::Digits)
         && m_dualScreen && m_rightPanel) {
         if (m_previewImage) {
             m_previewImage->hide();
