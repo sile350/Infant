@@ -76,6 +76,11 @@ public:
     static QString buildProtocol118ViewRecord(
         const QString &headerFragment,
         const QString &storedBody);
+    // 5.4.2 «Сказка»: шапка 2 кол. + процесс Вопросы/Ответы/Помощь 3 кол. —
+    // явная склейка </table> перед процессом (иначе Qt даёт пустую 3-ю колонку в шапке).
+    static QString buildProtocol542ViewRecord(
+        const QString &headerFragment,
+        const QString &storedBody);
     static QString buildProtocol126ViewRecord(
         const QString &headerFragment,
         const QString &storedBody);

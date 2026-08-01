@@ -112,6 +112,10 @@ void appendProtocolRecord(
         // Явная склейка summary</table> + процесс (как 1.2/1.26) — иначе Qt вкладывает.
         record = ExerciseProtocol::buildProtocol118ViewRecord(
             continuation ? QString() : rawHeader, protocolBody);
+    } else if (uprid == QStringLiteral("5.4.2")) {
+        // 2-кол. шапка + 3-кол. Вопросы/Ответы/Помощь — закрыть summary до процесса.
+        record = ExerciseProtocol::buildProtocol542ViewRecord(
+            continuation ? QString() : rawHeader, protocolBody);
     } else {
         // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
         const QString flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(

@@ -1558,6 +1558,27 @@ QString applyProtocol126ProcessCellWidths(QString html) {
 }
 
 QString normalizeSummaryColumnWidthsHtml(QString body) {
+    // Перед <!--s--> всегда </table>: иначе 3-кол. процесс «Сказки» (и др.) вливается
+    // в 2-кол. шапку → пустая третья колонка у «Методика» / «Цель» / «Процесс…».
+    {
+        const QString marker = QStringLiteral("<!--s-->");
+        int pos = 0;
+        while ((pos = body.indexOf(marker, pos)) >= 0) {
+            int trimEnd = pos;
+            while (trimEnd > 0
+                   && (body.at(trimEnd - 1).isSpace() || body.at(trimEnd - 1) == QChar(0xA0))) {
+                --trimEnd;
+            }
+            const QString before = body.left(trimEnd);
+            if (!before.endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                body.insert(pos, QStringLiteral("</table>"));
+                pos += QStringLiteral("</table>").size() + marker.size();
+            } else {
+                pos += marker.size();
+            }
+        }
+    }
+
     // Убрать пустые разрывы между соседними таблицами (повторные сессии на «Протоколы»).
     body.replace(
         QRegularExpression(
@@ -1644,7 +1665,12 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             if (inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
-                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)) {
+                || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+                // 5.4.2: если процесс влился в шапку — не ставить colgroup 200/471 на 3-кол. таблицу.
+                || (inner.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)
+                    && (inner.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+                        || inner.contains(QStringLiteral("Ответы"), Qt::CaseInsensitive))
+                    && inner.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive))) {
                 out += m.captured(0);
                 last = m.capturedEnd();
                 continue;
@@ -2875,6 +2901,68 @@ QString ExerciseProtocol::buildProtocol118ViewRecord(
                     "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*Процесс\\s+выполнения\\s+"
                     "диагностической\\s+методики\\s*(?:</[^>]+>\\s*)*</td>\\s*</tr>\\s*"),
                 QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
+            QString());
+        summaryRows = summaryRows.trimmed();
+        resultsBlock = resultsBlock.trimmed();
+
+        if (i == 0) {
+            if (!headerFragment.trimmed().isEmpty()) {
+                result += ExerciseProtocol::canonicalizeProtocolHeaderFragment(headerFragment);
+            } else {
+                result += protocolSummaryTableOpenHtml();
+            }
+        } else {
+            result += protocolSummaryTableOpenHtml();
+        }
+        if (!summaryRows.isEmpty()) {
+            result += summaryRows;
+        }
+        result += QStringLiteral("</table>");
+        if (!resultsBlock.isEmpty()) {
+            if (!resultsBlock.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+                resultsBlock.prepend(
+                    QStringLiteral(
+                        "<table border='1' style='table-layout:fixed;width:671px' "
+                        "cellspacing='0' cellpadding='0' width='671'>"));
+            }
+            result += resultsBlock;
+            if (!resultsBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
+                result += QStringLiteral("</table>");
+            }
+        }
+    }
+    return ExerciseProtocol::normalizeSummaryColumnWidths(result);
+}
+
+QString ExerciseProtocol::buildProtocol542ViewRecord(
+    const QString &headerFragment,
+    const QString &storedBody) {
+    if (storedBody.trimmed().isEmpty()) {
+        return headerFragment;
+    }
+
+    // Как 1.18: закрыть 2-кол. summary </table>, затем 3-кол. таблицу Вопросы/Ответы/Помощь.
+    // Иначе после 2-й сессии Qt вливает процесс в шапку → пустая 3-я колонка у «Методика».
+    const QString flat = flattenStoredProtocolBody(storedBody);
+    QStringList sessions = extractProtocol126SessionsByDate(flat);
+    if (sessions.isEmpty()) {
+        sessions = ExerciseProtocol::extractProtocolBodiesByDateRows(flat);
+    }
+    if (sessions.isEmpty()) {
+        sessions = QStringList{stripLeadingSummaryTableWrapper(flat)};
+    }
+
+    QString result;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString session = ensureClosedProtocolSession(sessions.at(i));
+        const int marker = session.indexOf(QStringLiteral("<!--s-->"));
+        QString summaryRows = marker >= 0 ? session.left(marker) : session;
+        QString resultsBlock =
+            marker >= 0 ? session.mid(marker + QStringLiteral("<!--s-->").size()) : QString();
+
+        summaryRows = stripLeadingSummaryTableWrapper(summaryRows);
+        summaryRows.replace(
+            QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
             QString());
         summaryRows = summaryRows.trimmed();
         resultsBlock = resultsBlock.trimmed();
@@ -6462,6 +6550,20 @@ QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody)
     if (protocolBody.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
         || protocolBody.contains(QStringLiteral("Задание №"), Qt::CaseInsensitive)) {
         const QStringList sessions = extractProtocolBodiesByDateRows(protocolBody);
+        if (sessions.isEmpty()) {
+            return normalizeSummaryColumnWidthsHtml(ensureClosedProtocolSession(protocolBody));
+        }
+        return joinClosedProtocolSessions(sessions);
+    }
+    // 5.4.2 «Сказка»: summary </table><!--s--> + 3-кол. Вопросы/Ответы/Помощь.
+    if (protocolBody.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)
+        && protocolBody.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+        && protocolBody.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+        && protocolBody.contains(QStringLiteral("О чем эта сказка"), Qt::CaseInsensitive)) {
+        QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
+        if (sessions.isEmpty()) {
+            sessions = extractProtocolBodiesByDateRows(protocolBody);
+        }
         if (sessions.isEmpty()) {
             return normalizeSummaryColumnWidthsHtml(ensureClosedProtocolSession(protocolBody));
         }
