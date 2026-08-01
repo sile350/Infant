@@ -6026,16 +6026,35 @@ QString ExerciseProtocol::flattenStoredProtocolBody(const QString &protocolBody)
         return normalizeSummaryColumnWidthsHtml(
             ExerciseProtocol::canonicalizeProtocol418StoredBody(protocolBody));
     }
-    // 3.1.10: 6-колоночный процесс; незакрытая таблица после trim1 — через date-extract+join.
+    // 3.1.10 / 3.1.17 / 3.1.18: сессии с <!--s--> + таблица процесса.
     if (protocolBody.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+        || protocolBody.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)
         || protocolBody.contains(QRegularExpression(
                QStringLiteral("id\\s*=\\s*['\"]idb\\d"),
-               QRegularExpression::CaseInsensitiveOption))) {
+               QRegularExpression::CaseInsensitiveOption))
+        || (protocolBody.contains(QStringLiteral("<!--s-->"))
+            && protocolBody.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+            && protocolBody.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive))) {
         QStringList sessions = extractProtocol126SessionsByDate(protocolBody);
         if (sessions.isEmpty()) {
             return normalizeSummaryColumnWidthsHtml(ensureClosedProtocolSession(protocolBody));
         }
-        return joinProtocol126Sessions(sessions);
+        // Склейка без canonicalize126 — иначе теряются прошлые сессии.
+        QString result;
+        for (int i = 0; i < sessions.size(); ++i) {
+            QString session = ensureClosedProtocolSession(sessions.at(i));
+            if (session.isEmpty()) {
+                continue;
+            }
+            if (i == 0) {
+                session = stripLeadingSummaryTableWrapper(session);
+                session = ensureClosedProtocolSession(session);
+            } else if (!session.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
+                session.prepend(protocolSummaryTableOpenHtml());
+            }
+            result += session;
+        }
+        return normalizeSummaryColumnWidthsHtml(result);
     }
     // 5.2.1: после <!--s--> несколько таблиц (Задание №N + OR/HLP) — не отрезать.
     if (protocolBody.contains(QStringLiteral("Частота употребления"), Qt::CaseInsensitive)
