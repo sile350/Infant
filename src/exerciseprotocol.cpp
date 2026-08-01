@@ -82,7 +82,9 @@ QString formatProtocolCellText(const QString &text) {
     if (text.trimmed().isEmpty()) {
         return QStringLiteral("&nbsp;");
     }
-    const QStringList lines = text.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
+    // \u2028/\u2029 — Line/ParagraphSeparator из QTextEdit (Enter и <br> в ячейке).
+    const QStringList lines = text.split(
+        QRegularExpression(QStringLiteral("[\\r\\n\\u2028\\u2029;]+")), Qt::SkipEmptyParts);
     QStringList parts;
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
@@ -645,8 +647,12 @@ QString htmlFragmentToPlainText(const QString &html) {
     QTextDocument document;
     document.setHtml(html);
     QString plain = document.toPlainText();
-    plain.replace(QChar(0x2029), QLatin1Char('\n'));
+    // Qt: Enter → ParagraphSeparator, <br> в ячейке → LineSeparator; оба нужны как \n,
+    // иначе при сохранении OR/HLP строки склеиваются в одну.
+    plain.replace(QChar::LineSeparator, QLatin1Char('\n'));
     plain.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+    plain.replace(QChar(0x2028), QLatin1Char('\n'));
+    plain.replace(QChar(0x2029), QLatin1Char('\n'));
     return plain.trimmed();
 }
 
@@ -669,8 +675,10 @@ QString readTableCellMultilineText(QTextTable *table, int row, int column) {
         }
     }
     QString text = cursor.selectedText();
-    text.replace(QChar(0x2029), QLatin1Char('\n'));
+    text.replace(QChar::LineSeparator, QLatin1Char('\n'));
     text.replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+    text.replace(QChar(0x2028), QLatin1Char('\n'));
+    text.replace(QChar(0x2029), QLatin1Char('\n'));
     return text.trimmed();
 }
 
@@ -5206,7 +5214,7 @@ QString ExerciseProtocol::mergeProtocol126EditorIntoStoredBody(
             if (table->columns() < 2) {
                 continue;
             }
-            const QString value = readTableCellText(table, r, 1);
+            const QString value = readTableCellMultilineText(table, r, 1);
             if (label.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
                 activityValues << value;
             } else if (label.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
@@ -5315,10 +5323,7 @@ QString ExerciseProtocol::applyProtocolBPrefixSum(const QString &storedBody, con
 }
 
 QString editable3110Cell(const QString &plain) {
-    const QString value = plain.trimmed().isEmpty()
-        ? QStringLiteral("&nbsp;")
-        : plain.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"));
-    return QStringLiteral("<div contenteditable='true'>%1</div>").arg(value);
+    return QStringLiteral("<div contenteditable='true'>%1</div>").arg(formatProtocolCellText(plain));
 }
 
 QString replace3110ProcessRowCells(
@@ -5423,8 +5428,10 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
             }
             const QString picture = readTableCellText(table, r, picCol);
             const QString explanation = explCol >= 0 ? readTableCellText(table, r, explCol) : QString();
-            const QString activity = activityCol >= 0 ? readTableCellText(table, r, activityCol) : QString();
-            const QString help = helpCol >= 0 ? readTableCellText(table, r, helpCol) : QString();
+            const QString activity =
+                activityCol >= 0 ? readTableCellMultilineText(table, r, activityCol) : QString();
+            const QString help =
+                helpCol >= 0 ? readTableCellMultilineText(table, r, helpCol) : QString();
             const QString score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
             body = replace3110ProcessRowCells(
                 body, stepNo, picture, explanation, activity, help, score);
@@ -5434,8 +5441,8 @@ QString ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
 }
 
 int countHelpEntries3110(const QString &helpCell) {
-    const QStringList parts =
-        helpCell.split(QRegularExpression(QStringLiteral("[\\r\\n;]+")), Qt::SkipEmptyParts);
+    const QStringList parts = helpCell.split(
+        QRegularExpression(QStringLiteral("[\\r\\n\\u2028\\u2029;]+")), Qt::SkipEmptyParts);
     int count = 0;
     for (const QString &part : parts) {
         if (!part.trimmed().isEmpty()) {
@@ -6088,10 +6095,8 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
     QString target = multiSession ? sessions.last() : body;
 
     auto makeEditable = [](const QString &text) {
-        const QString value = text.trimmed().isEmpty()
-            ? QStringLiteral("&nbsp;")
-            : text.toHtmlEscaped();
-        return QStringLiteral("<div contenteditable='true'>%1</div>").arg(value);
+        return QStringLiteral("<div contenteditable='true'>%1</div>")
+            .arg(formatProtocolCellText(text));
     };
 
     auto replaceNthTdInner = [](QString trInner, int tdIndex, const QString &newInner) {
@@ -6180,8 +6185,8 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
             if (activityCol < 0 || helpCol < 0) {
                 continue;
             }
-            const QString activity = readTableCellText(table, r, activityCol);
-            const QString help = readTableCellText(table, r, helpCol);
+            const QString activity = readTableCellMultilineText(table, r, activityCol);
+            const QString help = readTableCellMultilineText(table, r, helpCol);
 
             // Строка процесса с idsN — обновляем ячейки характера и помощи.
             const QRegularExpression idProbe(
