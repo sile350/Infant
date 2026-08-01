@@ -4,5 +4,5 @@
   "scoreKind": "none",
   "dateRow": "<tr><td width='200'>Дата/специалист</td><td width='471'>{{DATE}}   {{USER}}</td></tr>",
   "initialBlock": "<tr><td width='200'>Результат:<br>вывод об уровне развития</td><td width='471'><div contenteditable='true'></div></td></tr><tr><td width='200'>Примечание </td><td width='471'><div contenteditable='true'></div></td></tr><tr><td align='center' colspan='2'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table style='table-layout:fixed' border='1' cellspacing='0' cellpadding='0' width='671'><colgroup><col width='125'><col width='273'><col width='273'></colgroup><tr><td width='125'>Факт выполнения<br>/ время</td><td width='273' align='center'> Характер деятельности ребенка </td><td width='273' align='center'>Виды помощи</td></tr>",
-  "rowTemplate": "<tr><td width='125'>{{ADDITIONAL}} {{TIME}}</td><td valign='top' width='273'><div contenteditable='true'>{{OR}}</div></td><td valign='top' width='273'><div contenteditable='true'>{{HLP}}</div></td></tr>"
+  "rowTemplate": "<tr><td width='125' valign='top'>{{ADDITIONAL}} {{TIME}}<br>&nbsp;</td><td valign='top' width='273'><div contenteditable='true'>{{OR}}</div></td><td valign='top' width='273'><div contenteditable='true'>{{HLP}}</div></td></tr>"
 }

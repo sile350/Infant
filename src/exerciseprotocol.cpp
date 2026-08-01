@@ -2984,6 +2984,41 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         }
         table->setFormat(fmt);
 
+        // Колонка «Баллы» (3.1.17 / 4.1.2 и др.): цифры по центру в QTextEdit.
+        if (table->rows() >= 1 && cols >= 3) {
+            int ballsCol = -1;
+            for (int c = 0; c < cols; ++c) {
+                const QString h = readTableCellText(table, 0, c).trimmed();
+                if (h.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
+                    || (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12)) {
+                    ballsCol = c;
+                    break;
+                }
+            }
+            if (ballsCol >= 0) {
+                for (int r = 1; r < table->rows(); ++r) {
+                    QTextTableCell cell = table->cellAt(r, ballsCol);
+                    if (!cell.isValid()) {
+                        continue;
+                    }
+                    QTextCursor cur = cell.firstCursorPosition();
+                    const int endPos = cell.lastCursorPosition().position();
+                    while (cur.position() <= endPos && !cur.atEnd()) {
+                        QTextBlockFormat bf = cur.blockFormat();
+                        if (bf.alignment() != Qt::AlignHCenter) {
+                            bf.setAlignment(Qt::AlignHCenter);
+                            cur.mergeBlockFormat(bf);
+                        }
+                        const QTextBlock next = cur.block().next();
+                        if (!next.isValid() || next.position() > endPos) {
+                            break;
+                        }
+                        cur.setPosition(next.position());
+                    }
+                }
+            }
+        }
+
         // 3.2.2 / 3.2.3 и др.: при 1 короткой строке процесса (только «Выполнение»)
         // QTextEdit с overflow обрезает нижнюю линию у колонки «Факт выполнения/время».
         // Не трогаем border (иначе линии толстеют) — только нижний padding последней строки.
