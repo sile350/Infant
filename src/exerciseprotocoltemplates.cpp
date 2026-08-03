@@ -194,6 +194,73 @@ int scoreExercise18(int time) {
     return 0;
 }
 
+// 1.5 «Чем залатать коврик?» (protocols.cs): пороги 20/25/30…/63
+int scoreExercise15(int time) {
+    if (time < 20) return 10;
+    if (time <= 25) return 9;
+    if (time <= 30) return 8;
+    if (time < 35) return 7;
+    if (time < 40) return 6;
+    if (time < 45) return 5;
+    if (time < 50) return 4;
+    if (time < 55) return 3;
+    if (time < 60) return 2;
+    if (time <= 63) return 1;
+    return 0;
+}
+
+// 3.1.15 «Кому чего не достает?» (protocols.cs)
+int scoreExercise315(int time) {
+    if (time < 30) return 10;
+    if (time < 41) return 9;
+    if (time < 49) return 8;
+    if (time < 61) return 7;
+    if (time < 69) return 6;
+    if (time < 81) return 5;
+    if (time < 89) return 4;
+    if (time < 101) return 3;
+    if (time < 109) return 2;
+    if (time >= 110) return 0;
+    return 0;
+}
+
+// 1.15 база по времени (до штрафа за помощь)
+int scoreExercise115Base(int time) {
+    if (time < 20) return 10;
+    if (time < 25) return 9;
+    if (time < 30) return 8;
+    if (time < 35) return 7;
+    if (time < 40) return 6;
+    if (time < 45) return 5;
+    if (time < 50) return 4;
+    if (time < 55) return 3;
+    if (time < 60) return 2;
+    return 0;
+}
+
+int helpPenaltyHalfPoints(const QString &help) {
+    const QStringList helpParts =
+        help.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
+    return helpParts.size();
+}
+
+// Уровень из текста оценки (I–IV / N балл): IV→3, III→2, иначе 0.
+double activityLevelScoreMax3(const QString &activity) {
+    if (activity.contains(QStringLiteral("IV уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("4 уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("3 балла"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("(3 балл"), Qt::CaseInsensitive)) {
+        return 3.0;
+    }
+    if (activity.contains(QStringLiteral("III уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("3 уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("2 балла"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("(2 балл"), Qt::CaseInsensitive)) {
+        return 2.0;
+    }
+    return 0.0;
+}
+
 int scoreExercise14(int time, int picturesShown) {
     const QString count = QString::number(picturesShown);
     if (time <= 10 && count == QStringLiteral("0")) return 10;
@@ -377,13 +444,37 @@ QMap<QString, QString> buildVariables(
 
     double score = 0;
     bool scoreSelected = true;
+    bool scoreIsFractional = false;
     const bool manualBalls = tmpl.id == QStringLiteral("4.1.4")
-        || tmpl.scoreKind == QStringLiteral("manual_balls");
+        || tmpl.scoreKind == QStringLiteral("manual_balls")
+        || tmpl.scoreKind == QStringLiteral("balls_manual");
     if (manualBalls) {
         // Баллы вручную (время + число найденных картинок) — не автозаполнять.
         scoreSelected = false;
     } else if (tmpl.scoreKind == QStringLiteral("timed414_result")) {
         score = scoreExercise414(elapsedSeconds);
+    } else if (tmpl.scoreKind == QStringLiteral("timed15_result") || tmpl.id == QStringLiteral("1.5")) {
+        score = scoreExercise15(elapsedSeconds);
+    } else if (tmpl.scoreKind == QStringLiteral("timed315_result") || tmpl.id == QStringLiteral("3.1.15")) {
+        score = scoreExercise315(elapsedSeconds);
+    } else if (tmpl.scoreKind == QStringLiteral("timed15_help") || tmpl.id == QStringLiteral("1.15")) {
+        score = scoreExercise115Base(elapsedSeconds);
+        score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
+        if (score < 0) {
+            score = 0;
+        }
+        scoreIsFractional = true;
+    } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
+               || tmpl.id == QStringLiteral("1.12")
+               || tmpl.id == QStringLiteral("2.11")
+               || tmpl.id == QStringLiteral("2.12")
+               || tmpl.id == QStringLiteral("3.1.8")) {
+        score = activityLevelScoreMax3(checkboxes.activity);
+        score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
+        if (score < 0) {
+            score = 0;
+        }
+        scoreIsFractional = true;
     } else if (tmpl.id == QStringLiteral("4.1.2") || tmpl.scoreKind == QStringLiteral("timed11_result")) {
         // timed11_result в шаблонах: для 4.1.2 — шкала 45с; для прочих открытых — та же.
         if (tmpl.id == QStringLiteral("4.1.2")) {
@@ -417,14 +508,25 @@ QMap<QString, QString> buildVariables(
             || checkboxes.activity.contains(QStringLiteral("2 балла"), Qt::CaseInsensitive)) {
             score = 2.0;
         }
-        const QStringList helpParts =
-            checkboxes.help.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
-        score = qMax(0.0, score - 0.5 * helpParts.size());
+        score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
+        if (score < 0) {
+            score = 0;
+        }
+        scoreIsFractional = true;
     }
     if (manualBalls || !scoreSelected) {
         vars.insert(QStringLiteral("{{SCORE}}"), QString());
         vars.insert(QStringLiteral("{{LEVEL}}"), QString());
-    } else if (tmpl.scoreKind == QStringLiteral("activity_help_2") || tmpl.id == QStringLiteral("3.1.10")) {
+    } else if (scoreIsFractional
+               || tmpl.scoreKind == QStringLiteral("activity_help_2")
+               || tmpl.scoreKind == QStringLiteral("activity_help_3")
+               || tmpl.scoreKind == QStringLiteral("timed15_help")
+               || tmpl.id == QStringLiteral("3.1.10")
+               || tmpl.id == QStringLiteral("1.12")
+               || tmpl.id == QStringLiteral("1.15")
+               || tmpl.id == QStringLiteral("2.11")
+               || tmpl.id == QStringLiteral("2.12")
+               || tmpl.id == QStringLiteral("3.1.8")) {
         if (qFuzzyIsNull(score - std::floor(score))) {
             vars.insert(QStringLiteral("{{SCORE}}"), QString::number(static_cast<int>(score)));
         } else {

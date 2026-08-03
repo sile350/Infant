@@ -3604,6 +3604,26 @@ public:
         };
         connect(m_canvas, &RememberCanvas::stopRequested, this, [this]() { finishSession(); });
         connect(m_canvas, &RememberCanvas::removeButtonChanged, this, [this]() { syncRemoveButton(); });
+
+        // 3.1.21: панель «Ответы ребенка» (как questions.cs поверх remember).
+        m_questionsPanel = new QWidget(this);
+        markPatientControl(m_questionsPanel);
+        m_questionsPanel->setStyleSheet(QStringLiteral(
+            "QWidget { background:#f8f8f8; border:1px solid #888; }"
+            "QLabel { color:#000; font-family:'Microsoft Sans Serif'; font-size:13px; }"
+            "QLineEdit { background:#fff; border:1px solid #666; padding:2px; }"));
+        auto *qLayout = new QVBoxLayout(m_questionsPanel);
+        qLayout->setContentsMargins(8, 8, 8, 8);
+        qLayout->setSpacing(6);
+        qLayout->addWidget(new QLabel(QStringLiteral("Ответы ребенка:"), m_questionsPanel));
+        for (int i = 0; i < 3; ++i) {
+            m_answerEdits[i] = new QLineEdit(m_questionsPanel);
+            m_answerEdits[i]->setPlaceholderText(
+                QStringLiteral("Вопрос № %1").arg(i + 1));
+            qLayout->addWidget(m_answerEdits[i]);
+        }
+        m_questionsPanel->setFixedWidth(280);
+        m_questionsPanel->hide();
     }
 
     void startSession(
@@ -3621,6 +3641,19 @@ public:
         m_stop->show();
         m_stop->raise();
         syncRemoveButton();
+        if (m_questionsPanel) {
+            const bool showQ = exerciseId == QStringLiteral("3.1.21");
+            for (QLineEdit *edit : m_answerEdits) {
+                if (edit) {
+                    edit->clear();
+                }
+            }
+            m_questionsPanel->setVisible(showQ);
+            if (showQ) {
+                m_questionsPanel->move(12, 120);
+                m_questionsPanel->raise();
+            }
+        }
         show();
         raise();
     }
@@ -3637,6 +3670,10 @@ public:
         }
         if (m_removek && m_removek->isVisible()) {
             m_removek->move(m_stop ? m_stop->x() + m_stop->width() + 20 : 280, m_stop ? m_stop->y() : 72);
+        }
+        if (m_questionsPanel && m_questionsPanel->isVisible()) {
+            m_questionsPanel->move(12, 120);
+            m_questionsPanel->raise();
         }
     }
 
@@ -3664,11 +3701,27 @@ private:
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
-        result.additional = m_canvas ? m_canvas->positionsSnapshot() : QString();
+        if (m_exerciseId == QStringLiteral("3.1.21")) {
+            const QString step = m_stepId.trimmed().isEmpty() ? QStringLiteral("1") : m_stepId.trimmed();
+            QStringList parts;
+            parts << step;
+            for (QLineEdit *edit : m_answerEdits) {
+                parts << (edit ? edit->text().trimmed() : QString());
+            }
+            while (parts.size() < 4) {
+                parts << QString();
+            }
+            result.additional = parts.join(QLatin1Char(';'));
+        } else {
+            result.additional = m_canvas ? m_canvas->positionsSnapshot() : QString();
+        }
         m_canvas->hide();
         m_stop->hide();
         if (m_removek) {
             m_removek->hide();
+        }
+        if (m_questionsPanel) {
+            m_questionsPanel->hide();
         }
         hide();
         emitFinished(result);
@@ -3677,6 +3730,10 @@ private:
     RememberCanvas *m_canvas = nullptr;
     ClickableLabel *m_stop = nullptr;
     ClickableLabel *m_removek = nullptr;
+    QWidget *m_questionsPanel = nullptr;
+    QLineEdit *m_answerEdits[3] = {nullptr, nullptr, nullptr};
+    QString m_exerciseId;
+    QString m_stepId;
 };
 
 class EmotionsRunner final : public ExerciseRunnerWidget {

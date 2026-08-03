@@ -2654,6 +2654,14 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
         m_stepElapsedSeconds.insert(step, result.elapsedSeconds);
     }
     m_sessionAdditional = result.additional;
+    if (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")) {
+        // E15Canvas::doneState → «выполнено»/«не выполнено» (как additional True/False в оригинале).
+        if (!result.doneState.trimmed().isEmpty()) {
+            const bool ok =
+                result.doneState.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
+            m_sessionAdditional = ok ? QStringLiteral("выполнено") : QStringLiteral("не выполнено");
+        }
+    }
     if (m_exerciseId == QStringLiteral("4.2.2")) {
         m_words422Editable = true;
         updateWords422Panel(result.additional);
@@ -3318,9 +3326,20 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
         session.picturesShown = m_picturesShown;
     }
 
+    // 1.5 / 1.6: факт выполнения с канваса E15, не с чекбоксов «выполнено».
+    if ((m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6"))
+        && (m_sessionAdditional == QStringLiteral("выполнено")
+            || m_sessionAdditional == QStringLiteral("не выполнено"))) {
+        session.doneState = m_sessionAdditional;
+        if (m_exerciseId == QStringLiteral("1.6")) {
+            session.additional = m_sessionAdditional;
+        }
+    }
+
     // Раннер уже положил данные (ответы, цифры, сказка и т.п.) — не затираем.
     const bool keepRunnerAdditional = !m_sessionAdditional.isEmpty()
         && (m_exerciseId == QStringLiteral("1.26")
+            || m_exerciseId == QStringLiteral("3.1.21")
             || m_exerciseId == QStringLiteral("4.1.8") || m_exerciseId == QStringLiteral("4.2.1")
             || m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
             || m_exerciseId == QStringLiteral("5.2.1") || m_exerciseId == QStringLiteral("5.4.2"));
@@ -3350,6 +3369,15 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
             session.stepIds << step;
             session.additionalByStep.clear();
             session.additionalByStep.insert(step, session.additional);
+        } else if (m_exerciseId == QStringLiteral("3.1.21")) {
+            const QString step = session.stepId.trimmed().isEmpty()
+                ? QStringLiteral("1")
+                : session.stepId.trimmed();
+            session.stepId = step;
+            session.stepIds << step;
+            if (!session.additional.startsWith(step + QLatin1Char(';'))) {
+                session.additional = step + QLatin1Char(';') + session.additional;
+            }
         }
     } else if (m_exerciseId == QStringLiteral("1.26")) {
         // Как в оригинале: param1 + ";" + answers[0..12].join(";")
@@ -3396,7 +3424,11 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
             session.additional = session.stepId + QLatin1Char(';') + session.doneState;
         }
     } else if (definition && definition->protocol == ExerciseProtocolKind::DoneTimeOrHlp) {
-        if (ExerciseConfig::usesAppendOnlyMultiStepLogic(m_exerciseId)) {
+        if (m_exerciseId == QStringLiteral("1.6")
+            && (session.additional == QStringLiteral("выполнено")
+                || session.additional == QStringLiteral("не выполнено"))) {
+            // Уже задано из E15Canvas — не затирать чекбоксами.
+        } else if (ExerciseConfig::usesAppendOnlyMultiStepLogic(m_exerciseId)) {
             const QString step = session.stepId.trimmed().isEmpty()
                 ? QStringLiteral("1")
                 : session.stepId.trimmed();
