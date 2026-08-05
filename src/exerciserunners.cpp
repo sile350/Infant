@@ -32,6 +32,7 @@
 #include <QLineEdit>
 #include <QMap>
 #include <QMouseEvent>
+#include <QSizePolicy>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
@@ -75,6 +76,43 @@ QString scansDirectory() {
     const QString dir = QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans");
     QDir().mkpath(dir);
     return dir;
+}
+
+// QRadioButton в Qt не переносит текст — индикатор + QLabel с word wrap.
+class RadioTextLabel final : public QLabel {
+public:
+    explicit RadioTextLabel(QWidget *parent = nullptr) : QLabel(parent) {
+        setWordWrap(true);
+        setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        setCursor(Qt::PointingHandCursor);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    }
+    QRadioButton *radio = nullptr;
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && radio) {
+            radio->setChecked(true);
+        }
+        QLabel::mouseReleaseEvent(event);
+    }
+};
+
+QRadioButton *addWrappingRadio(QVBoxLayout *layout, const QString &text, QWidget *parent) {
+    auto *row = new QWidget(parent);
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(6);
+    auto *radio = new QRadioButton(row);
+    radio->setText(QString());
+    radio->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    auto *label = new RadioTextLabel(row);
+    label->radio = radio;
+    label->setText(text);
+    rowLayout->addWidget(radio, 0, Qt::AlignTop);
+    rowLayout->addWidget(label, 1);
+    layout->addWidget(row);
+    return radio;
 }
 
 QPixmap pixmapNativeOrDownscale(const QPixmap &source, int maxW, int maxH) {
@@ -3558,15 +3596,17 @@ public:
             "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
             "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
         auto *modeLayout = new QVBoxLayout(m_modeGroup);
-        modeLayout->setSpacing(8);
-        m_highlightRadio = new QRadioButton(
-            QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"), m_modeGroup);
-        m_moveRadio = new QRadioButton(
+        modeLayout->setContentsMargins(8, 12, 8, 8);
+        modeLayout->setSpacing(10);
+        m_highlightRadio = addWrappingRadio(
+            modeLayout,
+            QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
+            m_modeGroup);
+        m_moveRadio = addWrappingRadio(
+            modeLayout,
             QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
             m_modeGroup);
         m_highlightRadio->setChecked(true);
-        modeLayout->addWidget(m_highlightRadio);
-        modeLayout->addWidget(m_moveRadio);
         m_modeGroup->hide();
 
         connect(m_shard, &QPushButton::clicked, this, [this]() {
@@ -3674,8 +3714,11 @@ private:
         const int shardY = offsetY + static_cast<int>(9 * scale);
         m_shard->move(qMax(8, shardX), qMax(4, shardY));
         if (m_modeGroup) {
-            m_modeGroup->adjustSize();
-            const int groupH = qMax(m_modeGroup->sizeHint().height(), 120);
+            m_modeGroup->setFixedWidth(300);
+            if (QLayout *lay = m_modeGroup->layout()) {
+                lay->activate();
+            }
+            const int groupH = qMax(m_modeGroup->sizeHint().height(), 150);
             m_modeGroup->setGeometry(m_shard->x(), m_shard->y() + m_shard->height() + 4, 300, groupH);
             if (m_modeOpen) {
                 m_modeGroup->raise();

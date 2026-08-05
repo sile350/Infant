@@ -32,6 +32,7 @@
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
@@ -76,6 +77,43 @@ constexpr int kScrollWidth = 870;
 constexpr int kScrollBarGutter = 20;
 constexpr int kTemplateTableWidth = 671;
 constexpr int kTemplateViewportPadding = 4;
+
+// QRadioButton в Qt не переносит текст — индикатор + QLabel с word wrap.
+class RadioTextLabel final : public QLabel {
+public:
+    explicit RadioTextLabel(QWidget *parent = nullptr) : QLabel(parent) {
+        setWordWrap(true);
+        setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        setCursor(Qt::PointingHandCursor);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    }
+    QRadioButton *radio = nullptr;
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && radio) {
+            radio->setChecked(true);
+        }
+        QLabel::mouseReleaseEvent(event);
+    }
+};
+
+QRadioButton *addWrappingRadio(QVBoxLayout *layout, const QString &text, QWidget *parent) {
+    auto *row = new QWidget(parent);
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(6);
+    auto *radio = new QRadioButton(row);
+    radio->setText(QString());
+    radio->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    auto *label = new RadioTextLabel(row);
+    label->radio = radio;
+    label->setText(text);
+    rowLayout->addWidget(radio, 0, Qt::AlignTop);
+    rowLayout->addWidget(label, 1);
+    layout->addWidget(row);
+    return radio;
+}
 
 QString stepComboArrowCss() {
     static QString cachedPath;
@@ -848,17 +886,19 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
         "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
     auto *e15Layout = new QVBoxLayout(m_e15ModeGroup);
-    e15Layout->setSpacing(8);
+    e15Layout->setContentsMargins(8, 12, 8, 8);
+    e15Layout->setSpacing(10);
     // radioButton1 в оригинале → param="select" (подсветка).
-    m_e15HighlightRadio = new QRadioButton(
-        QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"), m_e15ModeGroup);
+    m_e15HighlightRadio = addWrappingRadio(
+        e15Layout,
+        QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
+        m_e15ModeGroup);
     // radioButton2 → перемещение на место (без анимации наклона).
-    m_e15SelectRadio = new QRadioButton(
+    m_e15SelectRadio = addWrappingRadio(
+        e15Layout,
         QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
         m_e15ModeGroup);
     m_e15HighlightRadio->setChecked(true);
-    e15Layout->addWidget(m_e15HighlightRadio);
-    e15Layout->addWidget(m_e15SelectRadio);
     m_e15ModeGroup->hide();
     optionsLayout->addWidget(m_e15ModeGroup, 0, Qt::AlignLeft);
 
@@ -1255,7 +1295,7 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_exerciseOptionsPanel && m_rightPanel) {
         const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
-        const int panelH = isE15 ? 280 : 220;
+        const int panelH = isE15 ? 340 : 220;
         const int panelW = isE15 ? 320 : qMax(120, m_rightPanel->width() - 24);
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
         m_exerciseOptionsPanel->raise();
