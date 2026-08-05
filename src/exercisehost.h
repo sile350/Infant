@@ -116,6 +116,7 @@ private:
     void reparentOverlayWidget(QWidget *overlayWidget);
     void syncPatientDisplay();
     void updateExerciseOptionsPanel();
+    void layoutE15ModePopup();
     void refreshRotateCombos();
     ExerciseSessionOptions buildSessionOptions() const;
     int puzzleFragmentCount() const;

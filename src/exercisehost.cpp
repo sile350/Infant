@@ -870,24 +870,26 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     optionsLayout->setContentsMargins(0, 0, 0, 0);
     optionsLayout->setSpacing(6);
 
-    m_shardButton = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), m_exerciseOptionsPanel);
+    m_shardButton = new QPushButton(QStringLiteral("Настройка уровня сложности"), m_exerciseOptionsPanel);
     m_shardButton->setFlat(true);
     m_shardButton->setCursor(Qt::PointingHandCursor);
     m_shardButton->setStyleSheet(QStringLiteral(
-        "QPushButton { color:#000; font-family:'Microsoft Sans Serif'; font-size:11pt;"
-        " font-weight:bold; text-decoration:underline; text-align:left; padding:2px 4px; border:none; }"
-        "QPushButton:hover { color:#222; }"));
+        "QPushButton { color:#000000; font-family:'Microsoft Sans Serif'; font-size:11pt;"
+        " font-weight:bold; text-decoration:underline; text-align:left; padding:0; border:none;"
+        " background:transparent; }"
+        "QPushButton:hover { color:#222222; }"));
     m_shardButton->hide();
-    optionsLayout->addWidget(m_shardButton);
+    optionsLayout->addWidget(m_shardButton, 0, Qt::AlignLeft);
 
-    m_e15ModeGroup = new QGroupBox(QStringLiteral("Настройка уровня сложности"), m_exerciseOptionsPanel);
+    // Как на форме e15: всплывающая группа поверх, без сдвига layout.
+    m_e15ModeGroup = new QGroupBox(QStringLiteral("Настройки"), m_rightPanel);
     m_e15ModeGroup->setFixedWidth(300);
     m_e15ModeGroup->setStyleSheet(QStringLiteral(
-        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
+        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:4px; }"
         "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
     auto *e15Layout = new QVBoxLayout(m_e15ModeGroup);
-    e15Layout->setContentsMargins(8, 12, 8, 8);
-    e15Layout->setSpacing(10);
+    e15Layout->setContentsMargins(8, 10, 8, 6);
+    e15Layout->setSpacing(4);
     // radioButton1 в оригинале → param="select" (подсветка).
     m_e15HighlightRadio = addWrappingRadio(
         e15Layout,
@@ -900,7 +902,6 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_e15ModeGroup);
     m_e15HighlightRadio->setChecked(true);
     m_e15ModeGroup->hide();
-    optionsLayout->addWidget(m_e15ModeGroup, 0, Qt::AlignLeft);
 
     m_showHintCheck = new QCheckBox(QStringLiteral("Показать пример (showp)"), m_exerciseOptionsPanel);
     m_showTemplateCheck = new QCheckBox(QStringLiteral("Показать трафарет (showt)"), m_exerciseOptionsPanel);
@@ -933,15 +934,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     connect(m_shardButton, &QPushButton::clicked, this, [this]() {
         m_shardPanelVisible = !m_shardPanelVisible;
-        if (m_e15ModeGroup) {
-            m_e15ModeGroup->setVisible(m_shardPanelVisible);
-        }
-        if (m_shardButton) {
-            m_shardButton->setText(
-                m_shardPanelVisible
-                    ? QStringLiteral("Настройка уровня сложности ▴")
-                    : QStringLiteral("Настройка уровня сложности ▾"));
-        }
+        layoutE15ModePopup();
     });
     auto applyE15ModeFromUi = [this]() {
         if (!m_exerciseRunning || m_sessionRunnerKind != ExerciseRunnerKind::E15 || !m_sessionRunner) {
@@ -1295,10 +1288,12 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_exerciseOptionsPanel && m_rightPanel) {
         const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
-        const int panelH = isE15 ? 340 : 220;
+        // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
+        const int panelH = isE15 ? 28 : 220;
         const int panelW = isE15 ? 320 : qMax(120, m_rightPanel->width() - 24);
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
         m_exerciseOptionsPanel->raise();
+        layoutE15ModePopup();
     }
     if (m_previewImage) {
         updatePreviewLayout();
@@ -2083,10 +2078,10 @@ void ExerciseHost::updatePreviewLayout() {
         }
         constexpr int kPreviewAbsLeft = 1100;
         constexpr int kPreviewAbsTop = 75;
-        // 1.5/1.6: ниже, чтобы не перекрывать «Настройка уровня сложности».
+        // 1.5/1.6: чуть ниже ссылки «Настройка уровня сложности».
         const int previewAbsTop =
             (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6"))
-            ? 200
+            ? 100
             : kPreviewAbsTop;
         int previewAbsLeft = kPreviewAbsLeft;
         localX = previewAbsLeft - rightPanelLeft;
@@ -2102,10 +2097,11 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
-    // Опции сложности поверх превью (1.5/1.6).
+    // Опции сложности / всплывающая группа поверх превью (1.5/1.6).
     if (m_exerciseOptionsPanel && m_exerciseOptionsPanel->isVisible()) {
         m_exerciseOptionsPanel->raise();
     }
+    layoutE15ModePopup();
     if (m_timeResultLabel && m_timeResultLabel->isVisible()) {
         // По центру правой панели (правее превью по горизонтали).
         const int rightPanelWidth = qMax(1, width() - rightPanelLeft);
@@ -4548,6 +4544,26 @@ void ExerciseHost::refreshRotateCombos() {
     m_rotateCWCombo->blockSignals(false);
 }
 
+void ExerciseHost::layoutE15ModePopup() {
+    if (!m_e15ModeGroup || !m_shardButton || !m_rightPanel) {
+        return;
+    }
+    const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+    if (!isE15 || !m_shardPanelVisible || !m_shardButton->isVisible()) {
+        m_e15ModeGroup->hide();
+        return;
+    }
+    m_e15ModeGroup->setFixedWidth(300);
+    if (QLayout *lay = m_e15ModeGroup->layout()) {
+        lay->activate();
+    }
+    const int groupH = qMax(m_e15ModeGroup->sizeHint().height(), 110);
+    const QPoint below = m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
+    m_e15ModeGroup->setGeometry(below.x(), below.y(), 300, groupH);
+    m_e15ModeGroup->show();
+    m_e15ModeGroup->raise();
+}
+
 void ExerciseHost::updateExerciseOptionsPanel() {
     const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
@@ -4562,7 +4578,13 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         m_shardButton->setVisible(isE15);
     }
     if (m_e15ModeGroup) {
-        m_e15ModeGroup->setVisible(isE15 && m_shardPanelVisible);
+        // Видимость через layoutE15ModePopup — группа не в layout, чтобы не сдвигать UI.
+        if (!isE15) {
+            m_shardPanelVisible = false;
+            m_e15ModeGroup->hide();
+        } else {
+            layoutE15ModePopup();
+        }
     }
     if (m_showHintCheck) {
         m_showHintCheck->setVisible(isPuzzleRotate);

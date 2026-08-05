@@ -3578,14 +3578,14 @@ public:
         connect(m_canvas, &E15Canvas::exerciseCompleted, this, [this]() { finishSession(); });
 
         // Как shard + groupBox1 на форме e15 (Designer: shard @ 1395,9).
-        m_shard = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), this);
+        m_shard = new QPushButton(QStringLiteral("Настройка уровня сложности"), this);
         markPatientControl(m_shard);
         m_shard->setFlat(true);
         m_shard->setCursor(Qt::PointingHandCursor);
         m_shard->setStyleSheet(QStringLiteral(
-            "QPushButton { color:#0000ee; font: bold 14px 'Microsoft Sans Serif'; text-decoration: underline;"
+            "QPushButton { color:#000000; font: bold 11pt 'Microsoft Sans Serif'; text-decoration: underline;"
             " border:none; background:transparent; text-align:left; padding:0; }"
-            "QPushButton:hover { color:#0000cc; }"));
+            "QPushButton:hover { color:#222222; }"));
         m_shard->adjustSize();
         m_shard->hide();
 
@@ -3593,11 +3593,11 @@ public:
         markPatientControl(m_modeGroup);
         m_modeGroup->setFixedWidth(300);
         m_modeGroup->setStyleSheet(QStringLiteral(
-            "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
+            "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:4px; }"
             "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
         auto *modeLayout = new QVBoxLayout(m_modeGroup);
-        modeLayout->setContentsMargins(8, 12, 8, 8);
-        modeLayout->setSpacing(10);
+        modeLayout->setContentsMargins(8, 10, 8, 6);
+        modeLayout->setSpacing(4);
         m_highlightRadio = addWrappingRadio(
             modeLayout,
             QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
@@ -3612,9 +3612,6 @@ public:
         connect(m_shard, &QPushButton::clicked, this, [this]() {
             m_modeOpen = !m_modeOpen;
             m_modeGroup->setVisible(m_modeOpen);
-            m_shard->setText(m_modeOpen
-                ? QStringLiteral("Настройка уровня сложности ▴")
-                : QStringLiteral("Настройка уровня сложности ▾"));
             layoutModeUi();
         });
         auto applyMode = [this](bool highlight) {
@@ -3659,9 +3656,6 @@ public:
         m_modeOpen = false;
         if (m_modeGroup) {
             m_modeGroup->hide();
-        }
-        if (m_shard) {
-            m_shard->setText(QStringLiteral("Настройка уровня сложности ▾"));
         }
         if (m_highlightRadio && m_moveRadio) {
             m_highlightRadio->blockSignals(true);
@@ -3718,7 +3712,7 @@ private:
             if (QLayout *lay = m_modeGroup->layout()) {
                 lay->activate();
             }
-            const int groupH = qMax(m_modeGroup->sizeHint().height(), 150);
+            const int groupH = qMax(m_modeGroup->sizeHint().height(), 110);
             m_modeGroup->setGeometry(m_shard->x(), m_shard->y() + m_shard->height() + 4, 300, groupH);
             if (m_modeOpen) {
                 m_modeGroup->raise();
