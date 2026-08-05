@@ -20,6 +20,9 @@ QString stepSlug(const QString &stepId) {
 }
 
 QString hintFileForExercise(const QString &exerciseId, const QString &stepId) {
+    if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
+        return QStringLiteral("p2.png");
+    }
     if (exerciseId == QStringLiteral("1.24")) {
         return QStringLiteral("ex") + stepId + QStringLiteral(".png");
     }
@@ -78,7 +81,10 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         exerciseId == QStringLiteral("1.11") && stepId == QStringLiteral("2");
     m_hintX = 200;
     m_hintY = 100;
-    if (exerciseId == QStringLiteral("1.24")) {
+    if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
+        m_hintX = 200;
+        m_hintY = 230;
+    } else if (exerciseId == QStringLiteral("1.24")) {
         m_hintX = 200;
         m_hintY = stepId == QStringLiteral("4") ? 231 : 131;
     }
@@ -351,16 +357,6 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
             m_template2);
     }
 
-    if (!m_hintPixmap.isNull() && m_showHint && m_storyVisible) {
-        const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
-        painter.drawPixmap(
-            hintOrigin.x(),
-            hintOrigin.y(),
-            qRound(m_hintPixmap.width() * m_scale),
-            qRound(m_hintPixmap.height() * m_scale),
-            m_hintPixmap);
-    }
-
     for (const Sprite &sprite : m_sprites) {
         if (sprite.pixmap.isNull() || sprite.hidden) {
             continue;
@@ -389,6 +385,17 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
                 qRound(drawPixmap.width() * m_scale),
                 qRound(drawPixmap.height() * m_scale));
         }
+    }
+
+    if (!m_hintPixmap.isNull() && m_showHint
+        && (m_exerciseId == QStringLiteral("1.14") || m_storyVisible)) {
+        const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
+        painter.drawPixmap(
+            hintOrigin.x(),
+            hintOrigin.y(),
+            qRound(m_hintPixmap.width() * m_scale),
+            qRound(m_hintPixmap.height() * m_scale),
+            m_hintPixmap);
     }
 }
 

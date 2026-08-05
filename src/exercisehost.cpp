@@ -508,6 +508,44 @@ ExerciseCheckRow makeCheckRow(const QString &text, QVBoxLayout *layout, int cont
     return row;
 }
 
+class WrapCheckLabel final : public QLabel {
+public:
+    explicit WrapCheckLabel(QWidget *parent = nullptr) : QLabel(parent) {
+        setWordWrap(true);
+        setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        setCursor(Qt::PointingHandCursor);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    }
+    QCheckBox *box = nullptr;
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && box) {
+            box->toggle();
+        }
+        QLabel::mouseReleaseEvent(event);
+    }
+};
+
+QCheckBox *addWrappingCheckBox(QVBoxLayout *layout, const QString &text, QWidget *parent, int width) {
+    auto *row = new QWidget(parent);
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(6);
+    auto *box = new QCheckBox(row);
+    box->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    auto *label = new WrapCheckLabel(row);
+    label->box = box;
+    label->setText(text);
+    if (width > 50) {
+        label->setFixedWidth(width - 34);
+    }
+    rowLayout->addWidget(box, 0, Qt::AlignTop);
+    rowLayout->addWidget(label, 1);
+    layout->addWidget(row);
+    return box;
+}
+
 ExerciseCheckRow makeDoneOptionRow(const QString &text, QVBoxLayout *layout, int optionWidth) {
     ExerciseCheckRow rowData;
     auto *rowLayout = new QHBoxLayout();
@@ -908,36 +946,47 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_e15HighlightRadio->setChecked(true);
     m_e15ModeGroup->hide();
 
-    m_showHintCheck = new QCheckBox(
-        QStringLiteral("Показать подсказку (демонстрация конечного результата)"), m_exerciseOptionsPanel);
-    m_showTemplateCheck = new QCheckBox(
+    m_puzzleOptionsGroup = new QGroupBox(QStringLiteral("Настройки"), m_rightPanel);
+    m_puzzleOptionsGroup->setFixedWidth(300);
+    m_puzzleOptionsGroup->setStyleSheet(QStringLiteral(
+        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:4px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
+    auto *puzzleLayout = new QVBoxLayout(m_puzzleOptionsGroup);
+    puzzleLayout->setContentsMargins(8, 10, 8, 8);
+    puzzleLayout->setSpacing(6);
+    constexpr int kPuzzleOptionTextW = 300;
+
+    m_showHintCheck = addWrappingCheckBox(
+        puzzleLayout,
+        QStringLiteral("Показать подсказку (демонстрация конечного результата)"),
+        m_puzzleOptionsGroup,
+        kPuzzleOptionTextW);
+    m_showTemplateCheck = addWrappingCheckBox(
+        puzzleLayout,
         QStringLiteral("Показать трафарет (накладывание деталей картинки на цельную картинку)"),
-        m_exerciseOptionsPanel);
-    m_rotateEnableCheck = new QCheckBox(QStringLiteral("Поворот фрагментов"), m_exerciseOptionsPanel);
+        m_puzzleOptionsGroup,
+        kPuzzleOptionTextW);
+    m_rotateEnableCheck = addWrappingCheckBox(
+        puzzleLayout,
+        QStringLiteral("Поворот фрагментов"),
+        m_puzzleOptionsGroup,
+        kPuzzleOptionTextW);
     m_showHintCheck->setChecked(true);
     m_showTemplateCheck->setChecked(true);
     m_rotateEnableCheck->setChecked(true);
-    m_showHintCheck->hide();
-    m_showTemplateCheck->hide();
-    m_rotateEnableCheck->hide();
-    optionsLayout->addWidget(m_showHintCheck);
-    optionsLayout->addWidget(m_showTemplateCheck);
-    optionsLayout->addWidget(m_rotateEnableCheck);
 
-    auto *rotateRow = new QHBoxLayout();
-    m_rotateWLabel = new QLabel(QStringLiteral("Фрагментов, повернутых на 90°"), m_exerciseOptionsPanel);
-    m_rotateCWLabel = new QLabel(QStringLiteral("Фрагментов, повернутых на 180°"), m_exerciseOptionsPanel);
-    m_rotateWCombo = new QComboBox(m_exerciseOptionsPanel);
-    m_rotateCWCombo = new QComboBox(m_exerciseOptionsPanel);
-    rotateRow->addWidget(m_rotateWLabel);
-    rotateRow->addWidget(m_rotateWCombo);
-    rotateRow->addWidget(m_rotateCWLabel);
-    rotateRow->addWidget(m_rotateCWCombo);
-    optionsLayout->addLayout(rotateRow);
-    m_rotateWLabel->hide();
-    m_rotateCWLabel->hide();
-    m_rotateWCombo->hide();
-    m_rotateCWCombo->hide();
+    m_rotateWLabel = new QLabel(QStringLiteral("Фрагментов, повернутых на 90°"), m_puzzleOptionsGroup);
+    m_rotateWLabel->setWordWrap(true);
+    m_rotateCWLabel = new QLabel(QStringLiteral("Фрагментов, повернутых на 180°"), m_puzzleOptionsGroup);
+    m_rotateCWLabel->setWordWrap(true);
+    m_rotateWCombo = new QComboBox(m_puzzleOptionsGroup);
+    m_rotateCWCombo = new QComboBox(m_puzzleOptionsGroup);
+    puzzleLayout->addWidget(m_rotateWLabel);
+    puzzleLayout->addWidget(m_rotateWCombo);
+    puzzleLayout->addWidget(m_rotateCWLabel);
+    puzzleLayout->addWidget(m_rotateCWCombo);
+    m_puzzleOptionsGroup->hide();
+
     m_exerciseOptionsPanel->hide();
 
     connect(m_shardButton, &QPushButton::clicked, this, [this]() {
@@ -1353,7 +1402,7 @@ void ExerciseHost::updateChromeLayout() {
         if (isE15) {
             panelH = 28;
         } else if (is114Step2) {
-            panelH = m_shardPanelVisible ? 220 : 28;
+            panelH = 28;
         }
         const int panelW = isE15 || is114Step2 ? 320 : qMax(120, m_rightPanel->width() - 24);
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
@@ -4881,23 +4930,48 @@ void ExerciseHost::applyPuzzleOptionsDefaults() {
 }
 
 void ExerciseHost::layoutE15ModePopup() {
-    if (!m_e15ModeGroup || !m_shardButton || !m_rightPanel) {
+    if (!m_shardButton || !m_rightPanel) {
         return;
     }
+    const QString step = currentStepId().trimmed();
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
-    if (!isE15 || !m_shardPanelVisible || !m_shardButton->isVisible()) {
-        m_e15ModeGroup->hide();
+    const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
+
+    if (m_e15ModeGroup) {
+        if (isE15 && m_shardPanelVisible && m_shardButton->isVisible()) {
+            m_e15ModeGroup->setFixedWidth(300);
+            if (QLayout *lay = m_e15ModeGroup->layout()) {
+                lay->activate();
+            }
+            const int groupH = qMax(m_e15ModeGroup->sizeHint().height(), 110);
+            const QPoint below =
+                m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
+            m_e15ModeGroup->setGeometry(below.x(), below.y(), 300, groupH);
+            m_e15ModeGroup->show();
+            m_e15ModeGroup->raise();
+        } else {
+            m_e15ModeGroup->hide();
+        }
+    }
+
+    if (!m_puzzleOptionsGroup) {
         return;
     }
-    m_e15ModeGroup->setFixedWidth(300);
-    if (QLayout *lay = m_e15ModeGroup->layout()) {
-        lay->activate();
+    if (is114Step2 && m_shardPanelVisible && m_shardButton->isVisible()) {
+        constexpr int kPopupW = 300;
+        m_puzzleOptionsGroup->setFixedWidth(kPopupW);
+        if (QLayout *lay = m_puzzleOptionsGroup->layout()) {
+            lay->activate();
+        }
+        const int groupH = qMax(m_puzzleOptionsGroup->sizeHint().height(), 180);
+        const QPoint below =
+            m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
+        m_puzzleOptionsGroup->setGeometry(below.x(), below.y(), kPopupW, groupH);
+        m_puzzleOptionsGroup->show();
+        m_puzzleOptionsGroup->raise();
+    } else if (is114Step2) {
+        m_puzzleOptionsGroup->hide();
     }
-    const int groupH = qMax(m_e15ModeGroup->sizeHint().height(), 110);
-    const QPoint below = m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
-    m_e15ModeGroup->setGeometry(below.x(), below.y(), 300, groupH);
-    m_e15ModeGroup->show();
-    m_e15ModeGroup->raise();
 }
 
 void ExerciseHost::updateExerciseOptionsPanel() {
@@ -4908,12 +4982,11 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
     const bool isPuzzleRotate = isPuzzleInline || is114Step2;
-    const bool showPanel = isE15 || isPuzzleRotate || is122;
     const bool showShard = isE15 || is114Step2;
-    const bool showPuzzleControls = isPuzzleInline || (is114Step2 && m_shardPanelVisible);
+    const int panelW = m_rightPanel ? qMax(280, m_rightPanel->width() - 24) : 300;
 
     if (m_exerciseOptionsPanel) {
-        m_exerciseOptionsPanel->setVisible(showPanel && !is122);
+        m_exerciseOptionsPanel->setVisible(showShard && !is122);
     }
     if (m_shardButton) {
         m_shardButton->setVisible(showShard);
@@ -4921,7 +4994,6 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     if (m_e15ModeGroup) {
         if (is122) {
             m_shardPanelVisible = false;
-            const int panelW = m_rightPanel ? qMax(280, m_rightPanel->width() - 24) : 300;
             m_e15ModeGroup->setFixedWidth(panelW);
             m_e15ModeGroup->setGeometry(12, 52, panelW, 110);
             m_e15ModeGroup->show();
@@ -4935,26 +5007,21 @@ void ExerciseHost::updateExerciseOptionsPanel() {
             layoutE15ModePopup();
         }
     }
-    if (m_showHintCheck) {
-        m_showHintCheck->setVisible(showPuzzleControls);
-    }
-    if (m_showTemplateCheck) {
-        m_showTemplateCheck->setVisible(showPuzzleControls);
-    }
-    if (m_rotateEnableCheck) {
-        m_rotateEnableCheck->setVisible(showPuzzleControls);
-    }
-    if (m_rotateWCombo) {
-        m_rotateWCombo->setVisible(showPuzzleControls);
-    }
-    if (m_rotateCWCombo) {
-        m_rotateCWCombo->setVisible(showPuzzleControls);
-    }
-    if (m_rotateWLabel) {
-        m_rotateWLabel->setVisible(showPuzzleControls);
-    }
-    if (m_rotateCWLabel) {
-        m_rotateCWLabel->setVisible(showPuzzleControls);
+    if (m_puzzleOptionsGroup) {
+        if (isPuzzleInline) {
+            m_puzzleOptionsGroup->setFixedWidth(panelW);
+            if (QLayout *lay = m_puzzleOptionsGroup->layout()) {
+                lay->activate();
+            }
+            const int groupH = qMax(m_puzzleOptionsGroup->sizeHint().height(), 200);
+            m_puzzleOptionsGroup->setGeometry(12, 52, panelW, groupH);
+            m_puzzleOptionsGroup->show();
+            m_puzzleOptionsGroup->raise();
+        } else if (is114Step2) {
+            layoutE15ModePopup();
+        } else {
+            m_puzzleOptionsGroup->hide();
+        }
     }
     if (isPuzzleInline) {
         refreshRotateCombos();

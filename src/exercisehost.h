@@ -223,6 +223,7 @@ private:
     QLabel *m_rotateWLabel = nullptr;
     QLabel *m_rotateCWLabel = nullptr;
     QGroupBox *m_e15ModeGroup = nullptr;
+    QGroupBox *m_puzzleOptionsGroup = nullptr;
     QRadioButton *m_e15HighlightRadio = nullptr;
     QRadioButton *m_e15SelectRadio = nullptr;
     QPushButton *m_shardButton = nullptr;
