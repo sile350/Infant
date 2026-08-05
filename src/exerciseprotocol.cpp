@@ -370,6 +370,34 @@ QString normalizeStoredProtocolBody(QString body) {
     body.remove(QRegularExpression(
         QStringLiteral("<span[^>]*dokit-[^>]*>.*?</span>"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+    // После просмотра/печати Qt часто оставляет «Показать изображение» или <a> вместо скачать.
+    // В БД держим только плейсхолдеры — ссылки собираются при показе по id протокола.
+    body.replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение1\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать1"));
+    body.replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение2\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать2"));
+    body.replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение3\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать3"));
+    body.replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать"));
+    body.replace(QStringLiteral("Показать изображение1"), QStringLiteral("скачать1"));
+    body.replace(QStringLiteral("Показать изображение2"), QStringLiteral("скачать2"));
+    body.replace(QStringLiteral("Показать изображение3"), QStringLiteral("скачать3"));
+    body.replace(
+        QRegularExpression(QStringLiteral("Показать изображение(?!\\d)")),
+        QStringLiteral("скачать"));
     return body.trimmed();
 }
 
@@ -659,6 +687,71 @@ QString htmlFragmentToPlainText(const QString &html) {
     return plain.trimmed();
 }
 
+// Плейсхолдеры сканов в ячейке «Результат» (в БД всегда скачать/скачатьN, не <a>).
+QString extractScanPlaceholderTokens(const QString &cellHtmlOrPlain) {
+    if (cellHtmlOrPlain.contains(QStringLiteral("скачать1"))
+        || cellHtmlOrPlain.contains(QStringLiteral("Показать изображение1"), Qt::CaseInsensitive)
+        || QRegularExpression(
+               QStringLiteral("<a[^>]*>\\s*Показать изображение1\\s*</a>"),
+               QRegularExpression::CaseInsensitiveOption)
+               .match(cellHtmlOrPlain)
+               .hasMatch()) {
+        return QStringLiteral("скачать1 скачать2 скачать3");
+    }
+    if (cellHtmlOrPlain.contains(QStringLiteral("скачать2"))
+        || cellHtmlOrPlain.contains(QStringLiteral("скачать3"))) {
+        return QStringLiteral("скачать1 скачать2 скачать3");
+    }
+    if (cellHtmlOrPlain.contains(QStringLiteral("скачать"))
+        || cellHtmlOrPlain.contains(QStringLiteral("Показать изображение"), Qt::CaseInsensitive)
+        || QRegularExpression(
+               QStringLiteral("<a[^>]*>\\s*Показать изображение\\s*</a>"),
+               QRegularExpression::CaseInsensitiveOption)
+               .match(cellHtmlOrPlain)
+               .hasMatch()) {
+        return QStringLiteral("скачать");
+    }
+    return {};
+}
+
+QString stripScanDisplayLabelsFromResult(QString plain) {
+    plain.remove(QRegularExpression(
+        QStringLiteral("\\s*Показать изображение\\d*"),
+        QRegularExpression::CaseInsensitiveOption));
+    plain.remove(QRegularExpression(QStringLiteral("\\s*скачать\\d*")));
+    return plain.trimmed();
+}
+
+QString mergeResultTextPreservingScanPlaceholders(
+    const QString &editorResultPlain,
+    const QString &storedResultCellHtml) {
+    const QString clean = stripScanDisplayLabelsFromResult(editorResultPlain);
+    QString tokens = extractScanPlaceholderTokens(storedResultCellHtml);
+    if (tokens.isEmpty()) {
+        tokens = extractScanPlaceholderTokens(editorResultPlain);
+    }
+    if (tokens.isEmpty()) {
+        return clean;
+    }
+    if (clean.isEmpty()) {
+        return tokens;
+    }
+    return clean + QStringLiteral("    ") + tokens;
+}
+
+QString extractResultCellInnerHtml(const QString &sessionOrBody) {
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*>\\s*Результат[\\s\\S]*?</td>\\s*<td[^>]*>([\\s\\S]*?)</td>\\s*</tr>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatchIterator it = rowRe.globalMatch(sessionOrBody);
+    QRegularExpressionMatch match;
+    while (it.hasNext()) {
+        match = it.next();
+    }
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
 QString readTableCellMultilineText(QTextTable *table, int row, int column) {
     if (!table || row < 0 || column < 0 || row >= table->rows() || column >= table->columns()) {
         return {};
@@ -877,16 +970,17 @@ QString replaceResultRowSecondCell(QString body, const QString &plainText) {
         QStringLiteral(
             "(<tr[^>]*>\\s*<td[^>]*>\\s*Результат[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    // Всегда сохраняем id='idvivod' — иначе «Подвести итог» не находит ячейку Результат.
-    const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
-                              ? QStringLiteral("<div contenteditable='true' id='idvivod'>%1</div>")
-                                    .arg(plainText.toHtmlEscaped())
-                              : plainText.toHtmlEscaped();
-    // Только первое совпадение в переданном фрагменте (обычно одна сессия).
     const QRegularExpressionMatch match = rowRe.match(body);
     if (!match.hasMatch()) {
         return body;
     }
+    const QString mergedPlain =
+        mergeResultTextPreservingScanPlaceholders(plainText, match.captured(2));
+    // Всегда сохраняем id='idvivod' — иначе «Подвести итог» не находит ячейку Результат.
+    const QString inner = body.contains(QStringLiteral("contenteditable"), Qt::CaseInsensitive)
+                              ? QStringLiteral("<div contenteditable='true' id='idvivod'>%1</div>")
+                                    .arg(mergedPlain.toHtmlEscaped())
+                              : mergedPlain.toHtmlEscaped();
     return body.left(match.capturedStart())
         + match.captured(1) + inner + match.captured(3)
         + body.mid(match.capturedEnd());
@@ -4601,7 +4695,9 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
         QString last = sessions.last();
         if (parsed.hasResult) {
             if (last.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
-                last = replaceDivInnerById(last, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+                const QString merged = mergeResultTextPreservingScanPlaceholders(
+                    parsed.resultText, extractResultCellInnerHtml(last));
+                last = replaceDivInnerById(last, QStringLiteral("idvivod"), merged.toHtmlEscaped());
             } else {
                 last = replaceResultRowSecondCell(last, parsed.resultText);
             }
@@ -4624,7 +4720,9 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
     QString last = sessions.last();
     if (parsed.hasResult) {
         if (last.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
-            last = replaceDivInnerById(last, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+            const QString merged = mergeResultTextPreservingScanPlaceholders(
+                parsed.resultText, extractResultCellInnerHtml(last));
+            last = replaceDivInnerById(last, QStringLiteral("idvivod"), merged.toHtmlEscaped());
         } else {
             last = replaceResultRowSecondCell(last, parsed.resultText);
         }

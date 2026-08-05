@@ -4936,18 +4936,27 @@ void InfantWindow::printExerciseStimulus() {
     if (!m_exerciseHost || !ExerciseHost::supportsStimulusPrint(m_exerciseHost->exerciseId())) {
         return;
     }
+    // Сохранить правки до модального диалога (FocusOut/autosave иначе портят ссылки).
+    m_exerciseHost->saveProtocolEdits();
     const QString exerciseId = m_exerciseHost->exerciseId();
 
     QPrinter printer(QPrinter::HighResolution);
     QPrintDialog dialog(&printer, this);
     dialog.setWindowTitle(QStringLiteral("Печать"));
     if (dialog.exec() != QDialog::Accepted) {
+        // Даже при отмене — восстановить кликабельные ссылки на странице упражнения.
+        if (m_exerciseHost->protocolPartlyFormed()) {
+            m_exerciseHost->refreshProtocolViewAfterScanUpload();
+        }
         return;
     }
 
     QPainter painter;
     if (!painter.begin(&printer)) {
         CustomMessageBox::showWarning(this, QStringLiteral("Не удалось начать печать."));
+        if (m_exerciseHost->protocolPartlyFormed()) {
+            m_exerciseHost->refreshProtocolViewAfterScanUpload();
+        }
         return;
     }
 
@@ -4985,6 +4994,9 @@ void InfantWindow::printExerciseStimulus() {
         if (pix.isNull()) {
             painter.end();
             CustomMessageBox::showWarning(this, QStringLiteral("Нет изображения для печати."));
+            if (m_exerciseHost->protocolPartlyFormed()) {
+                m_exerciseHost->refreshProtocolViewAfterScanUpload();
+            }
             return;
         }
         if (exerciseId == QStringLiteral("1.7") || exerciseId == QStringLiteral("1.12")) {
@@ -4994,6 +5006,10 @@ void InfantWindow::printExerciseStimulus() {
         }
     }
     painter.end();
+    // После модального PrintDialog восстановить <a> «Показать изображение».
+    if (m_exerciseHost->protocolPartlyFormed()) {
+        m_exerciseHost->refreshProtocolViewAfterScanUpload();
+    }
 }
 
 void InfantWindow::uploadExerciseScan() {
@@ -5236,6 +5252,9 @@ void InfantWindow::exportDocument() {
         printer.setOutputFormat(QPrinter::PdfFormat);
         printer.setOutputFileName(path);
         renderExportToPrinter(printer, selection, content);
+        if (selection.protocols && m_currentScreen == ScreenMode::Protocols) {
+            refreshProtocolsView();
+        }
         return;
     }
 
@@ -5246,6 +5265,9 @@ void InfantWindow::exportDocument() {
     }
     if (onlyAnamnesis && !m_lastAnamnesisRtf.isEmpty()) {
         file.write(m_lastAnamnesisRtf);
+        if (selection.protocols && m_currentScreen == ScreenMode::Protocols) {
+            refreshProtocolsView();
+        }
         return;
     }
     QString exportContent = content;
@@ -5253,6 +5275,9 @@ void InfantWindow::exportDocument() {
         exportContent = ExerciseProtocol::stripMethodologyFillForDocExport(exportContent);
     }
     file.write(exportContent.toUtf8());
+    if (selection.protocols && m_currentScreen == ScreenMode::Protocols) {
+        refreshProtocolsView();
+    }
 }
 
 void InfantWindow::printSelectedContent() {
@@ -5279,10 +5304,17 @@ void InfantWindow::printSelectedContent() {
     QPrintDialog dialog(&printer, this);
     dialog.setWindowTitle(QStringLiteral("Печать"));
     if (dialog.exec() != QDialog::Accepted) {
+        // assembleExportHtml мог сохранить протоколы — вернуть кликабельные ссылки.
+        if (selection.protocols && m_currentScreen == ScreenMode::Protocols) {
+            refreshProtocolsView();
+        }
         return;
     }
 
     renderExportToPrinter(printer, selection, content);
+    if (selection.protocols && m_currentScreen == ScreenMode::Protocols) {
+        refreshProtocolsView();
+    }
 }
 
 void InfantWindow::showInfoPopup() {

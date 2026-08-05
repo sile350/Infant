@@ -2194,12 +2194,32 @@ QString ExerciseHost::stimulusPrintImagePath() const {
 }
 
 void ExerciseHost::refreshProtocolViewAfterScanUpload() {
-    if (!m_partly || m_currentProtocolId.isEmpty()) {
+    if (!m_repository || !m_templateBrowser) {
         return;
     }
-    showLastProtocolInTemplate();
+    if (m_currentProtocolId.isEmpty() && !m_patientId.trimmed().isEmpty()) {
+        m_currentProtocolId = m_repository->loadLastExerciseProtocolId(m_patientId, m_exerciseId);
+    }
+    if (m_currentProtocolId.isEmpty()) {
+        return;
+    }
+    m_partly = true;
+    m_suppressProtocolAutosave = true;
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+    if (!viewHtml.trimmed().isEmpty()) {
+        m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+        finalizeProtocolTemplateDocument(m_templateBrowser->document());
+        const int templateViewportWidth = kTemplateTableWidth + kTemplateViewportPadding;
+        m_templateBrowser->setFixedWidth(templateViewportWidth);
+        if (m_templatePanel) {
+            m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
+        }
+        layoutContent();
+        QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
+    }
     updateProtocolEditMode();
-    updateContentHeights();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
 }
 
 void ExerciseHost::reloadPreviewForCurrentStep() {
@@ -4526,6 +4546,7 @@ void ExerciseHost::formProtocol() {
     }
     m_currentProtocolId = protocolId;
 
+    m_suppressProtocolAutosave = true;
     {
         const QString viewHtml = m_repository->loadProtocolViewHtml(
             m_exerciseId, protocolId, m_patientFio, m_patientBirthDate);
@@ -4537,6 +4558,7 @@ void ExerciseHost::formProtocol() {
     m_templatePanel->setMaximumWidth(templateViewportWidth + 16);
     layoutContent();
     QTimer::singleShot(80, this, [this]() { updateContentHeights(); });
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
 
     for (const ExerciseCheckRow &row : m_activityChecks) {
         if (row.box) {

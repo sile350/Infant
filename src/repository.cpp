@@ -62,9 +62,38 @@ QString scanAnchorHtml(const QString &protocolId, int slot, const QString &label
 }
 
 void applyProtocolScanPlaceholders(QString *html, const QString &protocolId) {
-    if (!html || html->isEmpty()) {
+    if (!html || html->isEmpty() || protocolId.trimmed().isEmpty()) {
         return;
     }
+    // Вернуть токены: после автосохранения <a> часто превращаются в голый текст
+    // «Показать изображение», и ссылки перестают работать.
+    html->replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение1\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать1"));
+    html->replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение2\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать2"));
+    html->replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение3\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать3"));
+    html->replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QStringLiteral("скачать"));
+    html->replace(QStringLiteral("Показать изображение1"), QStringLiteral("скачать1"));
+    html->replace(QStringLiteral("Показать изображение2"), QStringLiteral("скачать2"));
+    html->replace(QStringLiteral("Показать изображение3"), QStringLiteral("скачать3"));
+    html->replace(
+        QRegularExpression(QStringLiteral("Показать изображение(?!\\d)")),
+        QStringLiteral("скачать"));
+
     html->replace(QStringLiteral("скачать1"), scanAnchorHtml(protocolId, 1, QStringLiteral("Показать изображение1")));
     html->replace(QStringLiteral("скачать2"), scanAnchorHtml(protocolId, 2, QStringLiteral("Показать изображение2")));
     html->replace(QStringLiteral("скачать3"), scanAnchorHtml(protocolId, 3, QStringLiteral("Показать изображение3")));
