@@ -57,18 +57,26 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         }
     }
 
-    const QString hintName = QStringLiteral("p") + stepId.toLower().remove(QLatin1Char(' '));
-    QString hintPath = ExerciseAssets::exerciseFile(exerciseId, hintName + QStringLiteral(".png"));
-    if (hintPath.isEmpty()) {
-        hintPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("f") + stepId + QStringLiteral(".png"));
-    }
-    if (!hintPath.isEmpty()) {
-        m_hintPixmap = QPixmap(hintPath);
-    } else {
+    // 1.11 задание 2: в оригинале pexample.Visible = false — без картинки превью.
+    const bool hidePreviewHint =
+        exerciseId == QStringLiteral("1.11") && stepId == QStringLiteral("2");
+    if (hidePreviewHint) {
         m_hintPixmap = QPixmap();
+        m_showHint = false;
+    } else {
+        const QString hintName = QStringLiteral("p") + stepId.toLower().remove(QLatin1Char(' '));
+        QString hintPath = ExerciseAssets::exerciseFile(exerciseId, hintName + QStringLiteral(".png"));
+        if (hintPath.isEmpty()) {
+            hintPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("f") + stepId + QStringLiteral(".png"));
+        }
+        if (!hintPath.isEmpty()) {
+            m_hintPixmap = QPixmap(hintPath);
+        } else {
+            m_hintPixmap = QPixmap();
+        }
+        m_showHint = true;
     }
     m_showTemplate = true;
-    m_showHint = true;
 
     for (const PuzzleSpriteDef &def : layout.sprites) {
         const QString path = ExerciseAssets::exerciseFile(exerciseId, def.file);
