@@ -108,8 +108,9 @@ void appendProtocolRecord(
         if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
             record += QStringLiteral("</table>");
         }
-    } else if (uprid == QStringLiteral("1.18")) {
-        // Явная склейка summary</table> + процесс (как 1.2/1.26) — иначе Qt вкладывает.
+    } else if (uprid == QStringLiteral("1.18") || uprid == QStringLiteral("1.6")) {
+        // 2-кол. summary + 3-кол. процесс (Факт/Характер/Помощь) — закрыть summary до процесса,
+        // иначе при повторной сессии Qt оставляет пустую колонку у «Дата/специалист».
         record = ExerciseProtocol::buildProtocol118ViewRecord(
             continuation ? QString() : rawHeader, protocolBody);
     } else if (uprid == QStringLiteral("5.4.2")) {
@@ -823,6 +824,7 @@ QString Repository::loadProtocolViewHtml(
     // На странице упражнения показываем только последний сформированный блок
     // (начиная с его «Дата/специалист»).
     if (exerciseId == QStringLiteral("1.17") || exerciseId == QStringLiteral("1.18")
+        || exerciseId == QStringLiteral("1.6")
         || exerciseId == QStringLiteral("1.26") || exerciseId == QStringLiteral("1.272")
         || exerciseId == QStringLiteral("2.8") || exerciseId == QStringLiteral("2.9")
         || exerciseId == QStringLiteral("2.10")
@@ -855,7 +857,8 @@ QString Repository::loadProtocolViewHtml(
     if (exerciseId == QStringLiteral("1.26")) {
         protocolBlock = ExerciseProtocol::buildProtocol126ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
-    } else if (exerciseId == QStringLiteral("1.18")) {
+    } else if (exerciseId == QStringLiteral("1.18") || exerciseId == QStringLiteral("1.6")) {
+        // Как 1.18: закрыть 2-кол. summary до 3-кол. процесса (повторная «Дата/специалист»).
         protocolBlock = ExerciseProtocol::buildProtocol118ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("5.4.2")) {
