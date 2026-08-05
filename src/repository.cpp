@@ -268,20 +268,9 @@ void appendProtocolRecord(
         record = ExerciseProtocol::buildProtocol542ViewRecord(
             continuation ? QString() : rawHeader, protocolBody);
     } else {
-        // Плоская нормализация сессий: иначе вложенные <table> вешают QTextDocument::setHtml.
-        const QString flatBody = ExerciseProtocol::normalizeSummaryColumnWidths(
-            ExerciseProtocol::flattenStoredProtocolBody(protocolBody));
-        if (continuation) {
-            record = QStringLiteral(
-                          "<table border='1' style='table-layout:fixed;width:671px' cellspacing='0' cellpadding='0' width='671'>"
-                          "<colgroup><col width='200' style='width:200px'><col width='471' style='width:471px'></colgroup>")
-                      + flatBody;
-        } else {
-            record = header + flatBody;
-        }
-        if (!record.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            record += QStringLiteral("</table>");
-        }
+        // Не header+flatBody: Qt вкладывает N-кол. процесс в 2-кол. шапку → нет «Баллы»/«Характер».
+        record = ExerciseProtocol::buildProtocol118ViewRecord(
+            continuation ? QString() : rawHeader, protocolBody);
     }
     // Ссылки «Показать изображение» — после flatten/normalize, иначе они снова станут «скачать».
     applyProtocolScanPlaceholders(&record, protocolId);
@@ -1019,6 +1008,10 @@ QString Repository::loadProtocolViewHtml(
         // Не header+body: иначе 3-кол. процесс вливается в шапку при повторном form на месте.
         protocolBlock = ExerciseProtocol::buildProtocol542ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
+    } else if (exerciseId == QStringLiteral("1.2")) {
+        // Как на вкладке «Протоколы»: закрыть summary до 4-кол. процесса (иначе Qt вкладывает таблицу).
+        protocolBlock = ExerciseProtocol::buildProtocol12ProtocolsTabRecord(
+            exerciseHeaderFragment(exerciseId), body);
     } else if (exerciseId == QStringLiteral("4.1.8")) {
         body = ExerciseProtocol::canonicalizeProtocol418StoredBody(body);
         protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
@@ -1028,12 +1021,10 @@ QString Repository::loadProtocolViewHtml(
             protocolBlock += QStringLiteral("</table>");
         }
     } else {
-        protocolBlock = ExerciseProtocol::canonicalizeProtocolHeaderFragment(
-                            exerciseHeaderFragment(exerciseId))
-            + body;
-        if (!body.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
-            protocolBlock += QStringLiteral("</table>");
-        }
+        // Все методики с <!--s-->: summary </table> + отдельный процесс (как 1.18).
+        // Иначе header+body → Qt вкладывает процесс в шапку → пропадают колонки Баллы/Характер/…
+        protocolBlock = ExerciseProtocol::buildProtocol118ViewRecord(
+            exerciseHeaderFragment(exerciseId), body);
     }
     ensureScanPlaceholdersInProtocolHtml(&protocolBlock, exerciseId);
     applyProtocolScanPlaceholders(&protocolBlock, protocolId);

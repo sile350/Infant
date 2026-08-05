@@ -1760,6 +1760,10 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("Задание 1"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("Задание 2"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Уровень выполнения"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
                 // 5.4.2: если процесс влился в шапку — не ставить colgroup 200/471 на 3-кол. таблицу.
                 || (inner.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)
                     && (inner.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
@@ -1838,9 +1842,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         rowInner = QStringLiteral(
                             "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
                                        .arg(processInner);
-                    } else if (tds.size() >= 2) {
-                        // Строго 2 колонки: лишний colspan в dateRow (1.6 и др.) иначе
-                        // раздувает таблицу пустой 3-й колонкой у «Методика»/«Цель».
+                    } else if (tds.size() == 2) {
+                        // Только реально 2-ячеечные строки шапки. 3+/4+ — процесс
+                        // (Характер/Баллы/Картинка…): не обрезать, иначе пропадают колонки.
                         QString newRow;
                         for (int i = 0; i < 2; ++i) {
                             const QRegularExpressionMatch &td = tds.at(i);
@@ -1891,6 +1895,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 || inner.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)
                 || inner.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                || inner.contains(QStringLiteral("Уровень выполнения"), Qt::CaseInsensitive)
                 || (inner.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)
                     && inner.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive))) {
                 out += m.captured(0);
@@ -1961,7 +1968,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     rowInner = QStringLiteral(
                         "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
                                    .arg(processInner);
-                } else if (tds.size() >= 2) {
+                } else if (tds.size() == 2) {
                     QString newRow;
                     for (int i = 0; i < 2; ++i) {
                         const QRegularExpressionMatch &td = tds.at(i);
@@ -3227,13 +3234,7 @@ QString ExerciseProtocol::buildProtocol118ViewRecord(
         summaryRows.replace(
             QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
             QString());
-        summaryRows.replace(
-            QRegularExpression(
-                QStringLiteral(
-                    "<tr\\b[^>]*>\\s*<td\\b[^>]*>\\s*(?:<[^>]*>\\s*)*Процесс\\s+выполнения\\s+"
-                    "диагностической\\s+методики\\s*(?:</[^>]+>\\s*)*</td>\\s*</tr>\\s*"),
-                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption),
-            QString());
+        // Баннер «Процесс выполнения» оставляем в summary (1.1/1.8/…); у 1.18 он в таблице процесса.
         summaryRows = summaryRows.trimmed();
         resultsBlock = resultsBlock.trimmed();
 
