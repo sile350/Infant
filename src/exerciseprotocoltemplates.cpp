@@ -224,7 +224,7 @@ int scoreExercise315(int time) {
     return 0;
 }
 
-// 1.15 база по времени (до штрафа за помощь)
+// 1.15 база по времени (устаревшая шкала из protocols.cs; не используется по руководству)
 int scoreExercise115Base(int time) {
     if (time < 20) return 10;
     if (time < 25) return 9;
@@ -242,6 +242,35 @@ int helpPenaltyHalfPoints(const QString &help) {
     const QStringList helpParts =
         help.split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
     return helpParts.size();
+}
+
+// 1.15 «Подбери фигуру к предмету» (руководство):
+// IV (зрительное соотнесение) = 3; III (пробы/наложение) = 2.5;
+// каждый вид помощи −0.5; макс. 3 за серию, 9 за три серии.
+// I/II — балл в руководстве не зафиксирован: специалист заполняет вручную.
+double scoreExercise115Series(const QString &activity, const QString &help) {
+    double score = -1.0;
+    if (activity.contains(QStringLiteral("IV уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("4 уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("безошибочное зрительное"), Qt::CaseInsensitive)) {
+        score = 3.0;
+    } else if (activity.contains(QStringLiteral("III уровень"), Qt::CaseInsensitive)
+               || activity.contains(QStringLiteral("3 уровень"), Qt::CaseInsensitive)
+               || activity.contains(QStringLiteral("методом проб"), Qt::CaseInsensitive)
+               || activity.contains(QStringLiteral("путем наложения"), Qt::CaseInsensitive)
+               || activity.contains(QStringLiteral("путём наложения"), Qt::CaseInsensitive)) {
+        score = 2.5;
+    } else {
+        return -1.0;
+    }
+    score -= 0.5 * helpPenaltyHalfPoints(help);
+    if (score < 0) {
+        score = 0;
+    }
+    if (score > 3.0) {
+        score = 3.0;
+    }
+    return score;
 }
 
 // Уровень из текста оценки (I–IV / N балл): IV→3, III→2, иначе 0.
@@ -461,13 +490,18 @@ QMap<QString, QString> buildVariables(
         score = success ? scoreExercise15(elapsedSeconds) : 0;
     } else if (tmpl.scoreKind == QStringLiteral("timed315_result") || tmpl.id == QStringLiteral("3.1.15")) {
         score = scoreExercise315(elapsedSeconds);
-    } else if (tmpl.scoreKind == QStringLiteral("timed15_help") || tmpl.id == QStringLiteral("1.15")) {
-        score = scoreExercise115Base(elapsedSeconds);
-        score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
-        if (score < 0) {
+    } else if (tmpl.scoreKind == QStringLiteral("series15_activity")
+               || tmpl.scoreKind == QStringLiteral("timed15_help")
+               || tmpl.id == QStringLiteral("1.15")) {
+        // Руководство 1.15: баллы по уровню деятельности и помощи (не по времени).
+        const double series = scoreExercise115Series(checkboxes.activity, checkboxes.help);
+        if (series < 0) {
+            scoreSelected = false;
             score = 0;
+        } else {
+            score = series;
+            scoreIsFractional = true;
         }
-        scoreIsFractional = true;
     } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
                || tmpl.id == QStringLiteral("1.12")
                || tmpl.id == QStringLiteral("2.11")
@@ -525,6 +559,7 @@ QMap<QString, QString> buildVariables(
                || tmpl.scoreKind == QStringLiteral("activity_help_2")
                || tmpl.scoreKind == QStringLiteral("activity_help_3")
                || tmpl.scoreKind == QStringLiteral("timed15_help")
+               || tmpl.scoreKind == QStringLiteral("series15_activity")
                || tmpl.id == QStringLiteral("3.1.10")
                || tmpl.id == QStringLiteral("1.12")
                || tmpl.id == QStringLiteral("1.15")

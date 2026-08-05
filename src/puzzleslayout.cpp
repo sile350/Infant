@@ -160,17 +160,17 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
             int x;
             int y;
         } kSprites[] = {
-            {"1.png", 1220, 130},
-            {"2.png", 1235, 115},
-            {"3.png", 1430, 210},
-            {"4.png", 1440, 340},
-            {"5.png", 1260, 160},
-            {"6.png", 1455, 350},
-            {"7.png", 1340, 161},
-            {"8.png", 1290, 220},
-            {"9.png", 1490, 210},
-            {"10.png", 1385, 155},
-            {"11.png", 1375, 255},
+            {"1.png", 1220, 230},
+            {"2.png", 1235, 215},
+            {"3.png", 1430, 310},
+            {"4.png", 1440, 440},
+            {"5.png", 1260, 260},
+            {"6.png", 1455, 450},
+            {"7.png", 1340, 261},
+            {"8.png", 1290, 320},
+            {"9.png", 1490, 310},
+            {"10.png", 1385, 255},
+            {"11.png", 1375, 355},
         };
         for (const auto &item : kSprites) {
             addSprite(layout, QString::fromUtf8(item.file), item.x, item.y);
