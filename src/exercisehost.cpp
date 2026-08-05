@@ -2406,17 +2406,38 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     const bool flatCustom = !categorizedThreeHelp
         && (m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("3.1.10"));
-    const bool showPenaltyHint = m_exerciseId == QStringLiteral("3.1.10");
+    // 1.12: заголовки из or.html (не Стимулирующая/Направляющая/Обучающая).
+    const bool help112 = m_exerciseId == QStringLiteral("1.12");
+    const bool showPenaltyHint = m_exerciseId == QStringLiteral("3.1.10") || help112;
     if (m_helpPenaltyHintLabel) {
+        m_helpPenaltyHintLabel->setText(
+            QStringLiteral("За каждый вид помощи оценка снижается на 0,5 балла"));
         m_helpPenaltyHintLabel->setVisible(showPenaltyHint);
     }
     if (m_stimHelpLabel) {
+        if (help112) {
+            m_stimHelpLabel->setText(QStringLiteral("При выполнении задания на I уровне"));
+        } else {
+            m_stimHelpLabel->setText(QStringLiteral("Стимулирующая помощь"));
+        }
         m_stimHelpLabel->setVisible(!flatCustom);
     }
     if (m_directHelpLabel) {
+        if (help112) {
+            m_directHelpLabel->setText(
+                QStringLiteral("При выполнении задания с ошибками (II и III уровни)"));
+        } else {
+            m_directHelpLabel->setText(QStringLiteral("Направляющая помощь:"));
+        }
         m_directHelpLabel->setVisible(!flatCustom);
     }
     if (m_teachHelpLabel) {
+        if (help112) {
+            m_teachHelpLabel->setText(
+                QStringLiteral("Если предыдущий вариант помощи не возымел действия"));
+        } else {
+            m_teachHelpLabel->setText(QStringLiteral("Обучающая помощь:"));
+        }
         m_teachHelpLabel->setVisible(!flatCustom);
     }
 
@@ -2478,9 +2499,13 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     // Стимулирующая / Направляющая / Обучающая.
     // 5 пунктов (стандарт): 1+2+2; 7 пунктов (1.5 и др.): 1+2+4; иначе — 1 / до 2 / остаток.
+    // 1.12: 4 пункта как в or.html — 1 + 1 + 2.
     int stimCount = 1;
     int directCount = 2;
-    if (labels.size() == 3) {
+    if (help112 && labels.size() == 4) {
+        stimCount = 1;
+        directCount = 1;
+    } else if (labels.size() == 3) {
         stimCount = 1;
         directCount = 1;
     } else if (labels.size() == 7) {
@@ -2599,6 +2624,9 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     if (m_activityTitle) {
         if (m_exerciseId == QStringLiteral("5.4.2")) {
             m_activityTitle->setText(QStringLiteral("Баллы"));
+        } else if (m_exerciseId == QStringLiteral("1.12")) {
+            m_activityTitle->setText(
+                QStringLiteral("Характер деятельности ребенка\n(уровень выполнения)"));
         } else {
             m_activityTitle->setText(QStringLiteral("Характер деятельности ребенка:"));
         }

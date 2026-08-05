@@ -262,6 +262,21 @@ protected:
     }
 };
 
+// Как PictureBox.MouseUp с координатой клика (палитра цветов в 1.12).
+class PointClickLabel final : public QLabel {
+public:
+    using QLabel::QLabel;
+    std::function<void(const QPoint &)> onClickAt;
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && onClickAt) {
+            onClickAt(event->pos());
+        }
+        QLabel::mouseReleaseEvent(event);
+    }
+};
+
 // Кнопки Стоп/Далее/Показать и т.п. — не зеркалить на экран пациента.
 void markPatientControl(QWidget *widget) {
     if (widget) {
@@ -396,7 +411,21 @@ private:
 
 class PaintRunner : public TimedSessionRunner {
 public:
-    using TimedSessionRunner::TimedSessionRunner;
+    explicit PaintRunner(QWidget *parent = nullptr) : TimedSessionRunner(parent) {
+        setFocusPolicy(Qt::StrongFocus);
+
+        m_palette = new PointClickLabel(this);
+        markPatientControl(m_palette);
+        m_palette->setCursor(Qt::PointingHandCursor);
+        m_palette->hide();
+        m_palette->onClickAt = [this](const QPoint &localPos) { pickColorAt(localPos); };
+
+        m_hintToggle = new ClickableLabel(this);
+        markPatientControl(m_hintToggle);
+        m_hintToggle->setCursor(Qt::PointingHandCursor);
+        m_hintToggle->hide();
+        m_hintToggle->onClick = [this]() { toggleHint(); };
+    }
 
     void startSession(
         const QString &exerciseId,
@@ -408,26 +437,34 @@ public:
         m_elapsed = 0;
         m_capturePath.clear();
         m_pixmap = QPixmap();
+        m_hintHidden = true;
         m_layout = paintCanvasLayout(exerciseId, stepId);
         m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
         m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
         drawPixmapOnImage(&m_canvas, exerciseId, m_layout.trafFile, m_layout.trafPos);
         drawPixmapOnImage(&m_canvas, exerciseId, m_layout.traf2File, m_layout.traf2Pos);
-        m_drawing = true;
+        m_drawing = false;
+        m_hasLast = false;
         if (exerciseId == QStringLiteral("3.3.3")) {
             m_brushColor = QColor(QStringLiteral("#176ee3"));
             m_brushWidth = 5;
         } else if (exerciseId == QStringLiteral("1.7")) {
             // Как exbegin.setBrush для 1.7: тонкая линия, цвет по заданию.
             applyBrushFor17(stepId);
+        } else if (exerciseId == QStringLiteral("1.12")) {
+            // Как exbegin.setBrush(10, "#FFFFFF") для «Раскрась предметы».
+            m_brushColor = QColor(QStringLiteral("#FFFFFF"));
+            m_brushWidth = 10;
         } else {
             m_brushColor = Qt::blue;
             m_brushWidth = 20;
         }
+        setupColoringControls(exerciseId == QStringLiteral("1.12"));
         m_timer->start();
         show();
         raise();
-        updateCanvasDisplay();
+        setFocus(Qt::OtherFocusReason);
+        layoutUi();
     }
 
     void switchStep(const QString &stepId) override {
@@ -458,21 +495,145 @@ protected:
         }
     }
 
+    void setupColoringControls(bool enabled) {
+        if (!m_palette || !m_hintToggle) {
+            return;
+        }
+        if (!enabled) {
+            m_palette->hide();
+            m_hintToggle->hide();
+            m_paletteImage = QImage();
+            return;
+        }
+
+        const QString colorsPath = ExerciseAssets::exerciseFile(
+            QStringLiteral("1.12"), QStringLiteral("colors.png"));
+        if (!colorsPath.isEmpty()) {
+            m_paletteImage = QImage(colorsPath);
+            refreshPalettePixmap();
+            m_palette->show();
+        } else {
+            m_palette->hide();
+        }
+
+        // Подсказка скрыта → кнопка «Показать» (как showp.png / show.png в оригинале).
+        updateHintToggleIcon();
+        m_hintToggle->show();
+    }
+
+    void updateHintToggleIcon() {
+        if (!m_hintToggle) {
+            return;
+        }
+        const QString file = m_hintHidden ? QStringLiteral("show.png") : QStringLiteral("hide.png");
+        QString path = ExerciseAssets::exerciseFile(QStringLiteral("1.12"), file);
+        if (path.isEmpty() && m_hintHidden) {
+            path = ExerciseAssets::sysImage(QStringLiteral("showp.png"));
+        } else if (path.isEmpty()) {
+            path = ExerciseAssets::sysImage(QStringLiteral("hidep.png"));
+        }
+        if (path.isEmpty()) {
+            return;
+        }
+        const QPixmap pm(path);
+        m_hintToggle->setPixmap(pm);
+        m_hintToggle->setFixedSize(pm.size());
+    }
+
+    void pickColorAt(const QPoint &labelPos) {
+        if (m_paletteImage.isNull() || !m_palette) {
+            return;
+        }
+        const int dispW = qMax(1, m_palette->width());
+        const int dispH = qMax(1, m_palette->height());
+        const int x = qBound(0, qRound(labelPos.x() * double(m_paletteImage.width()) / dispW),
+            m_paletteImage.width() - 1);
+        const int y = qBound(0, qRound(labelPos.y() * double(m_paletteImage.height()) / dispH),
+            m_paletteImage.height() - 1);
+        const QColor c = m_paletteImage.pixelColor(x, y);
+        if (c.alpha() < 16) {
+            return;
+        }
+        m_brushColor = QColor(c.red(), c.green(), c.blue());
+        m_brushWidth = 10;
+    }
+
+    void toggleHint() {
+        if (m_exerciseId != QStringLiteral("1.12")) {
+            return;
+        }
+        m_hintHidden = !m_hintHidden;
+        m_layout.traf2File = m_hintHidden
+            ? QStringLiteral("exampleno.png")
+            : QStringLiteral("example.png");
+        // Как в paint.cs: перерисовываем только спрайт подсказки поверх текущего холста.
+        drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.traf2File, m_layout.traf2Pos);
+        updateHintToggleIcon();
+        updateCanvasDisplay();
+    }
+
+    void raiseOverlayControls() {
+        if (m_palette && m_palette->isVisible()) {
+            m_palette->raise();
+        }
+        if (m_stop) {
+            m_stop->raise();
+        }
+        if (m_hintToggle && m_hintToggle->isVisible()) {
+            m_hintToggle->raise();
+        }
+    }
+
+    void refreshPalettePixmap() {
+        if (!m_palette || m_paletteImage.isNull()) {
+            return;
+        }
+        QPixmap pm = QPixmap::fromImage(m_paletteImage);
+        const int maxH = qMax(120, height() - 200);
+        if (pm.height() > maxH) {
+            pm = pm.scaledToHeight(maxH, Qt::SmoothTransformation);
+        }
+        m_palette->setPixmap(pm);
+        m_palette->setFixedSize(pm.size());
+    }
+
     void layoutUi() override {
-        if (exerciseId() == QStringLiteral("3.3.1") || exerciseId() == QStringLiteral("3.3.2")
+        if (exerciseId() == QStringLiteral("1.12")) {
+            // paint.cs: pstop.Left=1000; bremove = stop+200; pcolors @ (900,160)
+            m_stop->move(1000, 70);
+            if (m_hintToggle) {
+                m_hintToggle->move(m_stop->x() + 200, m_stop->y());
+            }
+            if (m_palette && m_palette->isVisible()) {
+                refreshPalettePixmap();
+                m_palette->move(900, 160);
+            }
+        } else if (exerciseId() == QStringLiteral("3.3.1") || exerciseId() == QStringLiteral("3.3.2")
             || exerciseId() == QStringLiteral("3.3.3")) {
             m_stop->move(970, 70);
         } else {
             m_stop->move(80, 72);
         }
-        m_stop->raise();
         updateCanvasDisplay();
+        raiseOverlayControls();
+    }
+
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Space) {
+            finish();
+            return;
+        }
+        TimedSessionRunner::keyPressEvent(event);
     }
 
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
             m_drawing = true;
             m_hasLast = false;
+            // 1.12: как FillEllipse в оригинале — точка уже при нажатии.
+            if (m_exerciseId == QStringLiteral("1.12")) {
+                paintAt(event->pos(), true);
+            }
         }
         QWidget::mousePressEvent(event);
     }
@@ -489,21 +650,41 @@ protected:
         if (!m_drawing || !event->buttons().testFlag(Qt::LeftButton)) {
             return;
         }
-        const QPoint canvasPt = mapToCanvas(event->pos());
+        paintAt(event->pos(), false);
+    }
+
+    void paintAt(const QPoint &widgetPos, bool forceDot) {
+        const QPoint canvasPt = mapToCanvas(widgetPos);
         if (canvasPt.x() < 0) {
             return;
         }
         QPainter painter(&m_canvas);
-        painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap));
-        if (m_hasLast) {
-            painter.drawLine(m_lastPoint, canvasPt);
+        if (m_exerciseId == QStringLiteral("1.12")) {
+            // FillEllipse(br, e.X, e.Y, szBruch, szBruch)
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(m_brushColor);
+            painter.drawEllipse(canvasPt.x(), canvasPt.y(), m_brushWidth, m_brushWidth);
+            Q_UNUSED(forceDot);
+        } else {
+            painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap));
+            if (m_hasLast) {
+                painter.drawLine(m_lastPoint, canvasPt);
+            } else if (forceDot) {
+                painter.drawPoint(canvasPt);
+            }
+            m_lastPoint = canvasPt;
+            m_hasLast = true;
         }
-        m_lastPoint = canvasPt;
-        m_hasLast = true;
         updateCanvasDisplay();
     }
 
     void finish() override {
+        if (m_palette) {
+            m_palette->hide();
+        }
+        if (m_hintToggle) {
+            m_hintToggle->hide();
+        }
         const QString path = scansDirectory() + QStringLiteral("/") + m_exerciseId + QStringLiteral("-")
             + QString::number(QDateTime::currentMSecsSinceEpoch()) + QStringLiteral(".png");
         m_canvas.save(path);
@@ -547,6 +728,7 @@ protected:
         m_picture->setFixedSize(display.size());
         m_picture->move(m_layout.pos);
         m_picture->raise();
+        raiseOverlayControls();
     }
 
     QImage m_canvas;
@@ -556,6 +738,10 @@ protected:
     QPoint m_lastPoint;
     QColor m_brushColor = Qt::blue;
     int m_brushWidth = 20;
+    PointClickLabel *m_palette = nullptr;
+    ClickableLabel *m_hintToggle = nullptr;
+    QImage m_paletteImage;
+    bool m_hintHidden = true;
 };
 
 class FindMarkRunner final : public PaintRunner {

@@ -2513,7 +2513,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                 QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
                 QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
             inner.prepend(QStringLiteral(
-                "<colgroup><col width='300'><col width='300'><col width='71'></colgroup>"));
+                "<colgroup><col width='308'><col width='298'><col width='65'></colgroup>"));
 
             const QRegularExpression trRe(
                 QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
@@ -2522,7 +2522,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             int trLast = 0;
             QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
             const QStringList widths = {
-                QStringLiteral("300"), QStringLiteral("300"), QStringLiteral("71")};
+                QStringLiteral("308"), QStringLiteral("298"), QStringLiteral("65")};
             while (trIt.hasNext()) {
                 const QRegularExpressionMatch tr = trIt.next();
                 rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
@@ -2562,6 +2562,76 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         }
                         newRow += td.captured(1) + attrs + td.captured(3) + cellHtml
                             + td.captured(5);
+                        cellLast = td.capturedEnd();
+                    }
+                    newRow += rowInner.mid(cellLast);
+                    rowInner = newRow;
+                }
+                rebuilt += tr.captured(1) + rowInner + tr.captured(3);
+                trLast = tr.capturedEnd();
+            }
+            rebuilt += inner.mid(trLast);
+            out += open + rebuilt + m.captured(3);
+            last = m.capturedEnd();
+        }
+        out += body.mid(last);
+        body = out;
+    }
+
+    // 1.2: Картинка / Уровень / Характер / Виды помощи — 229+88+160+194 = 671.
+    {
+        const QRegularExpression processTableRe(
+            QStringLiteral(
+                "(<table\\b[^>]*>)([\\s\\S]*?Картинка[\\s\\S]*?Уровень\\s+выполнения"
+                "[\\s\\S]*?Характер[\\s\\S]*?Виды\\s+помощи[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+        QString out;
+        out.reserve(body.size() + 128);
+        int last = 0;
+        QRegularExpressionMatchIterator it = processTableRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            out += body.mid(last, m.capturedStart() - last);
+            QString open = m.captured(1);
+            QString inner = m.captured(2);
+            inner.remove(QRegularExpression(
+                QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+            inner.prepend(QStringLiteral(
+                "<colgroup><col width='229'><col width='88'><col width='160'><col width='194'></colgroup>"));
+            const QStringList widths = {
+                QStringLiteral("229"), QStringLiteral("88"), QStringLiteral("160"), QStringLiteral("194")};
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+            QString rebuilt;
+            int trLast = 0;
+            QRegularExpressionMatchIterator trIt = trRe.globalMatch(inner);
+            while (trIt.hasNext()) {
+                const QRegularExpressionMatch tr = trIt.next();
+                rebuilt += inner.mid(trLast, tr.capturedStart() - trLast);
+                QString rowInner = tr.captured(2);
+                const QRegularExpression tdRe(
+                    QStringLiteral("(<td\\b)([^>]*)(>)([\\s\\S]*?)(</td>)"),
+                    QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                QList<QRegularExpressionMatch> tds;
+                QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(rowInner);
+                while (tdIt.hasNext()) {
+                    tds.append(tdIt.next());
+                }
+                if (tds.size() == 4 || tds.size() == 2) {
+                    QString newRow;
+                    int cellLast = 0;
+                    for (int i = 0; i < tds.size(); ++i) {
+                        const QRegularExpressionMatch &td = tds.at(i);
+                        newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
+                        QString attrs = td.captured(2);
+                        if (tds.size() == 4) {
+                            attrs = setAttrWidth(attrs, widths.at(i));
+                        } else if (i < widths.size()) {
+                            attrs = setAttrWidth(attrs, widths.at(i));
+                        }
+                        newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
                         cellLast = td.capturedEnd();
                     }
                     newRow += rowInner.mid(cellLast);
@@ -3670,74 +3740,104 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                 }
             }
             if (!applied) {
-                // Определяем тип по заголовку — нельзя всем 4-кол. давать сетку 1.26.
-                QString header0;
-                QString headerJoin;
-                if (table->rows() > 0) {
+                // Строка заголовка колонок (пропуск баннера «Процесс выполнения…»).
+                int headerRow = 0;
+                for (int r = 0; r < qMin(3, table->rows()); ++r) {
+                    const QString c0 = readTableCellText(table, r, 0);
+                    if (c0.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                        continue;
+                    }
+                    int nonEmpty = 0;
                     for (int c = 0; c < cols; ++c) {
-                        const QString h = readTableCellText(table, 0, c);
-                        if (c == 0) {
-                            header0 = h;
+                        if (!readTableCellText(table, r, c).trimmed().isEmpty()) {
+                            ++nonEmpty;
                         }
-                        headerJoin += h + QLatin1Char(' ');
+                    }
+                    if (nonEmpty >= qMin(2, cols)) {
+                        headerRow = r;
+                        break;
                     }
                 }
+                QString header0;
+                QString headerJoin;
+                for (int c = 0; c < cols; ++c) {
+                    const QString h = readTableCellText(table, headerRow, c);
+                    if (c == 0) {
+                        header0 = h;
+                    }
+                    headerJoin += h + QLatin1Char(' ');
+                }
+                auto setFixed = [&](const QList<int> &widths) {
+                    if (widths.size() != cols) {
+                        return false;
+                    }
+                    QVector<QTextLength> w;
+                    w.reserve(cols);
+                    for (int x : widths) {
+                        w.append(QTextLength(QTextLength::FixedLength, x));
+                    }
+                    fmt.setColumnWidthConstraints(w);
+                    return true;
+                };
                 if (cols == 4
+                    && (headerJoin.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                        || headerJoin.contains(QStringLiteral("Уровень выполнения"), Qt::CaseInsensitive))) {
+                    // 1.2: 229+88+160+194 = 671
+                    applied = setFixed({229, 88, 160, 194});
+                } else if (cols == 4
                     && (header0.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
                         || headerJoin.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive))) {
                     // 1.272: 120+251+250+50
-                    fmt.setColumnWidthConstraints({
-                        QTextLength(QTextLength::FixedLength, 120),
-                        QTextLength(QTextLength::FixedLength, 251),
-                        QTextLength(QTextLength::FixedLength, 250),
-                        QTextLength(QTextLength::FixedLength, 50),
-                    });
+                    applied = setFixed({120, 251, 250, 50});
                 } else if (cols == 4
                            && (headerJoin.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
                                || headerJoin.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive))) {
-                    fmt.setColumnWidthConstraints({
-                        QTextLength(QTextLength::FixedLength, 70),
-                        QTextLength(QTextLength::FixedLength, 120),
-                        QTextLength(QTextLength::FixedLength, widthPx - 250),
-                        QTextLength(QTextLength::FixedLength, 60),
-                    });
+                    applied = setFixed({70, 120, widthPx - 250, 60});
+                } else if (cols == 4
+                           && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
+                    // 1.11 / 1.17 / numbered: № + Факт + Характер + Виды — 35+145+245+246
+                    applied = setFixed({35, 145, 245, 246});
+                } else if (cols == 4
+                           && (header0.contains(QStringLiteral("№"), Qt::CaseInsensitive)
+                               || headerJoin.contains(QRegularExpression(
+                                      QStringLiteral(">\\s*№\\s*<|№\\s*$|^\\s*№"),
+                                      QRegularExpression::CaseInsensitiveOption)))
+                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                           && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                    // 1.14/1.15/1.21: № + Характер + Виды + Баллы — 43+289+283+56
+                    applied = setFixed({43, 289, 283, 56});
                 } else if (cols == 3
                            && headerJoin.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)) {
-                    fmt.setColumnWidthConstraints({
-                        QTextLength(QTextLength::FixedLength, 200),
-                        QTextLength(QTextLength::FixedLength, widthPx - 260),
-                        QTextLength(QTextLength::FixedLength, 60),
-                    });
+                    applied = setFixed({200, widthPx - 260, 60});
                 } else if (cols == 3
                            && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
                            && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
-                    fmt.setColumnWidthConstraints({
-                        QTextLength(QTextLength::FixedLength, 300),
-                        QTextLength(QTextLength::FixedLength, 300),
-                        QTextLength(QTextLength::FixedLength, 71),
-                    });
+                    // 1.1 / 1.8 / OR-HLP-Баллы: как template.html — широкие OR/HLP, узкие Баллы
+                    applied = setFixed({308, 298, 65});
                 } else if (cols == 3
                            && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
                            && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
-                    // 3.1.12: 141+265+265 = 671
-                    fmt.setColumnWidthConstraints({
-                        QTextLength(QTextLength::FixedLength, 141),
-                        QTextLength(QTextLength::FixedLength, 265),
-                        QTextLength(QTextLength::FixedLength, 265),
-                    });
+                    // 3.1.12 / 2.8: 141+265+265 = 671
+                    applied = setFixed({141, 265, 265});
+                } else if (cols == 3
+                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                           && headerJoin.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
+                    // OR/HLP без баллов или с узкой 3-й — 300+300+71
+                    applied = setFixed({300, 300, 71});
+                } else if (cols == 5
+                           && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                    // 2.1: № + Характер + Виды + Баллы прод. + Баллы уст. — 51+200+200+110+110
+                    applied = setFixed({51, 200, 200, 110, 110});
                 } else if (cols == 6
                            && (headerJoin.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
                                || headerJoin.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive))) {
                     // 3.1.10: 30+121+143+141+175+61 = 671
-                    fmt.setColumnWidthConstraints({
-                        QTextLength(QTextLength::FixedLength, 30),
-                        QTextLength(QTextLength::FixedLength, 121),
-                        QTextLength(QTextLength::FixedLength, 143),
-                        QTextLength(QTextLength::FixedLength, 141),
-                        QTextLength(QTextLength::FixedLength, 175),
-                        QTextLength(QTextLength::FixedLength, 61),
-                    });
+                    applied = setFixed({30, 121, 143, 141, 175, 61});
                 }
+                // Fallback: равные доли оставляем только если выше не нашли сетку —
+                // ширины отдельных ячеек в Qt 5.15 через QTextTableCellFormat недоступны.
+                Q_UNUSED(applied);
             }
         }
         table->setFormat(fmt);
@@ -3879,13 +3979,23 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
 
         // Колонка «Баллы» / «Кол-во цифр» (4.2.1): цифры по центру в QTextEdit.
         if (table->rows() >= 1 && cols >= 3) {
+            int headerRow = 0;
+            for (int r = 0; r < qMin(3, table->rows()); ++r) {
+                if (readTableCellText(table, r, 0)
+                        .contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                    continue;
+                }
+                headerRow = r;
+                break;
+            }
             QVector<int> centerCols;
             for (int c = 0; c < cols; ++c) {
-                const QString h = readTableCellText(table, 0, c).trimmed();
+                const QString h = readTableCellText(table, headerRow, c).trimmed();
                 if (h.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
                     || (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12)
                     || h.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
-                    || h.contains(QStringLiteral("нарастание"), Qt::CaseInsensitive)) {
+                    || h.contains(QStringLiteral("нарастание"), Qt::CaseInsensitive)
+                    || h.contains(QStringLiteral("Уровень выполнения"), Qt::CaseInsensitive)) {
                     centerCols.append(c);
                 }
             }
