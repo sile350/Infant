@@ -843,6 +843,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     optionsLayout->addWidget(m_shardButton);
 
     m_e15ModeGroup = new QGroupBox(QStringLiteral("Настройка уровня сложности"), m_exerciseOptionsPanel);
+    m_e15ModeGroup->setFixedWidth(300);
     m_e15ModeGroup->setStyleSheet(QStringLiteral(
         "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
         "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
@@ -859,7 +860,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     e15Layout->addWidget(m_e15HighlightRadio);
     e15Layout->addWidget(m_e15SelectRadio);
     m_e15ModeGroup->hide();
-    optionsLayout->addWidget(m_e15ModeGroup);
+    optionsLayout->addWidget(m_e15ModeGroup, 0, Qt::AlignLeft);
 
     m_showHintCheck = new QCheckBox(QStringLiteral("Показать пример (showp)"), m_exerciseOptionsPanel);
     m_showTemplateCheck = new QCheckBox(QStringLiteral("Показать трафарет (showt)"), m_exerciseOptionsPanel);
@@ -875,13 +876,17 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     optionsLayout->addWidget(m_rotateEnableCheck);
 
     auto *rotateRow = new QHBoxLayout();
+    m_rotateWLabel = new QLabel(QStringLiteral("По ширине:"), m_exerciseOptionsPanel);
+    m_rotateCWLabel = new QLabel(QStringLiteral("По часовой:"), m_exerciseOptionsPanel);
     m_rotateWCombo = new QComboBox(m_exerciseOptionsPanel);
     m_rotateCWCombo = new QComboBox(m_exerciseOptionsPanel);
-    rotateRow->addWidget(new QLabel(QStringLiteral("По ширине:"), m_exerciseOptionsPanel));
+    rotateRow->addWidget(m_rotateWLabel);
     rotateRow->addWidget(m_rotateWCombo);
-    rotateRow->addWidget(new QLabel(QStringLiteral("По часовой:"), m_exerciseOptionsPanel));
+    rotateRow->addWidget(m_rotateCWLabel);
     rotateRow->addWidget(m_rotateCWCombo);
     optionsLayout->addLayout(rotateRow);
+    m_rotateWLabel->hide();
+    m_rotateCWLabel->hide();
     m_rotateWCombo->hide();
     m_rotateCWCombo->hide();
     m_exerciseOptionsPanel->hide();
@@ -1249,7 +1254,10 @@ void ExerciseHost::updateChromeLayout() {
         m_beginButton->raise();
     }
     if (m_exerciseOptionsPanel && m_rightPanel) {
-        m_exerciseOptionsPanel->setGeometry(12, 52, qMax(120, m_rightPanel->width() - 24), 220);
+        const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+        const int panelH = isE15 ? 280 : 220;
+        const int panelW = isE15 ? 320 : qMax(120, m_rightPanel->width() - 24);
+        m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
         m_exerciseOptionsPanel->raise();
     }
     if (m_previewImage) {
@@ -2035,8 +2043,12 @@ void ExerciseHost::updatePreviewLayout() {
         }
         constexpr int kPreviewAbsLeft = 1100;
         constexpr int kPreviewAbsTop = 75;
+        // 1.5/1.6: ниже, чтобы не перекрывать «Настройка уровня сложности».
+        const int previewAbsTop =
+            (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6"))
+            ? 200
+            : kPreviewAbsTop;
         int previewAbsLeft = kPreviewAbsLeft;
-        int previewAbsTop = kPreviewAbsTop;
         localX = previewAbsLeft - rightPanelLeft;
         localY = previewAbsTop;
         const int maxW = qMax(120, width() - previewAbsLeft - 16);
@@ -2050,7 +2062,10 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
-    m_previewImage->raise();
+    // Опции сложности поверх превью (1.5/1.6).
+    if (m_exerciseOptionsPanel && m_exerciseOptionsPanel->isVisible()) {
+        m_exerciseOptionsPanel->raise();
+    }
     if (m_timeResultLabel && m_timeResultLabel->isVisible()) {
         // По центру правой панели (правее превью по горизонтали).
         const int rightPanelWidth = qMax(1, width() - rightPanelLeft);
@@ -4526,6 +4541,12 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     }
     if (m_rotateCWCombo) {
         m_rotateCWCombo->setVisible(isPuzzleRotate);
+    }
+    if (m_rotateWLabel) {
+        m_rotateWLabel->setVisible(isPuzzleRotate);
+    }
+    if (m_rotateCWLabel) {
+        m_rotateCWLabel->setVisible(isPuzzleRotate);
     }
     if (isPuzzleRotate) {
         refreshRotateCombos();

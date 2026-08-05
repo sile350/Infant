@@ -3538,9 +3538,72 @@ public:
         };
         connect(m_canvas, &E15Canvas::stopRequested, this, [this]() { finishSession(); });
         connect(m_canvas, &E15Canvas::exerciseCompleted, this, [this]() { finishSession(); });
+
+        // Как shard + groupBox1 на форме e15 (Designer: shard @ 1395,9).
+        m_shard = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), this);
+        markPatientControl(m_shard);
+        m_shard->setFlat(true);
+        m_shard->setCursor(Qt::PointingHandCursor);
+        m_shard->setStyleSheet(QStringLiteral(
+            "QPushButton { color:#0000ee; font: bold 14px 'Microsoft Sans Serif'; text-decoration: underline;"
+            " border:none; background:transparent; text-align:left; padding:0; }"
+            "QPushButton:hover { color:#0000cc; }"));
+        m_shard->adjustSize();
+        m_shard->hide();
+
+        m_modeGroup = new QGroupBox(QStringLiteral("Настройки"), this);
+        markPatientControl(m_modeGroup);
+        m_modeGroup->setFixedWidth(300);
+        m_modeGroup->setStyleSheet(QStringLiteral(
+            "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
+        auto *modeLayout = new QVBoxLayout(m_modeGroup);
+        modeLayout->setSpacing(8);
+        m_highlightRadio = new QRadioButton(
+            QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"), m_modeGroup);
+        m_moveRadio = new QRadioButton(
+            QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
+            m_modeGroup);
+        m_highlightRadio->setChecked(true);
+        modeLayout->addWidget(m_highlightRadio);
+        modeLayout->addWidget(m_moveRadio);
+        m_modeGroup->hide();
+
+        connect(m_shard, &QPushButton::clicked, this, [this]() {
+            m_modeOpen = !m_modeOpen;
+            m_modeGroup->setVisible(m_modeOpen);
+            m_shard->setText(m_modeOpen
+                ? QStringLiteral("Настройка уровня сложности ▴")
+                : QStringLiteral("Настройка уровня сложности ▾"));
+            layoutModeUi();
+        });
+        auto applyMode = [this](bool highlight) {
+            m_sessionOptions.e15SelectMode = highlight;
+            if (m_canvas) {
+                m_canvas->setSelectOnlyMode(highlight);
+            }
+        };
+        connect(m_highlightRadio, &QRadioButton::toggled, this, [applyMode](bool checked) {
+            if (checked) {
+                applyMode(true);
+            }
+        });
+        connect(m_moveRadio, &QRadioButton::toggled, this, [applyMode](bool checked) {
+            if (checked) {
+                applyMode(false);
+            }
+        });
     }
 
     void applyE15SelectMode(bool selectOnly) override {
+        if (m_highlightRadio && m_moveRadio) {
+            m_highlightRadio->blockSignals(true);
+            m_moveRadio->blockSignals(true);
+            m_highlightRadio->setChecked(selectOnly);
+            m_moveRadio->setChecked(!selectOnly);
+            m_highlightRadio->blockSignals(false);
+            m_moveRadio->blockSignals(false);
+        }
         if (m_canvas) {
             m_canvas->setSelectOnlyMode(selectOnly);
         }
@@ -3553,13 +3616,31 @@ public:
         Q_UNUSED(definition);
         Q_UNUSED(stepId);
         m_exerciseId = exerciseId;
+        m_modeOpen = false;
+        if (m_modeGroup) {
+            m_modeGroup->hide();
+        }
+        if (m_shard) {
+            m_shard->setText(QStringLiteral("Настройка уровня сложности ▾"));
+        }
+        if (m_highlightRadio && m_moveRadio) {
+            m_highlightRadio->blockSignals(true);
+            m_moveRadio->blockSignals(true);
+            m_highlightRadio->setChecked(m_sessionOptions.e15SelectMode);
+            m_moveRadio->setChecked(!m_sessionOptions.e15SelectMode);
+            m_highlightRadio->blockSignals(false);
+            m_moveRadio->blockSignals(false);
+        }
         m_canvas->setGeometry(0, 0, width(), height());
         m_canvas->startExercise(exerciseId, m_sessionOptions.e15SelectMode);
         m_canvas->show();
-        m_canvas->raise();
+        m_canvas->lower();
         m_stop->move(80, 72);
         m_stop->show();
         m_stop->raise();
+        layoutModeUi();
+        m_shard->show();
+        m_shard->raise();
         show();
         raise();
     }
@@ -3574,21 +3655,59 @@ public:
         if (m_stop) {
             m_stop->move(80, 72);
         }
+        layoutModeUi();
     }
 
 private:
+    void layoutModeUi() {
+        if (!m_shard) {
+            return;
+        }
+        m_shard->adjustSize();
+        // Design 1920×1080 → shard @ (1395, 9); масштабируем под оверлей.
+        const double sx = width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
+        const double sy = height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
+        const double scale = qMin(1.0, qMin(sx, sy));
+        const int offsetX = (width() - static_cast<int>(1920 * scale)) / 2;
+        const int offsetY = (height() - static_cast<int>(1080 * scale)) / 2;
+        const int shardX = offsetX + static_cast<int>(1395 * scale);
+        const int shardY = offsetY + static_cast<int>(9 * scale);
+        m_shard->move(qMax(8, shardX), qMax(4, shardY));
+        if (m_modeGroup) {
+            m_modeGroup->adjustSize();
+            const int groupH = qMax(m_modeGroup->sizeHint().height(), 120);
+            m_modeGroup->setGeometry(m_shard->x(), m_shard->y() + m_shard->height() + 4, 300, groupH);
+            if (m_modeOpen) {
+                m_modeGroup->raise();
+            }
+        }
+        m_shard->raise();
+    }
+
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
         result.doneState = m_canvas ? m_canvas->doneState() : QString();
         m_canvas->hide();
         m_stop->hide();
+        if (m_shard) {
+            m_shard->hide();
+        }
+        if (m_modeGroup) {
+            m_modeGroup->hide();
+        }
+        m_modeOpen = false;
         hide();
         emitFinished(result);
     }
 
     E15Canvas *m_canvas = nullptr;
     ClickableLabel *m_stop = nullptr;
+    QPushButton *m_shard = nullptr;
+    QGroupBox *m_modeGroup = nullptr;
+    QRadioButton *m_highlightRadio = nullptr;
+    QRadioButton *m_moveRadio = nullptr;
+    bool m_modeOpen = false;
 };
 
 class RememberRunner final : public ExerciseRunnerWidget {

@@ -206,6 +206,8 @@ private:
     QCheckBox *m_rotateEnableCheck = nullptr;
     QComboBox *m_rotateWCombo = nullptr;
     QComboBox *m_rotateCWCombo = nullptr;
+    QLabel *m_rotateWLabel = nullptr;
+    QLabel *m_rotateCWLabel = nullptr;
     QGroupBox *m_e15ModeGroup = nullptr;
     QRadioButton *m_e15HighlightRadio = nullptr;
     QRadioButton *m_e15SelectRadio = nullptr;

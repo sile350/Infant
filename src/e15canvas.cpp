@@ -141,7 +141,8 @@ void E15Canvas::initExercise15() {
     for (int row = 0; row < 2; ++row) {
         for (int col = 0; col < 3; ++col) {
             Sprite sprite;
-            const QString file = QString::number(2 + row) + QString::number(col + 1) + QStringLiteral(".png");
+            const QString file =
+                QStringLiteral("2") + QString::number(row * 3 + col + 1) + QStringLiteral(".png");
             sprite.pixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), file));
             sprite.selectPixmap = selectRight;
             sprite.x = kPlaceX2[col + row * 3];
@@ -154,7 +155,8 @@ void E15Canvas::initExercise15() {
     for (int row = 0; row < 2; ++row) {
         for (int col = 0; col < 3; ++col) {
             Sprite sprite;
-            const QString file = QStringLiteral("1") + QString::number(row * 3 + col + 1) + QStringLiteral(".png");
+            const QString file =
+                QStringLiteral("1") + QString::number(row * 3 + col + 1) + QStringLiteral(".png");
             sprite.pixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), file));
             sprite.selectPixmap = selectLeft;
             sprite.x = kPlaceX1[col + row * 3];
