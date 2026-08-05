@@ -5089,15 +5089,17 @@ void InfantWindow::uploadExerciseScan() {
     const QString scansDir = QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans");
     QDir().mkpath(scansDir);
     const QString protocolId = m_exerciseHost->currentProtocolId();
+    const QString body = m_repository.loadProtocolBodyById(protocolId);
+    const QString fileKey = Repository::scanFileKeyForProtocolBody(protocolId, body);
     QString targetName;
     if (m_exerciseHost->exerciseId() == QStringLiteral("1.7")) {
         QString step = m_exerciseHost->selectedStepId().trimmed();
         if (step.isEmpty()) {
             step = QStringLiteral("1");
         }
-        targetName = protocolId + QLatin1Char('-') + step + QStringLiteral(".JPG");
+        targetName = fileKey + QLatin1Char('-') + step + QStringLiteral(".JPG");
     } else {
-        targetName = protocolId + QStringLiteral(".JPG");
+        targetName = fileKey + QStringLiteral(".JPG");
     }
     const QString targetPath = scansDir + QLatin1Char('/') + targetName;
     if (QFile::exists(targetPath)) {

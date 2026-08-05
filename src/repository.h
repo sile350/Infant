@@ -80,6 +80,8 @@ public:
 
     // Якорь «Показать изображение» (#id{protocolId}[-slot]) → путь к файлу скана.
     static QString resolveProtocolScanPathFromAnchor(const QString &anchorHref);
+    // Ключ файла скана для текущей (последней) сессии протокола: id или id-sN.
+    static QString scanFileKeyForProtocolBody(const QString &protocolId, const QString &protocolBody);
 
     QString lastError() const;
 

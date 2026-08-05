@@ -131,12 +131,10 @@ void ensureScanPlaceholdersInProtocolHtml(QString *html, const QString &uprid) {
     }
 }
 
-void applyProtocolScanPlaceholders(QString *html, const QString &protocolId) {
-    if (!html || html->isEmpty() || protocolId.trimmed().isEmpty()) {
+void applyScanTokensInHtml(QString *html, const QString &fileKey) {
+    if (!html || html->isEmpty() || fileKey.trimmed().isEmpty()) {
         return;
     }
-    // Вернуть токены: после автосохранения <a> часто превращаются в голый текст
-    // «Показать изображение», и ссылки перестают работать.
     html->replace(
         QRegularExpression(
             QStringLiteral("<a\\b[^>]*>\\s*Показать изображение1\\s*</a>"),
@@ -164,12 +162,63 @@ void applyProtocolScanPlaceholders(QString *html, const QString &protocolId) {
         QRegularExpression(QStringLiteral("Показать изображение(?!\\d)")),
         QStringLiteral("скачать"));
 
-    html->replace(QStringLiteral("скачать1"), scanAnchorHtml(protocolId, 1, QStringLiteral("Показать изображение1")));
-    html->replace(QStringLiteral("скачать2"), scanAnchorHtml(protocolId, 2, QStringLiteral("Показать изображение2")));
-    html->replace(QStringLiteral("скачать3"), scanAnchorHtml(protocolId, 3, QStringLiteral("Показать изображение3")));
+    html->replace(QStringLiteral("скачать1"), scanAnchorHtml(fileKey, 1, QStringLiteral("Показать изображение1")));
+    html->replace(QStringLiteral("скачать2"), scanAnchorHtml(fileKey, 2, QStringLiteral("Показать изображение2")));
+    html->replace(QStringLiteral("скачать3"), scanAnchorHtml(fileKey, 3, QStringLiteral("Показать изображение3")));
     html->replace(
         QRegularExpression(QStringLiteral("скачать(?!\\d)")),
-        scanAnchorHtml(protocolId, 0, QStringLiteral("Показать изображение")));
+        scanAnchorHtml(fileKey, 0, QStringLiteral("Показать изображение")));
+}
+
+QList<int> findDateSpecialistRowStarts(const QString &html) {
+    QList<int> starts;
+    const QRegularExpression dateRe(
+        QStringLiteral("Дата\\s*/\\s*специалист"),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator it = dateRe.globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        const int rowStart = html.lastIndexOf(QStringLiteral("<tr"), m.capturedStart(), Qt::CaseInsensitive);
+        if (rowStart >= 0) {
+            starts.append(rowStart);
+        }
+    }
+    return starts;
+}
+
+void applyProtocolScanPlaceholders(QString *html, const QString &protocolId) {
+    if (!html || html->isEmpty() || protocolId.trimmed().isEmpty()) {
+        return;
+    }
+    const QList<int> dateStarts = findDateSpecialistRowStarts(*html);
+    // Одна сессия (или без даты) — ключ = id протокола (как раньше).
+    if (dateStarts.size() <= 1) {
+        applyScanTokensInHtml(html, protocolId);
+        return;
+    }
+    // Несколько «Дата/специалист» в одной записи: у каждой сессии свой ключ файлов
+    // {id}-s1, {id}-s2, … иначе все ссылки открывают последний загруженный скан.
+    QString rebuilt;
+    for (int i = 0; i < dateStarts.size(); ++i) {
+        const int from = dateStarts.at(i);
+        const int to = (i + 1 < dateStarts.size()) ? dateStarts.at(i + 1) : html->size();
+        if (i == 0 && from > 0) {
+            rebuilt += html->left(from);
+        }
+        QString chunk = html->mid(from, to - from);
+        const QString fileKey = QStringLiteral("%1-s%2").arg(protocolId).arg(i + 1);
+        applyScanTokensInHtml(&chunk, fileKey);
+        rebuilt += chunk;
+    }
+    *html = rebuilt;
+}
+
+QString currentProtocolScanFileKey(const QString &protocolId, const QString &protocolBody) {
+    const QList<int> dates = findDateSpecialistRowStarts(protocolBody);
+    if (dates.size() <= 1) {
+        return protocolId;
+    }
+    return QStringLiteral("%1-s%2").arg(protocolId).arg(dates.size());
 }
 
 void appendProtocolRecord(
@@ -1252,6 +1301,10 @@ QString Repository::resolveProtocolScanPathFromAnchor(const QString &anchorHref)
         }
     }
     return scanFilePathForProtocol(protocolId, slot);
+}
+
+QString Repository::scanFileKeyForProtocolBody(const QString &protocolId, const QString &protocolBody) {
+    return currentProtocolScanFileKey(protocolId, protocolBody);
 }
 
 QString Repository::loadProtocolBodyById(const QString &protocolId) {

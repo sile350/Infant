@@ -1489,7 +1489,12 @@ void ExerciseHost::openExercise(
     if (m_repository && !patientId.trimmed().isEmpty()) {
         const QString existingBody = m_repository->loadLastExerciseProtocolBody(patientId, exerciseId);
         if (!existingBody.trimmed().isEmpty()) {
-            m_partly = true;
+            // Методики со сканом: не обновлять прошлую запись — иначе загрузка файла
+            // перезаписывает сканы и старые ссылки «Показать изображение» открывают новый файл.
+            // Как в оригинале (partly=false при входе), каждый визит/повтор — свой id протокола.
+            if (!supportsScanUpload(exerciseId)) {
+                m_partly = true;
+            }
         }
     }
     if (m_exerciseId == QStringLiteral("4.2.2")
@@ -4504,8 +4509,7 @@ void ExerciseHost::formProtocol() {
             m_forceNewProtocolSession = false;
         }
     } else if (m_forceNewProtocolSession && saveAsPartly) {
-        // После Begin (3.1.11/17/18): новый блок со строки «Дата/специалист».
-        // 3.1.12 сюда не попадает: Begin сбрасывает partly и формирует протокол с нуля.
+        // После Begin: новый блок со строки «Дата/специалист».
         const QString newSession = ExerciseProtocol::createProtocolHtml(
             m_exerciseId,
             m_specialistFio,
@@ -4515,8 +4519,14 @@ void ExerciseHost::formProtocol() {
             m_answers,
             checkboxValues(),
             session);
-        protocolBody = ExerciseProtocol::appendFullSessionToStoredBody(existingBody, newSession);
-        saveAsPartly = true;
+        if (supportsScanUpload(m_exerciseId)) {
+            // Отдельная запись в БД — свои файлы data/scans/{id}[-N].JPG.
+            protocolBody = newSession;
+            saveAsPartly = false;
+        } else {
+            protocolBody = ExerciseProtocol::appendFullSessionToStoredBody(existingBody, newSession);
+            saveAsPartly = true;
+        }
         m_forceNewProtocolSession = false;
     } else {
         protocolBody = ExerciseProtocol::createProtocolHtml(

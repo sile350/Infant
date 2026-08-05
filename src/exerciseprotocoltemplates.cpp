@@ -1072,8 +1072,8 @@ QString createExerciseProtocolFromTemplate(
             // Защита: шаблон без dateRow — всё равно начинаем с даты.
             const QString now = QDateTime::currentDateTime().toString(QStringLiteral("dd.MM.yyyy hh:mm:ss"));
             sessionBlock += QStringLiteral(
-                                "<tr><td width='200'>Дата/специалист</td>"
-                                "<td width='471'>%1   %2</td></tr>")
+                                "<tr><td width='200' valign='top'>Дата/специалист</td>"
+                                "<td width='471' valign='top'>%1   %2</td></tr>")
                                 .arg(now, userFio.toHtmlEscaped());
         }
         if (!tmpl.initialBlock.isEmpty()) {
