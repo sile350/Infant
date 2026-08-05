@@ -50,8 +50,10 @@
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextTable>
-#include <QTimer>
+#include <QDesktopServices>
 #include <QUrl>
+#include <QFileInfo>
+#include <QTimer>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -776,6 +778,9 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         onProtocolCursorMoved();
     });
     m_templateBrowser->installEventFilter(this);
+    if (m_templateBrowser->viewport()) {
+        m_templateBrowser->viewport()->installEventFilter(this);
+    }
 
     layout->addWidget(orPanel);
     layout->addWidget(m_evaluationPanel);
@@ -1203,6 +1208,31 @@ void ExerciseHost::paintEvent(QPaintEvent *event) {
 }
 
 bool ExerciseHost::eventFilter(QObject *watched, QEvent *event) {
+    QWidget *templateViewport = m_templateBrowser ? m_templateBrowser->viewport() : nullptr;
+    if ((watched == m_templateBrowser || watched == templateViewport)
+        && event && event->type() == QEvent::MouseButtonRelease) {
+        const auto *mouseEvent = static_cast<const QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton && m_templateBrowser) {
+            const QPoint pos = (watched == templateViewport)
+                ? mouseEvent->pos()
+                : m_templateBrowser->viewport()->mapFrom(m_templateBrowser, mouseEvent->pos());
+            const QString anchor = m_templateBrowser->anchorAt(pos);
+            if (!anchor.isEmpty()
+                && (anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
+                    || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
+                    || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive))) {
+                const QUrl url(anchor);
+                const QString path = url.isLocalFile() ? url.toLocalFile() : QUrl::fromUserInput(anchor).toLocalFile();
+                if (!path.isEmpty() && QFileInfo::exists(path)) {
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+                } else {
+                    CustomMessageBox::showWarning(
+                        this, QStringLiteral("Изображение ещё не загружено."));
+                }
+                return true;
+            }
+        }
+    }
     if (watched == m_templateBrowser && event
         && (event->type() == QEvent::FocusOut || event->type() == QEvent::Hide)) {
         if (m_cursorInBallsColumn) {
@@ -2111,6 +2141,65 @@ void ExerciseHost::updatePreviewLayout() {
         m_timeResultLabel->move(timerX, timerY);
         m_timeResultLabel->raise();
     }
+}
+
+bool ExerciseHost::supportsScanUpload(const QString &exerciseId) {
+    return exerciseId == QStringLiteral("1.7")
+        || exerciseId == QStringLiteral("1.12")
+        || exerciseId == QStringLiteral("2.1")
+        || exerciseId == QStringLiteral("2.2")
+        || exerciseId == QStringLiteral("2.3")
+        || exerciseId == QStringLiteral("3.3.1")
+        || exerciseId == QStringLiteral("3.3.2")
+        || exerciseId == QStringLiteral("3.3.3");
+}
+
+bool ExerciseHost::supportsStimulusPrint(const QString &exerciseId) {
+    return supportsScanUpload(exerciseId);
+}
+
+QString ExerciseHost::stimulusPrintImagePath() const {
+    const QString step = currentStepId().trimmed().isEmpty()
+        ? QStringLiteral("1")
+        : currentStepId().trimmed();
+    if (m_exerciseId == QStringLiteral("1.7")) {
+        return ExerciseAssets::exerciseFile(
+            m_exerciseId, QStringLiteral("f") + step + QStringLiteral(".png"));
+    }
+    if (m_exerciseId == QStringLiteral("1.12") || m_exerciseId == QStringLiteral("3.3.2")
+        || m_exerciseId == QStringLiteral("3.3.3")) {
+        return ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
+    }
+    if (m_exerciseId == QStringLiteral("2.1")) {
+        return ExerciseAssets::exerciseFile(
+            m_exerciseId, QStringLiteral("traf") + step + QStringLiteral(".png"));
+    }
+    if (m_exerciseId == QStringLiteral("2.2")) {
+        // Оригинал печатает traf1 из папки 2.1.
+        const QString from21 = ExerciseAssets::exerciseFile(
+            QStringLiteral("2.1"), QStringLiteral("traf1.png"));
+        if (!from21.isEmpty()) {
+            return from21;
+        }
+        return ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("traf1.png"));
+    }
+    if (m_exerciseId == QStringLiteral("2.3")) {
+        return ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("toprint.png"));
+    }
+    if (m_exerciseId == QStringLiteral("3.3.1")) {
+        // Основной кадр; печать двух повёрнутых картинок — в InfantWindow.
+        return ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("traf1.png"));
+    }
+    return ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("f1.png"));
+}
+
+void ExerciseHost::refreshProtocolViewAfterScanUpload() {
+    if (!m_partly || m_currentProtocolId.isEmpty()) {
+        return;
+    }
+    showLastProtocolInTemplate();
+    updateProtocolEditMode();
+    updateContentHeights();
 }
 
 void ExerciseHost::reloadPreviewForCurrentStep() {

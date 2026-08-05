@@ -545,7 +545,8 @@ QMap<QString, QString> buildVariables(
     if (!session.capturedImagePath.isEmpty()) {
         vars.insert(QStringLiteral("{{SCAN}}"), scanLinkHtml(session.capturedImagePath));
     } else {
-        vars.insert(QStringLiteral("{{SCAN}}"), QString());
+        // Плейсхолдер для applyProtocolScanPlaceholders («Показать изображение»).
+        vars.insert(QStringLiteral("{{SCAN}}"), QStringLiteral("скачать"));
     }
     vars.insert(QStringLiteral("{{SCAN_SLOTS}}"), QStringLiteral("скачать1 скачать2 скачать3"));
 

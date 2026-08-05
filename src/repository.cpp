@@ -31,24 +31,26 @@ QString protocolPageBreakHtml() {
 
 QString scanHrefForProtocol(const QString &protocolId, int slot) {
     const QDir scans(QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans"));
-    if (scans.exists()) {
-        const QString suffix = slot > 0
-            ? QStringLiteral("-%1.png").arg(slot)
-            : QStringLiteral(".png");
-        const QStringList files = scans.entryList(
-            QStringList() << QStringLiteral("*") + protocolId + QStringLiteral("*") + suffix,
-            QDir::Files,
-            QDir::Time);
-        if (!files.isEmpty()) {
-            return QUrl::fromLocalFile(scans.absoluteFilePath(files.first())).toString();
-        }
-        const QStringList any = scans.entryList(QDir::Files, QDir::Time);
-        if (!any.isEmpty() && slot <= 1) {
-            return QUrl::fromLocalFile(scans.absoluteFilePath(any.first())).toString();
+    const QString baseName = slot > 0
+        ? QStringLiteral("%1-%2").arg(protocolId, QString::number(slot))
+        : protocolId;
+    // Оригинал: data/scans/{id}.JPG или {id}-{N}.JPG
+    const QStringList extensions = {
+        QStringLiteral(".JPG"),
+        QStringLiteral(".jpg"),
+        QStringLiteral(".jpeg"),
+        QStringLiteral(".JPEG"),
+        QStringLiteral(".png"),
+        QStringLiteral(".PNG"),
+    };
+    for (const QString &ext : extensions) {
+        const QString path = scans.absoluteFilePath(baseName + ext);
+        if (QFileInfo::exists(path)) {
+            return QUrl::fromLocalFile(path).toString();
         }
     }
-    return QUrl::fromLocalFile(QCoreApplication::applicationDirPath() + QStringLiteral("/empty.png"))
-        .toString();
+    // Ожидаемый путь — клик покажет предупреждение, если файла ещё нет.
+    return QUrl::fromLocalFile(scans.absoluteFilePath(baseName + QStringLiteral(".JPG"))).toString();
 }
 
 QString scanAnchorHtml(const QString &protocolId, int slot, const QString &label) {
@@ -881,6 +883,7 @@ QString Repository::loadProtocolViewHtml(
             protocolBlock += QStringLiteral("</table>");
         }
     }
+    applyProtocolScanPlaceholders(&protocolBlock, protocolId);
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"

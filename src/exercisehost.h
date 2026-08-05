@@ -52,6 +52,17 @@ public:
     // Остановить сессию и убрать оверлеи (в т.ч. с корня главного окна).
     void shutdownSessionUi();
 
+    QString exerciseId() const { return m_exerciseId; }
+    QString currentProtocolId() const { return m_currentProtocolId; }
+    bool protocolPartlyFormed() const { return m_partly; }
+    QString selectedStepId() const { return currentStepId(); }
+    // Путь к картинке для печати стимульного материала (по текущему № задания).
+    QString stimulusPrintImagePath() const;
+    static bool supportsScanUpload(const QString &exerciseId);
+    static bool supportsStimulusPrint(const QString &exerciseId);
+    // Обновить HTML протокола (ссылки «Показать изображение» после загрузки скана).
+    void refreshProtocolViewAfterScanUpload();
+
 signals:
     void closed();
     void protocolSaved();

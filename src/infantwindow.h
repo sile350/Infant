@@ -126,6 +126,10 @@ private:
     void saveAnamnesisToDb();
     void exportDocument();
     void printSelectedContent();
+    void updateExerciseScanPrintButtons();
+    void printExerciseStimulus();
+    void uploadExerciseScan();
+    bool tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &viewportPos);
     void showInfoPopup();
     void showHelpWindow(const QString &address);
     void showAboutWindow();

@@ -39,6 +39,8 @@
 #include <QPrinter>
 #include <QPrintDialog>
 #include <QToolTip>
+#include <QDesktopServices>
+#include <QTransform>
 #include <QStandardPaths>
 #include <QSignalBlocker>
 #include <QStandardItemModel>
@@ -1423,6 +1425,7 @@ void InfantWindow::buildUi() {
             QStringLiteral("background-color: #ffffff; background-image: none; color: #000000;")
         );
         m_protocolsView->viewport()->setCursor(Qt::ArrowCursor);
+        m_protocolsView->viewport()->installEventFilter(this);
     }
 
     m_protocolsSaveTimer = new QTimer(this);
@@ -1804,8 +1807,15 @@ void InfantWindow::applyLegacyStyle() {
     setImage(m_bBack, "back.png");
     setImage(m_bList, "plist.png");
     setImage(m_bExit, "exit.png");
-    setImage(m_bPicPrint, "saveas.png");
-    setImage(m_bUpload, "showp.png");
+    setFromCandidates(m_bPicPrint, {
+        imagePath("Печать.png"),
+        resourcePath("Печать.png"),
+        imagePath("saveas.png")
+    });
+    setFromCandidates(m_bUpload, {
+        resourcePath("Загрузить файл.png"),
+        imagePath("showp.png")
+    });
     setFromCandidates(m_bSave, {
         imagePath("Сохранить.png"),
         resourcePath("Сохранить.png"),
@@ -1969,6 +1979,12 @@ void InfantWindow::bindSignals() {
     connect(m_pProto, &ImageButton::clicked, this, [this]() { setScreen(ScreenMode::Protocols); });
     connect(m_pUpr, &ImageButton::clicked, this, [this]() { setScreen(ScreenMode::Exercises); });
     connect(m_bInfo, &ImageButton::clicked, this, [this]() { showInfoPopup(); });
+    if (m_bPicPrint) {
+        connect(m_bPicPrint, &ImageButton::clicked, this, [this]() { printExerciseStimulus(); });
+    }
+    if (m_bUpload) {
+        connect(m_bUpload, &ImageButton::clicked, this, [this]() { uploadExerciseScan(); });
+    }
 
     bindClearableField(m_loginEdit, m_loginClear);
     bindClearableField(m_passwordEdit, m_passwordClear);
@@ -2239,6 +2255,7 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     }
     m_bPicPrint->setVisible(false);
     m_bUpload->setVisible(false);
+    updateExerciseScanPrintButtons();
     m_bInfo->setVisible(true);
     m_pAna->setVisible(workScreen);
     m_pProto->setVisible(workScreen);
@@ -4093,6 +4110,15 @@ bool InfantWindow::eventFilter(QObject *watched, QEvent *event) {
         tryAutoSaveAnamnesis();
     }
 
+    if (m_protocolsView && watched == m_protocolsView->viewport()
+        && event->type() == QEvent::MouseButtonRelease) {
+        const auto *mouseEvent = static_cast<const QMouseEvent *>(event);
+        if (mouseEvent->button() == Qt::LeftButton
+            && tryOpenProtocolScanAnchor(m_protocolsView, mouseEvent->pos())) {
+            return true;
+        }
+    }
+
     if (watched == m_patientsTable->viewport()) {
         if (event->type() == QEvent::MouseMove) {
             const auto *mouseEvent = static_cast<QMouseEvent *>(event);
@@ -4200,20 +4226,25 @@ void InfantWindow::showSettingsSaveTemplateView(bool show) {
 }
 
 void InfantWindow::installToolbarTooltips() {
-    if (!m_bPrint) {
-        return;
+    if (m_bPrint) {
+        m_bPrint->setAttribute(Qt::WA_Hover, true);
+        m_bPrint->installEventFilter(this);
+        if (!m_printTooltipTimer) {
+            m_printTooltipTimer = new QTimer(this);
+            m_printTooltipTimer->setSingleShot(true);
+            m_printTooltipTimer->setInterval(1000);
+            connect(m_printTooltipTimer, &QTimer::timeout, this, [this]() {
+                if (m_bPrint && m_bPrint->underMouse()) {
+                    QToolTip::showText(QCursor::pos(), QStringLiteral("Печать"), m_bPrint);
+                }
+            });
+        }
     }
-    m_bPrint->setAttribute(Qt::WA_Hover, true);
-    m_bPrint->installEventFilter(this);
-    if (!m_printTooltipTimer) {
-        m_printTooltipTimer = new QTimer(this);
-        m_printTooltipTimer->setSingleShot(true);
-        m_printTooltipTimer->setInterval(1000);
-        connect(m_printTooltipTimer, &QTimer::timeout, this, [this]() {
-            if (m_bPrint && m_bPrint->underMouse()) {
-                QToolTip::showText(QCursor::pos(), QStringLiteral("Печать"), m_bPrint);
-            }
-        });
+    if (m_bPicPrint) {
+        m_bPicPrint->setToolTip(QStringLiteral("Печать"));
+    }
+    if (m_bUpload) {
+        m_bUpload->setToolTip(QStringLiteral("Загрузить файл"));
     }
 }
 
@@ -4775,6 +4806,7 @@ void InfantWindow::openExercise(const QString &exerciseId) {
     if (m_bSettings) {
         m_bSettings->hide();
     }
+    updateExerciseScanPrintButtons();
     raiseChromeWidgets();
 }
 
@@ -4815,7 +4847,7 @@ void InfantWindow::setWorkChromeVisible(bool visible) {
 
 void InfantWindow::raiseChromeWidgets() {
     const QWidgetList chromeWidgets = {
-        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bSettings, m_bInfo,
+        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bPicPrint, m_bUpload, m_bSettings, m_bInfo,
         m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr, m_dualScreenTabCheck,
         m_patientTitle, m_userOpenPatients
     };
@@ -4836,6 +4868,7 @@ void InfantWindow::closeExerciseHost() {
         m_exerciseHost->hide();
     }
     m_exerciseOpen = false;
+    updateExerciseScanPrintButtons();
 
     if (m_currentScreen == ScreenMode::Exercises) {
         if (m_workStack) {
@@ -4849,6 +4882,169 @@ void InfantWindow::closeExerciseHost() {
         raiseChromeWidgets();
     }
     refreshProtocolsView();
+}
+
+void InfantWindow::updateExerciseScanPrintButtons() {
+    const bool supported = m_exerciseOpen && m_exerciseHost
+        && ExerciseHost::supportsScanUpload(m_exerciseHost->exerciseId());
+    if (m_bPicPrint) {
+        m_bPicPrint->setVisible(supported && ExerciseHost::supportsStimulusPrint(m_exerciseHost->exerciseId()));
+        if (m_bPicPrint->isVisible()) {
+            m_bPicPrint->raise();
+        }
+    }
+    if (m_bUpload) {
+        m_bUpload->setVisible(supported);
+        if (m_bUpload->isVisible()) {
+            m_bUpload->raise();
+        }
+    }
+}
+
+bool InfantWindow::tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &viewportPos) {
+    if (!editor) {
+        return false;
+    }
+    const QString anchor = editor->anchorAt(viewportPos);
+    if (anchor.isEmpty()) {
+        return false;
+    }
+    const bool looksLikeScan = anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral("Показать изображение"));
+    if (!looksLikeScan
+        && !anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
+        && !anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive)
+        && !anchor.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive)) {
+        return false;
+    }
+    const QUrl url(anchor);
+    QString path = url.isLocalFile() ? url.toLocalFile() : QUrl::fromUserInput(anchor).toLocalFile();
+    if (path.isEmpty()) {
+        path = anchor;
+    }
+    if (!QFileInfo::exists(path)) {
+        CustomMessageBox::showWarning(this, QStringLiteral("Изображение ещё не загружено."));
+        return true;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    return true;
+}
+
+void InfantWindow::printExerciseStimulus() {
+    if (!m_exerciseHost || !ExerciseHost::supportsStimulusPrint(m_exerciseHost->exerciseId())) {
+        return;
+    }
+    const QString exerciseId = m_exerciseHost->exerciseId();
+
+    QPrinter printer(QPrinter::HighResolution);
+    QPrintDialog dialog(&printer, this);
+    dialog.setWindowTitle(QStringLiteral("Печать"));
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QPainter painter;
+    if (!painter.begin(&printer)) {
+        CustomMessageBox::showWarning(this, QStringLiteral("Не удалось начать печать."));
+        return;
+    }
+
+    const QRectF page = printer.pageRect(QPrinter::DevicePixel);
+    auto drawScaled = [&](const QPixmap &pix, const QRectF &target) {
+        if (pix.isNull()) {
+            return;
+        }
+        const QPixmap scaled = pix.scaled(
+            target.size().toSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        const qreal x = target.x() + (target.width() - scaled.width()) / 2.0;
+        const qreal y = target.y() + (target.height() - scaled.height()) / 2.0;
+        painter.drawPixmap(QPointF(x, y), scaled);
+    };
+
+    if (exerciseId == QStringLiteral("3.3.1")) {
+        QPixmap top = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf2.png")));
+        QPixmap bottom = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf1.png")));
+        if (!top.isNull()) {
+            QTransform t;
+            t.rotate(90);
+            top = top.transformed(t, Qt::SmoothTransformation);
+        }
+        if (!bottom.isNull()) {
+            QTransform t;
+            t.rotate(90);
+            bottom = bottom.transformed(t, Qt::SmoothTransformation);
+        }
+        const qreal half = page.height() / 2.0;
+        drawScaled(top, QRectF(page.x(), page.y(), page.width(), half));
+        drawScaled(bottom, QRectF(page.x(), page.y() + half, page.width(), half));
+    } else {
+        const QString path = m_exerciseHost->stimulusPrintImagePath();
+        QPixmap pix(path);
+        if (pix.isNull()) {
+            painter.end();
+            CustomMessageBox::showWarning(this, QStringLiteral("Нет изображения для печати."));
+            return;
+        }
+        if (exerciseId == QStringLiteral("1.7") || exerciseId == QStringLiteral("1.12")) {
+            painter.drawPixmap(page.toRect(), pix);
+        } else {
+            drawScaled(pix, page);
+        }
+    }
+    painter.end();
+}
+
+void InfantWindow::uploadExerciseScan() {
+    if (!m_exerciseHost || !ExerciseHost::supportsScanUpload(m_exerciseHost->exerciseId())) {
+        return;
+    }
+    if (!m_exerciseHost->protocolPartlyFormed() || m_exerciseHost->currentProtocolId().isEmpty()) {
+        CustomMessageBox::showWarning(
+            this, QStringLiteral("Прежде чем загружать картинку, необходимо сформировать протокол."));
+        return;
+    }
+
+    const QString source = QFileDialog::getOpenFileName(
+        this,
+        QStringLiteral("Загрузить файл"),
+        QString(),
+        QStringLiteral("Изображения (*.png *.jpg *.jpeg *.bmp *.tif *.tiff);;Все файлы (*.*)"));
+    if (source.isEmpty()) {
+        return;
+    }
+
+    const QString scansDir = QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans");
+    QDir().mkpath(scansDir);
+    const QString protocolId = m_exerciseHost->currentProtocolId();
+    QString targetName;
+    if (m_exerciseHost->exerciseId() == QStringLiteral("1.7")) {
+        QString step = m_exerciseHost->selectedStepId().trimmed();
+        if (step.isEmpty()) {
+            step = QStringLiteral("1");
+        }
+        targetName = protocolId + QLatin1Char('-') + step + QStringLiteral(".JPG");
+    } else {
+        targetName = protocolId + QStringLiteral(".JPG");
+    }
+    const QString targetPath = scansDir + QLatin1Char('/') + targetName;
+    if (QFile::exists(targetPath)) {
+        QFile::remove(targetPath);
+    }
+    if (!QFile::copy(source, targetPath)) {
+        CustomMessageBox::showError(this, QStringLiteral("Не удалось сохранить файл."));
+        return;
+    }
+
+    // Обновить ссылки «Показать изображение» на странице упражнения.
+    if (m_exerciseHost) {
+        m_exerciseHost->refreshProtocolViewAfterScanUpload();
+    }
+    if (m_currentScreen == ScreenMode::Protocols) {
+        refreshProtocolsView();
+    }
+    CustomMessageBox::showInfo(this, QStringLiteral("Файл загружен."));
 }
 
 QString InfantWindow::currentPatientBirthDate() const {
