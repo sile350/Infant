@@ -50,6 +50,12 @@
 namespace {
 
 QString resolveSessionImage(const QString &exerciseId, const QString &stepId) {
+    if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("1")) {
+        const QString path = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("p1.png"));
+        if (!path.isEmpty()) {
+            return path;
+        }
+    }
     const QStringList candidates = stepId.isEmpty()
         ? QStringList{
               QStringLiteral("f1.png"),

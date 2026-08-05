@@ -662,6 +662,58 @@ QString buildNumberedProcessRows(
 }
 
 // 1.27 / 1.272: строка на каждое № задания + одна «Итоговая оценка» (как createP + trim1).
+QString orHlpBallsScoreIdPrefix(const QString &exerciseId) {
+    if (exerciseId == QStringLiteral("1.14")) {
+        return QStringLiteral("idb");
+    }
+    return QStringLiteral("ids");
+}
+
+QString orHlpBallsScoreId(const QString &exerciseId, const QString &stepId) {
+    const QString step = stepId.trimmed();
+    if (exerciseId == QStringLiteral("1.20")) {
+        static const QMap<QString, QString> kMap = {
+            {QStringLiteral("Мяч 2"), QStringLiteral("1")},
+            {QStringLiteral("Дом 3"), QStringLiteral("2")},
+            {QStringLiteral("Мишка 4"), QStringLiteral("3")},
+            {QStringLiteral("Машинка 5"), QStringLiteral("4")},
+            {QStringLiteral("Чайник 6"), QStringLiteral("5")},
+        };
+        return kMap.value(step, step);
+    }
+    if (exerciseId == QStringLiteral("1.21")) {
+        static const QMap<QString, QString> kMap = {
+            {QStringLiteral("2А"), QStringLiteral("1")},
+            {QStringLiteral("2Б"), QStringLiteral("1")},
+            {QStringLiteral("3А"), QStringLiteral("2")},
+            {QStringLiteral("3Б"), QStringLiteral("3")},
+            {QStringLiteral("4А"), QStringLiteral("4")},
+            {QStringLiteral("4Б"), QStringLiteral("5")},
+            {QStringLiteral("5А"), QStringLiteral("6")},
+            {QStringLiteral("5Б"), QStringLiteral("7")},
+            {QStringLiteral("6А"), QStringLiteral("8")},
+            {QStringLiteral("6Б"), QStringLiteral("9")},
+        };
+        return kMap.value(step, step);
+    }
+    return step;
+}
+
+QString orHlpBallsStepLabel(const QString &exerciseId, const QString &stepId) {
+    const QString step = stepId.trimmed();
+    if (exerciseId == QStringLiteral("1.20")) {
+        static const QMap<QString, QString> kMap = {
+            {QStringLiteral("Мяч 2"), QStringLiteral("Мяч из 2 частей")},
+            {QStringLiteral("Дом 3"), QStringLiteral("Домик из 3 частей")},
+            {QStringLiteral("Мишка 4"), QStringLiteral("Мишка из 4 частей")},
+            {QStringLiteral("Машинка 5"), QStringLiteral("Машинка из 5 частей")},
+            {QStringLiteral("Чайник 6"), QStringLiteral("Чайник из 6 частей")},
+        };
+        return kMap.value(step, step);
+    }
+    return step;
+}
+
 QString stepLabel1272(const QString &stepId) {
     static const QMap<QString, QString> kEmotions = {
         {QStringLiteral("1"), QStringLiteral("Грусть")},
@@ -702,12 +754,16 @@ QString buildOrHlpBallsProcessRows(
     QString rows;
     for (const QString &stepId : stepIds) {
         QMap<QString, QString> vars = baseVars;
+        const QString scoreId = orHlpBallsScoreId(tmpl.id, stepId);
         vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
         vars.insert(QStringLiteral("{{ADDITIONAL}}"), stepId.toHtmlEscaped());
+        vars.insert(QStringLiteral("{{SCORE_ID}}"), scoreId.toHtmlEscaped());
         if (tmpl.id == QStringLiteral("1.272")) {
             vars.insert(QStringLiteral("{{STEP_LABEL}}"), stepLabel1272(stepId).toHtmlEscaped());
         } else {
-            vars.insert(QStringLiteral("{{STEP_LABEL}}"), stepId.toHtmlEscaped());
+            vars.insert(
+                QStringLiteral("{{STEP_LABEL}}"),
+                orHlpBallsStepLabel(tmpl.id, stepId).toHtmlEscaped());
         }
         rows += ensureRowWrapped(substituteAll(rowTpl, vars));
     }
@@ -1009,9 +1065,7 @@ QString createExerciseProtocolFromTemplate(
                 }
                 stepIds << stepKey;
             }
-            const QString prefix = (tmpl.kind == QStringLiteral("or_hlp_balls"))
-                ? QStringLiteral("ids")
-                : QStringLiteral("idb");
+            const QString prefix = orHlpBallsScoreIdPrefix(exerciseId);
             // Смотрим только последнюю сессию по «Дата/специалист» — иначе ids/idb
             // из предыдущих повторных протоколов дают ложный «уже есть» и плодят
             // лишние блоки с новой датой вместо дописки строк в текущий.
@@ -1022,7 +1076,7 @@ QString createExerciseProtocolFromTemplate(
                 : lastSessionHtml;
             QStringList newSteps;
             for (const QString &sid : stepIds) {
-                const QString idToken = prefix + sid;
+                const QString idToken = prefix + orHlpBallsScoreId(exerciseId, sid);
                 const bool present =
                     scopeHtml.contains(
                         QStringLiteral("id='%1'").arg(idToken), Qt::CaseInsensitive)

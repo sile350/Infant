@@ -107,6 +107,7 @@ private:
     void sumProtocol3110();
     void sumProtocol418();
     void sumProtocol318();
+    void sumProtocolOrHlpBalls(const QString &idPrefix, const QString &maxSuffix);
     void syncProtocol317BallsToResult();
     void updateSumButtonVisibility();
     bool usesLastProtocolSessionView() const;

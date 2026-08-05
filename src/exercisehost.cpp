@@ -1975,12 +1975,19 @@ void ExerciseHost::updatePreviewLayout() {
     if (!m_previewImage) {
         return;
     }
-    if (m_dualScreen && m_exerciseRunning) {
-        m_previewImage->hide();
-        if (m_previewGenderPanel) {
-            m_previewGenderPanel->hide();
+    if (m_exerciseRunning) {
+        const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+        if (m_dualScreen
+            || (definition
+                && (definition->runner == ExerciseRunnerKind::Puzzles
+                    || definition->runner == ExerciseRunnerKind::OnlyDemo
+                    || definition->runner == ExerciseRunnerKind::Remember))) {
+            m_previewImage->hide();
+            if (m_previewGenderPanel) {
+                m_previewGenderPanel->hide();
+            }
+            return;
         }
-        return;
     }
     if (m_previewSource.isNull()) {
         m_previewImage->hide();
@@ -2149,11 +2156,14 @@ void ExerciseHost::updatePreviewLayout() {
         constexpr int kPreviewAbsLeft = 1100;
         constexpr int kPreviewAbsTop = 75;
         // 1.5/1.6: чуть ниже ссылки «Настройка уровня сложности».
-        const int previewAbsTop =
+        int previewAbsTop =
             (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6"))
             ? 100
             : kPreviewAbsTop;
         int previewAbsLeft = kPreviewAbsLeft;
+        if (m_exerciseId == QStringLiteral("1.14")) {
+            previewAbsLeft = currentStepId().trimmed() == QStringLiteral("1") ? 900 : 1100;
+        }
         localX = previewAbsLeft - rightPanelLeft;
         localY = previewAbsTop;
         const int maxW = qMax(120, width() - previewAbsLeft - 16);
@@ -2867,7 +2877,15 @@ void ExerciseHost::setExerciseChromeVisible(bool visible) {
         m_rightPanel->setVisible(visible);
     }
     if (m_previewImage) {
-        m_previewImage->setVisible(visible && !m_previewSource.isNull() && !(m_dualScreen && m_exerciseRunning));
+        const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+        const bool hideDuringRun = m_exerciseRunning
+            && (m_dualScreen
+                || (definition
+                    && (definition->runner == ExerciseRunnerKind::Puzzles
+                        || definition->runner == ExerciseRunnerKind::OnlyDemo
+                        || definition->runner == ExerciseRunnerKind::Remember)));
+        m_previewImage->setVisible(
+            visible && !m_previewSource.isNull() && !hideDuringRun);
     }
     if (m_rightCountLabel) {
         m_rightCountLabel->setVisible(visible && m_exerciseDone && m_rightCountLabel->text().startsWith(QStringLiteral("Верно")));
@@ -3887,7 +3905,12 @@ void ExerciseHost::updateSumButtonVisibility() {
     const bool show = m_protocolSavedThisSession
         && (m_exerciseId == QStringLiteral("1.26") || m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("3.1.10")
-            || m_exerciseId == QStringLiteral("4.1.8"));
+            || m_exerciseId == QStringLiteral("4.1.8")
+            || m_exerciseId == QStringLiteral("1.14")
+            || m_exerciseId == QStringLiteral("1.15")
+            || m_exerciseId == QStringLiteral("1.20")
+            || m_exerciseId == QStringLiteral("1.21")
+            || m_exerciseId == QStringLiteral("1.27"));
     m_sumButton->setVisible(show);
 }
 
@@ -3966,6 +3989,27 @@ void ExerciseHost::sumProtocolScores() {
     }
     if (m_exerciseId == QStringLiteral("4.1.8")) {
         sumProtocol418();
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.14")) {
+        sumProtocolOrHlpBalls(QStringLiteral("idb"), QStringLiteral("(6)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.15")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(9)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.20")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(20)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.21")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(21)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.27")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(9)"));
+        return;
     }
 }
 
@@ -4192,6 +4236,42 @@ void ExerciseHost::sumProtocol1272() {
     // Сумма ids* → «Итоговая оценка»; то же значение → «Результат: баллы (макс.)» как N(24).
     storedBody = ExerciseProtocol::applyProtocolIdbSum(
         storedBody, QStringLiteral("(24)"), QStringLiteral("ids"));
+
+    QString error;
+    if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
+        CustomMessageBox::showError(this, error);
+        return;
+    }
+    if (m_protocolSaveTimer) {
+        m_protocolSaveTimer->stop();
+    }
+    m_suppressProtocolAutosave = true;
+
+    const QString viewHtml = m_repository->loadProtocolViewHtml(
+        m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+    finalizeProtocolTemplateDocument(m_templateBrowser->document());
+    updateContentHeights();
+    updateProtocolEditMode();
+    QTimer::singleShot(900, this, [this]() { m_suppressProtocolAutosave = false; });
+    emit protocolSaved();
+}
+
+void ExerciseHost::sumProtocolOrHlpBalls(const QString &idPrefix, const QString &maxSuffix) {
+    if (!m_repository || m_currentProtocolId.isEmpty() || !m_templateBrowser) {
+        return;
+    }
+    saveProtocolEdits();
+    commitTextEditChanges(m_templateBrowser, true);
+    QString storedBody = m_repository->loadProtocolBodyById(m_currentProtocolId);
+    if (storedBody.trimmed().isEmpty()) {
+        return;
+    }
+    if (idPrefix == QStringLiteral("ids")) {
+        storedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+            storedBody, m_templateBrowser->document());
+    }
+    storedBody = ExerciseProtocol::applyProtocolIdbSum(storedBody, maxSuffix, idPrefix);
 
     QString error;
     if (!m_repository->updateProtocolBody(m_currentProtocolId, storedBody, &error)) {
