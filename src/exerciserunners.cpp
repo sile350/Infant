@@ -2840,7 +2840,81 @@ public:
         m_sizeFilterPanel->setFixedWidth(220);
         m_sizeFilterPanel->hide();
 
+        // 1.14 шаг 2: «Настройка уровня сложности» прямо на форме выполнения (как shard + groupBox1).
+        m_shardLink = new QPushButton(QStringLiteral("Настройка уровня сложности"), this);
+        markPatientControl(m_shardLink);
+        m_shardLink->setFlat(true);
+        m_shardLink->setCursor(Qt::PointingHandCursor);
+        m_shardLink->setStyleSheet(QStringLiteral(
+            "QPushButton { color:#000000; font-family:'Microsoft Sans Serif'; font-size:11pt;"
+            " font-weight:bold; text-decoration:underline; text-align:left; padding:0; border:none;"
+            " background:transparent; }"
+            "QPushButton:hover { color:#222222; }"));
+        m_shardLink->hide();
+        connect(m_shardLink, &QPushButton::clicked, this, [this]() {
+            m_optionsPopupVisible = !m_optionsPopupVisible;
+            layoutOptionsPopup();
+        });
+
+        m_optionsGroup = new QGroupBox(QStringLiteral("Настройки"), this);
+        markPatientControl(m_optionsGroup);
+        m_optionsGroup->setFixedWidth(320);
+        m_optionsGroup->setStyleSheet(QStringLiteral(
+            "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:4px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
+        auto *optLayout = new QVBoxLayout(m_optionsGroup);
+        optLayout->setContentsMargins(8, 12, 8, 8);
+        optLayout->setSpacing(6);
+        m_liveHintCheck = new QCheckBox(
+            QStringLiteral("Показать подсказку\n(демонстрация конечного результата)"),
+            m_optionsGroup);
+        m_liveTemplateCheck = new QCheckBox(
+            QStringLiteral("Показать трафарет\n(накладывание деталей на цельную картинку)"),
+            m_optionsGroup);
+        m_liveHintCheck->setChecked(true);
+        m_liveTemplateCheck->setChecked(false);
+        optLayout->addWidget(m_liveHintCheck);
+        optLayout->addWidget(m_liveTemplateCheck);
+        m_optionsGroup->hide();
+        connect(m_liveHintCheck, &QCheckBox::toggled, this, [this](bool checked) {
+            m_sessionOptions.showHint = checked;
+            if (m_canvas) {
+                m_canvas->setShowHint(checked);
+            }
+        });
+        connect(m_liveTemplateCheck, &QCheckBox::toggled, this, [this](bool checked) {
+            m_sessionOptions.showTemplate = checked;
+            if (m_canvas) {
+                // Без повторного поворота фрагментов — только смена t2/et2.
+                ExerciseSessionOptions opt = m_sessionOptions;
+                opt.showTemplate = checked;
+                opt.rotateW = 0;
+                opt.rotateCW = 0;
+                m_canvas->applySessionOptions(opt);
+            }
+        });
+
         connect(m_canvas, &PuzzleCanvas::stopRequested, this, [this]() { finishSession(); });
+    }
+
+    void setSessionOptions(const ExerciseSessionOptions &options) override {
+        m_sessionOptions = options;
+        if (m_liveHintCheck) {
+            m_liveHintCheck->blockSignals(true);
+            m_liveHintCheck->setChecked(options.showHint);
+            m_liveHintCheck->blockSignals(false);
+        }
+        if (m_liveTemplateCheck) {
+            m_liveTemplateCheck->blockSignals(true);
+            m_liveTemplateCheck->setChecked(options.showTemplate);
+            m_liveTemplateCheck->blockSignals(false);
+        }
+        if (m_canvas && m_canvas->isVisible()) {
+            ExerciseSessionOptions live = options;
+            live.rotateW = 0;
+            live.rotateCW = 0;
+            m_canvas->applySessionOptions(live);
+        }
     }
 
     void applyE15SelectMode(bool selectOnly) override {
@@ -2879,6 +2953,17 @@ public:
 
         m_canvas->setGeometry(0, 0, width(), height());
         m_canvas->loadExercise(exerciseId, stepId, layout);
+        if (m_liveHintCheck) {
+            m_liveHintCheck->blockSignals(true);
+            m_liveHintCheck->setChecked(m_sessionOptions.showHint);
+            m_liveHintCheck->blockSignals(false);
+        }
+        if (m_liveTemplateCheck) {
+            m_liveTemplateCheck->blockSignals(true);
+            m_liveTemplateCheck->setChecked(m_sessionOptions.showTemplate);
+            m_liveTemplateCheck->blockSignals(false);
+        }
+        m_optionsPopupVisible = false;
         m_canvas->applySessionOptions(m_sessionOptions);
         m_canvas->show();
         m_canvas->raise();
@@ -2946,6 +3031,43 @@ private:
             } else {
                 m_sizeFilterPanel->hide();
             }
+        }
+        layoutOptionsPopup();
+    }
+
+    void layoutOptionsPopup() {
+        const bool showShard =
+            m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2");
+        if (!m_shardLink || !m_optionsGroup) {
+            return;
+        }
+        if (!showShard) {
+            m_shardLink->hide();
+            m_optionsGroup->hide();
+            m_optionsPopupVisible = false;
+            return;
+        }
+        constexpr int kDesignW = 1920;
+        constexpr int kDesignH = 1080;
+        const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
+        const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
+        // Как shard в оригинале: справа вверху (Left=1281, Top=9).
+        m_shardLink->adjustSize();
+        const int linkX = qRound(1281.0 * sx);
+        const int linkY = qRound(9.0 * sy);
+        m_shardLink->move(linkX, linkY);
+        m_shardLink->show();
+        m_shardLink->raise();
+        if (m_optionsPopupVisible) {
+            if (QLayout *lay = m_optionsGroup->layout()) {
+                lay->activate();
+            }
+            const int groupH = qMax(m_optionsGroup->sizeHint().height(), 100);
+            m_optionsGroup->setGeometry(linkX, linkY + m_shardLink->height() + 4, 320, groupH);
+            m_optionsGroup->show();
+            m_optionsGroup->raise();
+        } else {
+            m_optionsGroup->hide();
         }
     }
 
@@ -3026,6 +3148,13 @@ private:
         if (m_sizeFilterPanel) {
             m_sizeFilterPanel->hide();
         }
+        if (m_shardLink) {
+            m_shardLink->hide();
+        }
+        if (m_optionsGroup) {
+            m_optionsGroup->hide();
+        }
+        m_optionsPopupVisible = false;
         hide();
         emitFinished(result);
     }
@@ -3040,6 +3169,11 @@ private:
     QCheckBox *m_hideSmallMaster = nullptr;
     QList<QCheckBox *> m_bigHideChecks;
     QList<QCheckBox *> m_smallHideChecks;
+    QPushButton *m_shardLink = nullptr;
+    QGroupBox *m_optionsGroup = nullptr;
+    QCheckBox *m_liveHintCheck = nullptr;
+    QCheckBox *m_liveTemplateCheck = nullptr;
+    bool m_optionsPopupVisible = false;
     bool m_storyVisible = true;
 };
 
@@ -4515,6 +4649,12 @@ public:
         m_puzzles->hide();
         connect(m_demo, &ExerciseRunnerWidget::sessionFinished, this, &ExerciseRunnerWidget::sessionFinished);
         connect(m_puzzles, &ExerciseRunnerWidget::sessionFinished, this, &ExerciseRunnerWidget::sessionFinished);
+    }
+
+    void setSessionOptions(const ExerciseSessionOptions &options) override {
+        ExerciseRunnerWidget::setSessionOptions(options);
+        m_demo->setSessionOptions(options);
+        m_puzzles->setSessionOptions(options);
     }
 
     void startSession(

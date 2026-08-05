@@ -29,7 +29,9 @@ public:
     // Dual-screen: по умолчанию зеркало всего окна; EmotionsRunner — patient-view.
     virtual void bindPatientDisplay(PatientDisplay *display);
 
-    void setSessionOptions(const ExerciseSessionOptions &options) { m_sessionOptions = options; }
+    virtual void setSessionOptions(const ExerciseSessionOptions &options) {
+        m_sessionOptions = options;
+    }
     const ExerciseSessionOptions &sessionOptions() const { return m_sessionOptions; }
     // 1.5/1.6: смена режима подсветка/перемещение во время сессии.
     virtual void applyE15SelectMode(bool selectOnly) { Q_UNUSED(selectOnly); }

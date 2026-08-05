@@ -82,8 +82,9 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     m_hintX = 200;
     m_hintY = 100;
     if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
+        // Как et2/t2 (y=140): подсказка и пустой прямоугольник на одной высоте.
         m_hintX = 200;
-        m_hintY = 230;
+        m_hintY = 140;
     } else if (exerciseId == QStringLiteral("1.24")) {
         m_hintX = 200;
         m_hintY = stepId == QStringLiteral("4") ? 231 : 131;
@@ -387,6 +388,8 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
         }
     }
 
+    // Как PictureBox pexample поверх canvas: подсказка закрывает детали под собой,
+    // снаружи справа остаются фрагменты между подсказкой и пустым прямоугольником.
     if (!m_hintPixmap.isNull() && m_showHint
         && (m_exerciseId == QStringLiteral("1.14") || m_storyVisible)) {
         const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
