@@ -234,6 +234,8 @@ void appendProtocolRecord(
             record += QStringLiteral("</table>");
         }
     }
+    // Ссылки «Показать изображение» — после flatten/normalize, иначе они снова станут «скачать».
+    applyProtocolScanPlaceholders(&record, protocolId);
     if (!protocolId.isEmpty()) {
         record = ExerciseProtocol::wrapProtocolRecord(protocolId, record);
     }
@@ -599,7 +601,8 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
             lastUprid = uprid;
         }
         ensureScanPlaceholdersInProtocolHtml(&pr, uprid);
-        applyProtocolScanPlaceholders(&pr, protocolId);
+        // applyProtocolScanPlaceholders — только после flatten в appendProtocolRecord:
+        // иначе normalizeStoredProtocolBody внутри flatten снова делает «скачать».
         if (uprid == QStringLiteral("1.2")) {
             if (role == QLatin1String("s")) {
                 pr = ExerciseProtocol::repairResultsTableBody(pr);
