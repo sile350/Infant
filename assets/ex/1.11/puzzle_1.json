@@ -2,16 +2,10 @@
   "rotate": false,
   "select": false,
   "showTemplate": true,
-  "sprites": [
-    {
-      "file": "f1.png",
-      "x": 500,
-      "y": 70
-    }
-  ],
+  "sprites": [],
   "template": {
     "file": "f1.png",
-    "x": 500,
-    "y": 70
+    "x": 651,
+    "y": 132
   }
 }

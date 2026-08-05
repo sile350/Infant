@@ -389,6 +389,7 @@ void OnlyPExercise::updateWidgetLayout() {
         int extraX = 0;
         int extraY = 0;
         if (m_exerciseId == QStringLiteral("1.1")
+            || m_exerciseId == QStringLiteral("1.11")
             || m_exerciseId == QStringLiteral("1.25")
             || m_exerciseId == QStringLiteral("2.10")
             || m_exerciseId == QStringLiteral("3.1.2")
@@ -562,8 +563,9 @@ void OnlyPExercise::updateWidgetLayout() {
             int pictureY = qMax(
                 pictureMargin,
                 (height() - display.height()) / 2 + kPatientPictureShiftDown + extraY);
-            // 1.1 / … / 3.2.1 / 3.2.2 / 1.18(№3): строго по центру второго экрана.
+            // 1.1 / 1.11 / … / 3.2.1 / 3.2.2 / 1.18(№3): строго по центру второго экрана.
             if (m_exerciseId == QStringLiteral("1.1")
+                || m_exerciseId == QStringLiteral("1.11")
                 || m_exerciseId == QStringLiteral("1.25")
                 || m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.2")
@@ -595,8 +597,9 @@ void OnlyPExercise::updateWidgetLayout() {
                 pictureX = qMax(pictureMargin, pictureX);
             }
             int pictureY = qMax(contentTop, (height() - display.height()) / 2 + extraY);
-            // 1.1 / … / 3.2.1 / 3.2.2 / 3.2.5 / 1.18(№3 dual specialist): строго по центру панели.
+            // 1.1 / 1.11 / … / 3.2.1 / 3.2.2 / 3.2.5 / 1.18(№3 dual specialist): строго по центру панели.
             if ((m_exerciseId == QStringLiteral("1.1")
+                 || m_exerciseId == QStringLiteral("1.11")
                  || m_exerciseId == QStringLiteral("1.25")
                  || m_exerciseId == QStringLiteral("2.10")
                  || m_exerciseId == QStringLiteral("3.1.2")
@@ -627,8 +630,9 @@ void OnlyPExercise::updateWidgetLayout() {
             pictureX = qMax(pictureMargin, pictureX);
             const int baseTop = showButtons ? contentTop : qRound(kPictureTop * sy);
             int pictureY = qMax(pictureMargin, baseTop + qRound(kPictureTopOffset * sy) + extraY);
-            // 1.1 / … / 3.2.1 / 3.2.2 / 3.2.5 / 3.2.3(№2) / 1.18(№3): строго по центру экрана.
+            // 1.1 / 1.11 / … / 3.2.1 / 3.2.2 / 3.2.5 / 3.2.3(№2) / 1.18(№3): строго по центру экрана.
             if (m_exerciseId == QStringLiteral("1.1")
+                || m_exerciseId == QStringLiteral("1.11")
                 || m_exerciseId == QStringLiteral("1.25")
                 || m_exerciseId == QStringLiteral("2.10")
                 || m_exerciseId == QStringLiteral("3.1.1")

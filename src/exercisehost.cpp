@@ -3277,6 +3277,12 @@ void ExerciseHost::runExerciseSession() {
         runOnlyPExercise();
         return;
     }
+    // 1.11 задание 1 — одна статичная картинка по центру (как 1.1); задание 2 — пазл.
+    if (m_exerciseId == QStringLiteral("1.11")
+        && currentStepId().trimmed() == QStringLiteral("1")) {
+        runOnlyPExercise();
+        return;
+    }
 
     m_protocolFormed = false;
     m_protocolSavedThisSession = false;
@@ -3378,8 +3384,14 @@ void ExerciseHost::runOnlyPExercise() {
     emit exerciseOverlayChanged(true);
 
     const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
-    const OnlyPictureSettings settings =
+    OnlyPictureSettings settings =
         definition ? definition->onlyPicture : OnlyPictureSettings();
+    // 1.11/1: f1.png, без листания и кнопок верно/неверно.
+    if (m_exerciseId == QStringLiteral("1.11")) {
+        settings = OnlyPictureSettings();
+        settings.pictureCount = 1;
+        settings.imagePattern = QStringLiteral("f1.png");
+    }
     m_sessionStepId = currentStepId();
     if (m_sessionStepId.trimmed().isEmpty()
         && m_stepCombo && m_stepCombo->count() > 0) {
