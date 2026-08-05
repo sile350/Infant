@@ -148,6 +148,36 @@ bool autoGridLayout(const QString &exerciseId, const QString &stepId, PuzzleLayo
 }
 
 bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
+    // 1.14 шаг 2: детали справа от подсказки (200..671) и пустого прямоугольника (700..1176).
+    if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
+        layout->rotateAllowed = true;
+        layout->showTemplate = false;
+        layout->templateFile = QStringLiteral("et2.png");
+        layout->templateX = 700;
+        layout->templateY = 140;
+        static const struct {
+            const char *file;
+            int x;
+            int y;
+        } kSprites[] = {
+            {"1.png", 1220, 130},
+            {"2.png", 1235, 115},
+            {"3.png", 1430, 210},
+            {"4.png", 1440, 340},
+            {"5.png", 1260, 160},
+            {"6.png", 1455, 350},
+            {"7.png", 1340, 161},
+            {"8.png", 1290, 220},
+            {"9.png", 1490, 210},
+            {"10.png", 1385, 155},
+            {"11.png", 1375, 255},
+        };
+        for (const auto &item : kSprites) {
+            addSprite(layout, QString::fromUtf8(item.file), item.x, item.y);
+        }
+        return true;
+    }
+
     if (exerciseId == QStringLiteral("1.11")) {
         if (stepId == QStringLiteral("1")) {
             layout->templateFile = QStringLiteral("f1.png");
@@ -252,9 +282,14 @@ bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLa
     }
     *layout = PuzzleLayout();
 
+    // 1.14/2: координаты из кода — детали справа от подсказки и пустого прямоугольника.
+    if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
+        return builtinLayout(exerciseId, stepId, layout);
+    }
+
     const QString dir = ExerciseAssets::exerciseDir(exerciseId);
     if (dir.isEmpty()) {
-        return false;
+        return builtinLayout(exerciseId, stepId, layout) || autoGridLayout(exerciseId, stepId, layout);
     }
 
     const QStringList candidates = {
