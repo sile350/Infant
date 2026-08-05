@@ -79,6 +79,7 @@ private:
     bool m_dragging = false;
     bool m_movedDuringDrag = false;
     QPoint m_dragOffset;
+    QPoint m_pressPos;
     double m_scale = 1.0;
     QPoint m_offset;
     bool m_rotateAllowed = false;

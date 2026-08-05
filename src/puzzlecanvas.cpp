@@ -38,6 +38,8 @@ QString hintFileForExercise(const QString &exerciseId, const QString &stepId) {
 PuzzleCanvas::PuzzleCanvas(QWidget *parent) : QWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
     setAttribute(Qt::WA_OpaquePaintEvent, true);
+    setContextMenuPolicy(Qt::NoContextMenu);
+    setMouseTracking(false);
     m_timer.setInterval(1000);
     connect(&m_timer, &QTimer::timeout, this, [this]() { ++m_elapsed; });
 }
@@ -182,9 +184,10 @@ void PuzzleCanvas::rotateSpriteC(Sprite &sprite) {
     if (sprite.done || sprite.pixmap.isNull()) {
         return;
     }
+    // Как Image.RotateFlip(Rotate270FlipNone) — поворот влево на 90°.
     QTransform transform;
     transform.rotate(-90);
-    sprite.pixmap = sprite.pixmap.transformed(transform, Qt::SmoothTransformation);
+    sprite.pixmap = sprite.pixmap.transformed(transform, Qt::FastTransformation);
     ++sprite.rotateState;
 }
 
@@ -192,9 +195,10 @@ void PuzzleCanvas::rotateSpriteTo(Sprite &sprite) {
     if (sprite.done || sprite.pixmap.isNull()) {
         return;
     }
+    // Как Image.RotateFlip(Rotate90FlipNone) — поворот вправо на 90°.
     QTransform transform;
     transform.rotate(90);
-    sprite.pixmap = sprite.pixmap.transformed(transform, Qt::SmoothTransformation);
+    sprite.pixmap = sprite.pixmap.transformed(transform, Qt::FastTransformation);
     --sprite.rotateState;
 }
 
@@ -365,19 +369,13 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
         const QPoint origin = mapFromDesign(sprite.x, sprite.y);
         const QPixmap &drawPixmap =
             sprite.selected && !sprite.selectPixmap.isNull() ? sprite.selectPixmap : sprite.pixmap;
-        painter.save();
-        painter.translate(origin.x() + qRound(drawPixmap.width() * m_scale) / 2,
-                          origin.y() + qRound(drawPixmap.height() * m_scale) / 2);
-        painter.rotate(sprite.rotateState * 90.0);
-        painter.translate(-qRound(drawPixmap.width() * m_scale) / 2,
-                          -qRound(drawPixmap.height() * m_scale) / 2);
+        // Как pclass.draw: уже повёрнутый pixmap в (x,y), без дополнительного painter.rotate.
         painter.drawPixmap(
-            0,
-            0,
+            origin.x(),
+            origin.y(),
             qRound(drawPixmap.width() * m_scale),
             qRound(drawPixmap.height() * m_scale),
             drawPixmap);
-        painter.restore();
         if (sprite.selected) {
             painter.setPen(QPen(Qt::red, 2));
             painter.drawRect(
@@ -419,6 +417,7 @@ void PuzzleCanvas::mousePressEvent(QMouseEvent *event) {
             m_moving = i;
             const QPoint topLeft = mapFromDesign(m_sprites[i].x, m_sprites[i].y);
             m_dragOffset = event->pos() - topLeft;
+            m_pressPos = event->pos();
             m_dragging = true;
             m_movedDuringDrag = false;
             return;
@@ -430,12 +429,18 @@ void PuzzleCanvas::mouseMoveEvent(QMouseEvent *event) {
     if (!m_dragging || m_moving < 0 || m_selectMode) {
         return;
     }
+    if (!m_movedDuringDrag) {
+        const QPoint delta = event->pos() - m_pressPos;
+        if (delta.manhattanLength() < 6) {
+            return;
+        }
+        m_movedDuringDrag = true;
+    }
     const QPoint designPos(
         qRound((event->x() - m_offset.x() - m_dragOffset.x()) / m_scale),
         qRound((event->y() - m_offset.y() - m_dragOffset.y()) / m_scale));
     m_sprites[m_moving].x = designPos.x();
     m_sprites[m_moving].y = designPos.y();
-    m_movedDuringDrag = true;
     update();
 }
 
@@ -473,15 +478,11 @@ void PuzzleCanvas::mouseReleaseEvent(QMouseEvent *event) {
         sprite.x = sprite.targetX;
         sprite.y = sprite.targetY;
     } else if (m_rotateAllowed && event->button() == Qt::RightButton) {
-        QTransform transform;
-        transform.rotate(-90);
-        sprite.pixmap = sprite.pixmap.transformed(transform, Qt::SmoothTransformation);
-        --sprite.rotateState;
+        // ПКМ: поворот вправо на 90° (Rotate90 / rotateTo).
+        rotateSpriteTo(sprite);
     } else if (m_rotateAllowed && event->button() == Qt::LeftButton) {
-        QTransform transform;
-        transform.rotate(90);
-        sprite.pixmap = sprite.pixmap.transformed(transform, Qt::SmoothTransformation);
-        ++sprite.rotateState;
+        // ЛКМ: поворот влево на 90° (Rotate270 / rotateC).
+        rotateSpriteC(sprite);
     } else {
         snapSprite(sprite);
     }
