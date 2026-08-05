@@ -2247,8 +2247,18 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     m_bBack->setVisible(patients || workScreen);
     m_bList->setVisible(workScreen);
     m_bExit->setVisible(!enter);
-    m_bSave->setVisible(workScreen);
-    m_bPrint->setVisible(workScreen);
+    // Как в оригинале: Сохранить/Печать только на Анамнез и Протоколы, не в упражнениях.
+    const bool showSavePrint = (anamnesis || protocols) && !m_exerciseOpen;
+    m_bSave->setVisible(showSavePrint);
+    m_bPrint->setVisible(showSavePrint);
+    if (!showSavePrint) {
+        if (m_savePanel) {
+            m_savePanel->hide();
+        }
+        if (m_printPanel) {
+            m_printPanel->hide();
+        }
+    }
     m_bSettings->setVisible(anamnesis);
     if (!anamnesis && m_settingsPanel && m_settingsPanel->isVisible()) {
         m_settingsPanel->hide();
@@ -4404,7 +4414,11 @@ void InfantWindow::clearProtocolsView() {
 }
 
 void InfantWindow::refreshProtocolsView() {
-    if (!m_protocolsView || m_currentScreen != ScreenMode::Protocols) {
+    if (!m_protocolsView) {
+        return;
+    }
+    // Пока не на вкладке «Протоколы» — не трогаем виджет, но и не мешаем.
+    if (m_currentScreen != ScreenMode::Protocols) {
         return;
     }
 
@@ -4782,6 +4796,9 @@ void InfantWindow::openExercise(const QString &exerciseId) {
     if (m_authorsFilterHost) {
         m_authorsFilterHost->hide();
     }
+    if (m_authorsFilter) {
+        m_authorsFilter->hide();
+    }
 
     QString patientFio = m_patientTitle ? m_patientTitle->text().trimmed() : QString();
     if (patientFio == QStringLiteral("Новая карта")) {
@@ -4789,6 +4806,9 @@ void InfantWindow::openExercise(const QString &exerciseId) {
     }
     const QString specialistFio = m_session ? m_session->fio : QString();
     m_helpIndex = exerciseId + QStringLiteral(".html");
+    // До openExercise: иначе shutdownSessionUi → exerciseOverlayChanged(false)
+    // вызывает setWorkChromeVisible(true) и снова показывает фильтр авторов.
+    m_exerciseOpen = true;
     m_exerciseHost->openExercise(
         exerciseId,
         m_currentPatientId,
@@ -4797,7 +4817,6 @@ void InfantWindow::openExercise(const QString &exerciseId) {
         currentPatientBirthDate(),
         &m_repository,
         AppSettings::dualScreenEnabled());
-    m_exerciseOpen = true;
     m_exerciseHost->show();
     if (m_workStack) {
         m_workStack->lower();
@@ -4806,6 +4825,24 @@ void InfantWindow::openExercise(const QString &exerciseId) {
     if (m_bSettings) {
         m_bSettings->hide();
     }
+    if (m_bSave) {
+        m_bSave->hide();
+    }
+    if (m_bPrint) {
+        m_bPrint->hide();
+    }
+    if (m_savePanel) {
+        m_savePanel->hide();
+    }
+    if (m_printPanel) {
+        m_printPanel->hide();
+    }
+    if (m_authorsFilterHost) {
+        m_authorsFilterHost->hide();
+    }
+    if (m_authorsFilter) {
+        m_authorsFilter->hide();
+    }
     updateExerciseScanPrintButtons();
     raiseChromeWidgets();
 }
@@ -4813,8 +4850,11 @@ void InfantWindow::openExercise(const QString &exerciseId) {
 void InfantWindow::setWorkChromeVisible(bool visible) {
     const bool exercisesList = m_currentScreen == ScreenMode::Exercises && !m_exerciseOpen;
     const bool showSettings = visible && m_currentScreen == ScreenMode::Anamnesis;
+    const bool showSavePrint = visible
+        && !m_exerciseOpen
+        && (m_currentScreen == ScreenMode::Anamnesis || m_currentScreen == ScreenMode::Protocols);
     const QWidgetList chromeWidgets = {
-        m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bInfo,
+        m_bBack, m_bList, m_bExit, m_bInfo,
         m_pAna, m_pProto, m_pUpr, m_dualScreenTabCheck, m_patientTitle, m_userOpenPatients
     };
     for (QWidget *widget : chromeWidgets) {
@@ -4822,9 +4862,24 @@ void InfantWindow::setWorkChromeVisible(bool visible) {
             widget->setVisible(visible);
         }
     }
+    if (m_bSave) {
+        m_bSave->setVisible(showSavePrint);
+    }
+    if (m_bPrint) {
+        m_bPrint->setVisible(showSavePrint);
+    }
+    if (!showSavePrint) {
+        if (m_savePanel) {
+            m_savePanel->hide();
+        }
+        if (m_printPanel) {
+            m_printPanel->hide();
+        }
+    }
     if (m_bSettings) {
         m_bSettings->setVisible(showSettings);
     }
+    // Фильтр авторов — только на списке упражнений, никогда внутри методики.
     if (m_authorsFilterHost) {
         m_authorsFilterHost->setVisible(visible && exercisesList);
     }
@@ -4842,6 +4897,9 @@ void InfantWindow::setWorkChromeVisible(bool visible) {
     }
     if (visible) {
         raiseChromeWidgets();
+    }
+    if (m_exerciseOpen) {
+        updateExerciseScanPrintButtons();
     }
 }
 
@@ -4909,22 +4967,19 @@ bool InfantWindow::tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &vi
     if (anchor.isEmpty()) {
         return false;
     }
-    const bool looksLikeScan = anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
+    const bool looksLikeScan = anchor.startsWith(QLatin1Char('#'))
+        || anchor.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
+        || anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
-        || anchor.contains(QStringLiteral("Показать изображение"));
-    if (!looksLikeScan
-        && !anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
-        && !anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive)
-        && !anchor.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive)) {
+        || anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive);
+    if (!looksLikeScan) {
         return false;
     }
-    const QUrl url(anchor);
-    QString path = url.isLocalFile() ? url.toLocalFile() : QUrl::fromUserInput(anchor).toLocalFile();
-    if (path.isEmpty()) {
-        path = anchor;
-    }
-    if (!QFileInfo::exists(path)) {
+    const QString path = Repository::resolveProtocolScanPathFromAnchor(anchor);
+    if (path.isEmpty() || !QFileInfo::exists(path)) {
         CustomMessageBox::showWarning(this, QStringLiteral("Изображение ещё не загружено."));
         return true;
     }
@@ -5053,13 +5108,19 @@ void InfantWindow::uploadExerciseScan() {
         return;
     }
 
+    // Вернуть в БД плейсхолдеры скачать/скачатьN, если автосохранение их стёрло.
+    {
+        const QString body = m_repository.loadProtocolBodyById(protocolId);
+        if (!body.trimmed().isEmpty()) {
+            m_repository.updateProtocolBody(protocolId, body);
+        }
+    }
+
     // Обновить ссылки «Показать изображение» на странице упражнения.
     if (m_exerciseHost) {
         m_exerciseHost->refreshProtocolViewAfterScanUpload();
     }
-    if (m_currentScreen == ScreenMode::Protocols) {
-        refreshProtocolsView();
-    }
+    refreshProtocolsView();
     CustomMessageBox::showInfo(this, QStringLiteral("Файл загружен."));
 }
 

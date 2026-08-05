@@ -1218,11 +1218,14 @@ bool ExerciseHost::eventFilter(QObject *watched, QEvent *event) {
                 : m_templateBrowser->viewport()->mapFrom(m_templateBrowser, mouseEvent->pos());
             const QString anchor = m_templateBrowser->anchorAt(pos);
             if (!anchor.isEmpty()
-                && (anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
+                && (anchor.startsWith(QLatin1Char('#'))
+                    || anchor.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
+                    || anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
                     || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
-                    || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive))) {
-                const QUrl url(anchor);
-                const QString path = url.isLocalFile() ? url.toLocalFile() : QUrl::fromUserInput(anchor).toLocalFile();
+                    || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
+                    || anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
+                    || anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive))) {
+                const QString path = Repository::resolveProtocolScanPathFromAnchor(anchor);
                 if (!path.isEmpty() && QFileInfo::exists(path)) {
                     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
                 } else {

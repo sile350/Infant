@@ -30,11 +30,19 @@ QString protocolPageBreakHtml() {
 }
 
 QString scanHrefForProtocol(const QString &protocolId, int slot) {
+    // Не file:// — QTextEdit при setHtml часто удаляет такие <a> вместе с текстом.
+    // Как в оригинале: переход по id ссылки → data/scans/{id}.JPG
+    if (slot > 0) {
+        return QStringLiteral("#id%1-%2").arg(protocolId, QString::number(slot));
+    }
+    return QStringLiteral("#id%1").arg(protocolId);
+}
+
+QString scanFilePathForProtocol(const QString &protocolId, int slot) {
     const QDir scans(QCoreApplication::applicationDirPath() + QStringLiteral("/data/scans"));
     const QString baseName = slot > 0
         ? QStringLiteral("%1-%2").arg(protocolId, QString::number(slot))
         : protocolId;
-    // Оригинал: data/scans/{id}.JPG или {id}-{N}.JPG
     const QStringList extensions = {
         QStringLiteral(".JPG"),
         QStringLiteral(".jpg"),
@@ -46,19 +54,81 @@ QString scanHrefForProtocol(const QString &protocolId, int slot) {
     for (const QString &ext : extensions) {
         const QString path = scans.absoluteFilePath(baseName + ext);
         if (QFileInfo::exists(path)) {
-            return QUrl::fromLocalFile(path).toString();
+            return path;
         }
     }
-    // Ожидаемый путь — клик покажет предупреждение, если файла ещё нет.
-    return QUrl::fromLocalFile(scans.absoluteFilePath(baseName + QStringLiteral(".JPG"))).toString();
+    return scans.absoluteFilePath(baseName + QStringLiteral(".JPG"));
 }
 
 QString scanAnchorHtml(const QString &protocolId, int slot, const QString &label) {
     const QString id = slot > 0
         ? QStringLiteral("id%1-%2").arg(protocolId, QString::number(slot))
         : QStringLiteral("id%1").arg(protocolId);
-    return QStringLiteral("<a href='%1' id='%2'>%3</a>")
+    return QStringLiteral("<a href='%1' id='%2' style='color:#0000ee;text-decoration:underline;'>%3</a>")
         .arg(scanHrefForProtocol(protocolId, slot), id, label);
+}
+
+bool exerciseUsesMultiScanSlots(const QString &uprid) {
+    return uprid == QStringLiteral("1.7");
+}
+
+bool exerciseUsesSingleScanSlot(const QString &uprid) {
+    return uprid == QStringLiteral("1.12")
+        || uprid == QStringLiteral("2.1")
+        || uprid == QStringLiteral("2.2")
+        || uprid == QStringLiteral("2.3")
+        || uprid == QStringLiteral("3.3.1")
+        || uprid == QStringLiteral("3.3.2")
+        || uprid == QStringLiteral("3.3.3");
+}
+
+// Если автосохранение съело плейсхолдеры — вернуть их в строку «Результат».
+void ensureScanPlaceholdersInProtocolHtml(QString *html, const QString &uprid) {
+    if (!html || html->isEmpty()) {
+        return;
+    }
+    const bool multi = exerciseUsesMultiScanSlots(uprid);
+    const bool single = exerciseUsesSingleScanSlot(uprid);
+    if (!multi && !single) {
+        return;
+    }
+    if (html->contains(QStringLiteral("скачать"), Qt::CaseInsensitive)
+        || html->contains(QStringLiteral("Показать изображение"), Qt::CaseInsensitive)) {
+        return;
+    }
+
+    const QString tokens = multi
+        ? QStringLiteral("скачать1 скачать2 скачать3")
+        : QStringLiteral("скачать");
+    const QRegularExpression rowRe(
+        QStringLiteral(
+            "(<tr[^>]*>\\s*<td[^>]*>\\s*Результат[\\s\\S]*?</td>\\s*<td[^>]*>)([\\s\\S]*?)(</td>\\s*</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatchIterator it = rowRe.globalMatch(*html);
+    QList<QRegularExpressionMatch> matches;
+    while (it.hasNext()) {
+        matches.append(it.next());
+    }
+    for (int i = matches.size() - 1; i >= 0; --i) {
+        const QRegularExpressionMatch &m = matches.at(i);
+        QString cell = m.captured(2);
+        if (cell.contains(QStringLiteral("скачать"), Qt::CaseInsensitive)
+            || cell.contains(QStringLiteral("Показать изображение"), Qt::CaseInsensitive)) {
+            continue;
+        }
+        // Вставить токены в конец ячейки / внутрь contenteditable div.
+        const QRegularExpression divRe(
+            QStringLiteral("(<div\\b[^>]*>)([\\s\\S]*?)(</div>\\s*)$"),
+            QRegularExpression::CaseInsensitiveOption);
+        const QRegularExpressionMatch divMatch = divRe.match(cell);
+        if (divMatch.hasMatch()) {
+            cell = divMatch.captured(1) + divMatch.captured(2) + QLatin1Char(' ') + tokens
+                + divMatch.captured(3);
+        } else {
+            cell = cell.trimmed() + QLatin1Char(' ') + tokens;
+        }
+        html->replace(m.capturedStart(), m.capturedLength(), m.captured(1) + cell + m.captured(3));
+    }
 }
 
 void applyProtocolScanPlaceholders(QString *html, const QString &protocolId) {
@@ -528,6 +598,7 @@ QString Repository::assembleProtocolsBody(const QString &patientId, const QStrin
         if (uprid != lastUprid) {
             lastUprid = uprid;
         }
+        ensureScanPlaceholdersInProtocolHtml(&pr, uprid);
         applyProtocolScanPlaceholders(&pr, protocolId);
         if (uprid == QStringLiteral("1.2")) {
             if (role == QLatin1String("s")) {
@@ -912,6 +983,7 @@ QString Repository::loadProtocolViewHtml(
             protocolBlock += QStringLiteral("</table>");
         }
     }
+    ensureScanPlaceholdersInProtocolHtml(&protocolBlock, exerciseId);
     applyProtocolScanPlaceholders(&protocolBlock, protocolId);
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
@@ -1099,6 +1171,8 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
     QString normalizedBody = ExerciseProtocol::normalizeStoredProtocolBody(protocolBody);
     const QString uprid = m_local.queryScalar(
         "SELECT uprid FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
+    // Не дать автосохранению стереть «скачать»/«скачатьN» у методик со сканом.
+    ensureScanPlaceholdersInProtocolHtml(&normalizedBody, uprid);
     if (uprid == QStringLiteral("1.2")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("1.26")) {
@@ -1132,6 +1206,49 @@ bool Repository::updateProtocolsFromEditedHtml(
     QTextDocument document;
     document.setHtml(documentHtml);
     return updateProtocolsFromEditedDocument(&document, recordIdsInOrder, errorText);
+}
+
+QString Repository::resolveProtocolScanPathFromAnchor(const QString &anchorHref) {
+    QString key = anchorHref.trimmed();
+    if (key.isEmpty()) {
+        return {};
+    }
+    if (key.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
+        return QUrl(key).toLocalFile();
+    }
+    // Старый/локальный путь без схемы.
+    if (key.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
+        || key.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
+        || key.endsWith(QStringLiteral(".JPG"), Qt::CaseInsensitive)
+        || key.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive)
+        || key.endsWith(QStringLiteral(".jpeg"), Qt::CaseInsensitive)) {
+        const QUrl asUrl = QUrl::fromUserInput(key);
+        if (asUrl.isLocalFile()) {
+            return asUrl.toLocalFile();
+        }
+        if (QFileInfo::exists(key)) {
+            return key;
+        }
+    }
+    if (key.startsWith(QLatin1Char('#'))) {
+        key = key.mid(1);
+    }
+    if (key.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)) {
+        key = key.mid(2);
+    }
+    // key: {protocolId} или {protocolId}-{slot}
+    int slot = 0;
+    QString protocolId = key;
+    const int dash = key.lastIndexOf(QLatin1Char('-'));
+    if (dash > 0) {
+        bool ok = false;
+        const int parsedSlot = key.mid(dash + 1).toInt(&ok);
+        if (ok && parsedSlot > 0) {
+            slot = parsedSlot;
+            protocolId = key.left(dash);
+        }
+    }
+    return scanFilePathForProtocol(protocolId, slot);
 }
 
 QString Repository::loadProtocolBodyById(const QString &protocolId) {

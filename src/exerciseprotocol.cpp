@@ -4829,8 +4829,10 @@ QString ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
 
         if (parsed.hasResult) {
             if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+                const QString merged = mergeResultTextPreservingScanPlaceholders(
+                    parsed.resultText, extractResultCellInnerHtml(chunk));
                 chunk = replaceDivInnerById(
-                    chunk, QStringLiteral("idvivod"), parsed.resultText.toHtmlEscaped());
+                    chunk, QStringLiteral("idvivod"), merged.toHtmlEscaped());
             } else {
                 chunk = replaceResultRowSecondCell(chunk, parsed.resultText);
             }

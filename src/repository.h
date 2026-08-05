@@ -78,6 +78,9 @@ public:
         const QStringList &recordIdsInOrder,
         QString *errorText = nullptr);
 
+    // Якорь «Показать изображение» (#id{protocolId}[-slot]) → путь к файлу скана.
+    static QString resolveProtocolScanPathFromAnchor(const QString &anchorHref);
+
     QString lastError() const;
 
 private:
