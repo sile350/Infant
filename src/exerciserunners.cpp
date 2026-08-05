@@ -599,10 +599,11 @@ protected:
 
     void layoutUi() override {
         if (exerciseId() == QStringLiteral("1.12")) {
-            // paint.cs: pstop.Left=1000; bremove = stop+200; pcolors @ (900,160)
-            m_stop->move(1000, 70);
+            // Кнопки над картинкой (traf @ y=50 в холсте); paint.cs: pstop.Left=1000, bremove = stop+200.
+            constexpr int kBtnTop = 12;
+            m_stop->move(1000, kBtnTop);
             if (m_hintToggle) {
-                m_hintToggle->move(m_stop->x() + 200, m_stop->y());
+                m_hintToggle->move(m_stop->x() + 200, kBtnTop);
             }
             if (m_palette && m_palette->isVisible()) {
                 refreshPalettePixmap();
@@ -630,10 +631,6 @@ protected:
         if (event->button() == Qt::LeftButton) {
             m_drawing = true;
             m_hasLast = false;
-            // 1.12: как FillEllipse в оригинале — точка уже при нажатии.
-            if (m_exerciseId == QStringLiteral("1.12")) {
-                paintAt(event->pos(), true);
-            }
         }
         QWidget::mousePressEvent(event);
     }
@@ -659,22 +656,14 @@ protected:
             return;
         }
         QPainter painter(&m_canvas);
-        if (m_exerciseId == QStringLiteral("1.12")) {
-            // FillEllipse(br, e.X, e.Y, szBruch, szBruch)
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(m_brushColor);
-            painter.drawEllipse(canvasPt.x(), canvasPt.y(), m_brushWidth, m_brushWidth);
-            Q_UNUSED(forceDot);
-        } else {
-            painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap));
-            if (m_hasLast) {
-                painter.drawLine(m_lastPoint, canvasPt);
-            } else if (forceDot) {
-                painter.drawPoint(canvasPt);
-            }
-            m_lastPoint = canvasPt;
-            m_hasLast = true;
+        painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        if (m_hasLast) {
+            painter.drawLine(m_lastPoint, canvasPt);
+        } else if (forceDot) {
+            painter.drawPoint(canvasPt);
         }
+        m_lastPoint = canvasPt;
+        m_hasLast = true;
         updateCanvasDisplay();
     }
 
