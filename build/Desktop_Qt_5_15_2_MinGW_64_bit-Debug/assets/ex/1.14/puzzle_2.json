@@ -1,18 +1,8 @@
 {
-  "rotate": false,
+  "rotate": true,
   "select": false,
-  "showTemplate": true,
+  "showTemplate": false,
   "sprites": [
-    {
-      "file": "t2.png",
-      "x": 700,
-      "y": 140
-    },
-    {
-      "file": "et2.png",
-      "x": 700,
-      "y": 140
-    },
     {
       "file": "1.png",
       "x": 100,
@@ -70,7 +60,7 @@
     }
   ],
   "template": {
-    "file": "t2.png",
+    "file": "et2.png",
     "x": 700,
     "y": 140
   }

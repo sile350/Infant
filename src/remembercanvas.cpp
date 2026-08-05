@@ -44,7 +44,17 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
     PuzzleLayout built;
     const int linexStart = exerciseId == QStringLiteral("1.27") ? 370 : 40;
     int linex = linexStart;
-    const int liney = exerciseId == QStringLiteral("3.1.20") ? 350 : 450;
+    int liney = exerciseId == QStringLiteral("3.1.20") ? 350 : 450;
+    int stepSpacing = 250;
+    if (exerciseId == QStringLiteral("1.27")) {
+        if (stepId == QStringLiteral("1")) {
+            liney = 450;
+            stepSpacing = 250;
+        } else {
+            liney = 250;
+            stepSpacing = 300;
+        }
+    }
     const int count = exerciseId == QStringLiteral("4.1.7") ? 9 : 4;
     for (int i = 1; i <= count; ++i) {
         QString file = stepId + QString::number(i) + QStringLiteral(".png");
@@ -54,7 +64,7 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
             sprite.x = linex;
             sprite.y = liney;
             built.sprites.append(sprite);
-            linex += 250;
+            linex += stepSpacing;
         }
     }
     if (built.sprites.isEmpty()) {

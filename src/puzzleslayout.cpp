@@ -51,6 +51,12 @@ bool loadLayoutJson(const QString &path, PuzzleLayout *layout) {
         layout->templateX = tmpl.value(QStringLiteral("x")).toInt();
         layout->templateY = tmpl.value(QStringLiteral("y")).toInt();
     }
+    if (root.contains(QStringLiteral("template2"))) {
+        const QJsonObject tmpl = root.value(QStringLiteral("template2")).toObject();
+        layout->template2File = tmpl.value(QStringLiteral("file")).toString();
+        layout->template2X = tmpl.value(QStringLiteral("x")).toInt();
+        layout->template2Y = tmpl.value(QStringLiteral("y")).toInt();
+    }
     const QJsonArray sprites = root.value(QStringLiteral("sprites")).toArray();
     for (const QJsonValue &value : sprites) {
         const QJsonObject obj = value.toObject();
@@ -60,9 +66,11 @@ bool loadLayoutJson(const QString &path, PuzzleLayout *layout) {
         sprite.y = obj.value(QStringLiteral("y")).toInt();
         sprite.targetX = obj.value(QStringLiteral("tx")).toInt(-1);
         sprite.targetY = obj.value(QStringLiteral("ty")).toInt(-1);
+        sprite.selectFile = obj.value(QStringLiteral("selectFile")).toString();
         sprite.name = obj.value(QStringLiteral("name")).toString();
         sprite.clickable = obj.value(QStringLiteral("clickable")).toBool(true);
         sprite.closed = obj.value(QStringLiteral("closed")).toBool(false);
+        sprite.returnable = obj.value(QStringLiteral("returnable")).toBool(false);
         sprite.closedFile = obj.value(QStringLiteral("closedFile")).toString();
         sprite.openFile = obj.value(QStringLiteral("openFile")).toString();
         layout->sprites.append(sprite);

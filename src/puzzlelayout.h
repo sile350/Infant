@@ -10,9 +10,11 @@ struct PuzzleSpriteDef {
     int y = 0;
     int targetX = -1;
     int targetY = -1;
+    QString selectFile;
     QString name;
     bool clickable = true;
     bool closed = false;
+    bool returnable = false;
     QString closedFile;
     QString openFile;
 };
@@ -24,6 +26,9 @@ struct PuzzleLayout {
     QString templateFile;
     int templateX = 0;
     int templateY = 0;
+    QString template2File;
+    int template2X = 0;
+    int template2Y = 0;
     QString backgroundFile;
     QVector<PuzzleSpriteDef> sprites;
     double scale = 1.0;

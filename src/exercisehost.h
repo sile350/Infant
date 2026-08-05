@@ -128,6 +128,7 @@ private:
     void syncPatientDisplay();
     void updateExerciseOptionsPanel();
     void layoutE15ModePopup();
+    void applyPuzzleOptionsDefaults();
     void refreshRotateCombos();
     ExerciseSessionOptions buildSessionOptions() const;
     int puzzleFragmentCount() const;

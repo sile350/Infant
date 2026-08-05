@@ -15,6 +15,9 @@ public:
 
     void loadExercise(const QString &exerciseId, const QString &stepId, const PuzzleLayout &layout);
     void applySessionOptions(const ExerciseSessionOptions &options);
+    void setSelectHighlightMode(bool highlight);
+    void setStoryVisible(bool visible);
+    void setSpriteVisible(const QString &name, bool visible);
     void setShowTemplate(bool show);
     void setShowHint(bool show);
     int elapsedSeconds() const { return m_elapsed; }
@@ -42,6 +45,8 @@ private:
         int rotateState = 0;
         bool done = false;
         bool selected = false;
+        bool hidden = false;
+        bool returnable = false;
         bool clickable = true;
         bool closed = false;
         QString name;
@@ -61,7 +66,11 @@ private:
     QString m_exerciseId;
     PuzzleLayout m_layout;
     QPixmap m_template;
+    QPixmap m_template2;
     QPixmap m_hintPixmap;
+    int m_hintX = 200;
+    int m_hintY = 100;
+    bool m_storyVisible = true;
     QPixmap m_background;
     QVector<Sprite> m_sprites;
     QTimer m_timer;

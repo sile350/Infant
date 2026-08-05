@@ -4,11 +4,6 @@
   "showTemplate": true,
   "sprites": [
     {
-      "file": "traf1.png",
-      "x": 600,
-      "y": 50
-    },
-    {
       "file": "11.png",
       "x": 415,
       "y": 54

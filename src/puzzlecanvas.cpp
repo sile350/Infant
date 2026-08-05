@@ -13,6 +13,23 @@ namespace {
 constexpr int kDesignWidth = 1920;
 constexpr int kDesignHeight = 1080;
 
+QString stepSlug(const QString &stepId) {
+    QString slug = stepId;
+    slug.remove(QLatin1Char(' '));
+    return slug.toLower();
+}
+
+QString hintFileForExercise(const QString &exerciseId, const QString &stepId) {
+    if (exerciseId == QStringLiteral("1.24")) {
+        return QStringLiteral("ex") + stepId + QStringLiteral(".png");
+    }
+    if (exerciseId == QStringLiteral("1.19") || exerciseId == QStringLiteral("1.20")
+        || exerciseId == QStringLiteral("1.21")) {
+        return QStringLiteral("p") + stepSlug(stepId) + QStringLiteral(".png");
+    }
+    return QString();
+}
+
 } // namespace
 
 PuzzleCanvas::PuzzleCanvas(QWidget *parent) : QWidget(parent) {
@@ -57,15 +74,27 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         }
     }
 
-    // 1.11 задание 2: в оригинале pexample.Visible = false — без картинки превью.
     const bool hidePreviewHint =
         exerciseId == QStringLiteral("1.11") && stepId == QStringLiteral("2");
+    m_hintX = 200;
+    m_hintY = 100;
+    if (exerciseId == QStringLiteral("1.24")) {
+        m_hintX = 200;
+        m_hintY = stepId == QStringLiteral("4") ? 231 : 131;
+    }
     if (hidePreviewHint) {
         m_hintPixmap = QPixmap();
         m_showHint = false;
     } else {
-        const QString hintName = QStringLiteral("p") + stepId.toLower().remove(QLatin1Char(' '));
-        QString hintPath = ExerciseAssets::exerciseFile(exerciseId, hintName + QStringLiteral(".png"));
+        const QString namedHint = hintFileForExercise(exerciseId, stepId);
+        QString hintPath;
+        if (!namedHint.isEmpty()) {
+            hintPath = ExerciseAssets::exerciseFile(exerciseId, namedHint);
+        }
+        if (hintPath.isEmpty()) {
+            const QString hintName = QStringLiteral("p") + stepId.toLower().remove(QLatin1Char(' '));
+            hintPath = ExerciseAssets::exerciseFile(exerciseId, hintName + QStringLiteral(".png"));
+        }
         if (hintPath.isEmpty()) {
             hintPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("f") + stepId + QStringLiteral(".png"));
         }
@@ -74,11 +103,22 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         } else {
             m_hintPixmap = QPixmap();
         }
-        m_showHint = true;
+        m_showHint = !m_hintPixmap.isNull();
     }
+    m_storyVisible = true;
     m_showTemplate = true;
 
+    if (!layout.template2File.isEmpty()) {
+        const QString path2 = ExerciseAssets::exerciseFile(exerciseId, layout.template2File);
+        m_template2 = path2.isEmpty() ? QPixmap() : QPixmap(path2);
+    } else {
+        m_template2 = QPixmap();
+    }
+
     for (const PuzzleSpriteDef &def : layout.sprites) {
+        if (def.file.startsWith(QStringLiteral("et"), Qt::CaseInsensitive)) {
+            continue;
+        }
         const QString path = ExerciseAssets::exerciseFile(exerciseId, def.file);
         if (path.isEmpty()) {
             continue;
@@ -94,6 +134,20 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         sprite.closed = def.closed;
         sprite.closedFile = def.closedFile;
         sprite.openFile = def.openFile;
+        sprite.returnable = def.returnable;
+        if (def.returnable && def.targetX >= 0 && def.targetY >= 0) {
+            sprite.targetX = def.targetX;
+            sprite.targetY = def.targetY;
+        } else if (def.returnable) {
+            sprite.targetX = def.x;
+            sprite.targetY = def.y;
+        }
+        if (!def.selectFile.isEmpty()) {
+            const QString selectPath = ExerciseAssets::exerciseFile(exerciseId, def.selectFile);
+            if (!selectPath.isEmpty()) {
+                sprite.selectPixmap = QPixmap(selectPath);
+            }
+        }
         m_sprites.append(sprite);
     }
 
@@ -138,11 +192,61 @@ void PuzzleCanvas::rotateSpriteTo(Sprite &sprite) {
 }
 
 void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
-    m_showTemplate = options.showTemplate;
     m_showHint = options.showHint;
+    const bool namedTemplateExercise = m_exerciseId == QStringLiteral("1.14")
+        || m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
+        || m_exerciseId == QStringLiteral("1.21");
+    if (namedTemplateExercise) {
+        QString templateFile;
+        if (m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2")) {
+            templateFile = options.showTemplate ? QStringLiteral("t2.png") : QStringLiteral("et2.png");
+        } else {
+            const QString slug = stepSlug(m_stepId);
+            templateFile = (options.showTemplate ? QStringLiteral("t") : QStringLiteral("et")) + slug
+                + QStringLiteral(".png");
+        }
+        const QString path = ExerciseAssets::exerciseFile(m_exerciseId, templateFile);
+        m_template = path.isEmpty() ? QPixmap() : QPixmap(path);
+        m_showTemplate = !m_template.isNull();
+    } else {
+        m_showTemplate = options.showTemplate;
+        if (options.showTemplate && !m_layout.templateFile.isEmpty()) {
+            const QString path = ExerciseAssets::exerciseFile(m_exerciseId, m_layout.templateFile);
+            m_template = path.isEmpty() ? QPixmap() : QPixmap(path);
+        } else if (!options.showTemplate) {
+            m_template = QPixmap();
+        }
+    }
+    if (m_exerciseId == QStringLiteral("1.22")) {
+        m_selectMode = options.e15SelectMode;
+    }
     m_rotateAllowed = options.rotateEnabled && m_layout.rotateAllowed;
     if (options.rotateEnabled && (options.rotateW > 0 || options.rotateCW > 0)) {
         applyRotates(options.rotateW, options.rotateCW);
+    }
+    update();
+}
+
+void PuzzleCanvas::setSelectHighlightMode(bool highlight) {
+    if (m_exerciseId == QStringLiteral("1.22")) {
+        m_selectMode = highlight;
+        for (Sprite &sprite : m_sprites) {
+            sprite.selected = false;
+        }
+        update();
+    }
+}
+
+void PuzzleCanvas::setStoryVisible(bool visible) {
+    m_storyVisible = visible;
+    update();
+}
+
+void PuzzleCanvas::setSpriteVisible(const QString &name, bool visible) {
+    for (Sprite &sprite : m_sprites) {
+        if (sprite.name == name) {
+            sprite.hidden = !visible;
+        }
     }
     update();
 }
@@ -237,9 +341,18 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
             qRound(m_template.height() * m_scale),
             m_template);
     }
+    if (!m_template2.isNull() && m_showTemplate) {
+        const QPoint origin = mapFromDesign(m_layout.template2X, m_layout.template2Y);
+        painter.drawPixmap(
+            origin.x(),
+            origin.y(),
+            qRound(m_template2.width() * m_scale),
+            qRound(m_template2.height() * m_scale),
+            m_template2);
+    }
 
-    if (!m_hintPixmap.isNull() && m_showHint) {
-        const QPoint hintOrigin = mapFromDesign(200, 100);
+    if (!m_hintPixmap.isNull() && m_showHint && m_storyVisible) {
+        const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
         painter.drawPixmap(
             hintOrigin.x(),
             hintOrigin.y(),
@@ -249,30 +362,32 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
     }
 
     for (const Sprite &sprite : m_sprites) {
-        if (sprite.pixmap.isNull()) {
+        if (sprite.pixmap.isNull() || sprite.hidden) {
             continue;
         }
         const QPoint origin = mapFromDesign(sprite.x, sprite.y);
+        const QPixmap &drawPixmap =
+            sprite.selected && !sprite.selectPixmap.isNull() ? sprite.selectPixmap : sprite.pixmap;
         painter.save();
-        painter.translate(origin.x() + qRound(sprite.pixmap.width() * m_scale) / 2,
-                          origin.y() + qRound(sprite.pixmap.height() * m_scale) / 2);
+        painter.translate(origin.x() + qRound(drawPixmap.width() * m_scale) / 2,
+                          origin.y() + qRound(drawPixmap.height() * m_scale) / 2);
         painter.rotate(sprite.rotateState * 90.0);
-        painter.translate(-qRound(sprite.pixmap.width() * m_scale) / 2,
-                          -qRound(sprite.pixmap.height() * m_scale) / 2);
+        painter.translate(-qRound(drawPixmap.width() * m_scale) / 2,
+                          -qRound(drawPixmap.height() * m_scale) / 2);
         painter.drawPixmap(
             0,
             0,
-            qRound(sprite.pixmap.width() * m_scale),
-            qRound(sprite.pixmap.height() * m_scale),
-            sprite.pixmap);
+            qRound(drawPixmap.width() * m_scale),
+            qRound(drawPixmap.height() * m_scale),
+            drawPixmap);
         painter.restore();
         if (sprite.selected) {
             painter.setPen(QPen(Qt::red, 2));
             painter.drawRect(
                 origin.x(),
                 origin.y(),
-                qRound(sprite.pixmap.width() * m_scale),
-                qRound(sprite.pixmap.height() * m_scale));
+                qRound(drawPixmap.width() * m_scale),
+                qRound(drawPixmap.height() * m_scale));
         }
     }
 }
@@ -344,6 +459,9 @@ void PuzzleCanvas::mouseReleaseEvent(QMouseEvent *event) {
 
     if (m_movedDuringDrag) {
         snapSprite(sprite);
+    } else if (sprite.returnable && sprite.targetX >= 0 && sprite.targetY >= 0) {
+        sprite.x = sprite.targetX;
+        sprite.y = sprite.targetY;
     } else if (m_rotateAllowed && event->button() == Qt::RightButton) {
         QTransform transform;
         transform.rotate(-90);

@@ -908,8 +908,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_e15HighlightRadio->setChecked(true);
     m_e15ModeGroup->hide();
 
-    m_showHintCheck = new QCheckBox(QStringLiteral("Показать пример (showp)"), m_exerciseOptionsPanel);
-    m_showTemplateCheck = new QCheckBox(QStringLiteral("Показать трафарет (showt)"), m_exerciseOptionsPanel);
+    m_showHintCheck = new QCheckBox(
+        QStringLiteral("Показать подсказку (демонстрация конечного результата)"), m_exerciseOptionsPanel);
+    m_showTemplateCheck = new QCheckBox(
+        QStringLiteral("Показать трафарет (накладывание деталей картинки на цельную картинку)"),
+        m_exerciseOptionsPanel);
     m_rotateEnableCheck = new QCheckBox(QStringLiteral("Поворот фрагментов"), m_exerciseOptionsPanel);
     m_showHintCheck->setChecked(true);
     m_showTemplateCheck->setChecked(true);
@@ -922,8 +925,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     optionsLayout->addWidget(m_rotateEnableCheck);
 
     auto *rotateRow = new QHBoxLayout();
-    m_rotateWLabel = new QLabel(QStringLiteral("По ширине:"), m_exerciseOptionsPanel);
-    m_rotateCWLabel = new QLabel(QStringLiteral("По часовой:"), m_exerciseOptionsPanel);
+    m_rotateWLabel = new QLabel(QStringLiteral("Фрагментов, повернутых на 90°"), m_exerciseOptionsPanel);
+    m_rotateCWLabel = new QLabel(QStringLiteral("Фрагментов, повернутых на 180°"), m_exerciseOptionsPanel);
     m_rotateWCombo = new QComboBox(m_exerciseOptionsPanel);
     m_rotateCWCombo = new QComboBox(m_exerciseOptionsPanel);
     rotateRow->addWidget(m_rotateWLabel);
@@ -940,16 +943,28 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     connect(m_shardButton, &QPushButton::clicked, this, [this]() {
         m_shardPanelVisible = !m_shardPanelVisible;
         layoutE15ModePopup();
+        updateExerciseOptionsPanel();
+        updateChromeLayout();
     });
     auto applyE15ModeFromUi = [this]() {
-        if (!m_exerciseRunning || m_sessionRunnerKind != ExerciseRunnerKind::E15 || !m_sessionRunner) {
+        if (!m_exerciseRunning || !m_sessionRunner) {
             return;
         }
         const bool selectMode = m_e15HighlightRadio && m_e15HighlightRadio->isChecked();
-        ExerciseSessionOptions opt = m_sessionRunner->sessionOptions();
-        opt.e15SelectMode = selectMode;
-        m_sessionRunner->setSessionOptions(opt);
-        m_sessionRunner->applyE15SelectMode(selectMode);
+        if (m_sessionRunnerKind == ExerciseRunnerKind::E15) {
+            ExerciseSessionOptions opt = m_sessionRunner->sessionOptions();
+            opt.e15SelectMode = selectMode;
+            m_sessionRunner->setSessionOptions(opt);
+            m_sessionRunner->applyE15SelectMode(selectMode);
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.22")
+            && m_sessionRunnerKind == ExerciseRunnerKind::Puzzles) {
+            ExerciseSessionOptions opt = m_sessionRunner->sessionOptions();
+            opt.e15SelectMode = selectMode;
+            m_sessionRunner->setSessionOptions(opt);
+            m_sessionRunner->applyE15SelectMode(selectMode);
+        }
     };
     connect(m_e15HighlightRadio, &QRadioButton::toggled, this, [applyE15ModeFromUi](bool checked) {
         if (checked) {
@@ -981,8 +996,18 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
             }
         }
         m_sessionStepId = currentStepId();
+        if (m_exerciseId == QStringLiteral("1.19")) {
+            if (m_showHintCheck) {
+                m_showHintCheck->setChecked(false);
+            }
+            if (m_showTemplateCheck) {
+                m_showTemplateCheck->setChecked(false);
+            }
+        }
         refreshRotateCombos();
         reloadPreviewForCurrentStep();
+        updateExerciseOptionsPanel();
+        updateChromeLayout();
         if (m_exerciseRunning && m_onlyP && !m_sessionStepId.isEmpty()) {
             m_onlyP->switchStep(m_sessionStepId);
             if (m_specialistExercise) {
@@ -1321,9 +1346,16 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_exerciseOptionsPanel && m_rightPanel) {
         const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+        const bool is114Step2 = m_exerciseId == QStringLiteral("1.14")
+            && currentStepId().trimmed() == QStringLiteral("2");
         // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
-        const int panelH = isE15 ? 28 : 220;
-        const int panelW = isE15 ? 320 : qMax(120, m_rightPanel->width() - 24);
+        int panelH = 220;
+        if (isE15) {
+            panelH = 28;
+        } else if (is114Step2) {
+            panelH = m_shardPanelVisible ? 220 : 28;
+        }
+        const int panelW = isE15 || is114Step2 ? 320 : qMax(120, m_rightPanel->width() - 24);
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
         m_exerciseOptionsPanel->raise();
         layoutE15ModePopup();
@@ -2736,6 +2768,7 @@ void ExerciseHost::loadExercise() {
         layoutStepCombo();
     }
 
+    applyPuzzleOptionsDefaults();
     updateExerciseOptionsPanel();
     updateChromeLayout();
     layoutContent();
@@ -4694,13 +4727,24 @@ void ExerciseHost::refreshRotateCombos() {
     if (!m_rotateWCombo || !m_rotateCWCombo) {
         return;
     }
+    const QString prevW = m_rotateWCombo->currentText();
+    const QString prevCW = m_rotateCWCombo->currentText();
     const int fragmentCount = puzzleFragmentCount();
     m_rotateWCombo->blockSignals(true);
     m_rotateWCombo->clear();
     for (int i = 0; i <= fragmentCount; ++i) {
         m_rotateWCombo->addItem(QString::number(i));
     }
-    m_rotateWCombo->setCurrentIndex(0);
+    const int wIndex = m_rotateWCombo->findText(prevW);
+    if (wIndex >= 0) {
+        m_rotateWCombo->setCurrentIndex(wIndex);
+    } else if (m_exerciseId == QStringLiteral("1.14")
+               && currentStepId().trimmed() == QStringLiteral("2")
+               && m_rotateWCombo->count() > 1) {
+        m_rotateWCombo->setCurrentIndex(1);
+    } else {
+        m_rotateWCombo->setCurrentIndex(0);
+    }
     m_rotateWCombo->blockSignals(false);
 
     m_rotateCWCombo->blockSignals(true);
@@ -4708,8 +4752,52 @@ void ExerciseHost::refreshRotateCombos() {
     for (int i = 0; i <= fragmentCount; ++i) {
         m_rotateCWCombo->addItem(QString::number(i));
     }
-    m_rotateCWCombo->setCurrentIndex(0);
+    const int cwIndex = m_rotateCWCombo->findText(prevCW);
+    if (cwIndex >= 0) {
+        m_rotateCWCombo->setCurrentIndex(cwIndex);
+    } else if (m_exerciseId == QStringLiteral("1.14")
+               && currentStepId().trimmed() == QStringLiteral("2")
+               && m_rotateCWCombo->count() > 1) {
+        m_rotateCWCombo->setCurrentIndex(1);
+    } else {
+        m_rotateCWCombo->setCurrentIndex(0);
+    }
     m_rotateCWCombo->blockSignals(false);
+}
+
+void ExerciseHost::applyPuzzleOptionsDefaults() {
+    const QString step = currentStepId().trimmed();
+    const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
+        || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
+    if (m_exerciseId == QStringLiteral("1.14")) {
+        if (m_showHintCheck) {
+            m_showHintCheck->setChecked(true);
+        }
+        if (m_showTemplateCheck) {
+            m_showTemplateCheck->setChecked(false);
+        }
+        if (m_rotateEnableCheck) {
+            m_rotateEnableCheck->setChecked(true);
+        }
+        if (step == QStringLiteral("2")) {
+            refreshRotateCombos();
+        }
+    } else if (isPuzzleInline) {
+        if (m_showHintCheck) {
+            m_showHintCheck->setChecked(false);
+        }
+        if (m_showTemplateCheck) {
+            m_showTemplateCheck->setChecked(false);
+        }
+        if (m_rotateEnableCheck) {
+            m_rotateEnableCheck->setChecked(true);
+        }
+        refreshRotateCombos();
+    } else if (m_exerciseId == QStringLiteral("1.22")) {
+        if (m_e15HighlightRadio) {
+            m_e15HighlightRadio->setChecked(true);
+        }
+    }
 }
 
 void ExerciseHost::layoutE15ModePopup() {
@@ -4733,55 +4821,64 @@ void ExerciseHost::layoutE15ModePopup() {
 }
 
 void ExerciseHost::updateExerciseOptionsPanel() {
-    const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
+    const QString step = currentStepId().trimmed();
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
-    const bool isPuzzleRotate = m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
-        || m_exerciseId == QStringLiteral("1.21");
-    const bool showPanel = isE15 || isPuzzleRotate;
+    const bool is122 = m_exerciseId == QStringLiteral("1.22");
+    const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
+    const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
+        || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
+    const bool isPuzzleRotate = isPuzzleInline || is114Step2;
+    const bool showPanel = isE15 || isPuzzleRotate || is122;
+    const bool showShard = isE15 || is114Step2;
+    const bool showPuzzleControls = isPuzzleInline || (is114Step2 && m_shardPanelVisible);
 
     if (m_exerciseOptionsPanel) {
-        m_exerciseOptionsPanel->setVisible(showPanel);
+        m_exerciseOptionsPanel->setVisible(showPanel && !is122);
     }
     if (m_shardButton) {
-        m_shardButton->setVisible(isE15);
+        m_shardButton->setVisible(showShard);
     }
     if (m_e15ModeGroup) {
-        // Видимость через layoutE15ModePopup — группа не в layout, чтобы не сдвигать UI.
-        if (!isE15) {
+        if (is122) {
             m_shardPanelVisible = false;
+            const int panelW = m_rightPanel ? qMax(280, m_rightPanel->width() - 24) : 300;
+            m_e15ModeGroup->setFixedWidth(panelW);
+            m_e15ModeGroup->setGeometry(12, 52, panelW, 110);
+            m_e15ModeGroup->show();
+            m_e15ModeGroup->raise();
+        } else if (!isE15) {
+            if (!is114Step2) {
+                m_shardPanelVisible = false;
+            }
             m_e15ModeGroup->hide();
         } else {
             layoutE15ModePopup();
         }
     }
     if (m_showHintCheck) {
-        m_showHintCheck->setVisible(isPuzzleRotate);
-        m_showHintCheck->setChecked(true);
+        m_showHintCheck->setVisible(showPuzzleControls);
     }
     if (m_showTemplateCheck) {
-        m_showTemplateCheck->setVisible(isPuzzleRotate);
-        m_showTemplateCheck->setChecked(true);
+        m_showTemplateCheck->setVisible(showPuzzleControls);
     }
     if (m_rotateEnableCheck) {
-        m_rotateEnableCheck->setVisible(isPuzzleRotate);
-        m_rotateEnableCheck->setChecked(true);
+        m_rotateEnableCheck->setVisible(showPuzzleControls);
     }
     if (m_rotateWCombo) {
-        m_rotateWCombo->setVisible(isPuzzleRotate);
+        m_rotateWCombo->setVisible(showPuzzleControls);
     }
     if (m_rotateCWCombo) {
-        m_rotateCWCombo->setVisible(isPuzzleRotate);
+        m_rotateCWCombo->setVisible(showPuzzleControls);
     }
     if (m_rotateWLabel) {
-        m_rotateWLabel->setVisible(isPuzzleRotate);
+        m_rotateWLabel->setVisible(showPuzzleControls);
     }
     if (m_rotateCWLabel) {
-        m_rotateCWLabel->setVisible(isPuzzleRotate);
+        m_rotateCWLabel->setVisible(showPuzzleControls);
     }
-    if (isPuzzleRotate) {
+    if (isPuzzleInline) {
         refreshRotateCombos();
     }
-    Q_UNUSED(definition);
 }
 
 ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
@@ -4793,13 +4890,33 @@ ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
     } else if (m_e15SelectRadio && m_e15SelectRadio->isChecked()) {
         options.e15SelectMode = false;
     }
-    if (m_showHintCheck && m_showHintCheck->isVisible()) {
+    const QString step = currentStepId().trimmed();
+    const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
+    const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
+        || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
+    const bool usePuzzleOptions = is114Step2 || isPuzzleInline;
+    if (usePuzzleOptions && m_showHintCheck) {
+        options.showHint = m_showHintCheck->isChecked();
+    } else if (m_showHintCheck && m_showHintCheck->isVisible()) {
         options.showHint = m_showHintCheck->isChecked();
     }
-    if (m_showTemplateCheck && m_showTemplateCheck->isVisible()) {
+    if (m_exerciseId == QStringLiteral("1.22") && m_e15HighlightRadio) {
+        options.e15SelectMode = m_e15HighlightRadio->isChecked();
+    }
+    if (usePuzzleOptions && m_showTemplateCheck) {
+        options.showTemplate = m_showTemplateCheck->isChecked();
+    } else if (m_showTemplateCheck && m_showTemplateCheck->isVisible()) {
         options.showTemplate = m_showTemplateCheck->isChecked();
     }
-    if (m_rotateEnableCheck && m_rotateEnableCheck->isVisible()) {
+    if (usePuzzleOptions && m_rotateEnableCheck) {
+        options.rotateEnabled = m_rotateEnableCheck->isChecked();
+        if (m_rotateWCombo) {
+            options.rotateW = m_rotateWCombo->currentText().toInt();
+        }
+        if (m_rotateCWCombo) {
+            options.rotateCW = m_rotateCWCombo->currentText().toInt();
+        }
+    } else if (m_rotateEnableCheck && m_rotateEnableCheck->isVisible()) {
         options.rotateEnabled = m_rotateEnableCheck->isChecked();
         if (m_rotateWCombo) {
             options.rotateW = m_rotateWCombo->currentText().toInt();

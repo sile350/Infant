@@ -16,6 +16,7 @@
 #include <QButtonGroup>
 #include <QBrush>
 #include <QColor>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -354,6 +355,18 @@ protected:
     virtual void layoutUi() {
         m_stop->move(80, 72);
         m_stop->raise();
+        if (m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("1")) {
+            const int maxW = qMax(100, width());
+            const int maxH = qMax(100, height());
+            if (!m_pixmap.isNull()) {
+                const QPixmap display = pixmapNativeOrDownscale(m_pixmap, maxW, maxH);
+                m_picture->setPixmap(display);
+                m_picture->setFixedSize(display.size());
+                m_picture->move((width() - display.width()) / 2, (height() - display.height()) / 2);
+            }
+            m_picture->raise();
+            return;
+        }
         const int top = 140;
         const int margin = 20;
         const int maxW = qMax(100, width() - 2 * margin);
@@ -2733,7 +2746,101 @@ public:
         m_stop->onClick = [this]() { finishSession(); };
         m_stop->hide();
 
+        m_rotateHintLeft = new QLabel(this);
+        m_rotateHintRight = new QLabel(this);
+        const QString counterPath = ExerciseAssets::sysImage(QStringLiteral("counter.png"));
+        const QString toPath = ExerciseAssets::sysImage(QStringLiteral("to.png"));
+        if (!counterPath.isEmpty()) {
+            m_rotateHintLeft->setPixmap(QPixmap(counterPath));
+            m_rotateHintLeft->setFixedSize(QPixmap(counterPath).size());
+        }
+        if (!toPath.isEmpty()) {
+            m_rotateHintRight->setPixmap(QPixmap(toPath));
+            m_rotateHintRight->setFixedSize(QPixmap(toPath).size());
+        }
+        m_rotateHintLeft->hide();
+        m_rotateHintRight->hide();
+
+        m_storyToggle = new ClickableLabel(this);
+        markPatientControl(m_storyToggle);
+        m_storyToggle->hide();
+        m_storyToggle->onClick = [this]() {
+            m_storyVisible = !m_storyVisible;
+            if (m_canvas) {
+                m_canvas->setStoryVisible(m_storyVisible);
+            }
+            updateStoryToggleImage();
+        };
+
+        m_sizeFilterPanel = new QGroupBox(QStringLiteral("Скрыть"), this);
+        markPatientControl(m_sizeFilterPanel);
+        m_sizeFilterPanel->setStyleSheet(QStringLiteral(
+            "QGroupBox { background:#ffffff; border:1px solid #000; font-weight:bold; }"));
+        auto *filterLayout = new QVBoxLayout(m_sizeFilterPanel);
+        filterLayout->setContentsMargins(8, 12, 8, 8);
+        filterLayout->setSpacing(4);
+        m_hideBigMaster = new QCheckBox(QStringLiteral("Большие объекты"), m_sizeFilterPanel);
+        m_hideSmallMaster = new QCheckBox(QStringLiteral("Маленькие объекты"), m_sizeFilterPanel);
+        filterLayout->addWidget(m_hideBigMaster);
+        const QStringList bigLabels = {
+            QStringLiteral("Большое дерево"), QStringLiteral("Большой гриб"),
+            QStringLiteral("Большой дом"), QStringLiteral("Большая машина")};
+        const QStringList bigNames = {
+            QStringLiteral("bigtree"), QStringLiteral("bigmashroom"),
+            QStringLiteral("bighouse"), QStringLiteral("bigcar")};
+        for (int i = 0; i < bigLabels.size(); ++i) {
+            auto *box = new QCheckBox(bigLabels.at(i), m_sizeFilterPanel);
+            m_bigHideChecks.append(box);
+            filterLayout->addWidget(box);
+            const QString name = bigNames.at(i);
+            connect(box, &QCheckBox::toggled, this, [this, name](bool checked) {
+                if (m_canvas) {
+                    m_canvas->setSpriteVisible(name, !checked);
+                }
+            });
+        }
+        filterLayout->addWidget(m_hideSmallMaster);
+        const QStringList smallLabels = {
+            QStringLiteral("Маленькое дерево"), QStringLiteral("Маленький гриб"),
+            QStringLiteral("Маленький дом"), QStringLiteral("Маленькая машина")};
+        const QStringList smallNames = {
+            QStringLiteral("smalltree"), QStringLiteral("smallmashroom"),
+            QStringLiteral("smallhouse"), QStringLiteral("smallcar")};
+        for (int i = 0; i < smallLabels.size(); ++i) {
+            auto *box = new QCheckBox(smallLabels.at(i), m_sizeFilterPanel);
+            m_smallHideChecks.append(box);
+            filterLayout->addWidget(box);
+            const QString name = smallNames.at(i);
+            connect(box, &QCheckBox::toggled, this, [this, name](bool checked) {
+                if (m_canvas) {
+                    m_canvas->setSpriteVisible(name, !checked);
+                }
+            });
+        }
+        connect(m_hideBigMaster, &QCheckBox::toggled, this, [this](bool checked) {
+            for (QCheckBox *box : m_bigHideChecks) {
+                if (box) {
+                    box->setChecked(checked);
+                }
+            }
+        });
+        connect(m_hideSmallMaster, &QCheckBox::toggled, this, [this](bool checked) {
+            for (QCheckBox *box : m_smallHideChecks) {
+                if (box) {
+                    box->setChecked(checked);
+                }
+            }
+        });
+        m_sizeFilterPanel->setFixedWidth(220);
+        m_sizeFilterPanel->hide();
+
         connect(m_canvas, &PuzzleCanvas::stopRequested, this, [this]() { finishSession(); });
+    }
+
+    void applyE15SelectMode(bool selectOnly) override {
+        if (m_canvas && m_exerciseId == QStringLiteral("1.22")) {
+            m_canvas->setSelectHighlightMode(selectOnly);
+        }
     }
 
     void startSession(
@@ -2743,6 +2850,7 @@ public:
         Q_UNUSED(definition);
         m_exerciseId = exerciseId;
         m_stepId = stepId;
+        m_storyVisible = true;
 
         PuzzleLayout layout;
         if (!loadPuzzleLayout(exerciseId, stepId, &layout)) {
@@ -2752,10 +2860,15 @@ public:
         }
 
         const QStringList rotateExercises = {
-            QStringLiteral("1.19"), QStringLiteral("1.20"), QStringLiteral("1.21"),
-            QStringLiteral("1.22"), QStringLiteral("3.1.8"), QStringLiteral("3.1.16")};
+            QStringLiteral("1.14"), QStringLiteral("1.19"), QStringLiteral("1.20"),
+            QStringLiteral("1.21"), QStringLiteral("1.29"),
+            QStringLiteral("3.1.8"), QStringLiteral("3.1.16")};
         if (rotateExercises.contains(exerciseId)) {
             layout.rotateAllowed = true;
+        }
+        if (exerciseId == QStringLiteral("1.22")) {
+            layout.rotateAllowed = false;
+            layout.selectMode = m_sessionOptions.e15SelectMode;
         }
 
         m_canvas->setGeometry(0, 0, width(), height());
@@ -2763,7 +2876,8 @@ public:
         m_canvas->applySessionOptions(m_sessionOptions);
         m_canvas->show();
         m_canvas->raise();
-        m_stop->move(80, 72);
+        setupExerciseUi();
+        layoutStopAndHints();
         m_stop->show();
         m_stop->raise();
         show();
@@ -2778,26 +2892,149 @@ public:
         if (m_canvas) {
             m_canvas->setGeometry(0, 0, width(), height());
         }
+        layoutStopAndHints();
+        setupExerciseUi();
         if (m_stop) {
-            m_stop->move(80, 72);
             m_stop->raise();
         }
     }
 
 private:
+    void updateStoryToggleImage() {
+        if (!m_storyToggle) {
+            return;
+        }
+        const QString file = m_storyVisible ? QStringLiteral("hide.png") : QStringLiteral("show.png");
+        const QString path = ExerciseAssets::exerciseFile(QStringLiteral("1.24"), file);
+        if (!path.isEmpty()) {
+            const QPixmap pixmap(path);
+            m_storyToggle->setPixmap(pixmap);
+            m_storyToggle->setFixedSize(pixmap.size());
+        }
+    }
+
+    void setupExerciseUi() {
+        constexpr int kDesignW = 1920;
+        constexpr int kDesignH = 1080;
+        const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
+        const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
+
+        if (m_storyToggle) {
+            const bool showStory = m_exerciseId == QStringLiteral("1.24");
+            if (showStory) {
+                updateStoryToggleImage();
+                m_storyToggle->move(qRound(1400.0 * sx), qRound(50.0 * sy));
+                m_storyToggle->show();
+                m_storyToggle->raise();
+            } else {
+                m_storyToggle->hide();
+            }
+        }
+        if (m_sizeFilterPanel) {
+            const bool showFilter =
+                m_exerciseId == QStringLiteral("1.28") && m_stepId == QStringLiteral("2");
+            if (showFilter) {
+                m_sizeFilterPanel->move(qRound(1600.0 * sx), qRound(20.0 * sy));
+                m_sizeFilterPanel->show();
+                m_sizeFilterPanel->raise();
+            } else {
+                m_sizeFilterPanel->hide();
+            }
+        }
+    }
+
+    void layoutStopAndHints() {
+        if (!m_stop) {
+            return;
+        }
+        constexpr int kDesignW = 1920;
+        constexpr int kDesignH = 1080;
+        const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
+        const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
+        auto placeStop = [&](double dx, double dy) {
+            m_stop->move(qRound(dx * sx), qRound(dy * sy));
+        };
+
+        if (m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2")) {
+            placeStop(960.0, 68.0);
+            if (m_rotateHintLeft) {
+                m_rotateHintLeft->move(qRound(1400.0 * sx), qRound(150.0 * sy));
+                m_rotateHintLeft->show();
+                m_rotateHintLeft->raise();
+            }
+            if (m_rotateHintRight) {
+                m_rotateHintRight->move(qRound(1520.0 * sx), qRound(150.0 * sy));
+                m_rotateHintRight->show();
+                m_rotateHintRight->raise();
+            }
+            return;
+        }
+        if (m_rotateHintLeft) {
+            m_rotateHintLeft->hide();
+        }
+        if (m_rotateHintRight) {
+            m_rotateHintRight->hide();
+        }
+        if (m_exerciseId == QStringLiteral("1.29")) {
+            placeStop(970.0, 70.0);
+            if (m_rotateHintLeft) {
+                m_rotateHintLeft->move(qRound(1190.0 * sx), qRound(50.0 * sy));
+                m_rotateHintLeft->show();
+                m_rotateHintLeft->raise();
+            }
+            if (m_rotateHintRight) {
+                m_rotateHintRight->move(qRound(1290.0 * sx), qRound(50.0 * sy));
+                m_rotateHintRight->show();
+                m_rotateHintRight->raise();
+            }
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
+            || m_exerciseId == QStringLiteral("1.22")) {
+            placeStop(977.0, 70.0);
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")
+            || m_exerciseId == QStringLiteral("1.28")) {
+            placeStop(970.0, 70.0);
+            return;
+        }
+        m_stop->move(80, 72);
+    }
+
     void finishSession() {
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
-        // Для NumberedDoneTime хост сам соберёт №;done — не перетираем позициями.
         result.additional.clear();
         m_canvas->hide();
         m_stop->hide();
+        if (m_rotateHintLeft) {
+            m_rotateHintLeft->hide();
+        }
+        if (m_rotateHintRight) {
+            m_rotateHintRight->hide();
+        }
+        if (m_storyToggle) {
+            m_storyToggle->hide();
+        }
+        if (m_sizeFilterPanel) {
+            m_sizeFilterPanel->hide();
+        }
         hide();
         emitFinished(result);
     }
 
     PuzzleCanvas *m_canvas = nullptr;
     ClickableLabel *m_stop = nullptr;
+    QLabel *m_rotateHintLeft = nullptr;
+    QLabel *m_rotateHintRight = nullptr;
+    ClickableLabel *m_storyToggle = nullptr;
+    QGroupBox *m_sizeFilterPanel = nullptr;
+    QCheckBox *m_hideBigMaster = nullptr;
+    QCheckBox *m_hideSmallMaster = nullptr;
+    QList<QCheckBox *> m_bigHideChecks;
+    QList<QCheckBox *> m_smallHideChecks;
+    bool m_storyVisible = true;
 };
 
 class FlipCardCanvas final : public QWidget {
@@ -4030,7 +4267,7 @@ public:
         m_canvas->startExercise(exerciseId, stepId);
         m_canvas->show();
         m_canvas->raise();
-        m_stop->move(80, 72);
+        layoutStopPosition(exerciseId);
         m_stop->show();
         m_stop->raise();
         syncRemoveButton();
@@ -4059,7 +4296,7 @@ public:
             m_canvas->setGeometry(0, 0, width(), height());
         }
         if (m_stop) {
-            m_stop->move(80, 72);
+            layoutStopPosition(m_exerciseId);
         }
         if (m_removek && m_removek->isVisible()) {
             m_removek->move(m_stop ? m_stop->x() + m_stop->width() + 20 : 280, m_stop ? m_stop->y() : 72);
@@ -4071,6 +4308,21 @@ public:
     }
 
 private:
+    void layoutStopPosition(const QString &exerciseId) {
+        if (!m_stop) {
+            return;
+        }
+        constexpr int kDesignW = 1920;
+        constexpr int kDesignH = 1080;
+        const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
+        const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
+        if (exerciseId == QStringLiteral("1.27")) {
+            m_stop->move(qRound(970.0 * sx), qRound(70.0 * sy));
+        } else {
+            m_stop->move(80, 72);
+        }
+    }
+
     void syncRemoveButton() {
         if (!m_canvas || !m_removek) {
             return;
@@ -4265,6 +4517,8 @@ public:
         const QString &stepId) override {
         m_exerciseId = exerciseId;
         m_stepId = stepId;
+        m_demo->setSessionOptions(m_sessionOptions);
+        m_puzzles->setSessionOptions(m_sessionOptions);
         if (stepId == QStringLiteral("2")) {
             m_demo->hide();
             m_puzzles->setGeometry(0, 0, width(), height());
