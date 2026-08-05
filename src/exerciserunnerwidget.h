@@ -31,6 +31,8 @@ public:
 
     void setSessionOptions(const ExerciseSessionOptions &options) { m_sessionOptions = options; }
     const ExerciseSessionOptions &sessionOptions() const { return m_sessionOptions; }
+    // 1.5/1.6: смена режима подсветка/перемещение во время сессии.
+    virtual void applyE15SelectMode(bool selectOnly) { Q_UNUSED(selectOnly); }
 
 signals:
     void sessionFinished(const ExerciseSessionResult &result);

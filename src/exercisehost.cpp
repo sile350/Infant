@@ -832,15 +832,29 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     optionsLayout->setContentsMargins(0, 0, 0, 0);
     optionsLayout->setSpacing(6);
 
-    m_shardButton = new QPushButton(QStringLiteral("Режим"), m_exerciseOptionsPanel);
+    m_shardButton = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), m_exerciseOptionsPanel);
+    m_shardButton->setFlat(true);
+    m_shardButton->setCursor(Qt::PointingHandCursor);
+    m_shardButton->setStyleSheet(QStringLiteral(
+        "QPushButton { color:#000; font-family:'Microsoft Sans Serif'; font-size:11pt;"
+        " font-weight:bold; text-decoration:underline; text-align:left; padding:2px 4px; border:none; }"
+        "QPushButton:hover { color:#222; }"));
     m_shardButton->hide();
     optionsLayout->addWidget(m_shardButton);
 
-    m_e15ModeGroup = new QGroupBox(QStringLiteral("Режим выбора"), m_exerciseOptionsPanel);
+    m_e15ModeGroup = new QGroupBox(QStringLiteral("Настройка уровня сложности"), m_exerciseOptionsPanel);
+    m_e15ModeGroup->setStyleSheet(QStringLiteral(
+        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:6px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
     auto *e15Layout = new QVBoxLayout(m_e15ModeGroup);
+    e15Layout->setSpacing(8);
+    // radioButton1 в оригинале → param="select" (подсветка).
     m_e15HighlightRadio = new QRadioButton(
-        QStringLiteral("Выделение \"подсвечивание\" фрагментов при выборе"), m_e15ModeGroup);
-    m_e15SelectRadio = new QRadioButton(QStringLiteral("Только выбор фрагментов"), m_e15ModeGroup);
+        QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"), m_e15ModeGroup);
+    // radioButton2 → перемещение на место (без анимации наклона).
+    m_e15SelectRadio = new QRadioButton(
+        QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
+        m_e15ModeGroup);
     m_e15HighlightRadio->setChecked(true);
     e15Layout->addWidget(m_e15HighlightRadio);
     e15Layout->addWidget(m_e15SelectRadio);
@@ -876,6 +890,32 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         m_shardPanelVisible = !m_shardPanelVisible;
         if (m_e15ModeGroup) {
             m_e15ModeGroup->setVisible(m_shardPanelVisible);
+        }
+        if (m_shardButton) {
+            m_shardButton->setText(
+                m_shardPanelVisible
+                    ? QStringLiteral("Настройка уровня сложности ▴")
+                    : QStringLiteral("Настройка уровня сложности ▾"));
+        }
+    });
+    auto applyE15ModeFromUi = [this]() {
+        if (!m_exerciseRunning || m_sessionRunnerKind != ExerciseRunnerKind::E15 || !m_sessionRunner) {
+            return;
+        }
+        const bool selectMode = m_e15HighlightRadio && m_e15HighlightRadio->isChecked();
+        ExerciseSessionOptions opt = m_sessionRunner->sessionOptions();
+        opt.e15SelectMode = selectMode;
+        m_sessionRunner->setSessionOptions(opt);
+        m_sessionRunner->applyE15SelectMode(selectMode);
+    };
+    connect(m_e15HighlightRadio, &QRadioButton::toggled, this, [applyE15ModeFromUi](bool checked) {
+        if (checked) {
+            applyE15ModeFromUi();
+        }
+    });
+    connect(m_e15SelectRadio, &QRadioButton::toggled, this, [applyE15ModeFromUi](bool checked) {
+        if (checked) {
+            applyE15ModeFromUi();
         }
     });
     connect(m_stepCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
@@ -2090,6 +2130,10 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
     } else if (m_exerciseId == QStringLiteral("5.4.2")) {
         candidates << QStringLiteral("f1.png") << QStringLiteral("traf1.png")
                    << QStringLiteral("tale.png");
+    } else if (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")) {
+        candidates << QStringLiteral("f1.5.png") << QStringLiteral("carpet1.png")
+                   << QStringLiteral("carpet2.png") << QStringLiteral("f1.png")
+                   << QStringLiteral("ready.png");
     } else if (m_exerciseId == QStringLiteral("1.8")) {
         // Тот же файл, что OnlyPExercise (single → p%1.png).
         candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
@@ -2185,10 +2229,11 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     // 4.2.1: 3 вида помощи с заголовками Стимулирующая / Направляющая / Обучающая (как в РП).
     const bool categorizedThreeHelp = m_exerciseId == QStringLiteral("4.2.1") && labels.size() == 3;
+    // Плоский список без подзаголовков — только явные исключения (не из‑за != 5 пунктов).
+    // У 1.5 и др. в or.html часто 7 idp (1+2+4) — заголовки всё равно нужны.
     const bool flatCustom = !categorizedThreeHelp
         && (m_exerciseId == QStringLiteral("1.272")
-            || m_exerciseId == QStringLiteral("3.1.10")
-            || labels.size() != 5);
+            || m_exerciseId == QStringLiteral("3.1.10"));
     const bool showPenaltyHint = m_exerciseId == QStringLiteral("3.1.10");
     if (m_helpPenaltyHintLabel) {
         m_helpPenaltyHintLabel->setVisible(showPenaltyHint);
@@ -2259,16 +2304,32 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         return;
     }
 
-    // Стандартные 5 пунктов с подзаголовками Стимулирующая / Направляющая / Обучающая.
+    // Стимулирующая / Направляющая / Обучающая.
+    // 5 пунктов (стандарт): 1+2+2; 7 пунктов (1.5 и др.): 1+2+4; иначе — 1 / до 2 / остаток.
+    int stimCount = 1;
+    int directCount = 2;
+    if (labels.size() == 3) {
+        stimCount = 1;
+        directCount = 1;
+    } else if (labels.size() == 7) {
+        stimCount = 1;
+        directCount = 2;
+    } else if (labels.size() != 5 && labels.size() > 0) {
+        stimCount = 1;
+        directCount = qMin(2, labels.size() - 1);
+    }
+
     int stimAt = insertAfter(m_stimHelpLabel);
-    m_helpChecks << makeCheckRow(labels.at(0), m_helpChecksLayout, checkWidth);
-    if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
-        m_helpChecksLayout->removeWidget(row);
-        m_helpChecksLayout->insertWidget(stimAt, row);
+    for (int i = 0; i < stimCount && i < labels.size(); ++i) {
+        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
+            m_helpChecksLayout->removeWidget(row);
+            m_helpChecksLayout->insertWidget(stimAt++, row);
+        }
     }
 
     int directAt = insertAfter(m_directHelpLabel);
-    for (int i = 1; i <= 2 && i < labels.size(); ++i) {
+    for (int i = stimCount; i < stimCount + directCount && i < labels.size(); ++i) {
         m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
@@ -2277,7 +2338,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     }
 
     int teachAt = insertAfter(m_teachHelpLabel);
-    for (int i = 3; i < labels.size(); ++i) {
+    for (int i = stimCount + directCount; i < labels.size(); ++i) {
         m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
@@ -4475,8 +4536,11 @@ void ExerciseHost::updateExerciseOptionsPanel() {
 ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
     ExerciseSessionOptions options;
     options.dualScreen = m_dualScreen;
-    if (m_e15SelectRadio && m_e15SelectRadio->isChecked()) {
+    if (m_e15HighlightRadio && m_e15HighlightRadio->isChecked()) {
+        // Как radioButton1 → param="select": только подсветка.
         options.e15SelectMode = true;
+    } else if (m_e15SelectRadio && m_e15SelectRadio->isChecked()) {
+        options.e15SelectMode = false;
     }
     if (m_showHintCheck && m_showHintCheck->isVisible()) {
         options.showHint = m_showHintCheck->isChecked();

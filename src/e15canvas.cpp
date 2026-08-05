@@ -13,13 +13,7 @@ constexpr int kDesignWidth = 1920;
 constexpr int kDesignHeight = 1080;
 constexpr int kPlaceX2[] = {1216, 1430, 1644, 1216, 1430, 1644};
 constexpr int kPlaceX1[] = {200, 414, 628, 200, 414, 628};
-constexpr double kSlopes[] = {-35.3, -35.7, -45.5, -35.5, -35.9, -36.1};
 constexpr char kAnswers16[] = "4041525102";
-
-double slopeRadians(int pairIndex) {
-    const int idx = qBound(0, pairIndex, 5);
-    return qDegreesToRadians(kSlopes[idx]);
-}
 
 } // namespace
 
@@ -28,72 +22,24 @@ E15Canvas::E15Canvas(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_OpaquePaintEvent, true);
 
     m_elapsedTimer.setInterval(1000);
-    connect(&m_elapsedTimer, &QTimer::timeout, this, [this]() { ++m_elapsed; });
-
-    m_moveTimer.setInterval(16);
-    connect(&m_moveTimer, &QTimer::timeout, this, [this]() {
-        if (m_selected < 0 || m_selected >= m_sprites.size()) {
-            m_moveTimer.stop();
+    connect(&m_elapsedTimer, &QTimer::timeout, this, [this]() {
+        if (m_finished) {
             return;
         }
-        Sprite &sprite = m_sprites[m_selected];
-        const bool slow = (m_selected == 5 || m_selected == 2 || m_selected == 8 || m_selected == 11);
-        const int dx = slow ? 2 : 23;
-        sprite.x += dx;
-        sprite.y = static_cast<int>(sprite.x * qTan(m_k) + m_b);
-
-        const int targetY = (m_selected >= 6) ? kTargetY1 + kDeltaY : kTargetY + kDeltaY;
-        const int targetX = (m_selected >= 6) ? kTargetX1 : kTargetX;
-        if (sprite.y < targetY) {
-            sprite.x = targetX;
-            sprite.y = targetY;
-            sprite.done = true;
-            m_moveTimer.stop();
+        ++m_elapsed;
+        if (m_elapsed >= kMaxSeconds) {
+            failIncomplete();
         }
         update();
     });
 
-    m_backTimer.setInterval(16);
-    connect(&m_backTimer, &QTimer::timeout, this, [this]() {
-        if (m_selBack < 0 || m_selBack >= m_sprites.size()) {
-            m_backTimer.stop();
-            return;
+    m_timeoutTimer.setSingleShot(true);
+    m_timeoutTimer.setInterval(kMaxSeconds * 1000);
+    connect(&m_timeoutTimer, &QTimer::timeout, this, [this]() {
+        if (!m_finished) {
+            failIncomplete();
         }
-        Sprite &sprite = m_sprites[m_selBack];
-        const bool slow = (m_selBack == 2 || m_selBack == 5 || m_selBack == 8 || m_selBack == 11);
-        sprite.x -= slow ? 2 : 15;
-        sprite.y = static_cast<int>(sprite.x * qTan(m_kBack) + m_bBack);
-
-        bool arrived = false;
-        if (m_selBack >= 0 && m_selBack <= 2 && sprite.y > kLine1 + kDeltaY) {
-            sprite.x = kPlaceX2[m_selBack];
-            sprite.y = kLine1 + kDeltaY;
-            arrived = true;
-        } else if (m_selBack >= 3 && m_selBack <= 5 && sprite.y > kLine2 + kDeltaY) {
-            sprite.x = kPlaceX2[m_selBack - 3];
-            sprite.y = kLine2 + kDeltaY;
-            arrived = true;
-        } else if (m_selBack >= 6 && m_selBack <= 8 && sprite.y > kLine1 + kDeltaY) {
-            sprite.x = kPlaceX1[m_selBack - 6];
-            sprite.y = kLine1 + kDeltaY;
-            arrived = true;
-        } else if (m_selBack >= 9 && m_selBack <= 11 && sprite.y > kLine2 + kDeltaY) {
-            sprite.x = kPlaceX1[m_selBack - 9];
-            sprite.y = kLine2 + kDeltaY;
-            arrived = true;
-        }
-
-        if (arrived) {
-            sprite.done = false;
-            m_backTimer.stop();
-            m_choose1 = 100;
-            m_choose2 = 100;
-        }
-        update();
     });
-
-    m_redrawTimer.setInterval(50);
-    connect(&m_redrawTimer, &QTimer::timeout, this, [this]() { update(); });
 }
 
 double E15Canvas::scaleFactor() const {
@@ -118,18 +64,23 @@ QPoint E15Canvas::mapToDesign(const QPoint &pos) const {
         static_cast<int>((pos.y() - offsetY) / scale));
 }
 
-double E15Canvas::slopeForIndex(int index) const {
-    return slopeRadians(index % 6);
+int E15Canvas::targetXForIndex(int index) const {
+    return index >= 6 ? kTargetX1 : kTargetX;
+}
+
+int E15Canvas::targetYForIndex(int index) const {
+    return (index >= 6 ? kTargetY1 : kTargetY) + kDeltaY;
 }
 
 void E15Canvas::startExercise(const QString &exerciseId, bool selectOnlyMode) {
     m_exerciseId = exerciseId;
     m_selectOnly = selectOnlyMode;
     m_completed = false;
+    m_finished = false;
+    m_readyOk = true;
     m_elapsed = 0;
     m_choose1 = 100;
     m_choose2 = 100;
-    m_selected = -1;
     m_exerciseNumber = 1;
     m_sprites.clear();
 
@@ -143,8 +94,36 @@ void E15Canvas::startExercise(const QString &exerciseId, bool selectOnlyMode) {
     }
 
     m_elapsedTimer.start();
-    m_redrawTimer.start();
+    m_timeoutTimer.start();
     update();
+}
+
+void E15Canvas::setSelectOnlyMode(bool selectOnlyMode) {
+    if (m_finished || m_selectOnly == selectOnlyMode) {
+        return;
+    }
+    m_selectOnly = selectOnlyMode;
+    resetSelectionsForModeChange();
+    setReadyVisual(true);
+    update();
+}
+
+void E15Canvas::resetSelectionsForModeChange() {
+    for (Sprite &sprite : m_sprites) {
+        sprite.selected = false;
+        sprite.done = false;
+        sprite.x = sprite.homeX;
+        sprite.y = sprite.homeY;
+    }
+    m_choose1 = 100;
+    m_choose2 = 100;
+}
+
+void E15Canvas::abortSession() {
+    m_completed = false;
+    m_finished = true;
+    m_elapsedTimer.stop();
+    m_timeoutTimer.stop();
 }
 
 QString E15Canvas::doneState() const {
@@ -158,13 +137,14 @@ void E15Canvas::initExercise15() {
     const QPixmap selectRight(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), QStringLiteral("select2.png")));
     const QPixmap selectLeft(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), QStringLiteral("select.png")));
 
+    // Индексы 0..5 — правый коврик (21..26), 6..11 — левый (11..16).
     for (int row = 0; row < 2; ++row) {
         for (int col = 0; col < 3; ++col) {
             Sprite sprite;
             const QString file = QString::number(2 + row) + QString::number(col + 1) + QStringLiteral(".png");
             sprite.pixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), file));
             sprite.selectPixmap = selectRight;
-            sprite.x = kPlaceX2[col];
+            sprite.x = kPlaceX2[col + row * 3];
             sprite.y = (row == 0 ? kLine1 : kLine2) + kDeltaY;
             sprite.homeX = sprite.x;
             sprite.homeY = sprite.y;
@@ -177,7 +157,7 @@ void E15Canvas::initExercise15() {
             const QString file = QStringLiteral("1") + QString::number(row * 3 + col + 1) + QStringLiteral(".png");
             sprite.pixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), file));
             sprite.selectPixmap = selectLeft;
-            sprite.x = kPlaceX1[col];
+            sprite.x = kPlaceX1[col + row * 3];
             sprite.y = (row == 0 ? kLine1 : kLine2) + kDeltaY;
             sprite.homeX = sprite.x;
             sprite.homeY = sprite.y;
@@ -191,6 +171,7 @@ void E15Canvas::loadSprites16(int number) {
     const QString folder = QString::number(number) + QLatin1Char('/');
     const QPixmap selectPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.6"), QStringLiteral("select.png")));
     m_pole2 = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.6"), folder + QStringLiteral("pole.png")));
+    m_pole1 = QPixmap();
 
     for (int i = 0; i < 6; ++i) {
         Sprite sprite;
@@ -199,7 +180,7 @@ void E15Canvas::loadSprites16(int number) {
         sprite.pixmap = QPixmap(ExerciseAssets::exerciseFile(
             QStringLiteral("1.6"), folder + QString::number(i + 1) + QStringLiteral(".png")));
         sprite.selectPixmap = selectPixmap;
-        sprite.x = kPlaceX2[col];
+        sprite.x = kPlaceX2[col + row * 3];
         sprite.y = (row == 0 ? kLine1 : kLine2) + kDeltaY;
         sprite.homeX = sprite.x;
         sprite.homeY = sprite.y;
@@ -216,45 +197,57 @@ void E15Canvas::clearOtherSelected(int sel) {
     if (sel >= 0 && sel <= 5) {
         for (int i = 0; i <= 5 && i < m_sprites.size(); ++i) {
             m_sprites[i].selected = false;
+            if (!m_selectOnly) {
+                snapSpriteHome(i);
+            }
         }
     }
     if (sel >= 6 && sel <= 11) {
         for (int i = 6; i <= 11 && i < m_sprites.size(); ++i) {
             m_sprites[i].selected = false;
+            if (!m_selectOnly) {
+                snapSpriteHome(i);
+            }
         }
     }
 }
 
+void E15Canvas::snapSpriteHome(int index) {
+    if (index < 0 || index >= m_sprites.size()) {
+        return;
+    }
+    Sprite &sprite = m_sprites[index];
+    sprite.x = sprite.homeX;
+    sprite.y = sprite.homeY;
+    sprite.done = false;
+}
+
+void E15Canvas::snapSpriteToTarget(int index) {
+    if (index < 0 || index >= m_sprites.size()) {
+        return;
+    }
+    Sprite &sprite = m_sprites[index];
+    sprite.x = targetXForIndex(index);
+    sprite.y = targetYForIndex(index);
+    sprite.done = true;
+    sprite.selected = false;
+}
+
 void E15Canvas::spriteChosen(int index) {
-    backChosen();
-    m_k = slopeForIndex(index);
-    m_selected = index;
-    m_b = m_sprites[index].y - static_cast<int>(m_sprites[index].x * qTan(m_k));
+    // Сначала вернуть предыдущий выбор той же доски домой (мгновенно).
+    if (index <= 5 && m_choose2 != 100 && m_choose2 != index) {
+        snapSpriteHome(m_choose2);
+    }
+    if (index >= 6 && m_choose1 != 100 && m_choose1 != index) {
+        snapSpriteHome(m_choose1);
+    }
+    // Мгновенно на «своё место» — без анимации по наклонной.
+    snapSpriteToTarget(index);
     if (index <= 5) {
         m_choose2 = index;
     } else {
         m_choose1 = index;
     }
-    m_moveTimer.start();
-}
-
-void E15Canvas::backChosen() {
-    const int index = m_choose1 != 100 ? m_choose1 : m_choose2;
-    if (index == 100) {
-        return;
-    }
-    m_kBack = slopeForIndex(index);
-    if (index >= 0 && index <= 5 && m_choose2 != 100) {
-        m_selBack = m_choose2;
-    } else if (index >= 6 && index <= 11 && m_choose1 != 100) {
-        m_selBack = m_choose1;
-    } else {
-        m_choose1 = 100;
-        m_choose2 = 100;
-        return;
-    }
-    m_bBack = m_sprites[m_selBack].y - static_cast<int>(m_sprites[m_selBack].x * qTan(m_kBack));
-    m_backTimer.start();
 }
 
 void E15Canvas::advanceExercise16() {
@@ -264,8 +257,12 @@ void E15Canvas::advanceExercise16() {
     }
     m_choose1 = 100;
     m_choose2 = 100;
+    setReadyVisual(true);
     if (m_exerciseNumber >= 10) {
         m_completed = true;
+        m_finished = true;
+        m_elapsedTimer.stop();
+        m_timeoutTimer.stop();
         emit exerciseCompleted();
         return;
     }
@@ -274,16 +271,70 @@ void E15Canvas::advanceExercise16() {
     update();
 }
 
+void E15Canvas::setReadyVisual(bool ready) {
+    m_readyOk = ready;
+}
+
+void E15Canvas::failIncomplete() {
+    if (m_finished) {
+        return;
+    }
+    m_completed = false;
+    m_finished = true;
+    m_elapsedTimer.stop();
+    m_timeoutTimer.stop();
+    emit stopRequested();
+}
+
+void E15Canvas::onReadyClicked() {
+    if (m_finished) {
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("1.5")) {
+        // Верно: правый фрагмент index 2 (23.png) и левый index 10 (15.png).
+        if (m_choose2 == 2 && m_choose1 == 10) {
+            m_completed = true;
+            m_finished = true;
+            m_elapsedTimer.stop();
+            m_timeoutTimer.stop();
+            emit exerciseCompleted();
+        } else {
+            setReadyVisual(false);
+            update();
+        }
+        return;
+    }
+
+    // 1.6
+    if (m_choose2 != 100) {
+        const int expected = QString(kAnswers16).at(m_exerciseNumber - 1).digitValue();
+        if (m_choose2 == expected) {
+            advanceExercise16();
+        } else {
+            setReadyVisual(false);
+            update();
+        }
+    } else {
+        setReadyVisual(false);
+        update();
+    }
+}
+
 bool E15Canvas::hitTest(int index, int x, int y) const {
     if (index < 0 || index >= m_sprites.size()) {
         return false;
     }
     const Sprite &sprite = m_sprites.at(index);
-    if (sprite.done || sprite.pixmap.isNull()) {
+    if (sprite.pixmap.isNull()) {
         return false;
     }
+    // В режиме перемещения «доехавшие» тоже кликабельны для смены выбора.
     return x >= sprite.x && y >= sprite.y && x < sprite.x + sprite.pixmap.width()
         && y < sprite.y + sprite.pixmap.height();
+}
+
+bool E15Canvas::hitReadyButton(int x, int y) const {
+    return x >= kReadyX && x < kReadyX + kReadyW && y >= kReadyY && y < kReadyY + kReadyH;
 }
 
 void E15Canvas::paintEvent(QPaintEvent *event) {
@@ -301,7 +352,8 @@ void E15Canvas::paintEvent(QPaintEvent *event) {
         painter.drawPixmap(1214, 59 + kDeltaY, m_pole2);
     }
     if (m_exerciseId == QStringLiteral("1.5") && !m_pole1.isNull()) {
-        painter.drawPixmap(200, 59 + kDeltaY, m_pole2.width(), m_pole2.height(), m_pole1);
+        painter.drawPixmap(200, 59 + kDeltaY, m_pole2.isNull() ? m_pole1.width() : m_pole2.width(),
+                           m_pole2.isNull() ? m_pole1.height() : m_pole2.height(), m_pole1);
     }
 
     auto drawSprite = [&](const Sprite &sprite) {
@@ -324,8 +376,9 @@ void E15Canvas::paintEvent(QPaintEvent *event) {
         }
     }
 
-    if (!m_readyPixmap.isNull()) {
-        painter.drawPixmap(1700, 900, m_readyPixmap);
+    const QPixmap &readyPix = m_readyOk ? m_readyPixmap : m_notReadyPixmap;
+    if (!readyPix.isNull()) {
+        painter.drawPixmap(kReadyX, kReadyY, kReadyW, kReadyH, readyPix);
     }
     if (m_exerciseId == QStringLiteral("1.6")) {
         painter.drawText(200, 80, QStringLiteral("Упражнение %1 из 10").arg(m_exerciseNumber));
@@ -333,24 +386,13 @@ void E15Canvas::paintEvent(QPaintEvent *event) {
 }
 
 void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() != Qt::LeftButton) {
+    if (event->button() != Qt::LeftButton || m_finished) {
         return;
     }
     const QPoint design = mapToDesign(event->pos());
 
-    if (design.x() >= 1700 && design.x() <= 1900 && design.y() >= 900 && design.y() <= 980) {
-        if (m_exerciseId == QStringLiteral("1.5")) {
-            if (m_choose1 == 10 && m_choose2 == 2) {
-                m_completed = true;
-                emit exerciseCompleted();
-            }
-        } else if (m_choose2 != 100) {
-            const int expected = QString(kAnswers16).at(m_exerciseNumber - 1).digitValue();
-            if (m_choose2 == expected) {
-                advanceExercise16();
-            }
-        }
-        update();
+    if (hitReadyButton(design.x(), design.y())) {
+        onReadyClicked();
         return;
     }
 
@@ -358,6 +400,8 @@ void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
         if (!hitTest(i, design.x(), design.y())) {
             continue;
         }
+        // Любое действие с фрагментами возвращает «Готово».
+        setReadyVisual(true);
         if (m_selectOnly) {
             clearOtherSelected(i);
             m_sprites[i].selected = true;
@@ -376,15 +420,11 @@ void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
 
 void E15Canvas::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Space) {
-        emit stopRequested();
+        failIncomplete();
     }
 }
 
 void E15Canvas::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    update();
-}
-
-void E15Canvas::redraw() {
     update();
 }

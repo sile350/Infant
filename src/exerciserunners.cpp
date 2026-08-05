@@ -3530,9 +3530,20 @@ public:
             m_stop->setPixmap(QPixmap(stopPath));
             m_stop->setFixedSize(QPixmap(stopPath).size());
         }
-        m_stop->onClick = [this]() { finishSession(); };
+        m_stop->onClick = [this]() {
+            if (m_canvas) {
+                m_canvas->abortSession();
+            }
+            finishSession();
+        };
         connect(m_canvas, &E15Canvas::stopRequested, this, [this]() { finishSession(); });
         connect(m_canvas, &E15Canvas::exerciseCompleted, this, [this]() { finishSession(); });
+    }
+
+    void applyE15SelectMode(bool selectOnly) override {
+        if (m_canvas) {
+            m_canvas->setSelectOnlyMode(selectOnly);
+        }
     }
 
     void startSession(

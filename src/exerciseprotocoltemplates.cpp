@@ -454,7 +454,11 @@ QMap<QString, QString> buildVariables(
     } else if (tmpl.scoreKind == QStringLiteral("timed414_result")) {
         score = scoreExercise414(elapsedSeconds);
     } else if (tmpl.scoreKind == QStringLiteral("timed15_result") || tmpl.id == QStringLiteral("1.5")) {
-        score = scoreExercise15(elapsedSeconds);
+        // Стоп / таймаут 70 с → 0; успех по «Готово» → шкала по времени.
+        const QString done = session.doneState.trimmed();
+        const bool success = done.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0
+            || done.compare(QStringLiteral("выполнено"), Qt::CaseInsensitive) == 0;
+        score = success ? scoreExercise15(elapsedSeconds) : 0;
     } else if (tmpl.scoreKind == QStringLiteral("timed315_result") || tmpl.id == QStringLiteral("3.1.15")) {
         score = scoreExercise315(elapsedSeconds);
     } else if (tmpl.scoreKind == QStringLiteral("timed15_help") || tmpl.id == QStringLiteral("1.15")) {
