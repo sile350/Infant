@@ -417,6 +417,9 @@ public:
         if (exerciseId == QStringLiteral("3.3.3")) {
             m_brushColor = QColor(QStringLiteral("#176ee3"));
             m_brushWidth = 5;
+        } else if (exerciseId == QStringLiteral("1.7")) {
+            // Как exbegin.setBrush для 1.7: тонкая линия, цвет по заданию.
+            applyBrushFor17(stepId);
         } else {
             m_brushColor = Qt::blue;
             m_brushWidth = 20;
@@ -427,7 +430,34 @@ public:
         updateCanvasDisplay();
     }
 
+    void switchStep(const QString &stepId) override {
+        if (m_exerciseId != QStringLiteral("1.7")) {
+            return;
+        }
+        m_stepId = stepId;
+        applyBrushFor17(stepId);
+        m_layout = paintCanvasLayout(m_exerciseId, stepId);
+        m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
+        m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
+        drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.trafFile, m_layout.trafPos);
+        m_hasLast = false;
+        updateCanvasDisplay();
+    }
+
 protected:
+    void applyBrushFor17(const QString &stepId) {
+        if (stepId == QStringLiteral("2")) {
+            m_brushColor = QColor(QStringLiteral("#d24b84")); // розовый
+            m_brushWidth = 4;
+        } else if (stepId == QStringLiteral("3")) {
+            m_brushColor = QColor(QStringLiteral("#000000")); // чёрный
+            m_brushWidth = 3;
+        } else {
+            m_brushColor = QColor(QStringLiteral("#489cae")); // бирюзовый
+            m_brushWidth = 4;
+        }
+    }
+
     void layoutUi() override {
         if (exerciseId() == QStringLiteral("3.3.1") || exerciseId() == QStringLiteral("3.3.2")
             || exerciseId() == QStringLiteral("3.3.3")) {
@@ -3669,7 +3699,18 @@ public:
         m_canvas->startExercise(exerciseId, m_sessionOptions.e15SelectMode);
         m_canvas->show();
         m_canvas->lower();
-        m_stop->move(80, 72);
+        // 1.6: pstop @ (1047,62); иначе слева как раньше.
+        if (exerciseId == QStringLiteral("1.6")) {
+            const double sx = width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
+            const double sy = height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
+            const double scale = qMin(1.0, qMin(sx, sy));
+            const int offsetX = (width() - static_cast<int>(1920 * scale)) / 2;
+            const int offsetY = (height() - static_cast<int>(1080 * scale)) / 2;
+            m_stop->move(offsetX + static_cast<int>(1047 * scale),
+                         offsetY + static_cast<int>(62 * scale));
+        } else {
+            m_stop->move(80, 72);
+        }
         m_stop->show();
         m_stop->raise();
         layoutModeUi();
@@ -3687,7 +3728,17 @@ public:
             m_canvas->setGeometry(0, 0, width(), height());
         }
         if (m_stop) {
-            m_stop->move(80, 72);
+            if (m_exerciseId == QStringLiteral("1.6")) {
+                const double sx = width() > 0 ? static_cast<double>(width()) / 1920.0 : 1.0;
+                const double sy = height() > 0 ? static_cast<double>(height()) / 1080.0 : 1.0;
+                const double scale = qMin(1.0, qMin(sx, sy));
+                const int offsetX = (width() - static_cast<int>(1920 * scale)) / 2;
+                const int offsetY = (height() - static_cast<int>(1080 * scale)) / 2;
+                m_stop->move(offsetX + static_cast<int>(1047 * scale),
+                             offsetY + static_cast<int>(62 * scale));
+            } else {
+                m_stop->move(80, 72);
+            }
         }
         layoutModeUi();
     }

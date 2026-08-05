@@ -2,6 +2,7 @@
 
 #include "exerciseassets.h"
 
+#include <QFont>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -65,11 +66,11 @@ QPoint E15Canvas::mapToDesign(const QPoint &pos) const {
 }
 
 int E15Canvas::targetXForIndex(int index) const {
-    return index >= 6 ? kTargetX1 : kTargetX;
+    return index >= 6 ? kTargetX1 : m_snapTargetX;
 }
 
 int E15Canvas::targetYForIndex(int index) const {
-    return (index >= 6 ? kTargetY1 : kTargetY) + kDeltaY;
+    return (index >= 6 ? kTargetY1 : m_snapTargetY) + kDeltaY;
 }
 
 void E15Canvas::startExercise(const QString &exerciseId, bool selectOnlyMode) {
@@ -82,14 +83,19 @@ void E15Canvas::startExercise(const QString &exerciseId, bool selectOnlyMode) {
     m_choose1 = 100;
     m_choose2 = 100;
     m_exerciseNumber = 1;
+    m_snapTargetX = 1560;
+    m_snapTargetY = 266;
     m_sprites.clear();
+    m_nextPixmap = QPixmap();
 
-    m_readyPixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), QStringLiteral("ready.png")));
     m_notReadyPixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), QStringLiteral("notready.png")));
 
     if (exerciseId == QStringLiteral("1.5")) {
+        m_readyPixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), QStringLiteral("ready.png")));
         initExercise15();
     } else {
+        m_readyPixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.6"), QStringLiteral("ready.png")));
+        m_nextPixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.6"), QStringLiteral("next.png")));
         initExercise16(1);
     }
 
@@ -174,6 +180,7 @@ void E15Canvas::loadSprites16(int number) {
     const QPixmap selectPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.6"), QStringLiteral("select.png")));
     m_pole2 = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.6"), folder + QStringLiteral("pole.png")));
     m_pole1 = QPixmap();
+    updateSnapTarget16();
 
     for (int i = 0; i < 6; ++i) {
         Sprite sprite;
@@ -187,6 +194,52 @@ void E15Canvas::loadSprites16(int number) {
         sprite.homeX = sprite.x;
         sprite.homeY = sprite.y;
         m_sprites.append(sprite);
+    }
+}
+
+void E15Canvas::updateSnapTarget16() {
+    // Как f16p1_Click в e15.cs — цель «на месте» зависит от номера задания.
+    switch (m_exerciseNumber) {
+    case 2:
+        m_snapTargetX = 1568;
+        m_snapTargetY = 401;
+        break;
+    case 3:
+        m_snapTargetX = 1516;
+        m_snapTargetY = 400;
+        break;
+    case 4:
+        m_snapTargetX = 1500;
+        m_snapTargetY = 390;
+        break;
+    case 5:
+        m_snapTargetX = 1556;
+        m_snapTargetY = 390;
+        break;
+    case 6:
+        m_snapTargetX = 1544;
+        m_snapTargetY = 381;
+        break;
+    case 7:
+        m_snapTargetX = 1559;
+        m_snapTargetY = 407;
+        break;
+    case 8:
+        m_snapTargetX = 1532;
+        m_snapTargetY = 395;
+        break;
+    case 9:
+        m_snapTargetX = 1562;
+        m_snapTargetY = 302;
+        break;
+    case 10:
+        m_snapTargetX = 1558;
+        m_snapTargetY = 262;
+        break;
+    default:
+        m_snapTargetX = 1560;
+        m_snapTargetY = 266;
+        break;
     }
 }
 
@@ -260,7 +313,10 @@ void E15Canvas::advanceExercise16() {
     m_choose1 = 100;
     m_choose2 = 100;
     setReadyVisual(true);
-    if (m_exerciseNumber >= 10) {
+
+    // Как оригинал: unumber++, затем если > 10 — закрыть (выполнено).
+    ++m_exerciseNumber;
+    if (m_exerciseNumber > 10) {
         m_completed = true;
         m_finished = true;
         m_elapsedTimer.stop();
@@ -268,9 +324,15 @@ void E15Canvas::advanceExercise16() {
         emit exerciseCompleted();
         return;
     }
-    ++m_exerciseNumber;
     loadSprites16(m_exerciseNumber);
     update();
+}
+
+void E15Canvas::skipToNextTask16() {
+    if (m_finished || m_exerciseId != QStringLiteral("1.6")) {
+        return;
+    }
+    advanceExercise16();
 }
 
 void E15Canvas::setReadyVisual(bool ready) {
@@ -339,6 +401,14 @@ bool E15Canvas::hitReadyButton(int x, int y) const {
     return x >= kReadyX && x < kReadyX + kReadyW && y >= kReadyY && y < kReadyY + kReadyH;
 }
 
+bool E15Canvas::hitNextButton(int x, int y) const {
+    if (m_exerciseId != QStringLiteral("1.6") || m_nextPixmap.isNull()) {
+        return false;
+    }
+    return x >= kNextX && x < kNextX + m_nextPixmap.width()
+        && y >= kNextY && y < kNextY + m_nextPixmap.height();
+}
+
 void E15Canvas::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
     QPainter painter(this);
@@ -383,7 +453,14 @@ void E15Canvas::paintEvent(QPaintEvent *event) {
         painter.drawPixmap(kReadyX, kReadyY, kReadyW, kReadyH, readyPix);
     }
     if (m_exerciseId == QStringLiteral("1.6")) {
-        painter.drawText(200, 80, QStringLiteral("Упражнение %1 из 10").arg(m_exerciseNumber));
+        if (!m_nextPixmap.isNull()) {
+            painter.drawPixmap(kNextX, kNextY, m_nextPixmap);
+        }
+        QFont labelFont(QStringLiteral("Microsoft Sans Serif"), 14);
+        painter.setFont(labelFont);
+        painter.setPen(Qt::black);
+        painter.drawText(kLabelX, kLabelY + 20,
+                         QStringLiteral("Упражнение %1 из 10").arg(m_exerciseNumber));
     }
 }
 
@@ -392,6 +469,11 @@ void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
         return;
     }
     const QPoint design = mapToDesign(event->pos());
+
+    if (hitNextButton(design.x(), design.y())) {
+        skipToNextTask16();
+        return;
+    }
 
     if (hitReadyButton(design.x(), design.y())) {
         onReadyClicked();
@@ -402,7 +484,7 @@ void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
         if (!hitTest(i, design.x(), design.y())) {
             continue;
         }
-        // Любое действие с фрагментами возвращает «Готово».
+        // Любое действие с фрагментами возвращает «Готово» (как bend ← ready.png).
         setReadyVisual(true);
         if (m_selectOnly) {
             clearOtherSelected(i);

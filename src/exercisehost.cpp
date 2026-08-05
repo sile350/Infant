@@ -2181,10 +2181,14 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
     } else if (m_exerciseId == QStringLiteral("5.4.2")) {
         candidates << QStringLiteral("f1.png") << QStringLiteral("traf1.png")
                    << QStringLiteral("tale.png");
-    } else if (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")) {
+    } else if (m_exerciseId == QStringLiteral("1.5")) {
         candidates << QStringLiteral("f1.5.png") << QStringLiteral("carpet1.png")
                    << QStringLiteral("carpet2.png") << QStringLiteral("f1.png")
                    << QStringLiteral("ready.png");
+    } else if (m_exerciseId == QStringLiteral("1.6")) {
+        // Первое задание + «Следующее задание» (как f1.6.png в оригинале).
+        candidates << QStringLiteral("f1.6.png") << QStringLiteral("1/pole.png")
+                   << QStringLiteral("next.png") << QStringLiteral("ready.png");
     } else if (m_exerciseId == QStringLiteral("1.8")) {
         // Тот же файл, что OnlyPExercise (single → p%1.png).
         candidates << QStringLiteral("p1.png") << QStringLiteral("f1.png") << QStringLiteral("1.png");
