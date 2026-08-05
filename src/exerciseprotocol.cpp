@@ -799,6 +799,25 @@ void collectTables(QTextFrame *frame, QList<QTextTable *> &tables) {
     }
 }
 
+// В т.ч. таблицы, вложенные Qt в ячейку шапки (без </table> до процесса).
+void collectTablesDeep(QTextFrame *frame, QList<QTextTable *> &tables) {
+    if (!frame) {
+        return;
+    }
+    for (QTextFrame::iterator it = frame->begin(); !it.atEnd(); ++it) {
+        QTextFrame *childFrame = it.currentFrame();
+        if (!childFrame) {
+            continue;
+        }
+        if (auto *table = qobject_cast<QTextTable *>(childFrame)) {
+            tables.append(table);
+            collectTablesDeep(table, tables);
+            continue;
+        }
+        collectTablesDeep(childFrame, tables);
+    }
+}
+
 QString normalizeVernoText(const QString &text) {
     const QString trimmed = text.trimmed();
     if (trimmed.contains(QStringLiteral("неверно"), Qt::CaseInsensitive)) {
@@ -2258,7 +2277,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
     {
         const QRegularExpression processTableRe(
             QStringLiteral(
-                "(<table\\b[^>]*>)([\\s\\S]*?Характер\\s+деятельности[\\s\\S]*?Виды\\s+помощи"
+                "(<table\\b[^>]*>)([\\s\\S]*?Характер\\s+деятельности[\\s\\S]*?Виды(?:\\s+и\\s+количество)?\\s+помощи"
                 "[\\s\\S]*?Баллы[\\s\\S]*?)(</table>)"),
             QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
         QString out;
@@ -3687,7 +3706,8 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         return;
     }
     QList<QTextTable *> tables;
-    collectTables(document->rootFrame(), tables);
+    // Глубокий обход: вложенный «Процесс» (Qt вложил <table> в шапку) иначе не получает сетку.
+    collectTablesDeep(document->rootFrame(), tables);
     for (QTextTable *table : tables) {
         if (!table || table->columns() <= 0) {
             continue;
@@ -3701,16 +3721,137 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
         fmt.setBorderCollapse(true);
 #endif
         const int cols = table->columns();
-        if (cols == 2) {
-            // Шапка / Дата / OR-HLP задания 2: всегда 200 + (671-200).
-            fmt.setColumnWidthConstraints({
-                QTextLength(QTextLength::FixedLength, 200),
-                QTextLength(QTextLength::FixedLength, widthPx - 200),
-            });
-        } else {
+
+        // Строка заголовка колонок (пропуск баннера «Процесс выполнения…»).
+        int headerRow = 0;
+        for (int r = 0; r < qMin(3, table->rows()); ++r) {
+            const QString c0 = readTableCellText(table, r, 0);
+            if (c0.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                continue;
+            }
+            int nonEmpty = 0;
+            for (int c = 0; c < cols; ++c) {
+                if (!readTableCellText(table, r, c).trimmed().isEmpty()) {
+                    ++nonEmpty;
+                }
+            }
+            if (nonEmpty >= qMin(2, cols)) {
+                headerRow = r;
+                break;
+            }
+        }
+        QString header0;
+        QString headerJoin;
+        for (int c = 0; c < cols; ++c) {
+            const QString h = readTableCellText(table, headerRow, c);
+            if (c == 0) {
+                header0 = h;
+            }
+            headerJoin += h + QLatin1Char(' ');
+        }
+
+        const bool isProcessTable =
+            headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+            || headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+            || headerJoin.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+            || headerJoin.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)
+            || headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+            || headerJoin.contains(QStringLiteral("Виды"), Qt::CaseInsensitive);
+
+        auto setFixed = [&](const QList<int> &widths) -> bool {
+            if (widths.size() != cols) {
+                return false;
+            }
+            QVector<QTextLength> w;
+            w.reserve(cols);
+            qreal used = 0;
+            for (int i = 0; i < widths.size(); ++i) {
+                int x = widths.at(i);
+                if (i == widths.size() - 1) {
+                    x = qMax(20, widthPx - qRound(used));
+                }
+                used += x;
+                w.append(QTextLength(QTextLength::FixedLength, x));
+            }
+            fmt.clearColumnWidthConstraints();
+            fmt.setColumnWidthConstraints(w);
+            return true;
+        };
+
+        auto constraintsNearEqual = [](const QVector<QTextLength> &constraints) -> bool {
+            if (constraints.size() < 2) {
+                return false;
+            }
+            qreal minV = constraints.first().rawValue();
+            qreal maxV = minV;
+            for (const QTextLength &c : constraints) {
+                if (c.type() != QTextLength::FixedLength
+                    && c.type() != QTextLength::PercentageLength) {
+                    return true; // VariableLength → Qt делит поровну по контенту
+                }
+                minV = qMin(minV, c.rawValue());
+                maxV = qMax(maxV, c.rawValue());
+            }
+            return (maxV - minV) <= qMax(8.0, maxV * 0.08);
+        };
+
+        bool applied = false;
+        // Сначала сетки по заголовкам (не доверяем «уже корректным» равным constraint).
+        if (cols == 2 && !isProcessTable) {
+            applied = setFixed({200, widthPx - 200});
+        } else if (cols == 4
+                   && (headerJoin.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
+                       || headerJoin.contains(QStringLiteral("Уровень выполнения"), Qt::CaseInsensitive))) {
+            applied = setFixed({229, 88, 160, 194});
+        } else if (cols == 4
+                   && (header0.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
+                       || headerJoin.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive))) {
+            applied = setFixed({120, 251, 250, 50});
+        } else if (cols == 4
+                   && (headerJoin.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
+                       || headerJoin.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive))) {
+            applied = setFixed({70, 120, widthPx - 250, 60});
+        } else if (cols == 4
+                   && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
+            applied = setFixed({35, 145, 245, 246});
+        } else if (cols == 4
+                   && (header0.contains(QStringLiteral("№"), Qt::CaseInsensitive)
+                       || headerJoin.contains(QRegularExpression(
+                              QStringLiteral(">\\s*№\\s*<|№\\s*$|^\\s*№"),
+                              QRegularExpression::CaseInsensitiveOption)))
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+            applied = setFixed({43, 289, 283, 56});
+        } else if (cols == 3
+                   && headerJoin.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)) {
+            applied = setFixed({200, widthPx - 260, 60});
+        } else if (cols == 3
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+            // 1.1 / 1.8 / 1.12 / OR-HLP-Баллы
+            applied = setFixed({308, 298, 65});
+        } else if (cols == 3
+                   && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
+            applied = setFixed({141, 265, 265});
+        } else if (cols == 3
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                   && (headerJoin.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                       || headerJoin.contains(QStringLiteral("Виды и количество"), Qt::CaseInsensitive))) {
+            applied = setFixed({300, 300, 71});
+        } else if (cols == 5
+                   && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+            applied = setFixed({51, 200, 200, 110, 110});
+        } else if (cols == 6
+                   && (headerJoin.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
+                       || headerJoin.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive))) {
+            applied = setFixed({30, 121, 143, 141, 175, 61});
+        }
+
+        if (!applied) {
             QVector<QTextLength> constraints = fmt.columnWidthConstraints();
-            bool applied = false;
-            if (constraints.size() == cols) {
+            if (constraints.size() == cols && !constraintsNearEqual(constraints)) {
                 qreal sum = 0;
                 bool allFixed = true;
                 for (const QTextLength &c : constraints) {
@@ -3720,126 +3861,31 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                     }
                     sum += c.rawValue();
                 }
-                if (allFixed && sum > 1.0 && qAbs(sum - widthPx) > 0.5) {
-                    QVector<QTextLength> scaled;
-                    scaled.reserve(cols);
-                    qreal used = 0;
-                    for (int i = 0; i < cols; ++i) {
-                        if (i == cols - 1) {
-                            scaled.append(QTextLength(QTextLength::FixedLength, widthPx - used));
-                        } else {
-                            const qreal w = qRound(constraints.at(i).rawValue() * widthPx / sum);
-                            scaled.append(QTextLength(QTextLength::FixedLength, w));
-                            used += w;
+                if (allFixed && sum > 1.0) {
+                    if (qAbs(sum - widthPx) > 0.5) {
+                        QList<int> scaled;
+                        qreal used = 0;
+                        for (int i = 0; i < cols; ++i) {
+                            if (i == cols - 1) {
+                                scaled.append(qMax(20, widthPx - qRound(used)));
+                            } else {
+                                const int w = qMax(20, qRound(constraints.at(i).rawValue() * widthPx / sum));
+                                scaled.append(w);
+                                used += w;
+                            }
                         }
-                    }
-                    fmt.setColumnWidthConstraints(scaled);
-                    applied = true;
-                } else if (allFixed && qAbs(sum - widthPx) <= 0.5) {
-                    applied = true; // уже корректная сетка
-                }
-            }
-            if (!applied) {
-                // Строка заголовка колонок (пропуск баннера «Процесс выполнения…»).
-                int headerRow = 0;
-                for (int r = 0; r < qMin(3, table->rows()); ++r) {
-                    const QString c0 = readTableCellText(table, r, 0);
-                    if (c0.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
-                        continue;
-                    }
-                    int nonEmpty = 0;
-                    for (int c = 0; c < cols; ++c) {
-                        if (!readTableCellText(table, r, c).trimmed().isEmpty()) {
-                            ++nonEmpty;
-                        }
-                    }
-                    if (nonEmpty >= qMin(2, cols)) {
-                        headerRow = r;
-                        break;
+                        applied = setFixed(scaled);
+                    } else {
+                        applied = true;
                     }
                 }
-                QString header0;
-                QString headerJoin;
-                for (int c = 0; c < cols; ++c) {
-                    const QString h = readTableCellText(table, headerRow, c);
-                    if (c == 0) {
-                        header0 = h;
-                    }
-                    headerJoin += h + QLatin1Char(' ');
-                }
-                auto setFixed = [&](const QList<int> &widths) {
-                    if (widths.size() != cols) {
-                        return false;
-                    }
-                    QVector<QTextLength> w;
-                    w.reserve(cols);
-                    for (int x : widths) {
-                        w.append(QTextLength(QTextLength::FixedLength, x));
-                    }
-                    fmt.setColumnWidthConstraints(w);
-                    return true;
-                };
-                if (cols == 4
-                    && (headerJoin.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
-                        || headerJoin.contains(QStringLiteral("Уровень выполнения"), Qt::CaseInsensitive))) {
-                    // 1.2: 229+88+160+194 = 671
-                    applied = setFixed({229, 88, 160, 194});
-                } else if (cols == 4
-                    && (header0.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive)
-                        || headerJoin.contains(QStringLiteral("№/ответ"), Qt::CaseInsensitive))) {
-                    // 1.272: 120+251+250+50
-                    applied = setFixed({120, 251, 250, 50});
-                } else if (cols == 4
-                           && (headerJoin.contains(QStringLiteral("№ рассказа"), Qt::CaseInsensitive)
-                               || headerJoin.contains(QStringLiteral("Правильный ответ"), Qt::CaseInsensitive))) {
-                    applied = setFixed({70, 120, widthPx - 250, 60});
-                } else if (cols == 4
-                           && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
-                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
-                    // 1.11 / 1.17 / numbered: № + Факт + Характер + Виды — 35+145+245+246
-                    applied = setFixed({35, 145, 245, 246});
-                } else if (cols == 4
-                           && (header0.contains(QStringLiteral("№"), Qt::CaseInsensitive)
-                               || headerJoin.contains(QRegularExpression(
-                                      QStringLiteral(">\\s*№\\s*<|№\\s*$|^\\s*№"),
-                                      QRegularExpression::CaseInsensitiveOption)))
-                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
-                           && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
-                    // 1.14/1.15/1.21: № + Характер + Виды + Баллы — 43+289+283+56
-                    applied = setFixed({43, 289, 283, 56});
-                } else if (cols == 3
-                           && headerJoin.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)) {
-                    applied = setFixed({200, widthPx - 260, 60});
-                } else if (cols == 3
-                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
-                           && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
-                    // 1.1 / 1.8 / OR-HLP-Баллы: как template.html — широкие OR/HLP, узкие Баллы
-                    applied = setFixed({308, 298, 65});
-                } else if (cols == 3
-                           && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
-                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
-                    // 3.1.12 / 2.8: 141+265+265 = 671
-                    applied = setFixed({141, 265, 265});
-                } else if (cols == 3
-                           && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
-                           && headerJoin.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
-                    // OR/HLP без баллов или с узкой 3-й — 300+300+71
-                    applied = setFixed({300, 300, 71});
-                } else if (cols == 5
-                           && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
-                    // 2.1: № + Характер + Виды + Баллы прод. + Баллы уст. — 51+200+200+110+110
-                    applied = setFixed({51, 200, 200, 110, 110});
-                } else if (cols == 6
-                           && (headerJoin.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
-                               || headerJoin.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive))) {
-                    // 3.1.10: 30+121+143+141+175+61 = 671
-                    applied = setFixed({30, 121, 143, 141, 175, 61});
-                }
-                // Fallback: равные доли оставляем только если выше не нашли сетку —
-                // ширины отдельных ячеек в Qt 5.15 через QTextTableCellFormat недоступны.
-                Q_UNUSED(applied);
             }
         }
+
+        if (!applied && cols == 2) {
+            applied = setFixed({200, widthPx - 200});
+        }
+        Q_UNUSED(applied);
         table->setFormat(fmt);
 
         // Шапка «Методика» раздута colspan в dateRow (1.6 и др.) → пустая 3-я колонка.
