@@ -1744,20 +1744,18 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         rowInner = QStringLiteral(
                             "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
                                        .arg(processInner);
-                    } else if (tds.size() == 2) {
+                    } else if (tds.size() >= 2) {
+                        // Строго 2 колонки: лишний colspan в dateRow (1.6 и др.) иначе
+                        // раздувает таблицу пустой 3-й колонкой у «Методика»/«Цель».
                         QString newRow;
-                        int cellLast = 0;
-                        for (int i = 0; i < tds.size(); ++i) {
+                        for (int i = 0; i < 2; ++i) {
                             const QRegularExpressionMatch &td = tds.at(i);
-                            newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
                             newRow += td.captured(1)
                                 + setAttrWidth(
                                     td.captured(2),
                                     i == 0 ? QStringLiteral("200") : QStringLiteral("471"))
                                 + td.captured(3) + td.captured(4) + td.captured(5);
-                            cellLast = td.capturedEnd();
                         }
-                        newRow += rowInner.mid(cellLast);
                         rowInner = newRow;
                     }
                 }
@@ -3535,6 +3533,81 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
             }
         }
         table->setFormat(fmt);
+
+        // Шапка «Методика» раздута colspan в dateRow (1.6 и др.) → пустая 3-я колонка.
+        // Схлопываем хвост строки в ячейку данных (или весь ряд для «Процесс…»).
+        if (cols >= 3 && table->rows() >= 1) {
+            const QString h0 = readTableCellText(table, 0, 0);
+            const bool isSummaryHeader = h0.contains(QStringLiteral("Методика"), Qt::CaseInsensitive);
+            bool looksLikeProcess = false;
+            for (int c = 0; c < cols; ++c) {
+                const QString h = readTableCellText(table, 0, c);
+                if (h.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                    || h.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                    || h.contains(QStringLiteral("Вопросы"), Qt::CaseInsensitive)) {
+                    looksLikeProcess = true;
+                    break;
+                }
+            }
+            if (isSummaryHeader && !looksLikeProcess) {
+                for (int r = 0; r < table->rows(); ++r) {
+                    bool isProcess = false;
+                    for (int c = 0; c < cols; ++c) {
+                        const QTextTableCell probe = table->cellAt(r, c);
+                        if (!probe.isValid() || probe.row() != r || probe.column() != c) {
+                            continue;
+                        }
+                        if (readTableCellText(table, r, c)
+                                .contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                            isProcess = true;
+                            break;
+                        }
+                    }
+                    if (isProcess) {
+                        for (int c = cols - 1; c >= 1; --c) {
+                            QTextTableCell other = table->cellAt(r, c);
+                            if (!other.isValid() || other.row() != r || other.column() != c) {
+                                continue;
+                            }
+                            QTextCursor clearCur = other.firstCursorPosition();
+                            clearCur.setPosition(other.lastCursorPosition().position(),
+                                                 QTextCursor::KeepAnchor);
+                            clearCur.removeSelectedText();
+                        }
+                        table->mergeCells(r, 0, 1, cols);
+                        continue;
+                    }
+                    bool extrasEmpty = true;
+                    for (int c = 2; c < cols; ++c) {
+                        const QTextTableCell probe = table->cellAt(r, c);
+                        if (!probe.isValid() || probe.row() != r || probe.column() != c) {
+                            continue;
+                        }
+                        if (!readTableCellText(table, r, c).trimmed().isEmpty()) {
+                            extrasEmpty = false;
+                            break;
+                        }
+                    }
+                    if (!extrasEmpty) {
+                        continue;
+                    }
+                    for (int c = cols - 1; c >= 2; --c) {
+                        QTextTableCell other = table->cellAt(r, c);
+                        if (!other.isValid() || other.row() != r || other.column() != c) {
+                            continue;
+                        }
+                        QTextCursor clearCur = other.firstCursorPosition();
+                        clearCur.setPosition(other.lastCursorPosition().position(),
+                                             QTextCursor::KeepAnchor);
+                        clearCur.removeSelectedText();
+                    }
+                    QTextTableCell dataCell = table->cellAt(r, 1);
+                    if (dataCell.isValid() && dataCell.columnSpan() < cols - 1) {
+                        table->mergeCells(r, 1, 1, cols - 1);
+                    }
+                }
+            }
+        }
 
         // «Процесс выполнения…»: слить ячейки строки на всю ширину таблицы.
         // Иначе после setHtml Qt оставляет 2-ю/3-ю пустую колонку (у 5.4.2 — узкая полоска справа).
