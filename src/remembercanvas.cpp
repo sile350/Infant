@@ -38,7 +38,8 @@ QPoint RememberCanvas::mapFromDesign(int x, int y) const {
 }
 
 bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
-    if (loadPuzzleLayout(exerciseId, stepId, layout)) {
+    // 1.27: не брать autoGrid (он ставит f1/f2/f3 как template — это превью методики).
+    if (exerciseId != QStringLiteral("1.27") && loadPuzzleLayout(exerciseId, stepId, layout)) {
         return true;
     }
     PuzzleLayout built;
@@ -55,7 +56,10 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
             stepSpacing = 300;
         }
     }
-    const int count = exerciseId == QStringLiteral("4.1.7") ? 9 : 4;
+    // 1.27: по 5 карточек на серию (11–15 / 21–25 / 31–35), как в remember.cs.
+    const int count = exerciseId == QStringLiteral("4.1.7")
+        ? 9
+        : (exerciseId == QStringLiteral("1.27") ? 5 : 4);
     for (int i = 1; i <= count; ++i) {
         QString file = stepId + QString::number(i) + QStringLiteral(".png");
         if (!ExerciseAssets::exerciseFile(exerciseId, file).isEmpty()) {
@@ -70,6 +74,9 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
     if (built.sprites.isEmpty()) {
         return false;
     }
+    // Без template/fN — только карточки задания.
+    built.showTemplate = false;
+    built.templateFile.clear();
     *layout = built;
     return true;
 }
@@ -95,6 +102,10 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, layout.templateFile));
         m_templateX = layout.templateX;
         m_templateY = layout.templateY;
+    } else if (exerciseId == QStringLiteral("1.27")) {
+        // Превью f1/f2/f3 только на экране методики, не во время выполнения.
+        m_template = QPixmap();
+        m_showTemplate = false;
     } else if (exerciseId == QStringLiteral("3.1.20")) {
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf1.png")));
         m_templateX = 400;
@@ -103,6 +114,8 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf.png")));
         m_templateX = 10;
         m_templateY = 300;
+    } else {
+        m_template = QPixmap();
     }
 
     for (const PuzzleSpriteDef &def : layout.sprites) {

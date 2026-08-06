@@ -2,13 +2,7 @@
   "rotate": false,
   "select": false,
   "showTemplate": true,
-  "sprites": [
-    {
-      "file": "traf1.png",
-      "x": 500,
-      "y": 20
-    }
-  ],
+  "sprites": [],
   "template": {
     "file": "traf1.png",
     "x": 500,

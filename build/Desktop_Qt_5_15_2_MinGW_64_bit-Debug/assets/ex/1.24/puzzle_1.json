@@ -3,30 +3,10 @@
   "select": false,
   "showTemplate": true,
   "sprites": [
-    {
-      "file": "11.png",
-      "x": 415,
-      "y": 54
-    },
-    {
-      "file": "12.png",
-      "x": 415,
-      "y": 185
-    },
-    {
-      "file": "13.png",
-      "x": 415,
-      "y": 319
-    },
-    {
-      "file": "14.png",
-      "x": 415,
-      "y": 455
-    }
+    {"file": "11.png", "x": 815, "y": 54},
+    {"file": "12.png", "x": 815, "y": 185},
+    {"file": "13.png", "x": 815, "y": 319},
+    {"file": "14.png", "x": 815, "y": 455}
   ],
-  "template": {
-    "file": "traf1.png",
-    "x": 600,
-    "y": 50
-  }
+  "template": {"file": "traf1.png", "x": 1000, "y": 131}
 }

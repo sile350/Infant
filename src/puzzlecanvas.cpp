@@ -79,11 +79,12 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         }
     }
 
-    // 1.15: f1/f2/f3 — только превью на экране методики, не на холсте во время выполнения
-    // (как в оригинале puzzles.cs: только traf + карточки).
+    // 1.15 / 1.28: fN — только превью на экране методики, не на холсте
+    // (как в оригинале puzzles.cs: только traf + детали задания).
     const bool hidePreviewHint =
         (exerciseId == QStringLiteral("1.11") && stepId == QStringLiteral("2"))
-        || exerciseId == QStringLiteral("1.15");
+        || exerciseId == QStringLiteral("1.15")
+        || exerciseId == QStringLiteral("1.28");
     m_hintX = 200;
     m_hintY = 100;
     if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
@@ -206,8 +207,11 @@ void PuzzleCanvas::rotateSpriteTo(Sprite &sprite) {
 }
 
 void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
-    // 1.15: предварительные f1/f2/f3 на холсте не показываем.
-    m_showHint = (m_exerciseId == QStringLiteral("1.15")) ? false : options.showHint;
+    // 1.15 / 1.28: предварительные fN на холсте не показываем.
+    m_showHint = (m_exerciseId == QStringLiteral("1.15")
+                  || m_exerciseId == QStringLiteral("1.28"))
+        ? false
+        : options.showHint;
     const bool namedTemplateExercise = m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
         || m_exerciseId == QStringLiteral("1.21");

@@ -5047,7 +5047,8 @@ ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
     } else if (m_showHintCheck && m_showHintCheck->isVisible()) {
         options.showHint = m_showHintCheck->isChecked();
     }
-    if (m_exerciseId == QStringLiteral("1.15")) {
+    if (m_exerciseId == QStringLiteral("1.15")
+        || m_exerciseId == QStringLiteral("1.28")) {
         options.showHint = false;
     }
     if (m_exerciseId == QStringLiteral("1.22") && m_e15HighlightRadio) {
