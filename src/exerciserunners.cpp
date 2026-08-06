@@ -467,6 +467,11 @@ public:
         if (exerciseId == QStringLiteral("3.3.3")) {
             m_brushColor = QColor(QStringLiteral("#176ee3"));
             m_brushWidth = 5;
+        } else if (exerciseId == QStringLiteral("3.3.1")
+                   || exerciseId == QStringLiteral("3.3.2")) {
+            // Как exbegin.setBrush(7, "#000000").
+            m_brushColor = QColor(QStringLiteral("#000000"));
+            m_brushWidth = 7;
         } else if (exerciseId == QStringLiteral("1.7")) {
             // Как exbegin.setBrush для 1.7: тонкая линия, цвет по заданию.
             applyBrushFor17(stepId);
@@ -695,7 +700,14 @@ protected:
         }
         const QString path = scansDirectory() + QStringLiteral("/") + m_exerciseId + QStringLiteral("-")
             + QString::number(QDateTime::currentMSecsSinceEpoch()) + QStringLiteral(".png");
-        m_canvas.save(path);
+        // 3.3.3: оригинал сохраняет кроп лабиринта (1070,40)/(627×930).
+        if (m_exerciseId == QStringLiteral("3.3.3")
+            && m_canvas.width() >= 1070 + 627
+            && m_canvas.height() >= 40 + 930) {
+            m_canvas.copy(1070, 40, 627, 930).save(path);
+        } else {
+            m_canvas.save(path);
+        }
         m_capturePath = path;
         TimedSessionRunner::finish();
     }
@@ -766,6 +778,9 @@ public:
 
         m_redTimer = new QTimer(this);
         connect(m_redTimer, &QTimer::timeout, this, [this]() {
+            if (m_exerciseId == QStringLiteral("2.1")) {
+                m_brushColor = QColor(QStringLiteral("#4220ef"));
+            }
             if (m_redOverlay) {
                 m_redOverlay->setGeometry(m_picture->geometry());
                 m_redOverlay->show();
@@ -800,9 +815,39 @@ public:
             if (m_continueButton) {
                 m_continueButton->hide();
             }
-            m_brushColor = QColor(QStringLiteral("#ef47e3"));
+            // После красного интервала оригинал ставит #4220ef.
+            m_brushColor = QColor(QStringLiteral("#4220ef"));
             m_redTimer->start();
         };
+
+        m_hideSample = new ClickableLabel(this);
+        markPatientControl(m_hideSample);
+        m_hideSample->hide();
+        m_hideSample->setCursor(Qt::PointingHandCursor);
+        m_hideSample->onClick = [this]() { toggleSample23(); };
+
+        m_fwdSample = new ClickableLabel(this);
+        markPatientControl(m_fwdSample);
+        m_fwdSample->hide();
+        m_fwdSample->setCursor(Qt::PointingHandCursor);
+        m_fwdSample->onClick = [this]() { forwardSample23(); };
+
+        m_sampleTimerLabel = new QLabel(this);
+        markPatientControl(m_sampleTimerLabel);
+        m_sampleTimerLabel->setFont(QFont(QStringLiteral("Microsoft Sans Serif"), 14));
+        m_sampleTimerLabel->setStyleSheet(QStringLiteral("color:#000000; background:transparent;"));
+        m_sampleTimerLabel->hide();
+
+        m_sampleHideTimer = new QTimer(this);
+        m_sampleHideTimer->setInterval(1000);
+        connect(m_sampleHideTimer, &QTimer::timeout, this, [this]() {
+            ++m_sampleHideSeconds;
+            const int minutes = m_sampleHideSeconds / 60;
+            const int sec = m_sampleHideSeconds - minutes * 60;
+            m_sampleTimerLabel->setText(
+                QStringLiteral("%1:%2 сек").arg(minutes).arg(sec));
+            m_sampleTimerLabel->adjustSize();
+        });
     }
 
     void startSession(
@@ -818,6 +863,15 @@ public:
         m_cycles = 0;
         m_drawing = false;
         m_hasLast = false;
+        m_tu = 11;
+        m_sampleHidden = false;
+        m_sampleHideSeconds = 0;
+        if (m_sampleHideTimer) {
+            m_sampleHideTimer->stop();
+        }
+        if (m_sampleTimerLabel) {
+            m_sampleTimerLabel->hide();
+        }
 
         m_layout = findMarkCanvasLayout(exerciseId, stepId);
         m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
@@ -826,26 +880,32 @@ public:
         m_brushColor = QColor(QStringLiteral("#ef47e3"));
         if (exerciseId == QStringLiteral("2.3")) {
             m_brushColor = QColor(QStringLiteral("#0000ff"));
+            m_brushWidth = 20;
         }
 
-        const QString redPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("red1.png"));
+        // 2.2: red1.png лежит в ex/2.1 (как в оригинале).
+        QString redPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("red1.png"));
+        if (redPath.isEmpty() && exerciseId == QStringLiteral("2.2")) {
+            redPath = ExerciseAssets::exerciseFile(QStringLiteral("2.1"), QStringLiteral("red1.png"));
+        }
         if (!redPath.isEmpty() && m_redOverlay) {
             m_redOverlay->setPixmap(QPixmap(redPath));
             m_redOverlay->setScaledContents(true);
         }
-        const QString continuePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("continue.png"));
+        QString continuePath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("continue.png"));
+        if (continuePath.isEmpty() && exerciseId == QStringLiteral("2.2")) {
+            continuePath =
+                ExerciseAssets::exerciseFile(QStringLiteral("2.1"), QStringLiteral("continue.png"));
+        }
         if (!continuePath.isEmpty() && m_continueButton) {
             const QPixmap continuePixmap(continuePath);
             m_continueButton->setPixmap(continuePixmap);
             m_continueButton->setFixedSize(continuePixmap.size());
         }
 
-        if (exerciseId == QStringLiteral("3.3.1") || exerciseId == QStringLiteral("3.3.2")
-            || exerciseId == QStringLiteral("3.3.3")) {
-            m_stop->move(970, 70);
-        } else {
-            m_stop->move(970, 70);
-        }
+        setupControls23(exerciseId == QStringLiteral("2.3"));
+
+        m_stop->move(970, 70);
 
         m_timer->start();
         m_slideshowTimer->start();
@@ -853,18 +913,150 @@ public:
             m_redTimer->setInterval(findMarkRedIntervalMs(exerciseId, stepId));
             m_redTimer->start();
         }
-        updateCanvasDisplay();
+        redrawTemplate();
         show();
         raise();
         layoutUi();
     }
 
 protected:
+    void setupControls23(bool enabled) {
+        if (!m_hideSample || !m_fwdSample) {
+            return;
+        }
+        if (!enabled) {
+            m_hideSample->hide();
+            m_fwdSample->hide();
+            m_sampleTimerLabel->hide();
+            return;
+        }
+        const QString hidePath =
+            ExerciseAssets::exerciseFile(QStringLiteral("2.3"), QStringLiteral("hide.png"));
+        const QString fwdPath =
+            ExerciseAssets::exerciseFile(QStringLiteral("2.3"), QStringLiteral("fwd.png"));
+        if (!hidePath.isEmpty()) {
+            const QPixmap px(hidePath);
+            m_hideSample->setPixmap(px);
+            m_hideSample->setFixedSize(px.size());
+            m_hideSample->show();
+        }
+        if (!fwdPath.isEmpty()) {
+            const QPixmap px(fwdPath);
+            m_fwdSample->setPixmap(px);
+            m_fwdSample->setFixedSize(px.size());
+            m_fwdSample->show();
+        }
+    }
+
+    void toggleSample23() {
+        if (m_exerciseId != QStringLiteral("2.3")) {
+            return;
+        }
+        if (!m_sampleHidden) {
+            m_sampleHidden = true;
+            m_sampleHideSeconds = 0;
+            m_layout.trafFile = QStringLiteral("exampleno.png");
+            redrawTemplate();
+            const QString showPath =
+                ExerciseAssets::exerciseFile(QStringLiteral("2.3"), QStringLiteral("show.png"));
+            if (!showPath.isEmpty() && m_hideSample) {
+                const QPixmap px(showPath);
+                m_hideSample->setPixmap(px);
+                m_hideSample->setFixedSize(px.size());
+            }
+            if (m_sampleTimerLabel) {
+                m_sampleTimerLabel->setText(QStringLiteral("0:0 сек"));
+                m_sampleTimerLabel->adjustSize();
+                m_sampleTimerLabel->show();
+                m_sampleTimerLabel->raise();
+            }
+            if (m_sampleHideTimer) {
+                m_sampleHideTimer->start();
+            }
+        } else {
+            m_sampleHidden = false;
+            if (m_sampleHideTimer) {
+                m_sampleHideTimer->stop();
+            }
+            if (m_sampleTimerLabel) {
+                m_sampleTimerLabel->hide();
+            }
+            m_sampleHideSeconds = 0;
+            m_layout.trafFile = QString::number(m_tu) + QStringLiteral(".png");
+            redrawTemplate();
+            const QString hidePath =
+                ExerciseAssets::exerciseFile(QStringLiteral("2.3"), QStringLiteral("hide.png"));
+            if (!hidePath.isEmpty() && m_hideSample) {
+                const QPixmap px(hidePath);
+                m_hideSample->setPixmap(px);
+                m_hideSample->setFixedSize(px.size());
+            }
+        }
+        layoutUi();
+    }
+
+    void forwardSample23() {
+        if (m_exerciseId != QStringLiteral("2.3") || m_tu >= 18) {
+            if (m_tu >= 18 && m_fwdSample) {
+                m_fwdSample->hide();
+            }
+            return;
+        }
+        // Сохранить текущий кадр во временный файл (как оригинал temp{N}.png).
+        const QString tempPath = QDir::temp().filePath(
+            QStringLiteral("infant_2_3_temp%1.png").arg(m_tu));
+        m_canvas.save(tempPath);
+
+        m_sampleHidden = false;
+        if (m_sampleHideTimer) {
+            m_sampleHideTimer->stop();
+        }
+        if (m_sampleTimerLabel) {
+            m_sampleTimerLabel->hide();
+        }
+        m_sampleHideSeconds = 0;
+        const QString hidePath =
+            ExerciseAssets::exerciseFile(QStringLiteral("2.3"), QStringLiteral("hide.png"));
+        if (!hidePath.isEmpty() && m_hideSample) {
+            const QPixmap px(hidePath);
+            m_hideSample->setPixmap(px);
+            m_hideSample->setFixedSize(px.size());
+        }
+
+        m_canvas.fill(Qt::white);
+        ++m_tu;
+        m_layout.trafFile = QString::number(m_tu) + QStringLiteral(".png");
+        m_layout.traf2File = QStringLiteral("void.png");
+        redrawTemplate();
+        if (m_tu >= 18 && m_fwdSample) {
+            m_fwdSample->hide();
+        }
+        layoutUi();
+    }
+
     void layoutUi() override {
         m_stop->raise();
         updateCanvasDisplay();
         if (m_continueButton && !m_continueButton->pixmap(Qt::ReturnByValue).isNull()) {
             m_continueButton->move(m_stop->x() + m_stop->width() + 24, m_stop->y());
+        }
+        if (m_exerciseId == QStringLiteral("2.3")) {
+            constexpr int kDesignW = 1920;
+            constexpr int kDesignH = 1080;
+            const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
+            const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
+            if (m_fwdSample && m_fwdSample->isVisible()) {
+                m_fwdSample->move(qRound(1293.0 * sx), qRound(13.0 * sy));
+                m_fwdSample->raise();
+            }
+            if (m_hideSample && m_hideSample->isVisible()) {
+                m_hideSample->move(qRound(1547.0 * sx), qRound(12.0 * sy));
+                m_hideSample->raise();
+            }
+            if (m_sampleTimerLabel && m_sampleTimerLabel->isVisible()) {
+                m_sampleTimerLabel->move(qRound(1004.0 * sx), qRound(22.0 * sy));
+                m_sampleTimerLabel->raise();
+            }
         }
     }
 
@@ -930,6 +1122,9 @@ protected:
     void finish() override {
         m_slideshowTimer->stop();
         m_redTimer->stop();
+        if (m_sampleHideTimer) {
+            m_sampleHideTimer->stop();
+        }
         PaintRunner::finish();
     }
 
@@ -937,8 +1132,15 @@ protected:
     QTimer *m_redTimer = nullptr;
     ClickableLabel *m_redOverlay = nullptr;
     ClickableLabel *m_continueButton = nullptr;
+    ClickableLabel *m_hideSample = nullptr;
+    ClickableLabel *m_fwdSample = nullptr;
+    QLabel *m_sampleTimerLabel = nullptr;
+    QTimer *m_sampleHideTimer = nullptr;
     int m_dotime = 0;
     int m_cycles = 0;
+    int m_tu = 11;
+    bool m_sampleHidden = false;
+    int m_sampleHideSeconds = 0;
     QColor m_brushColor = Qt::magenta;
 };
 
@@ -2983,8 +3185,7 @@ public:
 
         const QStringList rotateExercises = {
             QStringLiteral("1.14"), QStringLiteral("1.19"), QStringLiteral("1.20"),
-            QStringLiteral("1.21"), QStringLiteral("1.29"),
-            QStringLiteral("3.1.8"), QStringLiteral("3.1.16")};
+            QStringLiteral("1.21"), QStringLiteral("1.29")};
         if (rotateExercises.contains(exerciseId)) {
             layout.rotateAllowed = true;
         }
@@ -3244,7 +3445,11 @@ private:
             }
             return;
         }
-        if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")) {
+        if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")
+            || m_exerciseId == QStringLiteral("2.11") || m_exerciseId == QStringLiteral("2.12")
+            || m_exerciseId == QStringLiteral("3.1.8") || m_exerciseId == QStringLiteral("3.1.15")
+            || m_exerciseId == QStringLiteral("3.1.16") || m_exerciseId == QStringLiteral("3.1.23")
+            || m_exerciseId == QStringLiteral("3.1.24")) {
             placeStop(970.0, 70.0);
             return;
         }
@@ -4583,7 +4788,10 @@ private:
         constexpr int kDesignH = 1080;
         const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
         const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
-        if (exerciseId == QStringLiteral("1.27")) {
+        if (exerciseId == QStringLiteral("1.27")
+            || exerciseId == QStringLiteral("3.1.20")
+            || exerciseId == QStringLiteral("3.1.21")
+            || exerciseId == QStringLiteral("4.1.7")) {
             m_stop->move(qRound(970.0 * sx), qRound(70.0 * sy));
         } else {
             m_stop->move(80, 72);

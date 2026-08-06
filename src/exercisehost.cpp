@@ -1188,6 +1188,22 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
                     newSession =
                         scope.contains(QStringLiteral("id='%1'").arg(idb), Qt::CaseInsensitive)
                         || scope.contains(QStringLiteral("id=\"%1\"").arg(idb), Qt::CaseInsensitive);
+                } else if (m_exerciseId == QStringLiteral("1.20")) {
+                    // В протоколе ids1..ids5 и подпись «Мяч из 2 частей», в combo — «Мяч 2».
+                    static const QMap<QString, QString> kScoreIds = {
+                        {QStringLiteral("Мяч 2"), QStringLiteral("1")},
+                        {QStringLiteral("Дом 3"), QStringLiteral("2")},
+                        {QStringLiteral("Мишка 4"), QStringLiteral("3")},
+                        {QStringLiteral("Машинка 5"), QStringLiteral("4")},
+                        {QStringLiteral("Чайник 6"), QStringLiteral("5")},
+                    };
+                    const QString scoreId = kScoreIds.value(step, step);
+                    const QString idToken = QStringLiteral("ids") + scoreId;
+                    newSession =
+                        scope.contains(QStringLiteral("id='%1'").arg(idToken), Qt::CaseInsensitive)
+                        || scope.contains(
+                            QStringLiteral("id=\"%1\"").arg(idToken), Qt::CaseInsensitive)
+                        || ExerciseProtocol::numberedStepPresentInSessionHtml(scope, step);
                 } else {
                     newSession =
                         ExerciseProtocol::numberedStepPresentInSessionHtml(scope, step);
@@ -3974,7 +3990,11 @@ void ExerciseHost::updateSumButtonVisibility() {
             || m_exerciseId == QStringLiteral("1.15")
             || m_exerciseId == QStringLiteral("1.20")
             || m_exerciseId == QStringLiteral("1.21")
-            || m_exerciseId == QStringLiteral("1.27"));
+            || m_exerciseId == QStringLiteral("1.27")
+            || m_exerciseId == QStringLiteral("2.11")
+            || m_exerciseId == QStringLiteral("2.12")
+            || m_exerciseId == QStringLiteral("3.1.8")
+            || m_exerciseId == QStringLiteral("3.1.21"));
     m_sumButton->setVisible(show);
 }
 
@@ -4073,6 +4093,18 @@ void ExerciseHost::sumProtocolScores() {
     }
     if (m_exerciseId == QStringLiteral("1.27")) {
         sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(9)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("2.11")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(6)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("2.12") || m_exerciseId == QStringLiteral("3.1.8")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(4)"));
+        return;
+    }
+    if (m_exerciseId == QStringLiteral("3.1.21")) {
+        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(12)"));
         return;
     }
 }
@@ -4579,8 +4611,8 @@ void ExerciseHost::formProtocol() {
     if (m_exerciseId == QStringLiteral("4.2.2")) {
         syncWords422AdditionalFromPanel();
     }
-    // 4.1.2 / руководство: по «Пример» протокол не формируется.
-    if (m_exerciseId == QStringLiteral("4.1.2")
+    // 4.1.2 / 3.1.24: по «Пример» протокол не формируется.
+    if ((m_exerciseId == QStringLiteral("4.1.2") || m_exerciseId == QStringLiteral("3.1.24"))
         && currentStepId().trimmed() == QStringLiteral("Пример")) {
         m_protocolFormed = true;
         CustomMessageBox::showInfo(

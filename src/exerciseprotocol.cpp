@@ -4567,20 +4567,41 @@ static QStringList numberedStepLookupTokens(const QString &stepId) {
         return tokens;
     }
     tokens << sid;
-    // 1.19: в протоколе подпись разреза, а в combo — короткое имя.
-    static const QMap<QString, QString> kLabels119 = {
+    // 1.19 / 1.20: в протоколе подпись, а в combo — короткое имя.
+    static const QMap<QString, QString> kLabelAliases = {
         {QStringLiteral("Матрешка 2"), QStringLiteral("Матрешка/2 по горизонт.")},
-        {QStringLiteral("Мишка 4"), QStringLiteral("Мишка/4 по горизонт. и верт.")},
         {QStringLiteral("Леопард 3"), QStringLiteral("Леопард/3 по верт.")},
         {QStringLiteral("Дом 4"), QStringLiteral("Дом /4 по диагон.")},
+        {QStringLiteral("Мяч 2"), QStringLiteral("Мяч из 2 частей")},
+        {QStringLiteral("Дом 3"), QStringLiteral("Домик из 3 частей")},
+        {QStringLiteral("Машинка 5"), QStringLiteral("Машинка из 5 частей")},
+        {QStringLiteral("Чайник 6"), QStringLiteral("Чайник из 6 частей")},
     };
-    const QString label119 = kLabels119.value(sid);
-    if (!label119.isEmpty()) {
-        tokens << label119;
+    // «Мишка 4» — и в 1.19, и в 1.20 (разные подписи в протоколе).
+    static const QStringList kMishka4Aliases = {
+        QStringLiteral("Мишка/4 по горизонт. и верт."),
+        QStringLiteral("Мишка из 4 частей"),
+    };
+    if (sid == QStringLiteral("Мишка 4")) {
+        for (const QString &alias : kMishka4Aliases) {
+            if (!tokens.contains(alias)) {
+                tokens << alias;
+            }
+        }
+    } else {
+        const QString label = kLabelAliases.value(sid);
+        if (!label.isEmpty() && !tokens.contains(label)) {
+            tokens << label;
+        }
     }
-    for (auto it = kLabels119.constBegin(); it != kLabels119.constEnd(); ++it) {
+    for (auto it = kLabelAliases.constBegin(); it != kLabelAliases.constEnd(); ++it) {
         if (it.value() == sid && !tokens.contains(it.key())) {
             tokens << it.key();
+        }
+    }
+    for (const QString &alias : kMishka4Aliases) {
+        if (alias == sid && !tokens.contains(QStringLiteral("Мишка 4"))) {
+            tokens << QStringLiteral("Мишка 4");
         }
     }
     return tokens;

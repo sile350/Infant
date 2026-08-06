@@ -401,6 +401,177 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         return true;
     }
 
+    if (exerciseId == QStringLiteral("2.12")) {
+        layout->showTemplate = false;
+        layout->templateFile = QString();
+        if (stepId == QStringLiteral("1")) {
+            addSprite(layout, QStringLiteral("11.png"), 300, 200);
+            addSprite(layout, QStringLiteral("12.png"), 600, 200);
+            addSprite(layout, QStringLiteral("13.png"), 900, 200);
+            addSprite(layout, QStringLiteral("14.png"), 1200, 200);
+            return true;
+        }
+        if (stepId == QStringLiteral("2")) {
+            addSprite(layout, QStringLiteral("21.png"), 100, 200);
+            addSprite(layout, QStringLiteral("22.png"), 400, 200);
+            addSprite(layout, QStringLiteral("23.png"), 700, 200);
+            addSprite(layout, QStringLiteral("24.png"), 1000, 200);
+            addSprite(layout, QStringLiteral("25.png"), 1300, 200);
+            return true;
+        }
+        return false;
+    }
+
+    if (exerciseId == QStringLiteral("3.1.8")) {
+        layout->rotateAllowed = false;
+        layout->showTemplate = true;
+        if (stepId == QStringLiteral("1")) {
+            layout->templateFile = QStringLiteral("traf.png");
+            layout->templateX = 425;
+            layout->templateY = 65;
+            static const struct {
+                const char *file;
+                int x;
+                int y;
+            } kSprites[] = {
+                {"1.png", 0, 75},
+                {"2.png", 200, 75},
+                {"5.png", 0, 275},
+                {"6.png", 200, 275},
+                {"3.png", 0, 475},
+                {"4.png", 200, 475},
+                {"15.png", 0, 675},
+                {"16.png", 200, 675},
+                {"7.png", 1300, 75},
+                {"8.png", 1500, 75},
+                {"9.png", 1300, 275},
+                {"10.png", 1500, 275},
+                {"11.png", 1300, 475},
+                {"12.png", 1500, 475},
+                {"13.png", 1300, 675},
+                {"14.png", 1500, 675},
+            };
+            for (const auto &item : kSprites) {
+                addSprite(layout, QString::fromUtf8(item.file), item.x, item.y);
+            }
+            return true;
+        }
+        if (stepId == QStringLiteral("2")) {
+            layout->templateFile = QStringLiteral("traf2.png");
+            layout->templateX = 0;
+            layout->templateY = 70;
+            static const char *const kRow1[] = {
+                "1.png", "5.png", "2.png", "3.png", "16.png", "4.png", "14.png", "6.png"};
+            static const char *const kRow2[] = {
+                "7.png", "8.png", "9.png", "10.png", "11.png", "12.png", "13.png", "14.png"};
+            for (int k = 0; k < 8; ++k) {
+                addSprite(layout, QString::fromUtf8(kRow1[k]), 27 + 200 * k, 510);
+            }
+            for (int k = 0; k < 8; ++k) {
+                addSprite(layout, QString::fromUtf8(kRow2[k]), 27 + 200 * k, 710);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    if (exerciseId == QStringLiteral("3.1.15")) {
+        layout->showTemplate = true;
+        layout->templateFile = QStringLiteral("traf.png");
+        layout->templateX = 425;
+        layout->templateY = 30;
+        addSprite(layout, QStringLiteral("1.png"), 400, 830);
+        addSprite(layout, QStringLiteral("2.png"), 550, 830);
+        addSprite(layout, QStringLiteral("3.png"), 700, 830);
+        addSprite(layout, QStringLiteral("4.png"), 850, 830);
+        return true;
+    }
+
+    if (exerciseId == QStringLiteral("3.1.16")) {
+        layout->showTemplate = true;
+        const int step = stepId.toInt();
+        if (step == 1) {
+            const int dy = 110;
+            layout->templateFile = QStringLiteral("traf1.png");
+            layout->templateX = 750;
+            layout->templateY = dy;
+            addSprite(layout, QStringLiteral("11.png"), 457, 1 + dy);
+            addSprite(layout, QStringLiteral("12.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("13.png"), 457, 500 + dy);
+            return true;
+        }
+        if (step == 2) {
+            const int dy = 110;
+            layout->templateFile = QStringLiteral("traf2.png");
+            layout->templateX = 750;
+            layout->templateY = dy;
+            addSprite(layout, QStringLiteral("21.png"), 457, 1 + dy);
+            addSprite(layout, QStringLiteral("22.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("23.png"), 457, 500 + dy);
+            return true;
+        }
+        // aparam == "2": только фрагменты текущего задания.
+        const int dy = 40;
+        if (step == 3) {
+            layout->templateFile = QStringLiteral("traf3.png");
+            layout->templateX = 650;
+            layout->templateY = 0;
+            addSprite(layout, QStringLiteral("31.png"), 457, 51 + dy);
+            addSprite(layout, QStringLiteral("32.png"), 457, 248 + dy);
+            return true;
+        }
+        if (step == 4) {
+            layout->templateFile = QStringLiteral("traf4.png");
+            layout->templateX = 650;
+            layout->templateY = dy;
+            addSprite(layout, QStringLiteral("41.png"), 457, 51);
+            addSprite(layout, QStringLiteral("42.png"), 457, 248 + dy);
+            return true;
+        }
+        if (step == 5) {
+            layout->templateFile = QStringLiteral("traf5.png");
+            layout->templateX = 650;
+            layout->templateY = dy;
+            addSprite(layout, QStringLiteral("51.png"), 457, 1 + dy);
+            addSprite(layout, QStringLiteral("52.png"), 457, 248 + dy);
+            return true;
+        }
+        if (step == 6) {
+            layout->templateFile = QStringLiteral("traf6.png");
+            layout->templateX = 650;
+            layout->templateY = dy;
+            // puzzles.cs: 61.y = 51 (не 1+dy), 62.y = 248+dy
+            addSprite(layout, QStringLiteral("61.png"), 457, 51);
+            addSprite(layout, QStringLiteral("62.png"), 457, 248 + dy);
+            return true;
+        }
+        if (step == 7) {
+            layout->templateFile = QStringLiteral("traf7.png");
+            layout->templateX = 650;
+            layout->templateY = dy;
+            addSprite(layout, QStringLiteral("71.png"), 457, 1 + dy);
+            addSprite(layout, QStringLiteral("72.png"), 457, 248 + dy);
+            return true;
+        }
+        return false;
+    }
+
+    if (exerciseId == QStringLiteral("3.1.23")) {
+        layout->showTemplate = true;
+        layout->templateFile = QStringLiteral("fone.png");
+        layout->templateX = 600;
+        layout->templateY = 50;
+        addSprite(layout, QStringLiteral("11.png"), 600, 700);
+        addSprite(layout, QStringLiteral("12.png"), 720, 700);
+        addSprite(layout, QStringLiteral("13.png"), 840, 700);
+        addSprite(layout, QStringLiteral("14.png"), 960, 700);
+        addSprite(layout, QStringLiteral("15.png"), 600, 820);
+        addSprite(layout, QStringLiteral("16.png"), 720, 820);
+        addSprite(layout, QStringLiteral("17.png"), 840, 820);
+        addSprite(layout, QStringLiteral("18.png"), 960, 820);
+        return true;
+    }
+
     if (exerciseId == QStringLiteral("1.19")) {
         layout->rotateAllowed = true;
         layout->selectMode = false;
@@ -516,10 +687,13 @@ bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLa
     }
     *layout = PuzzleLayout();
 
-    // 1.19 / 1.20 / 1.21 / 1.22 / 1.14-2: координаты из puzzles.cs (не autoGrid / f*).
+    // 1.19 / 1.20 / 1.21 / 1.22 / 1.14-2 / 2.11 / 2.12 / 3.1.*: координаты из puzzles.cs.
     if (exerciseId == QStringLiteral("1.22") || exerciseId == QStringLiteral("1.21")
         || exerciseId == QStringLiteral("1.20") || exerciseId == QStringLiteral("1.19")
-        || (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2"))) {
+        || (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2"))
+        || exerciseId == QStringLiteral("2.11") || exerciseId == QStringLiteral("2.12")
+        || exerciseId == QStringLiteral("3.1.8") || exerciseId == QStringLiteral("3.1.15")
+        || exerciseId == QStringLiteral("3.1.16") || exerciseId == QStringLiteral("3.1.23")) {
         return builtinLayout(exerciseId, stepId, layout);
     }
 

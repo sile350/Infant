@@ -160,7 +160,8 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
             || base.startsWith(QStringLiteral("traf"), Qt::CaseInsensitive)
             || base.startsWith(QStringLiteral("t"), Qt::CaseInsensitive)
             || base.startsWith(QStringLiteral("f"), Qt::CaseInsensitive)
-            || base.startsWith(QStringLiteral("p"), Qt::CaseInsensitive)) {
+            || base.startsWith(QStringLiteral("p"), Qt::CaseInsensitive)
+            || base.compare(QStringLiteral("ex.png"), Qt::CaseInsensitive) == 0) {
             continue;
         }
         const QString path = ExerciseAssets::exerciseFile(exerciseId, def.file);

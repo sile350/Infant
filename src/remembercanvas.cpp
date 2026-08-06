@@ -38,17 +38,109 @@ QPoint RememberCanvas::mapFromDesign(int x, int y) const {
 }
 
 bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
-    // 1.27: не брать autoGrid (он ставит f1/f2/f3 как template — это превью методики).
-    if (exerciseId != QStringLiteral("1.27") && loadPuzzleLayout(exerciseId, stepId, layout)) {
+    // Не брать autoGrid/puzzle JSON для remember-методик — ломает раскладку.
+    if (exerciseId != QStringLiteral("1.27")
+        && exerciseId != QStringLiteral("3.1.20")
+        && exerciseId != QStringLiteral("3.1.21")
+        && exerciseId != QStringLiteral("4.1.7")
+        && loadPuzzleLayout(exerciseId, stepId, layout)) {
         return true;
     }
     PuzzleLayout built;
+    const QString step = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
+
+    if (exerciseId == QStringLiteral("3.1.21")) {
+        // remember.cs: две карты столбцом, без shuffle.
+        built.showTemplate = false;
+        const QString a = step + QStringLiteral("1.png");
+        const QString b = step + QStringLiteral("2.png");
+        if (!ExerciseAssets::exerciseFile(exerciseId, a).isEmpty()) {
+            PuzzleSpriteDef s;
+            s.file = a;
+            s.x = 100;
+            s.y = 422;
+            built.sprites.append(s);
+        }
+        if (!ExerciseAssets::exerciseFile(exerciseId, b).isEmpty()) {
+            PuzzleSpriteDef s;
+            s.file = b;
+            s.x = 100;
+            s.y = 0;
+            built.sprites.append(s);
+        }
+        if (built.sprites.isEmpty()) {
+            return false;
+        }
+        *layout = built;
+        return true;
+    }
+
+    if (exerciseId == QStringLiteral("3.1.20")) {
+        built.showTemplate = true;
+        if (step == QStringLiteral("3")) {
+            built.templateFile = QStringLiteral("traf2.png");
+            built.templateX = 50;
+            built.templateY = 100;
+        } else {
+            built.templateFile = QStringLiteral("traf1.png");
+            built.templateX = 400;
+            built.templateY = 50;
+        }
+        int linex = 40;
+        const int spacing = step == QStringLiteral("3") ? 450 : 250;
+        const int y = 350;
+        for (int i = 1; i <= 4; ++i) {
+            const QString file = step + QString::number(i) + QStringLiteral(".png");
+            if (ExerciseAssets::exerciseFile(exerciseId, file).isEmpty()) {
+                continue;
+            }
+            PuzzleSpriteDef s;
+            s.file = file;
+            s.x = linex;
+            s.y = y;
+            built.sprites.append(s);
+            linex += spacing;
+        }
+        if (built.sprites.isEmpty()) {
+            return false;
+        }
+        *layout = built;
+        return true;
+    }
+
+    if (exerciseId == QStringLiteral("4.1.7")) {
+        // 1.png…9.png; template traf.png @ (10,300).
+        built.showTemplate = true;
+        built.templateFile = QStringLiteral("traf.png");
+        built.templateX = 10;
+        built.templateY = 300;
+        int linex = 10;
+        for (int i = 1; i <= 9; ++i) {
+            const QString file = QString::number(i) + QStringLiteral(".png");
+            if (ExerciseAssets::exerciseFile(exerciseId, file).isEmpty()) {
+                continue;
+            }
+            PuzzleSpriteDef s;
+            s.file = file;
+            s.name = QString::number(i);
+            s.x = linex;
+            s.y = 250;
+            built.sprites.append(s);
+            linex += 200;
+        }
+        if (built.sprites.isEmpty()) {
+            return false;
+        }
+        *layout = built;
+        return true;
+    }
+
     const int linexStart = exerciseId == QStringLiteral("1.27") ? 370 : 40;
     int linex = linexStart;
-    int liney = exerciseId == QStringLiteral("3.1.20") ? 350 : 450;
+    int liney = 450;
     int stepSpacing = 250;
     if (exerciseId == QStringLiteral("1.27")) {
-        if (stepId == QStringLiteral("1")) {
+        if (step == QStringLiteral("1")) {
             liney = 450;
             stepSpacing = 250;
         } else {
@@ -57,11 +149,9 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
         }
     }
     // 1.27: по 5 карточек на серию (11–15 / 21–25 / 31–35), как в remember.cs.
-    const int count = exerciseId == QStringLiteral("4.1.7")
-        ? 9
-        : (exerciseId == QStringLiteral("1.27") ? 5 : 4);
+    const int count = exerciseId == QStringLiteral("1.27") ? 5 : 4;
     for (int i = 1; i <= count; ++i) {
-        QString file = stepId + QString::number(i) + QStringLiteral(".png");
+        QString file = step + QString::number(i) + QStringLiteral(".png");
         if (!ExerciseAssets::exerciseFile(exerciseId, file).isEmpty()) {
             PuzzleSpriteDef sprite;
             sprite.file = file;
@@ -74,7 +164,6 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
     if (built.sprites.isEmpty()) {
         return false;
     }
-    // Без template/fN — только карточки задания.
     built.showTemplate = false;
     built.templateFile.clear();
     *layout = built;
@@ -88,45 +177,67 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
     m_sprites.clear();
     m_hintSprites.clear();
     m_hintRecords.clear();
+    m_template = QPixmap();
     m_showTemplate = true;
     m_phase = 0;
+    m_moving = -1;
+    m_dragging = false;
+    m_removeButtonVisible = false;
+    m_removeButtonImage.clear();
 
-    m_slotPositions = QVector<int>(std::begin(kDefaultSlots), std::end(kDefaultSlots));
+    m_slotPositions.clear();
+    for (int slot : kDefaultSlots) {
+        m_slotPositions.append(slot);
+    }
 
     PuzzleLayout layout;
     if (!loadRememberLayout(exerciseId, stepId, &layout)) {
+        update();
         return;
     }
 
-    if (!layout.templateFile.isEmpty()) {
-        m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, layout.templateFile));
+    m_showTemplate = layout.showTemplate;
+    if (layout.showTemplate && !layout.templateFile.isEmpty()) {
+        const QString path = ExerciseAssets::exerciseFile(exerciseId, layout.templateFile);
+        if (!path.isEmpty()) {
+            m_template = QPixmap(path);
+        }
         m_templateX = layout.templateX;
         m_templateY = layout.templateY;
-    } else if (exerciseId == QStringLiteral("1.27")) {
-        // Превью f1/f2/f3 только на экране методики, не во время выполнения.
-        m_template = QPixmap();
-        m_showTemplate = false;
     } else if (exerciseId == QStringLiteral("3.1.20")) {
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf1.png")));
         m_templateX = 400;
         m_templateY = 50;
+        m_showTemplate = true;
     } else if (exerciseId == QStringLiteral("4.1.7")) {
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf.png")));
         m_templateX = 10;
         m_templateY = 300;
+        m_showTemplate = true;
     } else {
+        // 1.27 / 3.1.21: без трафарета во время выполнения.
         m_template = QPixmap();
+        m_showTemplate = false;
     }
 
     for (const PuzzleSpriteDef &def : layout.sprites) {
         Sprite sprite;
-        sprite.pixmap = QPixmap(ExerciseAssets::exerciseFile(exerciseId, def.file));
+        const QString path = ExerciseAssets::exerciseFile(exerciseId, def.file);
+        if (!path.isEmpty()) {
+            sprite.pixmap = QPixmap(path);
+        }
         sprite.x = def.x;
         sprite.y = def.y;
         sprite.name = def.file;
         if (exerciseId == QStringLiteral("4.1.7")) {
-            const QString baseName = def.file;
-            sprite.spriteId = baseName.left(baseName.size() - 4);
+            if (!def.name.isEmpty()) {
+                sprite.spriteId = def.name;
+            } else {
+                const QString baseName = def.file;
+                sprite.spriteId = baseName.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive)
+                    ? baseName.left(baseName.size() - 4)
+                    : baseName;
+            }
         }
         m_sprites.append(sprite);
     }
@@ -142,21 +253,23 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
     } else if (exerciseId == QStringLiteral("1.27")) {
         // Как remember.cs: после перемешивания y = 650.
         shuffleSprites(650);
-        m_removeButtonVisible = false;
-        m_removeButtonImage.clear();
+    } else if (exerciseId == QStringLiteral("3.1.21")) {
+        // Две карты остаются на исходных координатах — без shuffle.
+    } else if (exerciseId == QStringLiteral("3.1.20")) {
+        // offset 350 внутри shuffleSprites; baseY = 400 (упрощённый порт).
+        shuffleSprites(400);
     } else {
         shuffleSprites(400);
-        m_removeButtonVisible = false;
-        m_removeButtonImage.clear();
     }
 
     m_timer.start();
     updateRemoveButton();
+    setFocus(Qt::OtherFocusReason);
     update();
 }
 
 void RememberCanvas::shuffleSprites(int baseY) {
-    // Перестановка слотов, как mst[] в remember.cs: sprite[i].x = posx[mst[i]].
+    // Перестановка слотов, как mst[] в remember.cs: sprite[i].x = posx[mst[i]] (+ dx).
     QVector<int> order;
     for (int i = 0; i < m_sprites.size(); ++i) {
         order.append(i);
@@ -303,6 +416,7 @@ void RememberCanvas::mouseReleaseEvent(QMouseEvent *event) {
 void RememberCanvas::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Escape || event->key() == Qt::Key_Space) {
         emit stopRequested();
+        return;
     }
     if (event->key() == Qt::Key_H) {
         m_showTemplate = !m_showTemplate;
