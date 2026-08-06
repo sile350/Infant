@@ -3088,8 +3088,9 @@ private:
     void layoutOptionsPopup() {
         const bool show114 =
             m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2");
+        const bool show121 = m_exerciseId == QStringLiteral("1.21");
         const bool show122 = m_exerciseId == QStringLiteral("1.22");
-        const bool showShard = show114 || show122;
+        const bool showShard = show114 || show121 || show122;
         if (!m_shardLink || !m_optionsGroup) {
             return;
         }
@@ -3099,11 +3100,12 @@ private:
             m_optionsPopupVisible = false;
             return;
         }
+        const bool showHintTemplate = show114 || show121;
         if (m_liveHintCheck) {
-            m_liveHintCheck->setVisible(show114);
+            m_liveHintCheck->setVisible(showHintTemplate);
         }
         if (m_liveTemplateCheck) {
-            m_liveTemplateCheck->setVisible(show114);
+            m_liveTemplateCheck->setVisible(showHintTemplate);
         }
         if (m_liveHighlightRadio && m_liveHighlightRadio->parentWidget()) {
             m_liveHighlightRadio->parentWidget()->setVisible(show122);
@@ -3182,9 +3184,23 @@ private:
             }
             return;
         }
-        if (m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
-            || m_exerciseId == QStringLiteral("1.22")) {
+        if (m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.22")) {
             placeStop(977.0, 70.0);
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.21")) {
+            // puzzles.cs: pstop 977@70; pcntr 1440@150, pto = pcntr+100.
+            placeStop(977.0, 70.0);
+            if (m_rotateHintLeft) {
+                m_rotateHintLeft->move(qRound(1440.0 * sx), qRound(150.0 * sy));
+                m_rotateHintLeft->show();
+                m_rotateHintLeft->raise();
+            }
+            if (m_rotateHintRight) {
+                m_rotateHintRight->move(qRound(1540.0 * sx), qRound(150.0 * sy));
+                m_rotateHintRight->show();
+                m_rotateHintRight->raise();
+            }
             return;
         }
         if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")) {

@@ -1396,15 +1396,15 @@ void ExerciseHost::updateChromeLayout() {
     if (m_exerciseOptionsPanel && m_rightPanel) {
         const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
         const bool is122 = m_exerciseId == QStringLiteral("1.22");
+        const bool is121 = m_exerciseId == QStringLiteral("1.21");
         const bool is114Step2 = m_exerciseId == QStringLiteral("1.14")
             && currentStepId().trimmed() == QStringLiteral("2");
         // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
-        // 1.22 — то же, что 1.5/1.6 (закрывающееся окно «Настройки»).
         int panelH = 220;
-        if (isE15 || is122 || is114Step2) {
+        if (isE15 || is122 || is121 || is114Step2) {
             panelH = 28;
         }
-        const int panelW = (isE15 || is122 || is114Step2)
+        const int panelW = (isE15 || is122 || is121 || is114Step2)
             ? 320
             : qMax(120, m_rightPanel->width() - 24);
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
@@ -4915,7 +4915,7 @@ void ExerciseHost::refreshRotateCombos() {
 void ExerciseHost::applyPuzzleOptionsDefaults() {
     const QString step = currentStepId().trimmed();
     const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
-        || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
+        || m_exerciseId == QStringLiteral("1.20");
     if (m_exerciseId == QStringLiteral("1.14")) {
         if (m_showHintCheck) {
             m_showHintCheck->setChecked(true);
@@ -4929,6 +4929,18 @@ void ExerciseHost::applyPuzzleOptionsDefaults() {
         if (step == QStringLiteral("2")) {
             refreshRotateCombos();
         }
+    } else if (m_exerciseId == QStringLiteral("1.21")) {
+        m_shardPanelVisible = false;
+        if (m_showHintCheck) {
+            m_showHintCheck->setChecked(false);
+        }
+        if (m_showTemplateCheck) {
+            m_showTemplateCheck->setChecked(false);
+        }
+        if (m_rotateEnableCheck) {
+            m_rotateEnableCheck->setChecked(true);
+        }
+        refreshRotateCombos();
     } else if (isPuzzleInline) {
         if (m_showHintCheck) {
             m_showHintCheck->setChecked(false);
@@ -4955,6 +4967,7 @@ void ExerciseHost::layoutE15ModePopup() {
     const QString step = currentStepId().trimmed();
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
     const bool is122 = m_exerciseId == QStringLiteral("1.22");
+    const bool is121 = m_exerciseId == QStringLiteral("1.21");
     const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
 
     if (m_e15ModeGroup) {
@@ -4977,7 +4990,7 @@ void ExerciseHost::layoutE15ModePopup() {
     if (!m_puzzleOptionsGroup) {
         return;
     }
-    if (is114Step2 && m_shardPanelVisible && m_shardButton->isVisible()) {
+    if ((is114Step2 || is121) && m_shardPanelVisible && m_shardButton->isVisible()) {
         constexpr int kPopupW = 300;
         m_puzzleOptionsGroup->setFixedWidth(kPopupW);
         if (QLayout *lay = m_puzzleOptionsGroup->layout()) {
@@ -4989,7 +5002,7 @@ void ExerciseHost::layoutE15ModePopup() {
         m_puzzleOptionsGroup->setGeometry(below.x(), below.y(), kPopupW, groupH);
         m_puzzleOptionsGroup->show();
         m_puzzleOptionsGroup->raise();
-    } else if (is114Step2) {
+    } else if (is114Step2 || is121) {
         m_puzzleOptionsGroup->hide();
     }
 }
@@ -4998,11 +5011,12 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     const QString step = currentStepId().trimmed();
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
     const bool is122 = m_exerciseId == QStringLiteral("1.22");
+    const bool is121 = m_exerciseId == QStringLiteral("1.21");
     const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
     const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
-        || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
-    // 1.22: то же окно pset3 («подсветка» / «перемещение»), что у 1.5/1.6 — по ссылке.
-    const bool showShard = isE15 || is114Step2 || is122;
+        || m_exerciseId == QStringLiteral("1.20");
+    // 1.21 / 1.22 / 1.14-2: «Настройка уровня сложности» + закрывающееся окошко.
+    const bool showShard = isE15 || is114Step2 || is122 || is121;
     const int panelW = m_rightPanel ? qMax(280, m_rightPanel->width() - 24) : 300;
 
     if (m_exerciseOptionsPanel) {
@@ -5015,7 +5029,7 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         if (isE15 || is122) {
             layoutE15ModePopup();
         } else {
-            if (!is114Step2) {
+            if (!is114Step2 && !is121) {
                 m_shardPanelVisible = false;
             }
             m_e15ModeGroup->hide();
@@ -5031,13 +5045,13 @@ void ExerciseHost::updateExerciseOptionsPanel() {
             m_puzzleOptionsGroup->setGeometry(12, 52, panelW, groupH);
             m_puzzleOptionsGroup->show();
             m_puzzleOptionsGroup->raise();
-        } else if (is114Step2) {
+        } else if (is114Step2 || is121) {
             layoutE15ModePopup();
         } else {
             m_puzzleOptionsGroup->hide();
         }
     }
-    if (isPuzzleInline) {
+    if (isPuzzleInline || is121) {
         refreshRotateCombos();
     }
 }

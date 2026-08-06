@@ -150,6 +150,46 @@ bool autoGridLayout(const QString &exerciseId, const QString &stepId, PuzzleLayo
 }
 
 bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
+    // 1.21 «Сложи круг»: детали слева, трафарет @ (700,190); t/et переключаются опциями.
+    if (exerciseId == QStringLiteral("1.21")) {
+        layout->rotateAllowed = true;
+        layout->selectMode = false;
+        layout->showTemplate = true;
+        layout->templateX = 700;
+        layout->templateY = 190;
+        const QString slug = stepId;
+        layout->templateFile = QStringLiteral("t") + slug + QStringLiteral(".png");
+
+        int pieceCount = 0;
+        if (slug == QStringLiteral("2А") || slug == QStringLiteral("2Б")) {
+            pieceCount = 2;
+        } else if (slug == QStringLiteral("3А") || slug == QStringLiteral("3Б")) {
+            pieceCount = 3;
+        } else if (slug == QStringLiteral("4А") || slug == QStringLiteral("4Б")) {
+            pieceCount = 4;
+        } else if (slug == QStringLiteral("5А") || slug == QStringLiteral("5Б")) {
+            pieceCount = 5;
+        } else if (slug == QStringLiteral("6А") || slug == QStringLiteral("6Б")) {
+            pieceCount = 6;
+        }
+        if (pieceCount <= 0) {
+            return false;
+        }
+        for (int i = 1; i <= pieceCount; ++i) {
+            int x = 100;
+            int y = 100;
+            if (i >= 3 && i <= 4) {
+                x = 120;
+                y = 120;
+            } else if (i >= 5) {
+                x = 130;
+                y = 130;
+            }
+            addSprite(layout, slug + QString::number(i) + QStringLiteral(".png"), x, y);
+        }
+        return true;
+    }
+
     // 1.22: координаты как puzzles.cs (Круг / Квадрат / Пирамида).
     if (exerciseId == QStringLiteral("1.22")) {
         layout->rotateAllowed = false;
@@ -378,9 +418,9 @@ bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLa
     }
     *layout = PuzzleLayout();
 
-    // 1.14/2 и 1.22: координаты из кода оригинала (puzzles.cs).
-    if ((exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2"))
-        || exerciseId == QStringLiteral("1.22")) {
+    // 1.22 / 1.21: координаты из puzzles.cs.
+    if (exerciseId == QStringLiteral("1.22") || exerciseId == QStringLiteral("1.21")
+        || (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2"))) {
         return builtinLayout(exerciseId, stepId, layout);
     }
 

@@ -95,6 +95,10 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     } else if (exerciseId == QStringLiteral("1.24")) {
         m_hintX = 200;
         m_hintY = stepId == QStringLiteral("4") ? 231 : 131;
+    } else if (exerciseId == QStringLiteral("1.21")) {
+        // puzzles.cs: pexample Left=31 (Designer), Top=250.
+        m_hintX = 31;
+        m_hintY = 250;
     }
     if (hidePreviewHint) {
         m_hintPixmap = QPixmap();
