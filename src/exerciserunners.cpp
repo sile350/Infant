@@ -3184,8 +3184,47 @@ private:
             }
             return;
         }
-        if (m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.22")) {
+        if (m_exerciseId == QStringLiteral("1.22")) {
             placeStop(977.0, 70.0);
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.20")) {
+            // puzzles.cs: pstop 977@70; pcntr 1450@100, pto = +100.
+            placeStop(977.0, 70.0);
+            if (m_rotateHintLeft) {
+                m_rotateHintLeft->move(qRound(1450.0 * sx), qRound(100.0 * sy));
+                m_rotateHintLeft->show();
+                m_rotateHintLeft->raise();
+            }
+            if (m_rotateHintRight) {
+                m_rotateHintRight->move(qRound(1550.0 * sx), qRound(100.0 * sy));
+                m_rotateHintRight->show();
+                m_rotateHintRight->raise();
+            }
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.19")) {
+            // puzzles.cs: Матрешка pcntr 1300@100; Мишка 1290@130; Дом/Леопард 1350@130.
+            int btnX = 1350;
+            int btnY = 130;
+            if (m_stepId.contains(QStringLiteral("Матрешка"))) {
+                btnX = 1300;
+                btnY = 100;
+            } else if (m_stepId.contains(QStringLiteral("Мишка"))) {
+                btnX = 1290;
+                btnY = 130;
+            }
+            placeStop(977.0, 70.0);
+            if (m_rotateHintLeft) {
+                m_rotateHintLeft->move(qRound(btnX * sx), qRound(btnY * sy));
+                m_rotateHintLeft->show();
+                m_rotateHintLeft->raise();
+            }
+            if (m_rotateHintRight) {
+                m_rotateHintRight->move(qRound((btnX + 100) * sx), qRound(btnY * sy));
+                m_rotateHintRight->show();
+                m_rotateHintRight->raise();
+            }
             return;
         }
         if (m_exerciseId == QStringLiteral("1.21")) {

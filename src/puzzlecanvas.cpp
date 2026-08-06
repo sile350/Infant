@@ -79,11 +79,12 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         }
     }
 
-    // 1.15 / 1.22 / 1.28: fN — только превью на экране методики, не на холсте
-    // (как в оригинале puzzles.cs: только traf + детали задания).
+    // fN — превью методики, не на холсте во время выполнения.
     const bool hidePreviewHint =
         (exerciseId == QStringLiteral("1.11") && stepId == QStringLiteral("2"))
         || exerciseId == QStringLiteral("1.15")
+        || exerciseId == QStringLiteral("1.19")
+        || exerciseId == QStringLiteral("1.20")
         || exerciseId == QStringLiteral("1.22")
         || exerciseId == QStringLiteral("1.28");
     m_hintX = 200;
@@ -99,10 +100,28 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         // puzzles.cs: pexample Left=31 (Designer), Top=250.
         m_hintX = 31;
         m_hintY = 250;
+    } else if (exerciseId == QStringLiteral("1.20")) {
+        // puzzles.cs: pexample.Top = 200.
+        m_hintX = 31;
+        m_hintY = 200;
+    } else if (exerciseId == QStringLiteral("1.19")) {
+        m_hintX = 31;
+        m_hintY = 22;
     }
     if (hidePreviewHint) {
+        // p* только по опции showHint (applySessionOptions); f* на холст не грузим.
         m_hintPixmap = QPixmap();
         m_showHint = false;
+        if (exerciseId == QStringLiteral("1.19") || exerciseId == QStringLiteral("1.20")
+            || exerciseId == QStringLiteral("1.21")) {
+            const QString namedHint = hintFileForExercise(exerciseId, stepId);
+            if (!namedHint.isEmpty()) {
+                const QString hintPath = ExerciseAssets::exerciseFile(exerciseId, namedHint);
+                if (!hintPath.isEmpty()) {
+                    m_hintPixmap = QPixmap(hintPath);
+                }
+            }
+        }
     } else {
         const QString namedHint = hintFileForExercise(exerciseId, stepId);
         QString hintPath;
@@ -113,7 +132,8 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
             const QString hintName = QStringLiteral("p") + stepId.toLower().remove(QLatin1Char(' '));
             hintPath = ExerciseAssets::exerciseFile(exerciseId, hintName + QStringLiteral(".png"));
         }
-        if (hintPath.isEmpty()) {
+        if (hintPath.isEmpty() && exerciseId != QStringLiteral("1.19")
+            && exerciseId != QStringLiteral("1.20") && exerciseId != QStringLiteral("1.21")) {
             hintPath = ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("f") + stepId + QStringLiteral(".png"));
         }
         if (!hintPath.isEmpty()) {
@@ -134,7 +154,13 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     }
 
     for (const PuzzleSpriteDef &def : layout.sprites) {
-        if (def.file.startsWith(QStringLiteral("et"), Qt::CaseInsensitive)) {
+        // Не тащить на холст трафареты/превью как «детали» (t*/et*/f*/p*).
+        const QString &base = def.file;
+        if (base.startsWith(QStringLiteral("et"), Qt::CaseInsensitive)
+            || base.startsWith(QStringLiteral("traf"), Qt::CaseInsensitive)
+            || base.startsWith(QStringLiteral("t"), Qt::CaseInsensitive)
+            || base.startsWith(QStringLiteral("f"), Qt::CaseInsensitive)
+            || base.startsWith(QStringLiteral("p"), Qt::CaseInsensitive)) {
             continue;
         }
         const QString path = ExerciseAssets::exerciseFile(exerciseId, def.file);
