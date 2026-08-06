@@ -4560,32 +4560,80 @@ QString ExerciseProtocol::extractLastProtocol126Session(const QString &protocolB
     return stripLeadingSummaryTableWrapper(sessions.last());
 }
 
-bool ExerciseProtocol::numberedStepPresentInSessionHtml(
-    const QString &sessionHtml,
-    const QString &stepId) {
+static QStringList numberedStepLookupTokens(const QString &stepId) {
     const QString sid = stepId.trimmed();
-    if (sid.isEmpty() || sessionHtml.trimmed().isEmpty()) {
+    QStringList tokens;
+    if (sid.isEmpty()) {
+        return tokens;
+    }
+    tokens << sid;
+    // 1.19: в протоколе подпись разреза, а в combo — короткое имя.
+    static const QMap<QString, QString> kLabels119 = {
+        {QStringLiteral("Матрешка 2"), QStringLiteral("Матрешка/2 по горизонт.")},
+        {QStringLiteral("Мишка 4"), QStringLiteral("Мишка/4 по горизонт. и верт.")},
+        {QStringLiteral("Леопард 3"), QStringLiteral("Леопард/3 по верт.")},
+        {QStringLiteral("Дом 4"), QStringLiteral("Дом /4 по диагон.")},
+    };
+    const QString label119 = kLabels119.value(sid);
+    if (!label119.isEmpty()) {
+        tokens << label119;
+    }
+    for (auto it = kLabels119.constBegin(); it != kLabels119.constEnd(); ++it) {
+        if (it.value() == sid && !tokens.contains(it.key())) {
+            tokens << it.key();
+        }
+    }
+    return tokens;
+}
+
+static bool cellMatchesNumberedStep(const QString &sessionHtml, const QString &token) {
+    if (token.isEmpty() || sessionHtml.trimmed().isEmpty()) {
         return false;
     }
     if (sessionHtml.contains(
-            QStringLiteral("<!--step") + sid + QStringLiteral("-->"), Qt::CaseInsensitive)) {
+            QStringLiteral("<!--step") + token + QStringLiteral("-->"), Qt::CaseInsensitive)) {
         return true;
     }
+    const QString esc = QRegularExpression::escape(token);
     const QRegularExpression rowRe(
         QStringLiteral(
             "<tr[^>]*>\\s*<td[^>]*align\\s*=\\s*['\"]center['\"][^>]*>\\s*%1\\s*</td>")
-            .arg(QRegularExpression::escape(sid)),
+            .arg(esc),
         QRegularExpression::CaseInsensitiveOption);
     if (rowRe.match(sessionHtml).hasMatch()) {
         return true;
     }
-    // После QTextDocument align иногда пропадает — первая ячейка строки = №.
+    // После QTextDocument align иногда пропадает — первая ячейка строки = № / имя задания.
     const QRegularExpression plainNumRe(
         QStringLiteral(
             "<tr[^>]*>\\s*<td[^>]*>\\s*(?:<[^>]+>\\s*)*%1\\s*(?:</[^>]+>\\s*)*</td>")
-            .arg(QRegularExpression::escape(sid)),
+            .arg(esc),
         QRegularExpression::CaseInsensitiveOption);
-    return plainNumRe.match(sessionHtml).hasMatch();
+    if (plainNumRe.match(sessionHtml).hasMatch()) {
+        return true;
+    }
+    // NumberedDoneTime (1.19): раньше в ячейку писали «имя;выполнено».
+    const QRegularExpression prefixRe(
+        QStringLiteral(
+            "<tr[^>]*>\\s*<td[^>]*>\\s*(?:<[^>]+>\\s*)*%1\\s*;")
+            .arg(esc),
+        QRegularExpression::CaseInsensitiveOption);
+    return prefixRe.match(sessionHtml).hasMatch();
+}
+
+bool ExerciseProtocol::numberedStepPresentInSessionHtml(
+    const QString &sessionHtml,
+    const QString &stepId) {
+    if (stepId.trimmed().isEmpty() || sessionHtml.trimmed().isEmpty()) {
+        return false;
+    }
+    const QStringList tokens = numberedStepLookupTokens(stepId);
+    for (const QString &token : tokens) {
+        if (cellMatchesNumberedStep(sessionHtml, token)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 QString closeDanglingTables(QString html) {

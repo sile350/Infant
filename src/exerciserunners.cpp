@@ -3088,9 +3088,11 @@ private:
     void layoutOptionsPopup() {
         const bool show114 =
             m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2");
+        const bool show119 = m_exerciseId == QStringLiteral("1.19");
+        const bool show120 = m_exerciseId == QStringLiteral("1.20");
         const bool show121 = m_exerciseId == QStringLiteral("1.21");
         const bool show122 = m_exerciseId == QStringLiteral("1.22");
-        const bool showShard = show114 || show121 || show122;
+        const bool showShard = show114 || show119 || show120 || show121 || show122;
         if (!m_shardLink || !m_optionsGroup) {
             return;
         }
@@ -3100,7 +3102,7 @@ private:
             m_optionsPopupVisible = false;
             return;
         }
-        const bool showHintTemplate = show114 || show121;
+        const bool showHintTemplate = show114 || show119 || show120 || show121;
         if (m_liveHintCheck) {
             m_liveHintCheck->setVisible(showHintTemplate);
         }

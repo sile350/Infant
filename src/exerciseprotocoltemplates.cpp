@@ -441,6 +441,20 @@ void fillWolfVariables(const QString &additional, QMap<QString, QString> *vars) 
     }
 }
 
+// 1.19: подпись разреза в первой колонке (как createP в protocols.cs).
+QString protocolStepDisplayLabel(const QString &exerciseId, const QString &stepId) {
+    if (exerciseId == QStringLiteral("1.19")) {
+        static const QMap<QString, QString> kLabels = {
+            {QStringLiteral("Матрешка 2"), QStringLiteral("Матрешка/2 по горизонт.")},
+            {QStringLiteral("Мишка 4"), QStringLiteral("Мишка/4 по горизонт. и верт.")},
+            {QStringLiteral("Леопард 3"), QStringLiteral("Леопард/3 по верт.")},
+            {QStringLiteral("Дом 4"), QStringLiteral("Дом /4 по диагон.")},
+        };
+        return kLabels.value(stepId.trimmed(), stepId.trimmed());
+    }
+    return stepId.trimmed();
+}
+
 QMap<QString, QString> buildVariables(
     const ProtocolTemplate &tmpl,
     const QString &userFio,
@@ -460,16 +474,26 @@ QMap<QString, QString> buildVariables(
     QString doneState = session.doneState.trimmed().isEmpty()
         ? QStringLiteral("не определено")
         : session.doneState;
+    bool additionalIsStepDone = false;
     if (!session.additional.isEmpty() && session.additional.contains(QLatin1Char(';'))) {
         const QStringList parts = session.additional.split(QLatin1Char(';'));
         if (parts.size() >= +2) {
             stepId = parts.at(0);
             doneState = parts.at(1);
+            additionalIsStepDone = true;
         }
     }
     vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
     vars.insert(QStringLiteral("{{DONE}}"), doneState.toHtmlEscaped());
-    vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
+    // NumberedDoneTime (1.19 и др.): в ADDITIONAL только имя задания, факт — в DONE.
+    // Иначе в ячейку попадало «Матрешка 2;выполнено» и повтор не считался новой сессией.
+    if (additionalIsStepDone) {
+        vars.insert(
+            QStringLiteral("{{ADDITIONAL}}"),
+            protocolStepDisplayLabel(tmpl.id, stepId).toHtmlEscaped());
+    } else {
+        vars.insert(QStringLiteral("{{ADDITIONAL}}"), session.additional.toHtmlEscaped());
+    }
 
     double score = 0;
     bool scoreSelected = true;
@@ -678,6 +702,9 @@ QString buildNumberedProcessRows(
     for (const QString &stepId : stepIds) {
         QMap<QString, QString> vars = baseVars;
         vars.insert(QStringLiteral("{{STEP}}"), stepId.toHtmlEscaped());
+        vars.insert(
+            QStringLiteral("{{ADDITIONAL}}"),
+            protocolStepDisplayLabel(tmpl.id, stepId).toHtmlEscaped());
         int stepTime = session.stepElapsedSeconds.value(stepId, -1);
         if (stepTime < 0) {
             // Задание не запускали — 0:0; если карта пуста и это единственный/текущий шаг — общий таймер.
