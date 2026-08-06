@@ -1760,11 +1760,13 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
     }
 
     // Шапка «Методика…»: всегда colgroup 200/471 (иначе Qt сжимает по длинной «Цели»).
+    // Важно: не путать с баннером «…диагностической методики» — только ярлык «Методика».
     {
         const QRegularExpression headerTableRe(
             QStringLiteral(
-                "(<table\\b[^>]*>)([\\s\\S]*?Методика[\\s\\S]*?)(</table>)"),
-            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+                "(<table\\b[^>]*>)([\\s\\S]*?(?:^|>)Методика\\b[\\s\\S]*?)(</table>)"),
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption
+                | QRegularExpression::MultilineOption);
         QString out;
         out.reserve(body.size() + 64);
         int last = 0;
@@ -1861,9 +1863,8 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         rowInner = QStringLiteral(
                             "<td colspan='2' align='center' width='671' style='width:671px'>%1</td>")
                                        .arg(processInner);
-                    } else if (tds.size() == 2) {
-                        // Только реально 2-ячеечные строки шапки. 3+/4+ — процесс
-                        // (Характер/Баллы/Картинка…): не обрезать, иначе пропадают колонки.
+                    } else if (tds.size() >= 2) {
+                        // Жёстко 2 колонки: лишний colspan (1.15 template 2+3) отбрасываем.
                         QString newRow;
                         for (int i = 0; i < 2; ++i) {
                             const QRegularExpressionMatch &td = tds.at(i);
@@ -3323,9 +3324,37 @@ QString ExerciseProtocol::buildProtocol118ViewRecord(
         summaryRows.replace(
             QRegularExpression(QStringLiteral("</table>\\s*$"), QRegularExpression::CaseInsensitiveOption),
             QString());
-        // Баннер «Процесс выполнения» оставляем в summary (1.1/1.8/…); у 1.18 он в таблице процесса.
         summaryRows = summaryRows.trimmed();
         resultsBlock = resultsBlock.trimmed();
+
+        // Баннер «Процесс…» с colspan>2 в 2-кол. шапке раздувает ширину (1.15 и др.).
+        // Переносим его в таблицу процесса; в summary оставляем только Дата/Результат/Примечание.
+        QString movedProcessBanner;
+        {
+            const QRegularExpression trRe(
+                QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+                QRegularExpression::CaseInsensitiveOption
+                    | QRegularExpression::DotMatchesEverythingOption);
+            QString cleanedSummary;
+            cleanedSummary.reserve(summaryRows.size());
+            int last = 0;
+            QRegularExpressionMatchIterator it = trRe.globalMatch(summaryRows);
+            while (it.hasNext()) {
+                const QRegularExpressionMatch m = it.next();
+                cleanedSummary += summaryRows.mid(last, m.capturedStart() - last);
+                const QString plain = htmlFragmentToPlainText(m.captured(2)).trimmed();
+                if (plain.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                    if (movedProcessBanner.isEmpty()) {
+                        movedProcessBanner = m.captured(0);
+                    }
+                } else {
+                    cleanedSummary += m.captured(0);
+                }
+                last = m.capturedEnd();
+            }
+            cleanedSummary += summaryRows.mid(last);
+            summaryRows = cleanedSummary.trimmed();
+        }
 
         if (i == 0) {
             if (!headerFragment.trimmed().isEmpty()) {
@@ -3340,12 +3369,49 @@ QString ExerciseProtocol::buildProtocol118ViewRecord(
             result += summaryRows;
         }
         result += QStringLiteral("</table>");
-        if (!resultsBlock.isEmpty()) {
+        if (!resultsBlock.isEmpty() || !movedProcessBanner.isEmpty()) {
             if (!resultsBlock.startsWith(QStringLiteral("<table"), Qt::CaseInsensitive)) {
                 resultsBlock.prepend(
                     QStringLiteral(
                         "<table border='1' style='table-layout:fixed;width:671px' "
                         "cellspacing='0' cellpadding='0' width='671'>"));
+            }
+            if (!movedProcessBanner.isEmpty()
+                && !resultsBlock.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                int processColSpan = 4;
+                if (resultsBlock.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                    && !resultsBlock.contains(QRegularExpression(
+                           QStringLiteral(">\\s*№\\s*<"),
+                           QRegularExpression::CaseInsensitiveOption))) {
+                    processColSpan = 3;
+                } else if (!resultsBlock.contains(QRegularExpression(
+                               QStringLiteral(">\\s*№\\s*<"),
+                               QRegularExpression::CaseInsensitiveOption))
+                           && resultsBlock.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+                    processColSpan = 3;
+                } else if (!resultsBlock.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                           && !resultsBlock.contains(QRegularExpression(
+                                  QStringLiteral(">\\s*№\\s*<"),
+                                  QRegularExpression::CaseInsensitiveOption))) {
+                    processColSpan = 2;
+                }
+                const QString safeBanner = QStringLiteral(
+                    "<tr><td colspan='%1' align='center' width='671' style='width:671px'>"
+                    "Процесс выполнения диагностической методики</td></tr>")
+                                               .arg(processColSpan);
+                const QRegularExpression tableOpenRe(
+                    QStringLiteral("(<table\\b[^>]*>)"),
+                    QRegularExpression::CaseInsensitiveOption);
+                const QRegularExpressionMatch openMatch = tableOpenRe.match(resultsBlock);
+                if (openMatch.hasMatch()) {
+                    resultsBlock.insert(openMatch.capturedEnd(), safeBanner);
+                } else {
+                    resultsBlock.prepend(
+                        QStringLiteral(
+                            "<table border='1' style='table-layout:fixed;width:671px' "
+                            "cellspacing='0' cellpadding='0' width='671'>")
+                        + safeBanner);
+                }
             }
             result += resultsBlock;
             if (!resultsBlock.trimmed().endsWith(QStringLiteral("</table>"), Qt::CaseInsensitive)) {
@@ -3795,9 +3861,32 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
             return (maxV - minV) <= qMax(8.0, maxV * 0.08);
         };
 
+        // Шапка «Методика» / «Дата/специалист»: ярлык в первой ячейке (не «…методики» в баннере).
+        bool isSummaryMetodikaTable = false;
+        for (int r = 0; r < qMin(4, table->rows()); ++r) {
+            const QString c0 = readTableCellText(table, r, 0).trimmed();
+            if (c0.contains(QStringLiteral("Процесс выполнения"), Qt::CaseInsensitive)) {
+                continue;
+            }
+            if (c0.startsWith(QStringLiteral("Методика"), Qt::CaseInsensitive)
+                || (c0.startsWith(QStringLiteral("Дата"), Qt::CaseInsensitive)
+                    && c0.contains(QStringLiteral("специалист"), Qt::CaseInsensitive))) {
+                isSummaryMetodikaTable = true;
+                break;
+            }
+        }
+
         bool applied = false;
         // Сначала сетки по заголовкам (не доверяем «уже корректным» равным constraint).
-        if (cols == 2 && !isProcessTable) {
+        // Шапка методики — всегда 200/(671-200), даже если Qt раздул colspan до 3–5 кол.
+        if (isSummaryMetodikaTable && !isProcessTable) {
+            QList<int> summaryWidths;
+            summaryWidths << 200 << (widthPx - 200);
+            while (summaryWidths.size() < cols) {
+                summaryWidths << 0;
+            }
+            applied = setFixed(summaryWidths);
+        } else if (cols == 2 && !isProcessTable) {
             applied = setFixed({200, widthPx - 200});
         } else if (cols == 4
                    && (headerJoin.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
@@ -3822,7 +3911,7 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                               QRegularExpression::CaseInsensitiveOption)))
                    && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
                    && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
-            applied = setFixed({43, 289, 283, 56});
+            applied = setFixed({31, 289, 289, 62});
         } else if (cols == 3
                    && headerJoin.contains(QStringLiteral("Портретная"), Qt::CaseInsensitive)) {
             applied = setFixed({200, widthPx - 260, 60});
@@ -3884,6 +3973,14 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
 
         if (!applied && cols == 2) {
             applied = setFixed({200, widthPx - 200});
+        }
+        if (!applied && isSummaryMetodikaTable) {
+            QList<int> summaryWidths;
+            summaryWidths << 200 << (widthPx - 200);
+            while (summaryWidths.size() < cols) {
+                summaryWidths << 0;
+            }
+            applied = setFixed(summaryWidths);
         }
         Q_UNUSED(applied);
         table->setFormat(fmt);

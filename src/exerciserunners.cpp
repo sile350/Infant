@@ -3104,7 +3104,7 @@ private:
             m_rotateHintRight->hide();
         }
         if (m_exerciseId == QStringLiteral("1.29")) {
-            placeStop(970.0, 70.0);
+            placeStop(570.0, 70.0);
             if (m_rotateHintLeft) {
                 m_rotateHintLeft->move(qRound(1190.0 * sx), qRound(50.0 * sy));
                 m_rotateHintLeft->show();
