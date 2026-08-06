@@ -86,7 +86,9 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         || exerciseId == QStringLiteral("1.19")
         || exerciseId == QStringLiteral("1.20")
         || exerciseId == QStringLiteral("1.22")
-        || exerciseId == QStringLiteral("1.28");
+        || exerciseId == QStringLiteral("1.28")
+        || exerciseId == QStringLiteral("2.11")
+        || exerciseId == QStringLiteral("2.12");
     m_hintX = 200;
     m_hintY = 100;
     if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
@@ -239,10 +241,12 @@ void PuzzleCanvas::rotateSpriteTo(Sprite &sprite) {
 }
 
 void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
-    // 1.15 / 1.22 / 1.28: предварительные fN на холсте не показываем.
+    // 1.15 / 1.22 / 1.28 / 2.11 / 2.12: предварительные fN на холсте не показываем.
     m_showHint = (m_exerciseId == QStringLiteral("1.15")
                   || m_exerciseId == QStringLiteral("1.22")
-                  || m_exerciseId == QStringLiteral("1.28"))
+                  || m_exerciseId == QStringLiteral("1.28")
+                  || m_exerciseId == QStringLiteral("2.11")
+                  || m_exerciseId == QStringLiteral("2.12"))
         ? false
         : options.showHint;
     const bool namedTemplateExercise = m_exerciseId == QStringLiteral("1.14")

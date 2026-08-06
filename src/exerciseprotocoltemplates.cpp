@@ -577,7 +577,7 @@ QMap<QString, QString> buildVariables(
         scoreIsFractional = true;
     }
     if (manualBalls || !scoreSelected) {
-        vars.insert(QStringLiteral("{{SCORE}}"), QString());
+        vars.insert(QStringLiteral("{{SCORE}}"), QStringLiteral("&nbsp;"));
         vars.insert(QStringLiteral("{{LEVEL}}"), QString());
     } else if (scoreIsFractional
                || tmpl.scoreKind == QStringLiteral("activity_help_2")
