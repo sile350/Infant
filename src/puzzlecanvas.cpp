@@ -79,11 +79,12 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         }
     }
 
-    // 1.15 / 1.28: fN — только превью на экране методики, не на холсте
+    // 1.15 / 1.22 / 1.28: fN — только превью на экране методики, не на холсте
     // (как в оригинале puzzles.cs: только traf + детали задания).
     const bool hidePreviewHint =
         (exerciseId == QStringLiteral("1.11") && stepId == QStringLiteral("2"))
         || exerciseId == QStringLiteral("1.15")
+        || exerciseId == QStringLiteral("1.22")
         || exerciseId == QStringLiteral("1.28");
     m_hintX = 200;
     m_hintY = 100;
@@ -207,8 +208,9 @@ void PuzzleCanvas::rotateSpriteTo(Sprite &sprite) {
 }
 
 void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
-    // 1.15 / 1.28: предварительные fN на холсте не показываем.
+    // 1.15 / 1.22 / 1.28: предварительные fN на холсте не показываем.
     m_showHint = (m_exerciseId == QStringLiteral("1.15")
+                  || m_exerciseId == QStringLiteral("1.22")
                   || m_exerciseId == QStringLiteral("1.28"))
         ? false
         : options.showHint;
@@ -384,7 +386,7 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
             qRound(drawPixmap.width() * m_scale),
             qRound(drawPixmap.height() * m_scale),
             drawPixmap);
-        if (sprite.selected) {
+        if (sprite.selected && sprite.selectPixmap.isNull()) {
             painter.setPen(QPen(Qt::red, 2));
             painter.drawRect(
                 origin.x(),

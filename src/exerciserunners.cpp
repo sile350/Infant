@@ -2875,6 +2875,22 @@ public:
         m_liveTemplateCheck->setChecked(false);
         optLayout->addWidget(m_liveHintCheck);
         optLayout->addWidget(m_liveTemplateCheck);
+        // 1.22: то же окно, что pset3 / 1.5 — подсветка vs перемещение.
+        m_liveHighlightRadio = addWrappingRadio(
+            optLayout,
+            QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
+            m_optionsGroup);
+        m_liveMoveRadio = addWrappingRadio(
+            optLayout,
+            QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
+            m_optionsGroup);
+        m_liveHighlightRadio->setChecked(true);
+        if (m_liveHighlightRadio->parentWidget()) {
+            m_liveHighlightRadio->parentWidget()->hide();
+        }
+        if (m_liveMoveRadio->parentWidget()) {
+            m_liveMoveRadio->parentWidget()->hide();
+        }
         m_optionsGroup->hide();
         connect(m_liveHintCheck, &QCheckBox::toggled, this, [this](bool checked) {
             m_sessionOptions.showHint = checked;
@@ -2893,6 +2909,24 @@ public:
                 m_canvas->applySessionOptions(opt);
             }
         });
+        connect(m_liveHighlightRadio, &QRadioButton::toggled, this, [this](bool checked) {
+            if (!checked || m_exerciseId != QStringLiteral("1.22")) {
+                return;
+            }
+            m_sessionOptions.e15SelectMode = true;
+            if (m_canvas) {
+                m_canvas->setSelectHighlightMode(true);
+            }
+        });
+        connect(m_liveMoveRadio, &QRadioButton::toggled, this, [this](bool checked) {
+            if (!checked || m_exerciseId != QStringLiteral("1.22")) {
+                return;
+            }
+            m_sessionOptions.e15SelectMode = false;
+            if (m_canvas) {
+                m_canvas->setSelectHighlightMode(false);
+            }
+        });
 
         connect(m_canvas, &PuzzleCanvas::stopRequested, this, [this]() { finishSession(); });
     }
@@ -2908,6 +2942,14 @@ public:
             m_liveTemplateCheck->blockSignals(true);
             m_liveTemplateCheck->setChecked(options.showTemplate);
             m_liveTemplateCheck->blockSignals(false);
+        }
+        if (m_liveHighlightRadio && m_liveMoveRadio) {
+            m_liveHighlightRadio->blockSignals(true);
+            m_liveMoveRadio->blockSignals(true);
+            m_liveHighlightRadio->setChecked(options.e15SelectMode);
+            m_liveMoveRadio->setChecked(!options.e15SelectMode);
+            m_liveHighlightRadio->blockSignals(false);
+            m_liveMoveRadio->blockSignals(false);
         }
         if (m_canvas && m_canvas->isVisible()) {
             ExerciseSessionOptions live = options;
@@ -2962,6 +3004,14 @@ public:
             m_liveTemplateCheck->blockSignals(true);
             m_liveTemplateCheck->setChecked(m_sessionOptions.showTemplate);
             m_liveTemplateCheck->blockSignals(false);
+        }
+        if (m_liveHighlightRadio && m_liveMoveRadio) {
+            m_liveHighlightRadio->blockSignals(true);
+            m_liveMoveRadio->blockSignals(true);
+            m_liveHighlightRadio->setChecked(m_sessionOptions.e15SelectMode);
+            m_liveMoveRadio->setChecked(!m_sessionOptions.e15SelectMode);
+            m_liveHighlightRadio->blockSignals(false);
+            m_liveMoveRadio->blockSignals(false);
         }
         m_optionsPopupVisible = false;
         m_canvas->applySessionOptions(m_sessionOptions);
@@ -3036,8 +3086,10 @@ private:
     }
 
     void layoutOptionsPopup() {
-        const bool showShard =
+        const bool show114 =
             m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2");
+        const bool show122 = m_exerciseId == QStringLiteral("1.22");
+        const bool showShard = show114 || show122;
         if (!m_shardLink || !m_optionsGroup) {
             return;
         }
@@ -3047,6 +3099,19 @@ private:
             m_optionsPopupVisible = false;
             return;
         }
+        if (m_liveHintCheck) {
+            m_liveHintCheck->setVisible(show114);
+        }
+        if (m_liveTemplateCheck) {
+            m_liveTemplateCheck->setVisible(show114);
+        }
+        if (m_liveHighlightRadio && m_liveHighlightRadio->parentWidget()) {
+            m_liveHighlightRadio->parentWidget()->setVisible(show122);
+        }
+        if (m_liveMoveRadio && m_liveMoveRadio->parentWidget()) {
+            m_liveMoveRadio->parentWidget()->setVisible(show122);
+        }
+
         constexpr int kDesignW = 1920;
         constexpr int kDesignH = 1080;
         const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
@@ -3062,7 +3127,7 @@ private:
             if (QLayout *lay = m_optionsGroup->layout()) {
                 lay->activate();
             }
-            const int groupH = qMax(m_optionsGroup->sizeHint().height(), 100);
+            const int groupH = qMax(m_optionsGroup->sizeHint().height(), show122 ? 110 : 100);
             m_optionsGroup->setGeometry(linkX, linkY + m_shardLink->height() + 4, 320, groupH);
             m_optionsGroup->show();
             m_optionsGroup->raise();
@@ -3122,9 +3187,12 @@ private:
             placeStop(977.0, 70.0);
             return;
         }
-        if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")
-            || m_exerciseId == QStringLiteral("1.28")) {
+        if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")) {
             placeStop(970.0, 70.0);
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.28")) {
+            placeStop(1120.0, 70.0); // 970 + 150
             return;
         }
         m_stop->move(80, 72);
@@ -3173,6 +3241,8 @@ private:
     QGroupBox *m_optionsGroup = nullptr;
     QCheckBox *m_liveHintCheck = nullptr;
     QCheckBox *m_liveTemplateCheck = nullptr;
+    QRadioButton *m_liveHighlightRadio = nullptr;
+    QRadioButton *m_liveMoveRadio = nullptr;
     bool m_optionsPopupVisible = false;
     bool m_storyVisible = true;
 };

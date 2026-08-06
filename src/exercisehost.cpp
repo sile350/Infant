@@ -1395,16 +1395,18 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_exerciseOptionsPanel && m_rightPanel) {
         const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+        const bool is122 = m_exerciseId == QStringLiteral("1.22");
         const bool is114Step2 = m_exerciseId == QStringLiteral("1.14")
             && currentStepId().trimmed() == QStringLiteral("2");
         // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
+        // 1.22 — то же, что 1.5/1.6 (закрывающееся окно «Настройки»).
         int panelH = 220;
-        if (isE15) {
-            panelH = 28;
-        } else if (is114Step2) {
+        if (isE15 || is122 || is114Step2) {
             panelH = 28;
         }
-        const int panelW = isE15 || is114Step2 ? 320 : qMax(120, m_rightPanel->width() - 24);
+        const int panelW = (isE15 || is122 || is114Step2)
+            ? 320
+            : qMax(120, m_rightPanel->width() - 24);
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
         m_exerciseOptionsPanel->raise();
         layoutE15ModePopup();
@@ -2322,6 +2324,14 @@ void ExerciseHost::refreshProtocolViewAfterScanUpload() {
 }
 
 void ExerciseHost::reloadPreviewForCurrentStep() {
+    if (m_exerciseId == QStringLiteral("1.22")) {
+        // Как просили: без картинки предварительного просмотра (fкруг/fквадрат/…).
+        m_previewSource = QPixmap();
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        return;
+    }
     if (m_exerciseId == QStringLiteral("4.2.2")) {
         m_previewSource = QPixmap();
         if (m_previewImage) {
@@ -3415,6 +3425,14 @@ void ExerciseHost::runExerciseSession() {
     m_protocolFormed = false;
     m_protocolSavedThisSession = false;
     m_stepElapsedSeconds.clear();
+    // Закрыть всплывающие «Настройки» перед стартом (1.5 / 1.22 / 1.14).
+    m_shardPanelVisible = false;
+    if (m_e15ModeGroup) {
+        m_e15ModeGroup->hide();
+    }
+    if (m_puzzleOptionsGroup) {
+        m_puzzleOptionsGroup->hide();
+    }
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
     if (m_exerciseId == QStringLiteral("4.2.2")) {
@@ -4923,6 +4941,7 @@ void ExerciseHost::applyPuzzleOptionsDefaults() {
         }
         refreshRotateCombos();
     } else if (m_exerciseId == QStringLiteral("1.22")) {
+        m_shardPanelVisible = false;
         if (m_e15HighlightRadio) {
             m_e15HighlightRadio->setChecked(true);
         }
@@ -4935,10 +4954,11 @@ void ExerciseHost::layoutE15ModePopup() {
     }
     const QString step = currentStepId().trimmed();
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+    const bool is122 = m_exerciseId == QStringLiteral("1.22");
     const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
 
     if (m_e15ModeGroup) {
-        if (isE15 && m_shardPanelVisible && m_shardButton->isVisible()) {
+        if ((isE15 || is122) && m_shardPanelVisible && m_shardButton->isVisible()) {
             m_e15ModeGroup->setFixedWidth(300);
             if (QLayout *lay = m_e15ModeGroup->layout()) {
                 lay->activate();
@@ -4981,30 +5001,24 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     const bool is114Step2 = m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2");
     const bool isPuzzleInline = m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21");
-    const bool isPuzzleRotate = isPuzzleInline || is114Step2;
-    const bool showShard = isE15 || is114Step2;
+    // 1.22: то же окно pset3 («подсветка» / «перемещение»), что у 1.5/1.6 — по ссылке.
+    const bool showShard = isE15 || is114Step2 || is122;
     const int panelW = m_rightPanel ? qMax(280, m_rightPanel->width() - 24) : 300;
 
     if (m_exerciseOptionsPanel) {
-        m_exerciseOptionsPanel->setVisible(showShard && !is122);
+        m_exerciseOptionsPanel->setVisible(showShard);
     }
     if (m_shardButton) {
         m_shardButton->setVisible(showShard);
     }
     if (m_e15ModeGroup) {
-        if (is122) {
-            m_shardPanelVisible = false;
-            m_e15ModeGroup->setFixedWidth(panelW);
-            m_e15ModeGroup->setGeometry(12, 52, panelW, 110);
-            m_e15ModeGroup->show();
-            m_e15ModeGroup->raise();
-        } else if (!isE15) {
+        if (isE15 || is122) {
+            layoutE15ModePopup();
+        } else {
             if (!is114Step2) {
                 m_shardPanelVisible = false;
             }
             m_e15ModeGroup->hide();
-        } else {
-            layoutE15ModePopup();
         }
     }
     if (m_puzzleOptionsGroup) {
@@ -5048,6 +5062,7 @@ ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
         options.showHint = m_showHintCheck->isChecked();
     }
     if (m_exerciseId == QStringLiteral("1.15")
+        || m_exerciseId == QStringLiteral("1.22")
         || m_exerciseId == QStringLiteral("1.28")) {
         options.showHint = false;
     }

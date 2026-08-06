@@ -139,6 +139,11 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
         }
         m_removeButtonVisible = true;
         m_removeButtonImage = QStringLiteral("showp.png");
+    } else if (exerciseId == QStringLiteral("1.27")) {
+        // Как remember.cs: после перемешивания y = 650.
+        shuffleSprites(650);
+        m_removeButtonVisible = false;
+        m_removeButtonImage.clear();
     } else {
         shuffleSprites(400);
         m_removeButtonVisible = false;
@@ -151,6 +156,7 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
 }
 
 void RememberCanvas::shuffleSprites(int baseY) {
+    // Перестановка слотов, как mst[] в remember.cs: sprite[i].x = posx[mst[i]].
     QVector<int> order;
     for (int i = 0; i < m_sprites.size(); ++i) {
         order.append(i);
@@ -159,13 +165,14 @@ void RememberCanvas::shuffleSprites(int baseY) {
         const int j = QRandomGenerator::global()->bounded(i + 1);
         order.swapItemsAt(i, j);
     }
+    const int offset = m_exerciseId == QStringLiteral("3.1.20") ? 350 : 0;
     for (int i = 0; i < m_sprites.size(); ++i) {
-        const int slot = i < m_slotPositions.size() ? m_slotPositions.at(i) : i * 200;
-        const int offset = m_exerciseId == QStringLiteral("3.1.20") ? 350 : 0;
+        const int slotIdx = order.at(i);
+        const int slot = slotIdx < m_slotPositions.size() ? m_slotPositions.at(slotIdx) : slotIdx * 200;
+        m_sprites[i].slotIndex = slotIdx;
         m_sprites[i].homeSlotX = slot + offset;
         m_sprites[i].x = slot + offset;
         m_sprites[i].y = baseY;
-        m_sprites[i].slotIndex = order.at(i);
     }
 }
 

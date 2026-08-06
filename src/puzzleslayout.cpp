@@ -18,7 +18,8 @@ void addSprite(
     int y,
     int tx = -1,
     int ty = -1,
-    const QString &name = QString()) {
+    const QString &name = QString(),
+    const QString &selectFile = QString()) {
     PuzzleSpriteDef sprite;
     sprite.file = file;
     sprite.x = x;
@@ -26,6 +27,7 @@ void addSprite(
     sprite.targetX = tx;
     sprite.targetY = ty;
     sprite.name = name;
+    sprite.selectFile = selectFile;
     layout->sprites.append(sprite);
 }
 
@@ -148,6 +150,100 @@ bool autoGridLayout(const QString &exerciseId, const QString &stepId, PuzzleLayo
 }
 
 bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
+    // 1.22: координаты как puzzles.cs (Круг / Квадрат / Пирамида).
+    if (exerciseId == QStringLiteral("1.22")) {
+        layout->rotateAllowed = false;
+        layout->selectMode = true;
+        layout->showTemplate = true;
+        layout->templateX = 800;
+        layout->templateY = 150;
+        if (stepId == QStringLiteral("Круг")) {
+            layout->templateFile = QStringLiteral("tкруг.png");
+            static const struct {
+                const char *file;
+                const char *select;
+                int x;
+                int y;
+            } kSprites[] = {
+                {"круг1.png", "вкруг1.png", 130, 100},
+                {"круг2.png", "вкруг2.png", 100, 280},
+                {"круг3.png", "вкруг3.png", 150, 500},
+                {"круг4.png", "вкруг4.png", 100, 600},
+                {"круг5.png", "вкруг5.png", 330, 600},
+                {"круг6.png", "вкруг6.png", 500, 600},
+            };
+            for (const auto &item : kSprites) {
+                addSprite(
+                    layout,
+                    QString::fromUtf8(item.file),
+                    item.x,
+                    item.y,
+                    -1,
+                    -1,
+                    QString(),
+                    QString::fromUtf8(item.select));
+            }
+            return true;
+        }
+        if (stepId == QStringLiteral("Квадрат")) {
+            layout->templateFile = QStringLiteral("tквадрат.png");
+            static const struct {
+                const char *file;
+                const char *select;
+                int x;
+                int y;
+            } kSprites[] = {
+                {"квадрат1.png", "вквадрат1.png", 100, 100},
+                {"квадрат2.png", "вквадрат2.png", 300, 80},
+                {"квадрат3.png", "вквадрат3.png", 400, 380},
+                {"квадрат4.png", "вквадрат4.png", 100, 680},
+                {"квадрат5.png", "вквадрат5.png", 300, 720},
+            };
+            for (const auto &item : kSprites) {
+                addSprite(
+                    layout,
+                    QString::fromUtf8(item.file),
+                    item.x,
+                    item.y,
+                    -1,
+                    -1,
+                    QString(),
+                    QString::fromUtf8(item.select));
+            }
+            return true;
+        }
+        if (stepId == QStringLiteral("Пирамида")) {
+            layout->templateFile = QStringLiteral("tпирамида.png");
+            static const struct {
+                const char *file;
+                const char *select;
+                int x;
+                int y;
+            } kSprites[] = {
+                {"пирамида1.png", "впирамида1.png", 100, 100},
+                {"пирамида2.png", "впирамида2.png", 300, 80},
+                {"пирамида3.png", "впирамида3.png", 400, 380},
+                {"пирамида4.png", "впирамида4.png", 100, 680},
+                {"пирамида5.png", "впирамида5.png", 300, 520},
+                {"пирамида6.png", "впирамида6.png", 550, 700},
+                {"пирамида7.png", "впирамида7.png", 750, 700},
+            };
+            for (const auto &item : kSprites) {
+                addSprite(
+                    layout,
+                    QString::fromUtf8(item.file),
+                    item.x,
+                    item.y,
+                    -1,
+                    -1,
+                    QString(),
+                    QString::fromUtf8(item.select));
+            }
+            return true;
+        }
+        return false;
+    }
+
     // 1.14 шаг 2: детали справа от подсказки (200..671) и пустого прямоугольника (700..1176).
     if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
         layout->rotateAllowed = true;
@@ -282,8 +378,9 @@ bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLa
     }
     *layout = PuzzleLayout();
 
-    // 1.14/2: координаты из кода — детали справа от подсказки и пустого прямоугольника.
-    if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
+    // 1.14/2 и 1.22: координаты из кода оригинала (puzzles.cs).
+    if ((exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2"))
+        || exerciseId == QStringLiteral("1.22")) {
         return builtinLayout(exerciseId, stepId, layout);
     }
 
