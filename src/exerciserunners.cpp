@@ -497,11 +497,7 @@ public:
         raise();
         setFocus(Qt::OtherFocusReason);
         layoutUi();
-        if (m_patientDisplay
-            && (m_exerciseId == QStringLiteral("1.12")
-                || m_exerciseId == QStringLiteral("3.3.1")
-                || m_exerciseId == QStringLiteral("3.3.2")
-                || m_exerciseId == QStringLiteral("3.3.3"))) {
+        if (m_patientDisplay && usesPatientPaintCanvas()) {
             bindPatientDisplay(m_patientDisplay);
         }
     }
@@ -512,10 +508,7 @@ public:
             teardownPatientPaintUi();
             return;
         }
-        if (m_exerciseId == QStringLiteral("1.12")
-            || m_exerciseId == QStringLiteral("3.3.1")
-            || m_exerciseId == QStringLiteral("3.3.2")
-            || m_exerciseId == QStringLiteral("3.3.3")) {
+        if (usesPatientPaintCanvas()) {
             ensurePatientPaintUi(display);
             display->attachContentWidget(m_patientRoot);
             syncPatientPaintDisplay();
@@ -537,9 +530,18 @@ public:
         drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.trafFile, m_layout.trafPos);
         m_hasLast = false;
         updateCanvasDisplay();
+        syncPatientPaintDisplay();
     }
 
 protected:
+    bool usesPatientPaintCanvas() const {
+        return m_exerciseId == QStringLiteral("1.7")
+            || m_exerciseId == QStringLiteral("1.12")
+            || m_exerciseId == QStringLiteral("3.3.1")
+            || m_exerciseId == QStringLiteral("3.3.2")
+            || m_exerciseId == QStringLiteral("3.3.3");
+    }
+
     void applyBrushFor17(const QString &stepId) {
         if (stepId == QStringLiteral("2")) {
             m_brushColor = QColor(QStringLiteral("#d24b84")); // розовый
