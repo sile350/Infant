@@ -4,6 +4,7 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include <QString>
+#include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextTable>
@@ -45,6 +46,25 @@ bool looksLikeProtocolScanAnchor(const QString &anchor) {
         || anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral(".JPEG"), Qt::CaseInsensitive);
+}
+
+QString hrefFromCharFormat(const QTextCharFormat &fmt) {
+    const QString href = fmt.anchorHref().trimmed();
+    if (looksLikeProtocolScanAnchor(href)) {
+        return href;
+    }
+    const QStringList names = fmt.anchorNames();
+    for (const QString &name : names) {
+        const QString trimmed = name.trimmed();
+        if (trimmed.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
+            && !trimmed.startsWith(QStringLiteral("dokit-pid"), Qt::CaseInsensitive)) {
+            return QLatin1Char('#') + trimmed;
+        }
+        if (looksLikeProtocolScanAnchor(trimmed)) {
+            return trimmed.startsWith(QLatin1Char('#')) ? trimmed : (QLatin1Char('#') + trimmed);
+        }
+    }
+    return {};
 }
 
 bool isLockedHeaderCell(const QString &cellText) {
@@ -419,11 +439,65 @@ private:
             }
         } else {
             m_editor->setReadOnly(false);
-            // LinksAccessibleByMouse — иначе QTextEdit не отдаёт якоря при клике стабильно.
-            m_editor->setTextInteractionFlags(
-                Qt::TextEditorInteraction | Qt::LinksAccessibleByMouse);
+            // Только TextEditorInteraction: LinksAccessibleByMouse даёт Qt самой
+            // ставить курсор по ссылкам и обходить LimitedEdit.
+            m_editor->setTextInteractionFlags(Qt::TextEditorInteraction);
             m_editor->setCursorWidth(0);
         }
+    }
+
+    QString resolveScanAnchorAt(const QPoint &viewportPos) const {
+        if (!m_editor) {
+            return {};
+        }
+        const QString fromAnchorAt = m_editor->anchorAt(viewportPos).trimmed();
+        if (looksLikeProtocolScanAnchor(fromAnchorAt)) {
+            return fromAnchorAt;
+        }
+
+        // cursorForPosition учитывает scroll/margin — надёжнее raw hitTest.
+        QTextCursor cursor = m_editor->cursorForPosition(viewportPos);
+        const int base = cursor.position();
+        for (int delta = 0; delta >= -3; --delta) {
+            const int pos = base + delta;
+            if (pos < 0) {
+                continue;
+            }
+            QTextCursor probe(m_editor->document());
+            probe.setPosition(pos);
+            const QString href = hrefFromCharFormat(probe.charFormat());
+            if (!href.isEmpty()) {
+                return href;
+            }
+        }
+        for (int delta = 1; delta <= 3; ++delta) {
+            QTextCursor probe(m_editor->document());
+            probe.setPosition(base + delta);
+            const QString href = hrefFromCharFormat(probe.charFormat());
+            if (!href.isEmpty()) {
+                return href;
+            }
+        }
+
+        // Клик рядом с «Показать изображение» в той же ячейке/блоке.
+        QTextCursor blockCursor = cursor;
+        blockCursor.movePosition(QTextCursor::StartOfBlock);
+        const int blockStart = blockCursor.position();
+        blockCursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+        const QString blockText = blockCursor.selectedText();
+        if (!blockText.contains(QStringLiteral("Показать изображение"), Qt::CaseInsensitive)) {
+            return {};
+        }
+        const int blockEnd = blockCursor.position();
+        for (int pos = blockStart; pos < blockEnd; ++pos) {
+            QTextCursor probe(m_editor->document());
+            probe.setPosition(pos);
+            const QString href = hrefFromCharFormat(probe.charFormat());
+            if (!href.isEmpty()) {
+                return href;
+            }
+        }
+        return {};
     }
 
     bool tryHandleScanAnchorClick(QObject *watched, QMouseEvent *event) {
@@ -431,24 +505,38 @@ private:
             return false;
         }
         const QPoint vp = viewportPosForMouse(watched, event);
-        const QString anchor = m_editor->anchorAt(vp);
+        const QString anchor = resolveScanAnchorAt(vp);
         if (!looksLikeProtocolScanAnchor(anchor)) {
             return false;
         }
+        // Всегда съедаем клик: и открытие файла, и «ещё не загружено».
+        m_scanAnchorHandler(anchor);
+        m_guarding = true;
         m_editor->setCursorWidth(0);
-        return m_scanAnchorHandler(anchor);
+        if (m_mode == ProtocolEditGuard::Mode::LimitedEdit) {
+            if (m_lastEditablePos >= 0) {
+                QTextCursor cursor = m_editor->textCursor();
+                cursor.setPosition(m_lastEditablePos);
+                m_editor->setTextCursor(cursor);
+            } else {
+                QTextCursor cursor = m_editor->textCursor();
+                cursor.clearSelection();
+                m_editor->setTextCursor(cursor);
+                m_editor->clearFocus();
+            }
+        } else {
+            m_editor->clearFocus();
+        }
+        m_guarding = false;
+        return true;
     }
 
     QTextCursor cursorAtViewportPos(const QPoint &viewportPos) const {
-        QTextCursor cursor(m_editor->document());
-        if (!m_editor->viewport()) {
-            return cursor;
+        if (!m_editor) {
+            return {};
         }
-        const int position = m_editor->document()->documentLayout()->hitTest(viewportPos, Qt::FuzzyHit);
-        if (position >= 0) {
-            cursor.setPosition(position);
-        }
-        return cursor;
+        // Как у Qt: позиция с учётом прокрутки/полей документа.
+        return m_editor->cursorForPosition(viewportPos);
     }
 
     QPoint viewportPosForMouse(QObject *watched, QMouseEvent *event) const {
@@ -467,18 +555,22 @@ private:
 
     bool handleMouseButton(QObject *watched, QMouseEvent *event) {
         const QPoint vp = viewportPosForMouse(watched, event);
-        // Клик по ссылке скана — не перехватывать под редактирование.
-        if (looksLikeProtocolScanAnchor(m_editor->anchorAt(vp))) {
-            return false;
+        // Клик по ссылке скана уже обработан в tryHandleScanAnchorClick.
+        // На всякий случай не отдаём Press в QTextEdit — иначе курсор встаёт в ячейку.
+        if (looksLikeProtocolScanAnchor(resolveScanAnchorAt(vp))) {
+            restoreLastEditableCursor();
+            return true;
         }
         QTextCursor probe = cursorAtViewportPos(vp);
         if (probe.position() < 0 || !isEditableProtocolCursor(probe, m_editor)) {
-            // Пустая соседняя ячейка: FuzzyHit часто попадает в заголовок — пробуем ExactHit.
-            if (m_editor->viewport()) {
-                const QPoint vp = viewportPosForMouse(watched, event);
-                const int exact = m_editor->document()->documentLayout()->hitTest(vp, Qt::ExactHit);
-                if (exact >= 0) {
-                    probe.setPosition(exact);
+            // ExactHit по viewport без mapToContents врёт при скролле — пробуем соседние точки.
+            static const QPoint kNudge[] = {
+                {0, 0}, {0, -2}, {0, 2}, {-2, 0}, {2, 0}, {0, -6}, {0, 6}};
+            for (const QPoint &d : kNudge) {
+                QTextCursor nudged = m_editor->cursorForPosition(vp + d);
+                if (nudged.position() >= 0 && isEditableProtocolCursor(nudged, m_editor)) {
+                    probe = nudged;
+                    break;
                 }
             }
         }
@@ -546,7 +638,7 @@ private:
             return;
         }
         const QPoint vp = viewportPosForMouse(watched, event);
-        if (looksLikeProtocolScanAnchor(m_editor->anchorAt(vp))) {
+        if (looksLikeProtocolScanAnchor(resolveScanAnchorAt(vp))) {
             m_editor->viewport()->setCursor(Qt::PointingHandCursor);
             return;
         }

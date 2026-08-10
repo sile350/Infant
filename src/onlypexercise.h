@@ -44,6 +44,7 @@ public:
     int elapsedSeconds() const { return m_elapsedSeconds; }
     // Суммарное время по каждому № задания (после смен stepId / финиша).
     QMap<QString, int> stepElapsedSeconds() const { return m_stepElapsedSeconds; }
+    OnlyPictureSettings settings() const { return m_settings; }
 
     int picturesShown() const { return m_picturesShown; }
 

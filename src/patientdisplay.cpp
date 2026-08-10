@@ -330,9 +330,16 @@ void PatientDisplay::showOnSecondaryScreen() {
             m_mirrorExercise->setDisplayRole(OnlyPExercise::DisplayRole::Patient);
             m_mirrorExercise->setMirrorMode(true);
             m_mirrorExercise->prepareMirrorUi(exerciseId);
-            OnlyPictureSettings settings;
-            if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
-                settings = definition->onlyPicture;
+            // Брать настройки с источника (1.11/1: f1.png поверх runner=Puzzles в конфиге).
+            OnlyPictureSettings settings = m_exercise->settings();
+            if (settings.imagePattern.isEmpty()) {
+                if (const ExerciseDefinition *definition = ExerciseConfig::find(exerciseId)) {
+                    settings = definition->onlyPicture;
+                }
+            }
+            if (exerciseId == QStringLiteral("1.11") && settings.imagePattern.isEmpty()) {
+                settings.pictureCount = 1;
+                settings.imagePattern = QStringLiteral("f1.png");
             }
             const QString stepId = m_exercise->property("stepId").toString();
             m_mirrorExercise->syncMirrorSession(exerciseId, settings, stepId);

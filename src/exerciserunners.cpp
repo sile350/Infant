@@ -3237,6 +3237,25 @@ public:
         show();
         raise();
         setFocus();
+        if (m_patientDisplay && usesPatientPuzzleCanvas()) {
+            bindPatientDisplay(m_patientDisplay);
+        }
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        m_patientDisplay = display;
+        if (!display) {
+            teardownPatientPuzzleUi();
+            return;
+        }
+        if (usesPatientPuzzleCanvas()) {
+            ensurePatientPuzzleUi(display);
+            display->attachContentWidget(m_patientRoot);
+            syncSpritesToPatient();
+            return;
+        }
+        teardownPatientPuzzleUi();
+        ExerciseRunnerWidget::bindPatientDisplay(display);
     }
 
     void stopSession() override { finishSession(); }
@@ -3251,9 +3270,88 @@ public:
         if (m_stop) {
             m_stop->raise();
         }
+        layoutPatientPuzzleUi();
     }
 
 private:
+    bool usesPatientPuzzleCanvas() const {
+        return m_exerciseId == QStringLiteral("1.11") && m_stepId.trimmed() == QStringLiteral("2");
+    }
+
+    void ensurePatientPuzzleUi(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientCanvas = new PuzzleCanvas(m_patientRoot);
+            m_patientCanvas->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            connect(m_patientCanvas, &PuzzleCanvas::spritesChanged, this, [this]() {
+                syncSpritesFromPatient();
+            }, Qt::UniqueConnection);
+            if (m_canvas) {
+                connect(m_canvas, &PuzzleCanvas::spritesChanged, this, [this]() {
+                    syncSpritesToPatient();
+                }, Qt::UniqueConnection);
+            }
+        }
+        if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+        PuzzleLayout layout;
+        if (!loadPuzzleLayout(m_exerciseId, m_stepId, &layout)) {
+            layout.templateFile = QStringLiteral("traf2.png");
+            layout.templateX = 10;
+            layout.templateY = 20;
+        }
+        m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
+        m_patientCanvas->applySessionOptions(m_sessionOptions);
+        m_patientCanvas->stopElapsedTimer();
+        layoutPatientPuzzleUi();
+        m_patientCanvas->show();
+        m_patientRoot->show();
+    }
+
+    void teardownPatientPuzzleUi() {
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
+        if (m_patientCanvas) {
+            m_patientCanvas->hide();
+        }
+    }
+
+    void layoutPatientPuzzleUi() {
+        if (!m_patientRoot || !m_patientCanvas) {
+            return;
+        }
+        m_patientRoot->setGeometry(
+            0,
+            0,
+            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->width() : 1920,
+            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->height() : 1080);
+        m_patientCanvas->setGeometry(0, 0, m_patientRoot->width(), m_patientRoot->height());
+    }
+
+    void syncSpritesToPatient() {
+        if (m_syncingSprites || !m_canvas || !m_patientCanvas) {
+            return;
+        }
+        m_syncingSprites = true;
+        m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
+        m_syncingSprites = false;
+    }
+
+    void syncSpritesFromPatient() {
+        if (m_syncingSprites || !m_canvas || !m_patientCanvas) {
+            return;
+        }
+        m_syncingSprites = true;
+        m_canvas->applySpritePoses(m_patientCanvas->spritePoses());
+        m_syncingSprites = false;
+    }
+
     void updateStoryToggleImage() {
         if (!m_storyToggle) {
             return;
@@ -3457,6 +3555,11 @@ private:
             }
             return;
         }
+        if (m_exerciseId == QStringLiteral("1.11")) {
+            // puzzles.cs: 970@70; поднять Стоп на 20px.
+            placeStop(970.0, 50.0);
+            return;
+        }
         if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")
             || m_exerciseId == QStringLiteral("2.11") || m_exerciseId == QStringLiteral("2.12")
             || m_exerciseId == QStringLiteral("3.1.8") || m_exerciseId == QStringLiteral("3.1.15")
@@ -3478,6 +3581,7 @@ private:
         result.additional.clear();
         m_canvas->hide();
         m_stop->hide();
+        teardownPatientPuzzleUi();
         if (m_rotateHintLeft) {
             m_rotateHintLeft->hide();
         }
@@ -3519,6 +3623,13 @@ private:
     QRadioButton *m_liveMoveRadio = nullptr;
     bool m_optionsPopupVisible = false;
     bool m_storyVisible = true;
+    QString m_exerciseId;
+    QString m_stepId;
+    ExerciseSessionOptions m_sessionOptions;
+    PatientDisplay *m_patientDisplay = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    PuzzleCanvas *m_patientCanvas = nullptr;
+    bool m_syncingSprites = false;
 };
 
 class FlipCardCanvas final : public QWidget {

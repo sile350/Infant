@@ -20,11 +20,24 @@ public:
     void setSpriteVisible(const QString &name, bool visible);
     void setShowTemplate(bool show);
     void setShowHint(bool show);
+    void stopElapsedTimer();
     int elapsedSeconds() const { return m_elapsed; }
     QString positionsSnapshot() const;
 
+    struct SpritePose {
+        int x = 0;
+        int y = 0;
+        int rotateState = 0;
+        bool selected = false;
+        bool hidden = false;
+        bool closed = false;
+    };
+    QVector<SpritePose> spritePoses() const;
+    void applySpritePoses(const QVector<SpritePose> &poses);
+
 signals:
     void stopRequested();
+    void spritesChanged();
 
 protected:
     void paintEvent(QPaintEvent *event) override;

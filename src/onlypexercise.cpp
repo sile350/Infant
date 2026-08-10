@@ -313,7 +313,8 @@ void OnlyPExercise::updateWidgetLayout() {
             constexpr int kMargin = 12;
             constexpr int kGap = 18;
             int x = kMargin;
-            const int y = kMargin;
+            // 1.11: поднять Стоп на 20px относительно обычного отступа.
+            const int y = (m_exerciseId == QStringLiteral("1.11")) ? 0 : kMargin;
             const QList<QLabel *> buttons = {m_stopButton, m_rightButton, m_wrongButton};
             const QList<QPixmap> sources = {m_stopSource, m_rightSource, m_wrongSource};
             int maxButtonH = 0;
@@ -341,7 +342,10 @@ void OnlyPExercise::updateWidgetLayout() {
         } else {
             if (!m_stopSource.isNull()) {
                 setWhiteBackedPixmap(m_stopButton, m_stopSource);
-                m_stopButton->move(qRound(kStopLeft * sx), qRound(kStopTop * sy));
+                const int stopTop = (m_exerciseId == QStringLiteral("1.11"))
+                    ? (kStopTop - 20)
+                    : kStopTop;
+                m_stopButton->move(qRound(kStopLeft * sx), qRound(stopTop * sy));
                 m_stopButton->show();
             }
             if (!m_rightSource.isNull()) {

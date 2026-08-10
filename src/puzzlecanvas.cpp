@@ -218,6 +218,58 @@ QString PuzzleCanvas::positionsSnapshot() const {
     return parts.join(QLatin1Char(';'));
 }
 
+void PuzzleCanvas::stopElapsedTimer() {
+    m_timer.stop();
+}
+
+QVector<PuzzleCanvas::SpritePose> PuzzleCanvas::spritePoses() const {
+    QVector<SpritePose> poses;
+    poses.reserve(m_sprites.size());
+    for (const Sprite &sprite : m_sprites) {
+        SpritePose pose;
+        pose.x = sprite.x;
+        pose.y = sprite.y;
+        pose.rotateState = sprite.rotateState;
+        pose.selected = sprite.selected;
+        pose.hidden = sprite.hidden;
+        pose.closed = sprite.closed;
+        poses.append(pose);
+    }
+    return poses;
+}
+
+void PuzzleCanvas::applySpritePoses(const QVector<SpritePose> &poses) {
+    const int n = qMin(poses.size(), m_sprites.size());
+    for (int i = 0; i < n; ++i) {
+        Sprite &sprite = m_sprites[i];
+        const SpritePose &pose = poses.at(i);
+        sprite.x = pose.x;
+        sprite.y = pose.y;
+        sprite.selected = pose.selected;
+        sprite.hidden = pose.hidden;
+        while (sprite.rotateState < pose.rotateState) {
+            rotateSpriteTo(sprite);
+        }
+        while (sprite.rotateState > pose.rotateState) {
+            rotateSpriteC(sprite);
+        }
+        if (sprite.closed != pose.closed
+            && (!sprite.openFile.isEmpty() || !sprite.closedFile.isEmpty())) {
+            const QString file = pose.closed ? sprite.closedFile : sprite.openFile;
+            if (!file.isEmpty()) {
+                const QString path = ExerciseAssets::exerciseFile(m_exerciseId, file);
+                if (!path.isEmpty()) {
+                    sprite.pixmap = QPixmap(path);
+                    sprite.closed = pose.closed;
+                }
+            }
+        } else {
+            sprite.closed = pose.closed;
+        }
+    }
+    update();
+}
+
 void PuzzleCanvas::rotateSpriteC(Sprite &sprite) {
     if (sprite.done || sprite.pixmap.isNull()) {
         return;
@@ -451,6 +503,7 @@ void PuzzleCanvas::mousePressEvent(QMouseEvent *event) {
             if (hitTest(m_sprites[i], event->x(), event->y())) {
                 m_sprites[i].selected = !m_sprites[i].selected;
                 update();
+                emit spritesChanged();
                 return;
             }
         }
@@ -487,6 +540,7 @@ void PuzzleCanvas::mouseMoveEvent(QMouseEvent *event) {
     m_sprites[m_moving].x = designPos.x();
     m_sprites[m_moving].y = designPos.y();
     update();
+    emit spritesChanged();
 }
 
 void PuzzleCanvas::mouseReleaseEvent(QMouseEvent *event) {
@@ -514,6 +568,7 @@ void PuzzleCanvas::mouseReleaseEvent(QMouseEvent *event) {
         m_dragging = false;
         m_moving = -1;
         update();
+        emit spritesChanged();
         return;
     }
 
@@ -536,6 +591,7 @@ void PuzzleCanvas::mouseReleaseEvent(QMouseEvent *event) {
     m_moving = -1;
     m_movedDuringDrag = false;
     update();
+    emit spritesChanged();
 }
 
 void PuzzleCanvas::keyPressEvent(QKeyEvent *event) {
