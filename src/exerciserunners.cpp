@@ -40,10 +40,12 @@
 #include <QRadioButton>
 #include <QRegularExpression>
 #include <QScrollArea>
+#include <QScreen>
 #include <QTableWidget>
 #include <QTextBrowser>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QWindow>
 #include <QtMath>
 
 #include <functional>
@@ -707,8 +709,22 @@ protected:
         if (!m_patientRoot) {
             return;
         }
-        const int w = m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->width() : 1920;
-        const int h = m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->height() : 1080;
+        int w = 1920;
+        int h = 1080;
+        if (QWidget *parent = m_patientRoot->parentWidget()) {
+            w = parent->width() > 0 ? parent->width() : w;
+            h = parent->height() > 0 ? parent->height() : h;
+            // Пока PatientDisplay ещё не развернут на 2-й монитор — брать размер экрана.
+            if (w < 800 || h < 600) {
+                if (QWindow *win = parent->windowHandle()) {
+                    if (QScreen *screen = win->screen()) {
+                        const QRect g = screen->geometry();
+                        w = qMax(w, g.width());
+                        h = qMax(h, g.height());
+                    }
+                }
+            }
+        }
         m_patientRoot->setGeometry(0, 0, w, h);
         if (m_patientPalette && m_patientPalette->isVisible()) {
             m_patientPalette->move(900, 80);
@@ -735,16 +751,21 @@ protected:
     }
 
     void syncPatientPaintDisplay() {
-        if (!m_patientPicture || m_canvas.isNull()) {
+        if (!m_patientPicture || m_canvas.isNull() || !m_patientRoot) {
             return;
         }
         layoutPatientPaintUi();
         QPixmap full = QPixmap::fromImage(m_canvas);
-        const int maxW = qMax(100, m_patientRoot->width() - m_layout.pos.x() - 20);
-        const int maxH = qMax(100, m_patientRoot->height() - m_layout.pos.y() - 20);
+        int availW = m_patientRoot->width() - m_layout.pos.x() - 20;
+        int availH = m_patientRoot->height() - m_layout.pos.y() - 20;
+        // Первый кадр: parent ещё 0×0 / крошечный — не сжимать до «100px».
+        if (availW < full.width() / 2 || availH < full.height() / 2) {
+            availW = full.width();
+            availH = full.height();
+        }
         QPixmap display = full;
-        if (display.width() > maxW || display.height() > maxH) {
-            display = full.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        if (display.width() > availW || display.height() > availH) {
+            display = full.scaled(availW, availH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
         m_patientPicture->setPixmap(display);
         m_patientPicture->setFixedSize(display.size());

@@ -3583,6 +3583,9 @@ void ExerciseHost::syncPatientDisplay() {
     if (m_sessionRunner && m_sessionRunner->isVisible()) {
         m_sessionRunner->bindPatientDisplay(m_patientDisplay);
         m_patientDisplay->showOnSecondaryScreen();
+        // После show геометрия 2-го экрана уже известна — иначе paint (1.7 и др.)
+        // первый раз рисует холст в мелком размере родителя 0×0 / старом.
+        m_sessionRunner->bindPatientDisplay(m_patientDisplay);
     }
 }
 
