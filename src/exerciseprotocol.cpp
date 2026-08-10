@@ -7103,11 +7103,58 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
         }
 
         static const QRegularExpression leadingNumRe(QStringLiteral("^\\s*(\\d+)"));
+        auto scoreIdFromLabel = [&](const QString &label) -> QString {
+            const QString t = label.trimmed();
+            if (t.isEmpty()) {
+                return {};
+            }
+            // 1.20: «Мяч из 2 частей» → ids1 (не leading digit «2»).
+            if (t.contains(QStringLiteral("Мяч"), Qt::CaseInsensitive)) {
+                return scorePrefix + QStringLiteral("1");
+            }
+            if (t.contains(QStringLiteral("Домик"), Qt::CaseInsensitive)
+                || t.contains(QStringLiteral("Дом из"), Qt::CaseInsensitive)
+                || t.startsWith(QStringLiteral("Дом "), Qt::CaseInsensitive)
+                || t.compare(QStringLiteral("Дом"), Qt::CaseInsensitive) == 0) {
+                return scorePrefix + QStringLiteral("2");
+            }
+            if (t.contains(QStringLiteral("Мишка"), Qt::CaseInsensitive)) {
+                return scorePrefix + QStringLiteral("3");
+            }
+            if (t.contains(QStringLiteral("Машинка"), Qt::CaseInsensitive)) {
+                return scorePrefix + QStringLiteral("4");
+            }
+            if (t.contains(QStringLiteral("Чайник"), Qt::CaseInsensitive)) {
+                return scorePrefix + QStringLiteral("5");
+            }
+            // 1.21: «2А»/«3Б» → ids по карте SCORE_ID, не по первой цифре.
+            static const QMap<QString, QString> k121 = {
+                {QStringLiteral("2А"), QStringLiteral("1")},
+                {QStringLiteral("2Б"), QStringLiteral("1")},
+                {QStringLiteral("3А"), QStringLiteral("2")},
+                {QStringLiteral("3Б"), QStringLiteral("3")},
+                {QStringLiteral("4А"), QStringLiteral("4")},
+                {QStringLiteral("4Б"), QStringLiteral("5")},
+                {QStringLiteral("5А"), QStringLiteral("6")},
+                {QStringLiteral("5Б"), QStringLiteral("7")},
+                {QStringLiteral("6А"), QStringLiteral("8")},
+                {QStringLiteral("6Б"), QStringLiteral("9")},
+            };
+            if (k121.contains(t)) {
+                return scorePrefix + k121.value(t);
+            }
+            const QRegularExpressionMatch numMatch = leadingNumRe.match(t);
+            if (numMatch.hasMatch()) {
+                return scorePrefix + numMatch.captured(1);
+            }
+            return {};
+        };
 
         for (int r = headerRow + 1; r < table->rows(); ++r) {
             const QString label = readTableCellText(table, r, 0).trimmed();
-            if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
-                if (ballsCol >= 0) {
+            if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)
+                || label.contains(QStringLiteral("Изображение"), Qt::CaseInsensitive)) {
+                if (label.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive) && ballsCol >= 0) {
                     const QString sum = readTableCellText(table, r, ballsCol);
                     if (!sum.trimmed().isEmpty()) {
                         target = replaceDivInnerById(target, QStringLiteral("idsum"), sum);
@@ -7115,12 +7162,10 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
                 }
                 continue;
             }
-            const QRegularExpressionMatch numMatch = leadingNumRe.match(label);
-            if (!numMatch.hasMatch()) {
+            const QString scoreId = scoreIdFromLabel(label);
+            if (scoreId.isEmpty()) {
                 continue;
             }
-            const QString stepNo = numMatch.captured(1);
-            const QString scoreId = scorePrefix + stepNo;
 
             if (ballsCol >= 0) {
                 const QString score = readTableCellText(table, r, ballsCol);
