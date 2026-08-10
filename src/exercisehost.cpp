@@ -989,8 +989,15 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_shardButton->hide();
     optionsLayout->addWidget(m_shardButton, 0, Qt::AlignLeft);
 
+    // Отдельная ссылка 3.1.16 на корне окна (как label1 @ 1415,25) — поверх превью.
+    m_shard316Button = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), this);
+    m_shard316Button->setFlat(true);
+    m_shard316Button->setCursor(Qt::PointingHandCursor);
+    m_shard316Button->setStyleSheet(m_shardButton->styleSheet());
+    m_shard316Button->hide();
+
     // 3.1.16: всплывающее окно как в руководстве (img3) — рамка с двумя radio под ссылкой.
-    m_aparamGroup = new QGroupBox(QString(), m_rightPanel);
+    m_aparamGroup = new QGroupBox(QString(), this);
     m_aparamGroup->setFixedWidth(280);
     m_aparamGroup->setStyleSheet(QStringLiteral(
         "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:0; padding:6px 8px 8px 8px; }"
@@ -1109,6 +1116,12 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_exerciseOptionsPanel->hide();
 
     connect(m_shardButton, &QPushButton::clicked, this, [this]() {
+        m_shardPanelVisible = !m_shardPanelVisible;
+        layoutE15ModePopup();
+        updateExerciseOptionsPanel();
+        updateChromeLayout();
+    });
+    connect(m_shard316Button, &QPushButton::clicked, this, [this]() {
         m_shardPanelVisible = !m_shardPanelVisible;
         layoutE15ModePopup();
         updateExerciseOptionsPanel();
@@ -1529,14 +1542,23 @@ void ExerciseHost::updateChromeLayout() {
             || (m_exerciseId == QStringLiteral("1.14") && currentStepId().trimmed() == QStringLiteral("2"));
         const bool is316Shard = m_exerciseId == QStringLiteral("3.1.16")
             && currentStepId().trimmed().toInt() >= 3;
-        // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
-        const int panelH = (isE15 || is122 || isPuzzleShard || is316Shard) ? 28 : 220;
-        const int panelW = (isE15 || is122 || isPuzzleShard || is316Shard)
-            ? 340
-            : qMax(120, m_rightPanel->width() - 24);
-        m_exerciseOptionsPanel->setStyleSheet(QStringLiteral("background: transparent;"));
-        m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
-        m_exerciseOptionsPanel->raise();
+        // 3.1.16: своя ссылка на корне окна; общая панель опций для неё не нужна.
+        if (is316Shard) {
+            m_exerciseOptionsPanel->hide();
+        } else {
+            // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
+            const int panelH = (isE15 || is122 || isPuzzleShard) ? 28 : 220;
+            const int panelW = (isE15 || is122 || isPuzzleShard)
+                ? 340
+                : qMax(120, m_rightPanel->width() - 24);
+            m_exerciseOptionsPanel->setStyleSheet(QStringLiteral("background: transparent; border: none;"));
+            m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
+            m_exerciseOptionsPanel->raise();
+            if (m_shardButton && m_shardButton->isVisible()) {
+                m_shardButton->adjustSize();
+                m_shardButton->raise();
+            }
+        }
         layoutE15ModePopup();
     }
     if (m_previewImage) {
@@ -1554,6 +1576,23 @@ void ExerciseHost::updateChromeLayout() {
     }
 
     layoutStepCombo();
+    // 3.1.16: ссылка поверх Start/combo/превью (как label1 @ 1415,25).
+    if (m_shard316Button && m_shard316Button->isVisible()) {
+        constexpr int kLinkAbsX = 1415;
+        constexpr int kLinkAbsY = 25;
+        constexpr int kLinkW = 300;
+        constexpr int kLinkH = 24;
+        const int maxX = qMax(8, width() - kLinkW - 8);
+        const int linkX = qBound(8, kLinkAbsX, maxX);
+        m_shard316Button->setGeometry(linkX, kLinkAbsY, kLinkW, kLinkH);
+        m_shard316Button->raise();
+    }
+    if (m_aparamGroup && m_aparamGroup->isVisible()) {
+        m_aparamGroup->raise();
+    }
+    if (m_exerciseOptionsPanel && m_exerciseOptionsPanel->isVisible()) {
+        m_exerciseOptionsPanel->raise();
+    }
 }
 
 void ExerciseHost::layoutStepCombo() {
@@ -2364,6 +2403,9 @@ void ExerciseHost::updatePreviewLayout() {
     // Опции сложности / всплывающая группа поверх превью (1.5/1.6 / 3.1.16).
     if (m_exerciseOptionsPanel && m_exerciseOptionsPanel->isVisible()) {
         m_exerciseOptionsPanel->raise();
+    }
+    if (m_shard316Button && m_shard316Button->isVisible()) {
+        m_shard316Button->raise();
     }
     layoutE15ModePopup();
     if (m_aparamGroup && m_aparamGroup->isVisible()) {
@@ -5233,11 +5275,14 @@ void ExerciseHost::applyPuzzleOptionsDefaults() {
         if (m_aparamGroup) {
             m_aparamGroup->hide();
         }
+        if (m_shard316Button) {
+            m_shard316Button->hide();
+        }
     }
 }
 
 void ExerciseHost::layoutE15ModePopup() {
-    if (!m_shardButton || !m_rightPanel) {
+    if (!m_rightPanel) {
         return;
     }
     const QString step = currentStepId().trimmed();
@@ -5248,7 +5293,7 @@ void ExerciseHost::layoutE15ModePopup() {
         || (m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2"));
     const bool is316 = m_exerciseId == QStringLiteral("3.1.16") && step.toInt() >= 3;
 
-    if (m_e15ModeGroup) {
+    if (m_e15ModeGroup && m_shardButton) {
         if ((isE15 || is122) && m_shardPanelVisible && m_shardButton->isVisible()) {
             m_e15ModeGroup->setFixedWidth(300);
             if (QLayout *lay = m_e15ModeGroup->layout()) {
@@ -5266,15 +5311,16 @@ void ExerciseHost::layoutE15ModePopup() {
     }
 
     if (m_aparamGroup) {
-        if (is316 && m_shardPanelVisible && m_shardButton->isVisible()) {
+        if (is316 && m_shardPanelVisible && m_shard316Button && m_shard316Button->isVisible()) {
             m_aparamGroup->setFixedWidth(280);
             if (QLayout *lay = m_aparamGroup->layout()) {
                 lay->activate();
             }
             const int groupH = qMax(m_aparamGroup->sizeHint().height(), 84);
-            const QPoint below =
-                m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
-            m_aparamGroup->setGeometry(below.x(), below.y(), 280, groupH);
+            // Как sets в оригинале: Left=1415, Top≈43 под ссылкой.
+            const int popupX = m_shard316Button->x();
+            const int popupY = m_shard316Button->y() + m_shard316Button->height() + 2;
+            m_aparamGroup->setGeometry(popupX, popupY, 280, groupH);
             m_aparamGroup->show();
             m_aparamGroup->raise();
         } else {
@@ -5282,7 +5328,7 @@ void ExerciseHost::layoutE15ModePopup() {
         }
     }
 
-    if (!m_puzzleOptionsGroup) {
+    if (!m_puzzleOptionsGroup || !m_shardButton) {
         return;
     }
     if (isPuzzleShard && m_shardPanelVisible && m_shardButton->isVisible()) {
@@ -5310,16 +5356,22 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
         || (m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2"));
     const bool is316 = m_exerciseId == QStringLiteral("3.1.16");
+    // Руководство: ссылка только в заданиях 3–7.
     const bool show316Options = is316 && step.toInt() >= 3;
     const bool is417 = m_exerciseId == QStringLiteral("4.1.7");
-    // «Настройка уровня сложности» + закрывающееся окошко (как у 1.5 / 1.14-2 / 1.21 / 3.1.16).
-    const bool showShard = isE15 || is122 || isPuzzleShard || show316Options;
+    const bool showShard = isE15 || is122 || isPuzzleShard;
 
     if (m_exerciseOptionsPanel) {
-        m_exerciseOptionsPanel->setVisible(showShard || is417);
+        m_exerciseOptionsPanel->setVisible((showShard || is417) && !show316Options);
     }
     if (m_shardButton) {
         m_shardButton->setVisible(showShard);
+    }
+    if (m_shard316Button) {
+        m_shard316Button->setVisible(show316Options && !m_exerciseRunning);
+        if (m_shard316Button->isVisible()) {
+            m_shard316Button->raise();
+        }
     }
     if (m_aparamGroup && !show316Options) {
         m_aparamGroup->hide();

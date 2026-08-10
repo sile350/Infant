@@ -228,6 +228,7 @@ private:
     QRadioButton *m_e15HighlightRadio = nullptr;
     QRadioButton *m_e15SelectRadio = nullptr;
     QPushButton *m_shardButton = nullptr;
+    QPushButton *m_shard316Button = nullptr;
     QGroupBox *m_aparamGroup = nullptr;
     QRadioButton *m_aparamAllRadio = nullptr;
     QRadioButton *m_aparamCurrentRadio = nullptr;
