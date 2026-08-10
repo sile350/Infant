@@ -371,9 +371,9 @@ QStringList parseCheckboxLabelsByIdPrefix(const QString &section, const QString 
     }
 
     QMap<int, QString> byId;
+    // Атрибуты в кавычках могут содержать '>' (value='<strong>…</strong>…' в 1.12).
     static const QRegularExpression inputRe(
-        QStringLiteral("<input\\b[^>]*>"),
-        QRegularExpression::CaseInsensitiveOption);
+        QStringLiteral(R"((?i)<input\b(?:[^>"']|"[^"]*"|'[^']*')*>)"));
     static const QRegularExpression checkboxTypeRe(
         QStringLiteral("type\\s*=\\s*['\"]checkbox['\"]"),
         QRegularExpression::CaseInsensitiveOption);
@@ -2835,6 +2835,23 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
             QStringLiteral(
                 "0 баллов (очень низкий уровень) – ни один из видов помощи не привел к правильному "
                 "выполнению задания ребенком."),
+        };
+    }
+    // 1.12: полный текст с «N баллов» (в value or.html баллов часто нет — только после input).
+    if (m_exerciseId == QStringLiteral("1.12")) {
+        effectiveLabels = QStringList{
+            QStringLiteral(
+                "I уровень – ребенок не принимает задачу, совершает неадекватные действия, "
+                "например, рисует карандашами вне контура или др. (0 баллов)."),
+            QStringLiteral(
+                "II уровень – ребенок принимает задачу, но закрашивает предметы несоответственно, "
+                "цвета назвать не может (0 баллов)."),
+            QStringLiteral(
+                "III уровень – ребенок выполняет задание, но с ошибками, например, неправильно "
+                "закрашивает 1-2 предмета, может правильно назвать некоторые цвета (2 балла)."),
+            QStringLiteral(
+                "IV уровень – ребенок выполняет задание без ошибок, т.е. раскрашивает предметы "
+                "соответственно, может назвать все цвета (3 балла)."),
         };
     }
     // 1.26 / 1.272 / 2.8 / 2.9 / 2.10: все 5 пунктов (fallback при сбое парсинга).
