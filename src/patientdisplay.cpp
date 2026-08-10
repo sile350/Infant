@@ -209,6 +209,11 @@ void PatientDisplay::attachMirrorWidget(QWidget *source) {
         m_mirrorLabel->raise();
     }
     m_mirrorTimer->start();
+    updateMirrorPixmap();
+}
+
+void PatientDisplay::refreshMirrorNow() {
+    updateMirrorPixmap();
 }
 
 void PatientDisplay::attachContentWidget(QWidget *widget) {

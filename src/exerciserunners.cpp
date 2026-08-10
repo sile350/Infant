@@ -3235,6 +3235,9 @@ public:
             if (m_canvas) {
                 m_canvas->setStoryVisible(m_storyVisible);
             }
+            if (usesPatientPuzzleCanvas() && m_patientCanvas) {
+                m_patientCanvas->setStoryVisible(m_storyVisible);
+            }
             updateStoryToggleImage();
         };
 
@@ -3263,6 +3266,9 @@ public:
                 if (m_canvas) {
                     m_canvas->setSpriteVisible(name, !checked);
                 }
+                if (usesPatientPuzzleCanvas() && m_patientCanvas) {
+                    m_patientCanvas->setSpriteVisible(name, !checked);
+                }
             });
         }
         filterLayout->addWidget(m_hideSmallMaster);
@@ -3280,6 +3286,9 @@ public:
             connect(box, &QCheckBox::toggled, this, [this, name](bool checked) {
                 if (m_canvas) {
                     m_canvas->setSpriteVisible(name, !checked);
+                }
+                if (usesPatientPuzzleCanvas() && m_patientCanvas) {
+                    m_patientCanvas->setSpriteVisible(name, !checked);
                 }
             });
         }
@@ -3392,44 +3401,49 @@ public:
         m_optionsGroup->hide();
         connect(m_liveHintCheck, &QCheckBox::toggled, this, [this](bool checked) {
             m_sessionOptions.showHint = checked;
-            if (m_canvas) {
-                m_canvas->setShowHint(checked);
-            }
+            applyLiveSessionOptions(m_sessionOptions);
         });
         connect(m_liveTemplateCheck, &QCheckBox::toggled, this, [this](bool checked) {
             m_sessionOptions.showTemplate = checked;
-            if (m_canvas) {
-                // Без повторного поворота фрагментов — только смена t2/et2.
-                ExerciseSessionOptions opt = m_sessionOptions;
-                opt.showTemplate = checked;
-                opt.rotateW = 0;
-                opt.rotateCW = 0;
-                m_canvas->applySessionOptions(opt);
-            }
+            applyLiveSessionOptions(m_sessionOptions);
         });
         connect(m_liveHighlightRadio, &QRadioButton::toggled, this, [this](bool checked) {
             if (!checked || m_exerciseId != QStringLiteral("1.22")) {
                 return;
             }
             m_sessionOptions.e15SelectMode = true;
-            if (m_canvas) {
-                m_canvas->setSelectHighlightMode(true);
-            }
+            applyE15SelectMode(true);
         });
         connect(m_liveMoveRadio, &QRadioButton::toggled, this, [this](bool checked) {
             if (!checked || m_exerciseId != QStringLiteral("1.22")) {
                 return;
             }
             m_sessionOptions.e15SelectMode = false;
-            if (m_canvas) {
-                m_canvas->setSelectHighlightMode(false);
-            }
+            applyE15SelectMode(false);
         });
 
         connect(m_canvas, &PuzzleCanvas::stopRequested, this, [this]() { finishSession(); });
     }
 
+    void applyLiveSessionOptions(const ExerciseSessionOptions &options) {
+        // Во время сессии не крутим фрагменты заново (rotateW/CW уже применены при старте).
+        ExerciseSessionOptions live = options;
+        live.rotateW = 0;
+        live.rotateCW = 0;
+        if (m_canvas) {
+            m_canvas->applySessionOptions(live);
+        }
+        if (usesPatientPuzzleCanvas() && m_patientCanvas) {
+            m_patientCanvas->applySessionOptions(live);
+            if (m_exerciseId == QStringLiteral("1.24")) {
+                m_patientCanvas->setStoryVisible(m_storyVisible);
+            }
+            syncSpritesToPatient();
+        }
+    }
+
     void setSessionOptions(const ExerciseSessionOptions &options) override {
+        const QString prevAparam = m_sessionOptions.puzzleAparam;
         m_sessionOptions = options;
         if (m_liveHintCheck) {
             m_liveHintCheck->blockSignals(true);
@@ -3449,17 +3463,40 @@ public:
             m_liveHighlightRadio->blockSignals(false);
             m_liveMoveRadio->blockSignals(false);
         }
-        if (m_canvas && m_canvas->isVisible()) {
-            ExerciseSessionOptions live = options;
-            live.rotateW = 0;
-            live.rotateCW = 0;
-            m_canvas->applySessionOptions(live);
+        // Сессия уже идёт: применяем на холсте специалиста и пациента (не только isVisible —
+        // вложенный OnlyDemo/1.14 иногда даёт ложный false у дочернего canvas).
+        const bool sessionActive = m_canvas && !m_exerciseId.isEmpty();
+        if (sessionActive) {
+            if (m_exerciseId == QStringLiteral("3.1.16")
+                && prevAparam.trimmed() != options.puzzleAparam.trimmed()
+                && !options.puzzleAparam.trimmed().isEmpty()) {
+                reloadLayoutWithAparam();
+            } else {
+                applyLiveSessionOptions(options);
+            }
+            if (m_exerciseId == QStringLiteral("1.22")) {
+                applyE15SelectMode(options.e15SelectMode);
+            }
         }
     }
 
     void applyE15SelectMode(bool selectOnly) override {
+        m_sessionOptions.e15SelectMode = selectOnly;
         if (m_canvas && m_exerciseId == QStringLiteral("1.22")) {
             m_canvas->setSelectHighlightMode(selectOnly);
+        }
+        if (usesPatientPuzzleCanvas() && m_patientCanvas
+            && m_exerciseId == QStringLiteral("1.22")) {
+            m_patientCanvas->setSelectHighlightMode(selectOnly);
+            syncSpritesToPatient();
+        }
+        if (m_liveHighlightRadio && m_liveMoveRadio) {
+            m_liveHighlightRadio->blockSignals(true);
+            m_liveMoveRadio->blockSignals(true);
+            m_liveHighlightRadio->setChecked(selectOnly);
+            m_liveMoveRadio->setChecked(!selectOnly);
+            m_liveHighlightRadio->blockSignals(false);
+            m_liveMoveRadio->blockSignals(false);
         }
     }
 
@@ -3625,11 +3662,21 @@ private:
                 layout.templateY = 20;
             }
             m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
-            m_patientCanvas->applySessionOptions(m_sessionOptions);
-            m_patientCanvas->stopElapsedTimer();
             m_patientLoadedExercise = m_exerciseId;
             m_patientLoadedStep = m_stepId;
         }
+        // Всегда синхронизируем live-опции (подсказка/трафарет/режим) — в т.ч. после rebind.
+        ExerciseSessionOptions live = m_sessionOptions;
+        live.rotateW = 0;
+        live.rotateCW = 0;
+        m_patientCanvas->applySessionOptions(live);
+        if (m_exerciseId == QStringLiteral("1.24")) {
+            m_patientCanvas->setStoryVisible(m_storyVisible);
+        }
+        if (m_exerciseId == QStringLiteral("1.22")) {
+            m_patientCanvas->setSelectHighlightMode(m_sessionOptions.e15SelectMode);
+        }
+        m_patientCanvas->stopElapsedTimer();
         layoutPatientPuzzleUi();
         m_patientCanvas->show();
         m_patientCanvas->raise();
@@ -5009,6 +5056,9 @@ public:
             if (m_canvas) {
                 m_canvas->setSelectOnlyMode(highlight);
             }
+            if (m_patientDisplay) {
+                m_patientDisplay->refreshMirrorNow();
+            }
         };
         connect(m_highlightRadio, &QRadioButton::toggled, this, [applyMode](bool checked) {
             if (checked) {
@@ -5022,6 +5072,11 @@ public:
         });
     }
 
+    void bindPatientDisplay(PatientDisplay *display) override {
+        m_patientDisplay = display;
+        ExerciseRunnerWidget::bindPatientDisplay(display);
+    }
+
     void applyE15SelectMode(bool selectOnly) override {
         if (m_highlightRadio && m_moveRadio) {
             m_highlightRadio->blockSignals(true);
@@ -5033,6 +5088,10 @@ public:
         }
         if (m_canvas) {
             m_canvas->setSelectOnlyMode(selectOnly);
+        }
+        // Зеркало 2-го экрана (grab) — сразу обновить, не ждать тика таймера.
+        if (m_patientDisplay) {
+            m_patientDisplay->refreshMirrorNow();
         }
     }
 
@@ -5155,6 +5214,7 @@ private:
     QGroupBox *m_modeGroup = nullptr;
     QRadioButton *m_highlightRadio = nullptr;
     QRadioButton *m_moveRadio = nullptr;
+    PatientDisplay *m_patientDisplay = nullptr;
     bool m_modeOpen = false;
 };
 
@@ -5597,9 +5657,15 @@ public:
         ExerciseRunnerWidget::setSessionOptions(options);
         m_demo->setSessionOptions(options);
         m_puzzles->setSessionOptions(options);
+        // 1.14/2: после live-смены опций с host ещё раз привяжем patient, чтобы
+        // applySessionOptions точно дошёл до холста 2-го экрана.
+        if (m_puzzles && m_puzzles->isVisible() && m_patientDisplay) {
+            m_puzzles->bindPatientDisplay(m_patientDisplay);
+        }
     }
 
     void bindPatientDisplay(PatientDisplay *display) override {
+        m_patientDisplay = display;
         // 1.14 шаг 2: интерактивный пазл на 2-м экране, а не зеркало OnlyDemo.
         if (m_puzzles && m_puzzles->isVisible()) {
             m_puzzles->bindPatientDisplay(display);
@@ -5610,6 +5676,12 @@ public:
             return;
         }
         ExerciseRunnerWidget::bindPatientDisplay(display);
+    }
+
+    void applyE15SelectMode(bool selectOnly) override {
+        if (m_puzzles && m_puzzles->isVisible()) {
+            m_puzzles->applyE15SelectMode(selectOnly);
+        }
     }
 
     void startSession(
@@ -5656,6 +5728,7 @@ public:
 
     TimedSessionRunner *m_demo = nullptr;
     PuzzlesRunner *m_puzzles = nullptr;
+    PatientDisplay *m_patientDisplay = nullptr;
 };
 
 } // namespace

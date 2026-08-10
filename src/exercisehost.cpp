@@ -313,6 +313,10 @@ QString stripHtmlTags(const QString &html) {
     result.remove(QRegularExpression(
         QStringLiteral("<[^>]+>"),
         QRegularExpression::CaseInsensitiveOption));
+    // Обрывки вроде value='strong>…' (без '<') из старых or.html.
+    result.remove(QRegularExpression(
+        QStringLiteral("\\b/?[a-zA-Z][a-zA-Z0-9]*\\s*>"),
+        QRegularExpression::CaseInsensitiveOption));
     return result.trimmed();
 }
 
@@ -1215,6 +1219,26 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         }
         if (m_rotateCWCombo) {
             m_rotateCWCombo->setEnabled(enabled);
+        }
+        pushLivePuzzleOptionsToRunner();
+    });
+    auto pushPuzzleOption = [this](bool) { pushLivePuzzleOptionsToRunner(); };
+    connect(m_showHintCheck, &QCheckBox::toggled, this, pushPuzzleOption);
+    connect(m_showTemplateCheck, &QCheckBox::toggled, this, pushPuzzleOption);
+    connect(m_rotateWCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        pushLivePuzzleOptionsToRunner();
+    });
+    connect(m_rotateCWCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        pushLivePuzzleOptionsToRunner();
+    });
+    connect(m_aparamAllRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (checked) {
+            pushLivePuzzleOptionsToRunner();
+        }
+    });
+    connect(m_aparamCurrentRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (checked) {
+            pushLivePuzzleOptionsToRunner();
         }
     });
 
@@ -3833,11 +3857,12 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 }
 
 bool ExerciseHost::needsDoneStatePanel() const {
-    // 1.12 / 1.14 / 1.15 / 1.20 / 3.3.x: в «Оценке результатов» нет блока «Выполнение».
+    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 3.3.x: в «Оценке результатов» нет блока «Выполнение».
     if (m_exerciseId == QStringLiteral("1.12")
         || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.15")
         || m_exerciseId == QStringLiteral("1.20")
+        || m_exerciseId == QStringLiteral("1.21")
         || m_exerciseId == QStringLiteral("3.3.1")
         || m_exerciseId == QStringLiteral("3.3.2")
         || m_exerciseId == QStringLiteral("3.3.3")) {
@@ -5273,6 +5298,19 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     }
     if (isPuzzleShard) {
         refreshRotateCombos();
+    }
+}
+
+void ExerciseHost::pushLivePuzzleOptionsToRunner() {
+    if (!m_exerciseRunning || !m_sessionRunner) {
+        return;
+    }
+    m_sessionRunner->setSessionOptions(buildSessionOptions());
+    // 1.5 / 1.6 / 1.22: режим подсветка/перемещение тоже обновляем на обоих экранах.
+    if (m_sessionRunnerKind == ExerciseRunnerKind::E15
+        || m_exerciseId == QStringLiteral("1.22")) {
+        const bool selectMode = m_e15HighlightRadio && m_e15HighlightRadio->isChecked();
+        m_sessionRunner->applyE15SelectMode(selectMode);
     }
 }
 

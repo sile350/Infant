@@ -131,6 +131,7 @@ private:
     void layoutE15ModePopup();
     void applyPuzzleOptionsDefaults();
     void refreshRotateCombos();
+    void pushLivePuzzleOptionsToRunner();
     ExerciseSessionOptions buildSessionOptions() const;
     int puzzleFragmentCount() const;
     ExerciseProtocol::CheckboxValues checkboxValues() const;

@@ -489,8 +489,9 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
 
     // Как PictureBox pexample поверх canvas: подсказка закрывает детали под собой,
     // снаружи справа остаются фрагменты между подсказкой и пустым прямоугольником.
+    // 1.24: подсказка/иллюстрация сказки зависит от storyVisible; остальные — только от showHint.
     if (!m_hintPixmap.isNull() && m_showHint
-        && (m_exerciseId == QStringLiteral("1.14") || m_storyVisible)) {
+        && (m_exerciseId != QStringLiteral("1.24") || m_storyVisible)) {
         const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
         painter.drawPixmap(
             hintOrigin.x(),

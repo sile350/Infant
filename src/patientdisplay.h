@@ -21,6 +21,8 @@ public:
     void showOnSecondaryScreen();
     void hideDisplay();
     void switchStep(const QString &stepId);
+    // Принудительно обновить grab-зеркало (смена режима 1.5/1.6 и т.п.).
+    void refreshMirrorNow();
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
