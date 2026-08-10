@@ -65,6 +65,10 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     m_moving = -1;
     m_dragging = false;
     m_movedDuringDrag = false;
+    m_template = QPixmap();
+    m_template2 = QPixmap();
+    m_background = QPixmap();
+    m_hintPixmap = QPixmap();
 
     if (!layout.backgroundFile.isEmpty()) {
         const QString path = ExerciseAssets::exerciseFile(exerciseId, layout.backgroundFile);
@@ -78,6 +82,7 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
             m_template = QPixmap(path);
         }
     }
+    m_showTemplate = layout.showTemplate && !m_template.isNull();
 
     // fN — превью методики, не на холсте во время выполнения.
     const bool hidePreviewHint =
@@ -146,13 +151,16 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         m_showHint = !m_hintPixmap.isNull();
     }
     m_storyVisible = true;
-    m_showTemplate = true;
+    m_showTemplate = layout.showTemplate && !m_template.isNull();
 
     if (!layout.template2File.isEmpty()) {
         const QString path2 = ExerciseAssets::exerciseFile(exerciseId, layout.template2File);
         m_template2 = path2.isEmpty() ? QPixmap() : QPixmap(path2);
     } else {
         m_template2 = QPixmap();
+    }
+    if (!m_template2.isNull()) {
+        m_showTemplate = layout.showTemplate;
     }
 
     for (const PuzzleSpriteDef &def : layout.sprites) {
@@ -308,6 +316,15 @@ void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
     const bool namedTemplateExercise = m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
         || m_exerciseId == QStringLiteral("1.21");
+    // Трафарет/картинка из layout (1.28 задание 1 = только traf1 и т.п.) — не гасить
+    // опцией «показать трафарет» из других упражнений.
+    const bool layoutDrivenTemplate = m_exerciseId == QStringLiteral("1.15")
+        || m_exerciseId == QStringLiteral("1.24")
+        || m_exerciseId == QStringLiteral("1.28")
+        || m_exerciseId == QStringLiteral("1.29")
+        || m_exerciseId == QStringLiteral("2.11")
+        || m_exerciseId == QStringLiteral("2.12")
+        || m_exerciseId.startsWith(QStringLiteral("3.1."));
     if (namedTemplateExercise) {
         QString templateFile;
         if (m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2")) {
@@ -320,6 +337,17 @@ void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
         const QString path = ExerciseAssets::exerciseFile(m_exerciseId, templateFile);
         m_template = path.isEmpty() ? QPixmap() : QPixmap(path);
         m_showTemplate = !m_template.isNull();
+    } else if (layoutDrivenTemplate) {
+        m_showTemplate = m_layout.showTemplate;
+        if (m_layout.showTemplate && !m_layout.templateFile.isEmpty()) {
+            const QString path = ExerciseAssets::exerciseFile(m_exerciseId, m_layout.templateFile);
+            m_template = path.isEmpty() ? QPixmap() : QPixmap(path);
+            m_showTemplate = !m_template.isNull();
+        }
+        if (!m_layout.template2File.isEmpty()) {
+            const QString path2 = ExerciseAssets::exerciseFile(m_exerciseId, m_layout.template2File);
+            m_template2 = path2.isEmpty() ? QPixmap() : QPixmap(path2);
+        }
     } else {
         m_showTemplate = options.showTemplate;
         if (options.showTemplate && !m_layout.templateFile.isEmpty()) {

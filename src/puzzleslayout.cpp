@@ -150,6 +150,37 @@ bool autoGridLayout(const QString &exerciseId, const QString &stepId, PuzzleLayo
 }
 
 bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout, const QString &aparam) {
+    // 1.28 «Восприятие величины»: как puzzles.cs (traf1 / traf22+traf2+детали).
+    if (exerciseId == QStringLiteral("1.28")) {
+        layout->rotateAllowed = false;
+        layout->selectMode = false;
+        layout->showTemplate = true;
+        if (stepId.trimmed() == QStringLiteral("1")) {
+            layout->templateFile = QStringLiteral("traf1.png");
+            layout->templateX = 500;
+            layout->templateY = 20;
+            return true;
+        }
+        if (stepId.trimmed() == QStringLiteral("2")) {
+            layout->templateFile = QStringLiteral("traf22.png");
+            layout->templateX = 900;
+            layout->templateY = 20;
+            layout->template2File = QStringLiteral("traf2.png");
+            layout->template2X = 400;
+            layout->template2Y = 20;
+            addSprite(layout, QStringLiteral("21.png"), 945, 72, -1, -1, QStringLiteral("smalltree"));
+            addSprite(layout, QStringLiteral("22.png"), 1097, 61, -1, -1, QStringLiteral("bigmashroom"));
+            addSprite(layout, QStringLiteral("23.png"), 909, 258, -1, -1, QStringLiteral("bighouse"));
+            addSprite(layout, QStringLiteral("24.png"), 1119, 346, -1, -1, QStringLiteral("smallcar"));
+            addSprite(layout, QStringLiteral("25.png"), 903, 572, -1, -1, QStringLiteral("bigcar"));
+            addSprite(layout, QStringLiteral("26.png"), 1089, 503, -1, -1, QStringLiteral("bigtree"));
+            addSprite(layout, QStringLiteral("27.png"), 937, 796, -1, -1, QStringLiteral("smallhouse"));
+            addSprite(layout, QStringLiteral("28.png"), 1124, 813, -1, -1, QStringLiteral("smallmashroom"));
+            return true;
+        }
+        return false;
+    }
+
     // 1.21 «Сложи круг»: трафарет на высоте подсказки (y=250);
     // детали — правая половина экрана, на 200 px ниже исходных.
     if (exerciseId == QStringLiteral("1.21")) {
@@ -693,10 +724,11 @@ bool loadPuzzleLayout(
     }
     *layout = PuzzleLayout();
 
-    // 1.19 / 1.20 / 1.21 / 1.22 / 1.14-2 / 2.11 / 2.12 / 3.1.*: координаты из puzzles.cs.
+    // 1.19 / 1.20 / 1.21 / 1.22 / 1.14-2 / 1.28 / 2.11 / 2.12 / 3.1.*: координаты из puzzles.cs.
     if (exerciseId == QStringLiteral("1.22") || exerciseId == QStringLiteral("1.21")
         || exerciseId == QStringLiteral("1.20") || exerciseId == QStringLiteral("1.19")
         || (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2"))
+        || exerciseId == QStringLiteral("1.28")
         || exerciseId == QStringLiteral("2.11") || exerciseId == QStringLiteral("2.12")
         || exerciseId == QStringLiteral("3.1.8") || exerciseId == QStringLiteral("3.1.15")
         || exerciseId == QStringLiteral("3.1.16") || exerciseId == QStringLiteral("3.1.23")) {
