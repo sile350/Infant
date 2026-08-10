@@ -69,12 +69,12 @@ QString scanAnchorHtml(const QString &protocolId, int slot, const QString &label
 }
 
 bool exerciseUsesMultiScanSlots(const QString &uprid) {
-    return uprid == QStringLiteral("1.7");
+    return uprid == QStringLiteral("1.7")
+        || uprid == QStringLiteral("2.1");
 }
 
 bool exerciseUsesSingleScanSlot(const QString &uprid) {
     return uprid == QStringLiteral("1.12")
-        || uprid == QStringLiteral("2.1")
         || uprid == QStringLiteral("2.2")
         || uprid == QStringLiteral("2.3")
         || uprid == QStringLiteral("3.3.1")

@@ -3861,13 +3861,14 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 }
 
 bool ExerciseHost::needsDoneStatePanel() const {
-    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 1.27 / 3.3.x: в «Оценке результатов» нет блока «Выполнение».
+    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 1.27 / 2.1 / 3.3.x: нет блока «Выполнение».
     if (m_exerciseId == QStringLiteral("1.12")
         || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.15")
         || m_exerciseId == QStringLiteral("1.20")
         || m_exerciseId == QStringLiteral("1.21")
         || m_exerciseId == QStringLiteral("1.27")
+        || m_exerciseId == QStringLiteral("2.1")
         || m_exerciseId == QStringLiteral("3.3.1")
         || m_exerciseId == QStringLiteral("3.3.2")
         || m_exerciseId == QStringLiteral("3.3.3")) {

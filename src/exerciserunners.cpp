@@ -1024,8 +1024,10 @@ public:
 
         m_redTimer = new QTimer(this);
         connect(m_redTimer, &QTimer::timeout, this, [this]() {
+            // 2.1: кисть остаётся красной (и на 1-м, и на 2-м экране).
             if (m_exerciseId == QStringLiteral("2.1")) {
-                m_brushColor = QColor(QStringLiteral("#4220ef"));
+                m_brushColor = QColor(QStringLiteral("#e02020"));
+                m_brushWidth = 6;
             }
             if (m_redOverlay) {
                 m_redOverlay->setGeometry(m_picture->geometry());
@@ -1061,8 +1063,9 @@ public:
             if (m_continueButton) {
                 m_continueButton->hide();
             }
-            // После красного интервала оригинал ставит #4220ef.
-            m_brushColor = QColor(QStringLiteral("#4220ef"));
+            // 2.1: снова красная кисть толщиной 6 (как setBrush в findmark.cs).
+            m_brushColor = QColor(QStringLiteral("#e02020"));
+            m_brushWidth = 6;
             m_redTimer->start();
         };
 
@@ -1123,10 +1126,20 @@ public:
         m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
         m_canvas.fill(Qt::white);
 
-        m_brushColor = QColor(QStringLiteral("#ef47e3"));
-        if (exerciseId == QStringLiteral("2.3")) {
+        // 2.1: красный вычеркивание, толщина 6 — одна кисть для обоих экранов
+        // (раньше FindMark имел свой m_brushColor, а patient рисовал через PaintRunner blue/20).
+        if (exerciseId == QStringLiteral("2.1")) {
+            m_brushColor = QColor(QStringLiteral("#e02020"));
+            m_brushWidth = 6;
+        } else if (exerciseId == QStringLiteral("2.2")) {
+            m_brushColor = QColor(QStringLiteral("#ef47e3"));
+            m_brushWidth = 6;
+        } else if (exerciseId == QStringLiteral("2.3")) {
             m_brushColor = QColor(QStringLiteral("#0000ff"));
             m_brushWidth = 20;
+        } else {
+            m_brushColor = QColor(QStringLiteral("#ef47e3"));
+            m_brushWidth = 6;
         }
 
         // 2.2: red1.png лежит в ex/2.1 (как в оригинале).
@@ -1314,29 +1327,37 @@ protected:
         drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.trafFile, m_layout.trafPos);
         drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.traf2File, m_layout.traf2Pos);
         updateCanvasDisplay();
+        syncPatientPaintDisplay();
     }
 
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
             m_drawing = true;
             m_hasLast = false;
+            m_patientDrawing = false;
             if (m_exerciseId == QStringLiteral("2.3")) {
                 const QPoint canvasPt = mapToCanvas(event->pos());
                 if (canvasPt.x() >= 0) {
                     QPainter painter(&m_canvas);
-                    painter.setPen(QPen(m_brushColor, 20, Qt::SolidLine, Qt::RoundCap));
+                    painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap));
                     painter.drawPoint(canvasPt);
                     updateCanvasDisplay();
+                    syncPatientPaintDisplay();
                 }
+                return;
             }
+            // 2.1 / 2.2: та же кисть, что и на 2-м экране (paintCanvasPoint).
+            paintAt(event->pos(), true);
+            return;
         }
-        PaintRunner::mousePressEvent(event);
+        QWidget::mousePressEvent(event);
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton && m_exerciseId != QStringLiteral("2.3")) {
             m_drawing = false;
             m_hasLast = false;
+            m_patientDrawing = false;
         }
         if (event->button() == Qt::RightButton && m_exerciseId == QStringLiteral("2.3")) {
             const QPoint canvasPt = mapToCanvas(event->pos());
@@ -1345,6 +1366,7 @@ protected:
                 painter.setPen(QPen(QColor(QStringLiteral("#f8f8f8")), 23, Qt::SolidLine, Qt::RoundCap));
                 painter.drawPoint(canvasPt);
                 updateCanvasDisplay();
+                syncPatientPaintDisplay();
             }
         }
         QWidget::mouseReleaseEvent(event);
@@ -1354,18 +1376,10 @@ protected:
         if (!m_drawing || !event->buttons().testFlag(Qt::LeftButton) || m_exerciseId == QStringLiteral("2.3")) {
             return;
         }
-        const QPoint canvasPt = mapToCanvas(event->pos());
-        if (canvasPt.x() < 0) {
+        if (m_patientDrawing) {
             return;
         }
-        QPainter painter(&m_canvas);
-        painter.setPen(QPen(m_brushColor, 6, Qt::SolidLine, Qt::RoundCap));
-        if (m_hasLast) {
-            painter.drawLine(m_lastPoint, canvasPt);
-        }
-        m_lastPoint = canvasPt;
-        m_hasLast = true;
-        updateCanvasDisplay();
+        paintAt(event->pos(), false);
     }
 
     void finish() override {
@@ -1390,7 +1404,6 @@ protected:
     int m_tu = 11;
     bool m_sampleHidden = false;
     int m_sampleHideSeconds = 0;
-    QColor m_brushColor = Qt::magenta;
 };
 
 class Remember2Runner final : public TimedSessionRunner {

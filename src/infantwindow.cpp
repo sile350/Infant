@@ -5091,7 +5091,8 @@ void InfantWindow::uploadExerciseScan() {
     const QString body = m_repository.loadProtocolBodyById(protocolId);
     const QString fileKey = Repository::scanFileKeyForProtocolBody(protocolId, body);
     QString targetName;
-    if (m_exerciseHost->exerciseId() == QStringLiteral("1.7")) {
+    if (m_exerciseHost->exerciseId() == QStringLiteral("1.7")
+        || m_exerciseHost->exerciseId() == QStringLiteral("2.1")) {
         QString step = m_exerciseHost->selectedStepId().trimmed();
         if (step.isEmpty()) {
             step = QStringLiteral("1");
