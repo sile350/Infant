@@ -978,7 +978,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     optionsLayout->setContentsMargins(0, 0, 0, 0);
     optionsLayout->setSpacing(6);
 
-    m_shardButton = new QPushButton(QStringLiteral("Настройка уровня сложности"), m_exerciseOptionsPanel);
+    m_shardButton = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), m_exerciseOptionsPanel);
     m_shardButton->setFlat(true);
     m_shardButton->setCursor(Qt::PointingHandCursor);
     m_shardButton->setStyleSheet(QStringLiteral(
@@ -989,22 +989,22 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_shardButton->hide();
     optionsLayout->addWidget(m_shardButton, 0, Qt::AlignLeft);
 
-    // 3.1.16: выбор фрагментов — всплывающее «Настройки» по ссылке сложности (как groupBox3).
-    m_aparamGroup = new QGroupBox(QStringLiteral("Настройки"), m_rightPanel);
-    m_aparamGroup->setFixedWidth(260);
+    // 3.1.16: всплывающее окно как в руководстве (img3) — рамка с двумя radio под ссылкой.
+    m_aparamGroup = new QGroupBox(QString(), m_rightPanel);
+    m_aparamGroup->setFixedWidth(280);
     m_aparamGroup->setStyleSheet(QStringLiteral(
-        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:4px; }"
-        "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
+        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:0; padding:6px 8px 8px 8px; }"
+        "QGroupBox::title { height:0; width:0; margin:0; padding:0; }"));
     auto *aparamLayout = new QVBoxLayout(m_aparamGroup);
-    aparamLayout->setContentsMargins(8, 10, 8, 6);
-    aparamLayout->setSpacing(4);
+    aparamLayout->setContentsMargins(10, 10, 10, 8);
+    aparamLayout->setSpacing(8);
     auto *aparamButtons = new QButtonGroup(m_aparamGroup);
     aparamButtons->setExclusive(true);
     m_aparamAllRadio = new QRadioButton(QStringLiteral("Показать все фрагменты"), m_aparamGroup);
-    m_aparamCurrentRadio = new QRadioButton(QStringLiteral("Только к данному заданию"), m_aparamGroup);
+    m_aparamCurrentRadio = new QRadioButton(QStringLiteral("Показать только к данному заданию"), m_aparamGroup);
     aparamButtons->addButton(m_aparamAllRadio);
     aparamButtons->addButton(m_aparamCurrentRadio);
-    // Оригинал pset2/exbegin: по умолчанию «Показать все фрагменты» (aparam=1).
+    // Руководство: по умолчанию «Показать все фрагменты».
     m_aparamAllRadio->setChecked(true);
     aparamLayout->addWidget(m_aparamAllRadio);
     aparamLayout->addWidget(m_aparamCurrentRadio);
@@ -1527,11 +1527,14 @@ void ExerciseHost::updateChromeLayout() {
         const bool isPuzzleShard = m_exerciseId == QStringLiteral("1.19")
             || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
             || (m_exerciseId == QStringLiteral("1.14") && currentStepId().trimmed() == QStringLiteral("2"));
+        const bool is316Shard = m_exerciseId == QStringLiteral("3.1.16")
+            && currentStepId().trimmed().toInt() >= 3;
         // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
-        const int panelH = (isE15 || is122 || isPuzzleShard) ? 28 : 220;
-        const int panelW = (isE15 || is122 || isPuzzleShard)
-            ? 320
+        const int panelH = (isE15 || is122 || isPuzzleShard || is316Shard) ? 28 : 220;
+        const int panelW = (isE15 || is122 || isPuzzleShard || is316Shard)
+            ? 340
             : qMax(120, m_rightPanel->width() - 24);
+        m_exerciseOptionsPanel->setStyleSheet(QStringLiteral("background: transparent;"));
         m_exerciseOptionsPanel->setGeometry(12, 52, panelW, panelH);
         m_exerciseOptionsPanel->raise();
         layoutE15ModePopup();
@@ -2340,6 +2343,11 @@ void ExerciseHost::updatePreviewLayout() {
         if (m_exerciseId == QStringLiteral("1.14")) {
             previewAbsLeft = currentStepId().trimmed() == QStringLiteral("1") ? 900 : 1100;
         }
+        // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
+        if (m_exerciseId == QStringLiteral("3.1.16")) {
+            previewAbsLeft = 1100;
+            previewAbsTop = currentStepId().trimmed().toInt() >= 3 ? 100 : 140;
+        }
         localX = previewAbsLeft - rightPanelLeft;
         localY = previewAbsTop;
         const int maxW = qMax(120, width() - previewAbsLeft - 16);
@@ -2353,11 +2361,14 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
-    // Опции сложности / всплывающая группа поверх превью (1.5/1.6).
+    // Опции сложности / всплывающая группа поверх превью (1.5/1.6 / 3.1.16).
     if (m_exerciseOptionsPanel && m_exerciseOptionsPanel->isVisible()) {
         m_exerciseOptionsPanel->raise();
     }
     layoutE15ModePopup();
+    if (m_aparamGroup && m_aparamGroup->isVisible()) {
+        m_aparamGroup->raise();
+    }
     if (m_timeResultLabel && m_timeResultLabel->isVisible()) {
         // По центру правой панели (правее превью по горизонтали).
         const int rightPanelWidth = qMax(1, width() - rightPanelLeft);
@@ -5256,14 +5267,14 @@ void ExerciseHost::layoutE15ModePopup() {
 
     if (m_aparamGroup) {
         if (is316 && m_shardPanelVisible && m_shardButton->isVisible()) {
-            m_aparamGroup->setFixedWidth(260);
+            m_aparamGroup->setFixedWidth(280);
             if (QLayout *lay = m_aparamGroup->layout()) {
                 lay->activate();
             }
-            const int groupH = qMax(m_aparamGroup->sizeHint().height(), 90);
+            const int groupH = qMax(m_aparamGroup->sizeHint().height(), 84);
             const QPoint below =
                 m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
-            m_aparamGroup->setGeometry(below.x(), below.y(), 260, groupH);
+            m_aparamGroup->setGeometry(below.x(), below.y(), 280, groupH);
             m_aparamGroup->show();
             m_aparamGroup->raise();
         } else {

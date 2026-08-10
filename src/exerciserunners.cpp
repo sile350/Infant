@@ -3387,7 +3387,7 @@ public:
             aparamGroup);
         m_aparamCurrentRadio = addWrappingRadio(
             optLayout,
-            QStringLiteral("Только к данному заданию"),
+            QStringLiteral("Показать только к данному заданию"),
             m_optionsGroup,
             aparamGroup);
         m_aparamAllRadio->setChecked(true);
