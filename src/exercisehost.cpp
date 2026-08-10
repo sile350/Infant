@@ -3828,8 +3828,10 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 }
 
 bool ExerciseHost::needsDoneStatePanel() const {
-    // 1.12 / 3.3.x: в «Оценке результатов» нет блока «Выполнение» (как в or.html).
+    // 1.12 / 1.14 / 1.15 / 3.3.x: в «Оценке результатов» нет блока «Выполнение» (как в or.html).
     if (m_exerciseId == QStringLiteral("1.12")
+        || m_exerciseId == QStringLiteral("1.14")
+        || m_exerciseId == QStringLiteral("1.15")
         || m_exerciseId == QStringLiteral("3.3.1")
         || m_exerciseId == QStringLiteral("3.3.2")
         || m_exerciseId == QStringLiteral("3.3.3")) {

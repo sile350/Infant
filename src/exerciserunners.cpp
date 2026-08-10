@@ -540,6 +540,9 @@ protected:
     bool usesPatientPaintCanvas() const {
         return m_exerciseId == QStringLiteral("1.7")
             || m_exerciseId == QStringLiteral("1.12")
+            || m_exerciseId == QStringLiteral("2.1")
+            || m_exerciseId == QStringLiteral("2.2")
+            || m_exerciseId == QStringLiteral("2.3")
             || m_exerciseId == QStringLiteral("3.3.1")
             || m_exerciseId == QStringLiteral("3.3.2")
             || m_exerciseId == QStringLiteral("3.3.3");
@@ -1160,6 +1163,9 @@ public:
         show();
         raise();
         layoutUi();
+        if (m_patientDisplay && usesPatientPaintCanvas()) {
+            bindPatientDisplay(m_patientDisplay);
+        }
     }
 
 protected:
@@ -3557,6 +3563,17 @@ private:
             return true;
         }
         static const QStringList kDual = {
+            QStringLiteral("1.14"),
+            QStringLiteral("1.15"),
+            QStringLiteral("1.19"),
+            QStringLiteral("1.20"),
+            QStringLiteral("1.21"),
+            QStringLiteral("1.22"),
+            QStringLiteral("1.24"),
+            QStringLiteral("1.28"),
+            QStringLiteral("1.29"),
+            QStringLiteral("2.11"),
+            QStringLiteral("2.12"),
             QStringLiteral("3.1.7"),
             QStringLiteral("3.1.8"),
             QStringLiteral("3.1.15"),
@@ -5229,7 +5246,8 @@ public:
 
 private:
     bool usesPatientRememberCanvas() const {
-        return m_exerciseId == QStringLiteral("3.1.20")
+        return m_exerciseId == QStringLiteral("1.27")
+            || m_exerciseId == QStringLiteral("3.1.20")
             || m_exerciseId == QStringLiteral("3.1.21")
             || m_exerciseId == QStringLiteral("4.1.7");
     }
