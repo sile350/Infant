@@ -1132,7 +1132,7 @@ public:
             m_brushColor = QColor(QStringLiteral("#e02020"));
             m_brushWidth = 6;
         } else if (exerciseId == QStringLiteral("2.2")) {
-            m_brushColor = QColor(QStringLiteral("#ef47e3"));
+            m_brushColor = QColor(QStringLiteral("#e02020"));
             m_brushWidth = 6;
         } else if (exerciseId == QStringLiteral("2.3")) {
             m_brushColor = QColor(QStringLiteral("#0000ff"));
