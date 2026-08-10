@@ -1442,6 +1442,9 @@ void InfantWindow::buildUi() {
         }
     });
     ProtocolEditGuard::install(m_protocolsView, ProtocolEditGuard::Mode::LimitedEdit);
+    ProtocolEditGuard::setScanAnchorHandler(m_protocolsView, [this](const QString &anchor) {
+        return openProtocolScanAnchor(anchor);
+    });
 
     m_panelExercises = new WhitePanelWidget(m_workStack);
     m_panelExercises->setObjectName(QStringLiteral("exercisesPanel"));
@@ -4120,14 +4123,7 @@ bool InfantWindow::eventFilter(QObject *watched, QEvent *event) {
         tryAutoSaveAnamnesis();
     }
 
-    if (m_protocolsView && watched == m_protocolsView->viewport()
-        && event->type() == QEvent::MouseButtonRelease) {
-        const auto *mouseEvent = static_cast<const QMouseEvent *>(event);
-        if (mouseEvent->button() == Qt::LeftButton
-            && tryOpenProtocolScanAnchor(m_protocolsView, mouseEvent->pos())) {
-            return true;
-        }
-    }
+    // Клик по «Показать изображение» обрабатывает ProtocolEditGuard::setScanAnchorHandler.
 
     if (watched == m_patientsTable->viewport()) {
         if (event->type() == QEvent::MouseMove) {
@@ -4959,12 +4955,8 @@ void InfantWindow::updateExerciseScanPrintButtons() {
     }
 }
 
-bool InfantWindow::tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &viewportPos) {
-    if (!editor) {
-        return false;
-    }
-    const QString anchor = editor->anchorAt(viewportPos);
-    if (anchor.isEmpty()) {
+bool InfantWindow::openProtocolScanAnchor(const QString &anchor) {
+    if (anchor.trimmed().isEmpty()) {
         return false;
     }
     const bool looksLikeScan = anchor.startsWith(QLatin1Char('#'))
@@ -4985,6 +4977,13 @@ bool InfantWindow::tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &vi
     }
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     return true;
+}
+
+bool InfantWindow::tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &viewportPos) {
+    if (!editor) {
+        return false;
+    }
+    return openProtocolScanAnchor(editor->anchorAt(viewportPos));
 }
 
 void InfantWindow::printExerciseStimulus() {

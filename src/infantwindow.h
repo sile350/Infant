@@ -130,6 +130,7 @@ private:
     void printExerciseStimulus();
     void uploadExerciseScan();
     bool tryOpenProtocolScanAnchor(QTextEdit *editor, const QPoint &viewportPos);
+    bool openProtocolScanAnchor(const QString &anchor);
     void showInfoPopup();
     void showHelpWindow(const QString &address);
     void showAboutWindow();

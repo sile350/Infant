@@ -804,6 +804,16 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
 
     m_templateBrowser = makeHtmlEditor(m_templatePanel);
     ProtocolEditGuard::install(m_templateBrowser, ProtocolEditGuard::Mode::ReadOnly);
+    ProtocolEditGuard::setScanAnchorHandler(m_templateBrowser, [this](const QString &anchor) {
+        const QString path = Repository::resolveProtocolScanPathFromAnchor(anchor);
+        if (path.isEmpty() || !QFileInfo::exists(path)) {
+            CustomMessageBox::showWarning(
+                this, QStringLiteral("Изображение ещё не загружено."));
+            return true;
+        }
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        return true;
+    });
     templateLayout->addWidget(m_templateBrowser);
     // «Подвести итог» — под протоколом (как в руководстве для 1.26).
     templateLayout->addSpacing(8);
@@ -1311,34 +1321,7 @@ void ExerciseHost::paintEvent(QPaintEvent *event) {
 }
 
 bool ExerciseHost::eventFilter(QObject *watched, QEvent *event) {
-    QWidget *templateViewport = m_templateBrowser ? m_templateBrowser->viewport() : nullptr;
-    if ((watched == m_templateBrowser || watched == templateViewport)
-        && event && event->type() == QEvent::MouseButtonRelease) {
-        const auto *mouseEvent = static_cast<const QMouseEvent *>(event);
-        if (mouseEvent->button() == Qt::LeftButton && m_templateBrowser) {
-            const QPoint pos = (watched == templateViewport)
-                ? mouseEvent->pos()
-                : m_templateBrowser->viewport()->mapFrom(m_templateBrowser, mouseEvent->pos());
-            const QString anchor = m_templateBrowser->anchorAt(pos);
-            if (!anchor.isEmpty()
-                && (anchor.startsWith(QLatin1Char('#'))
-                    || anchor.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
-                    || anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
-                    || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
-                    || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
-                    || anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
-                    || anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive))) {
-                const QString path = Repository::resolveProtocolScanPathFromAnchor(anchor);
-                if (!path.isEmpty() && QFileInfo::exists(path)) {
-                    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-                } else {
-                    CustomMessageBox::showWarning(
-                        this, QStringLiteral("Изображение ещё не загружено."));
-                }
-                return true;
-            }
-        }
-    }
+    // Ссылки «Показать изображение» — ProtocolEditGuard::setScanAnchorHandler.
     if (watched == m_templateBrowser && event
         && (event->type() == QEvent::FocusOut || event->type() == QEvent::Hide)) {
         if (m_cursorInBallsColumn) {

@@ -3,11 +3,13 @@
 #include <QAbstractTextDocumentLayout>
 #include <QEvent>
 #include <QMouseEvent>
+#include <QString>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextTable>
 #include <QVariant>
 #include <QWidget>
+#include <utility>
 
 namespace {
 
@@ -27,6 +29,22 @@ QString readProtocolTableCellText(QTextTable *table, int row, int column) {
     text.replace(QChar(0x2029), QLatin1Char(' '));
     text.replace(QChar::ParagraphSeparator, QLatin1Char(' '));
     return text.trimmed();
+}
+
+bool looksLikeProtocolScanAnchor(const QString &anchor) {
+    if (anchor.trimmed().isEmpty()) {
+        return false;
+    }
+    return anchor.startsWith(QLatin1Char('#'))
+        || anchor.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
+        || anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".jpg"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".png"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".jpeg"), Qt::CaseInsensitive)
+        || anchor.contains(QStringLiteral(".JPEG"), Qt::CaseInsensitive);
 }
 
 bool isLockedHeaderCell(const QString &cellText) {
@@ -300,11 +318,25 @@ public:
 
     ProtocolEditGuard::Mode mode() const { return m_mode; }
 
+    void setScanAnchorHandler(ProtocolEditGuard::ScanAnchorHandler handler) {
+        m_scanAnchorHandler = std::move(handler);
+    }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override {
         Q_UNUSED(watched);
         if (!m_editor) {
             return QObject::eventFilter(watched, event);
+        }
+
+        // Ссылки «Показать изображение» — до блокировки редактирования.
+        if (m_editor->viewport() && watched == m_editor->viewport()
+            && event->type() == QEvent::MouseButtonPress) {
+            auto *mouseEvent = static_cast<QMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton
+                && tryHandleScanAnchorClick(watched, mouseEvent)) {
+                return true;
+            }
         }
 
         if (m_mode == ProtocolEditGuard::Mode::ReadOnly) {
@@ -323,6 +355,11 @@ protected:
                 }
                 if (event->type() == QEvent::KeyPress || event->type() == QEvent::InputMethod) {
                     return true;
+                }
+                break;
+            case QEvent::MouseMove:
+                if (m_editor->viewport() && watched == m_editor->viewport()) {
+                    updateHoverCursor(watched, static_cast<QMouseEvent *>(event));
                 }
                 break;
             case QEvent::FocusIn:
@@ -382,9 +419,24 @@ private:
             }
         } else {
             m_editor->setReadOnly(false);
-            m_editor->setTextInteractionFlags(Qt::TextEditorInteraction);
+            // LinksAccessibleByMouse — иначе QTextEdit не отдаёт якоря при клике стабильно.
+            m_editor->setTextInteractionFlags(
+                Qt::TextEditorInteraction | Qt::LinksAccessibleByMouse);
             m_editor->setCursorWidth(0);
         }
+    }
+
+    bool tryHandleScanAnchorClick(QObject *watched, QMouseEvent *event) {
+        if (!m_scanAnchorHandler || !event) {
+            return false;
+        }
+        const QPoint vp = viewportPosForMouse(watched, event);
+        const QString anchor = m_editor->anchorAt(vp);
+        if (!looksLikeProtocolScanAnchor(anchor)) {
+            return false;
+        }
+        m_editor->setCursorWidth(0);
+        return m_scanAnchorHandler(anchor);
     }
 
     QTextCursor cursorAtViewportPos(const QPoint &viewportPos) const {
@@ -414,7 +466,12 @@ private:
     }
 
     bool handleMouseButton(QObject *watched, QMouseEvent *event) {
-        QTextCursor probe = cursorAtViewportPos(viewportPosForMouse(watched, event));
+        const QPoint vp = viewportPosForMouse(watched, event);
+        // Клик по ссылке скана — не перехватывать под редактирование.
+        if (looksLikeProtocolScanAnchor(m_editor->anchorAt(vp))) {
+            return false;
+        }
+        QTextCursor probe = cursorAtViewportPos(vp);
         if (probe.position() < 0 || !isEditableProtocolCursor(probe, m_editor)) {
             // Пустая соседняя ячейка: FuzzyHit часто попадает в заголовок — пробуем ExactHit.
             if (m_editor->viewport()) {
@@ -488,8 +545,15 @@ private:
         if (!m_editor->viewport()) {
             return;
         }
-        const QTextCursor probe = cursorAtViewportPos(viewportPosForMouse(watched, event));
-        if (probe.position() >= 0 && isEditableProtocolCursor(probe, m_editor)) {
+        const QPoint vp = viewportPosForMouse(watched, event);
+        if (looksLikeProtocolScanAnchor(m_editor->anchorAt(vp))) {
+            m_editor->viewport()->setCursor(Qt::PointingHandCursor);
+            return;
+        }
+        const QTextCursor probe = cursorAtViewportPos(vp);
+        if (m_mode != ProtocolEditGuard::Mode::ReadOnly
+            && probe.position() >= 0
+            && isEditableProtocolCursor(probe, m_editor)) {
             m_editor->viewport()->setCursor(Qt::IBeamCursor);
         } else {
             m_editor->viewport()->setCursor(Qt::ArrowCursor);
@@ -532,6 +596,7 @@ private:
 
     QTextEdit *m_editor = nullptr;
     ProtocolEditGuard::Mode m_mode = ProtocolEditGuard::Mode::LimitedEdit;
+    ProtocolEditGuard::ScanAnchorHandler m_scanAnchorHandler;
     int m_lastEditablePos = -1;
     bool m_guarding = false;
 };
@@ -566,4 +631,18 @@ void ProtocolEditGuard::setMode(QTextEdit *editor, Mode mode) {
         return;
     }
     install(editor, mode);
+}
+
+void ProtocolEditGuard::setScanAnchorHandler(QTextEdit *editor, ScanAnchorHandler handler) {
+    if (!editor) {
+        return;
+    }
+    if (ProtocolEditGuardImpl *existing = guardFor(editor)) {
+        existing->setScanAnchorHandler(std::move(handler));
+        return;
+    }
+    install(editor, Mode::LimitedEdit);
+    if (ProtocolEditGuardImpl *created = guardFor(editor)) {
+        created->setScanAnchorHandler(std::move(handler));
+    }
 }
