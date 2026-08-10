@@ -2360,7 +2360,11 @@ void ExerciseHost::updatePreviewLayout() {
         // По центру правой панели (правее превью по горизонтали).
         const int rightPanelWidth = qMax(1, width() - rightPanelLeft);
         m_timeResultLabel->adjustSize();
-        const int timerX = qMax(0, (rightPanelWidth - m_timeResultLabel->width()) / 2);
+        int timerX = qMax(0, (rightPanelWidth - m_timeResultLabel->width()) / 2);
+        // 1.22: сдвинуть таймер на 300px вправо в правой части.
+        if (m_exerciseId == QStringLiteral("1.22")) {
+            timerX += 300;
+        }
         const int timerY = qMax(8, localY - 36);
         m_timeResultLabel->move(timerX, timerY);
         m_timeResultLabel->raise();
@@ -3857,12 +3861,13 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 }
 
 bool ExerciseHost::needsDoneStatePanel() const {
-    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 3.3.x: в «Оценке результатов» нет блока «Выполнение».
+    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 1.27 / 3.3.x: в «Оценке результатов» нет блока «Выполнение».
     if (m_exerciseId == QStringLiteral("1.12")
         || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.15")
         || m_exerciseId == QStringLiteral("1.20")
         || m_exerciseId == QStringLiteral("1.21")
+        || m_exerciseId == QStringLiteral("1.27")
         || m_exerciseId == QStringLiteral("3.3.1")
         || m_exerciseId == QStringLiteral("3.3.2")
         || m_exerciseId == QStringLiteral("3.3.3")) {
