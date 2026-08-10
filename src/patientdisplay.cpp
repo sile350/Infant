@@ -60,7 +60,9 @@ PatientDisplay::PatientDisplay(QWidget *parent) : QWidget(parent, Qt::FramelessW
 
     m_mirrorLabel = new QLabel(this);
     m_mirrorLabel->setAlignment(Qt::AlignCenter);
-    m_mirrorLabel->setScaledContents(true);
+    // Не setScaledContents(true): иначе grab растягивается на весь экран
+    // без KeepAspectRatio → картинки «сплющены»/растянуты (1.5 и др.).
+    m_mirrorLabel->setScaledContents(false);
     m_mirrorLabel->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
     m_mirrorLabel->setGeometry(0, 0, 1920, 1080);
     m_mirrorLabel->hide();
@@ -259,7 +261,23 @@ void PatientDisplay::updateMirrorPixmap() {
         }
     }
 
-    m_mirrorLabel->setPixmap(canvas);
+    // Вписать в экран пациента с сохранением пропорций (исходное соотношение сторон).
+    const QSize target = m_mirrorLabel->size();
+    if (!target.isValid() || target.isEmpty()) {
+        m_mirrorLabel->setPixmap(canvas);
+        return;
+    }
+    QPixmap frame(target);
+    frame.fill(Qt::white);
+    const QPixmap fitted =
+        canvas.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    {
+        QPainter painter(&frame);
+        const int x = (frame.width() - fitted.width()) / 2;
+        const int y = (frame.height() - fitted.height()) / 2;
+        painter.drawPixmap(x, y, fitted);
+    }
+    m_mirrorLabel->setPixmap(frame);
 }
 
 void PatientDisplay::showOnSecondaryScreen() {
