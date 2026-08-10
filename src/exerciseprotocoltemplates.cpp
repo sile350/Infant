@@ -535,11 +535,11 @@ QMap<QString, QString> buildVariables(
                || tmpl.id == QStringLiteral("2.12")
                || tmpl.id == QStringLiteral("3.1.8")) {
         if (tmpl.id == QStringLiteral("3.1.8")) {
-            // protocols.cs: idd3 → 2, idd4 → 3 (по id, не по тексту «N балла»).
-            if (checkboxes.activity.contains(QStringLiteral("Хаотическая"), Qt::CaseInsensitive)) {
-                score = 3.0;
-            } else if (checkboxes.activity.contains(
-                           QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)) {
+            // Методика: за часть без ошибок/помощи — 2 балла (макс. 4 за две части).
+            // idd3 «Целенаправленное» → 2; остальное (в т.ч. «Хаотическая») → 0;
+            // каждый вид помощи −0.5. (В C# idd4→3 — копипаст от 2.11, не пишется в ячейку.)
+            if (checkboxes.activity.contains(
+                    QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)) {
                 score = 2.0;
             } else {
                 score = 0.0;

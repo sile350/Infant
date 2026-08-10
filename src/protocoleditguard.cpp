@@ -3,6 +3,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QEvent>
 #include <QMouseEvent>
+#include <QRegularExpression>
 #include <QString>
 #include <QTextCharFormat>
 #include <QTextCursor>
@@ -32,8 +33,27 @@ QString readProtocolTableCellText(QTextTable *table, int row, int column) {
     return text.trimmed();
 }
 
+bool isProtocolFieldAnchorName(const QString &raw) {
+    QString name = raw.trimmed();
+    if (name.startsWith(QLatin1Char('#'))) {
+        name = name.mid(1);
+    }
+    if (name.isEmpty()) {
+        return false;
+    }
+    // Ячейки протокола (idb1, idsum, idvivod…) — не ссылки «Показать изображение».
+    static const QRegularExpression fieldRe(
+        QStringLiteral(
+            "^(idballs|idsum|idvivod|idb\\d+|ids\\d+|idd\\d+|idp\\d+|idv\\d+|ide\\d+|dokit-pid)"),
+        QRegularExpression::CaseInsensitiveOption);
+    return fieldRe.match(name).hasMatch();
+}
+
 bool looksLikeProtocolScanAnchor(const QString &anchor) {
     if (anchor.trimmed().isEmpty()) {
+        return false;
+    }
+    if (isProtocolFieldAnchorName(anchor)) {
         return false;
     }
     return anchor.startsWith(QLatin1Char('#'))
@@ -56,6 +76,9 @@ QString hrefFromCharFormat(const QTextCharFormat &fmt) {
     const QStringList names = fmt.anchorNames();
     for (const QString &name : names) {
         const QString trimmed = name.trimmed();
+        if (isProtocolFieldAnchorName(trimmed)) {
+            continue;
+        }
         if (trimmed.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
             && !trimmed.startsWith(QStringLiteral("dokit-pid"), Qt::CaseInsensitive)) {
             return QLatin1Char('#') + trimmed;
@@ -230,13 +253,16 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
                 }
             }
             if (activityCol < 0
-                && header.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)) {
+                && (header.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
+                    || header.contains(QStringLiteral("Характер выполнения"), Qt::CaseInsensitive))) {
                 activityCol = c;
                 if (ballsHeaderRow < 0) {
                     ballsHeaderRow = r;
                 }
             }
-            if (helpCol < 0 && header.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+            if (helpCol < 0
+                && (header.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
+                    || header.contains(QStringLiteral("Виды и количество"), Qt::CaseInsensitive))
                 && !header.contains(QStringLiteral("возможной"), Qt::CaseInsensitive)) {
                 helpCol = c;
                 if (ballsHeaderRow < 0) {
