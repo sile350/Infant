@@ -521,7 +521,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
     if (exerciseId == QStringLiteral("3.1.16")) {
         layout->showTemplate = true;
         const int step = stepId.toInt();
-        const QString mode = aparam.trimmed().isEmpty() ? QStringLiteral("2") : aparam.trimmed();
+        const QString mode = aparam.trimmed().isEmpty() ? QStringLiteral("1") : aparam.trimmed();
         if (step == 1) {
             const int dy = 110;
             layout->templateFile = QStringLiteral("traf1.png");

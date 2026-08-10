@@ -96,7 +96,8 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         || exerciseId == QStringLiteral("2.11")
         || exerciseId == QStringLiteral("2.12")
         || exerciseId == QStringLiteral("3.1.7")
-        || exerciseId == QStringLiteral("3.1.8");
+        || exerciseId == QStringLiteral("3.1.8")
+        || exerciseId == QStringLiteral("3.1.16");
     m_hintX = 200;
     m_hintY = 100;
     if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
@@ -315,7 +316,8 @@ void PuzzleCanvas::applySessionOptions(const ExerciseSessionOptions &options) {
                   || m_exerciseId == QStringLiteral("2.11")
                   || m_exerciseId == QStringLiteral("2.12")
                   || m_exerciseId == QStringLiteral("3.1.7")
-                  || m_exerciseId == QStringLiteral("3.1.8"))
+                  || m_exerciseId == QStringLiteral("3.1.8")
+                  || m_exerciseId == QStringLiteral("3.1.16"))
         ? false
         : options.showHint;
     const bool namedTemplateExercise = m_exerciseId == QStringLiteral("1.14")

@@ -989,24 +989,26 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_shardButton->hide();
     optionsLayout->addWidget(m_shardButton, 0, Qt::AlignLeft);
 
-    // 3.1.16 (pset2): режим фрагментов до старта.
-    m_aparamGroup = new QGroupBox(QStringLiteral("Фрагменты"), m_exerciseOptionsPanel);
+    // 3.1.16: выбор фрагментов — всплывающее «Настройки» по ссылке сложности (как groupBox3).
+    m_aparamGroup = new QGroupBox(QStringLiteral("Настройки"), m_rightPanel);
+    m_aparamGroup->setFixedWidth(260);
     m_aparamGroup->setStyleSheet(QStringLiteral(
-        "QGroupBox { background:#ffffff; border:1px solid #888; margin-top:4px; padding:4px; }"
+        "QGroupBox { background:#ffffff; border:1px solid #000; margin-top:4px; padding:4px; }"
         "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
     auto *aparamLayout = new QVBoxLayout(m_aparamGroup);
     aparamLayout->setContentsMargins(8, 10, 8, 6);
+    aparamLayout->setSpacing(4);
     auto *aparamButtons = new QButtonGroup(m_aparamGroup);
     aparamButtons->setExclusive(true);
     m_aparamAllRadio = new QRadioButton(QStringLiteral("Показать все фрагменты"), m_aparamGroup);
     m_aparamCurrentRadio = new QRadioButton(QStringLiteral("Только к данному заданию"), m_aparamGroup);
     aparamButtons->addButton(m_aparamAllRadio);
     aparamButtons->addButton(m_aparamCurrentRadio);
-    m_aparamCurrentRadio->setChecked(true);
+    // Оригинал pset2/exbegin: по умолчанию «Показать все фрагменты» (aparam=1).
+    m_aparamAllRadio->setChecked(true);
     aparamLayout->addWidget(m_aparamAllRadio);
     aparamLayout->addWidget(m_aparamCurrentRadio);
     m_aparamGroup->hide();
-    optionsLayout->addWidget(m_aparamGroup, 0, Qt::AlignLeft);
 
     // 4.1.7 (rem): выбор картинок 1–9.
     m_remPanel = new QWidget(m_rightPanel);
@@ -5212,6 +5214,14 @@ void ExerciseHost::applyPuzzleOptionsDefaults() {
         if (m_e15HighlightRadio) {
             m_e15HighlightRadio->setChecked(true);
         }
+    } else if (m_exerciseId == QStringLiteral("3.1.16")) {
+        m_shardPanelVisible = false;
+        if (m_aparamAllRadio) {
+            m_aparamAllRadio->setChecked(true);
+        }
+        if (m_aparamGroup) {
+            m_aparamGroup->hide();
+        }
     }
 }
 
@@ -5225,6 +5235,7 @@ void ExerciseHost::layoutE15ModePopup() {
     const bool isPuzzleShard = m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
         || (m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2"));
+    const bool is316 = m_exerciseId == QStringLiteral("3.1.16") && step.toInt() >= 3;
 
     if (m_e15ModeGroup) {
         if ((isE15 || is122) && m_shardPanelVisible && m_shardButton->isVisible()) {
@@ -5240,6 +5251,23 @@ void ExerciseHost::layoutE15ModePopup() {
             m_e15ModeGroup->raise();
         } else {
             m_e15ModeGroup->hide();
+        }
+    }
+
+    if (m_aparamGroup) {
+        if (is316 && m_shardPanelVisible && m_shardButton->isVisible()) {
+            m_aparamGroup->setFixedWidth(260);
+            if (QLayout *lay = m_aparamGroup->layout()) {
+                lay->activate();
+            }
+            const int groupH = qMax(m_aparamGroup->sizeHint().height(), 90);
+            const QPoint below =
+                m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
+            m_aparamGroup->setGeometry(below.x(), below.y(), 260, groupH);
+            m_aparamGroup->show();
+            m_aparamGroup->raise();
+        } else {
+            m_aparamGroup->hide();
         }
     }
 
@@ -5271,18 +5299,22 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
         || (m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2"));
     const bool is316 = m_exerciseId == QStringLiteral("3.1.16");
+    const bool show316Options = is316 && step.toInt() >= 3;
     const bool is417 = m_exerciseId == QStringLiteral("4.1.7");
-    // «Настройка уровня сложности» + закрывающееся окошко (как у 1.5 / 1.14-2 / 1.21).
-    const bool showShard = isE15 || is122 || isPuzzleShard || is316;
+    // «Настройка уровня сложности» + закрывающееся окошко (как у 1.5 / 1.14-2 / 1.21 / 3.1.16).
+    const bool showShard = isE15 || is122 || isPuzzleShard || show316Options;
 
     if (m_exerciseOptionsPanel) {
         m_exerciseOptionsPanel->setVisible(showShard || is417);
     }
     if (m_shardButton) {
-        m_shardButton->setVisible(isE15 || is122 || isPuzzleShard || (is316 && step.toInt() >= 3));
+        m_shardButton->setVisible(showShard);
     }
-    if (m_aparamGroup) {
-        m_aparamGroup->setVisible(is316);
+    if (m_aparamGroup && !show316Options) {
+        m_aparamGroup->hide();
+        if (is316) {
+            m_shardPanelVisible = false;
+        }
     }
     if (m_remPanel) {
         m_remPanel->setVisible(is417 && !m_exerciseRunning);
@@ -5297,7 +5329,7 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         if (isE15 || is122) {
             layoutE15ModePopup();
         } else {
-            if (!isPuzzleShard) {
+            if (!isPuzzleShard && !show316Options) {
                 m_shardPanelVisible = false;
             }
             m_e15ModeGroup->hide();
@@ -5309,6 +5341,9 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         } else {
             m_puzzleOptionsGroup->hide();
         }
+    }
+    if (show316Options) {
+        layoutE15ModePopup();
     }
     if (isPuzzleShard) {
         refreshRotateCombos();
