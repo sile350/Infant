@@ -2746,12 +2746,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     int stimAt = insertAfter(m_stimHelpLabel);
     for (int i = 0; i < stimCount && i < labels.size(); ++i) {
-        if (help112) {
-            m_helpChecks << makeCircleBulletCheckRow(
-                labels.at(i).toHtmlEscaped(), m_helpChecksLayout, checkWidth, true);
-        } else {
-            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
-        }
+        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
             m_helpChecksLayout->insertWidget(stimAt++, row);
@@ -2760,12 +2755,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     int directAt = insertAfter(m_directHelpLabel);
     for (int i = stimCount; i < stimCount + directCount && i < labels.size(); ++i) {
-        if (help112) {
-            m_helpChecks << makeCircleBulletCheckRow(
-                labels.at(i).toHtmlEscaped(), m_helpChecksLayout, checkWidth, true);
-        } else {
-            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
-        }
+        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
             m_helpChecksLayout->insertWidget(directAt++, row);
@@ -2774,12 +2764,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     int teachAt = insertAfter(m_teachHelpLabel);
     for (int i = stimCount + directCount; i < labels.size(); ++i) {
-        if (help112) {
-            m_helpChecks << makeCircleBulletCheckRow(
-                labels.at(i).toHtmlEscaped(), m_helpChecksLayout, checkWidth, true);
-        } else {
-            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
-        }
+        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
             m_helpChecksLayout->insertWidget(teachAt++, row);
@@ -2904,9 +2889,6 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     if (m_activityTitle) {
         if (m_exerciseId == QStringLiteral("5.4.2") || m_exerciseId == QStringLiteral("3.1.21")) {
             m_activityTitle->setText(QStringLiteral("Баллы"));
-        } else if (m_exerciseId == QStringLiteral("1.12")) {
-            m_activityTitle->setText(
-                QStringLiteral("Характер деятельности ребенка\n(уровень выполнения)"));
         } else {
             m_activityTitle->setText(QStringLiteral("Характер деятельности ребенка:"));
         }
@@ -2924,25 +2906,7 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
         : 760;
 
     for (const QString &text : effectiveLabels) {
-        if (m_exerciseId == QStringLiteral("1.12")) {
-            QString html = text.toHtmlEscaped();
-            // Жирные «уровень» и баллы — как на скрине (IV→I, чтобы не задеть III).
-            const QStringList levelTags = {
-                QStringLiteral("IV уровень"),
-                QStringLiteral("III уровень"),
-                QStringLiteral("II уровень"),
-                QStringLiteral("I уровень"),
-            };
-            for (const QString &tag : levelTags) {
-                html.replace(tag, QStringLiteral("<b>%1</b>").arg(tag));
-            }
-            html.replace(QStringLiteral("(0 баллов)"), QStringLiteral("(<b>0 баллов</b>)"));
-            html.replace(QStringLiteral("(2 балла)"), QStringLiteral("(<b>2 балла</b>)"));
-            html.replace(QStringLiteral("(3 балла)"), QStringLiteral("(<b>3 балла</b>)"));
-            m_activityChecks << makeCircleBulletCheckRow(html, m_activityChecksLayout, checkWidth, false);
-        } else {
-            m_activityChecks << makeCheckRow(text, m_activityChecksLayout, checkWidth);
-        }
+        m_activityChecks << makeCheckRow(text, m_activityChecksLayout, checkWidth);
     }
 
     const bool allowMulti = m_exerciseId == QStringLiteral("1.13")
