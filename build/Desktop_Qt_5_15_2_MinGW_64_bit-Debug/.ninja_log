@@ -103,3 +103,10 @@
 291	2950	8080674470023419	CMakeFiles/infant.dir/src/puzzlecanvas.cpp.obj	2178b523d3dfb266
 294	2952	8080674470062470	CMakeFiles/infant.dir/src/patientdisplay.cpp.obj	d0ce6de94e8a0aaf
 2952	9576	8080674496644683	infant.exe	8f109e57622b20c3
+19	258	8080678800194381	infant_autogen/timestamp	928c61d4c371ba7e
+19	258	8080678800194381	infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+19	258	8080678800194381	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/timestamp	928c61d4c371ba7e
+19	258	8080678800194381	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/mocs_compilation.cpp	928c61d4c371ba7e
+258	5213	8080678802582935	CMakeFiles/infant.dir/src/exerciserunners.cpp.obj	5baccb64cfc3d301
+261	5688	8080678802612301	CMakeFiles/infant.dir/src/exercisehost.cpp.obj	5c8c0a954535de25
+5688	11290	8080678856883436	infant.exe	8f109e57622b20c3

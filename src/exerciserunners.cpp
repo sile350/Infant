@@ -98,14 +98,18 @@ public:
 
 protected:
     void mouseReleaseEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton && radio) {
-            radio->setChecked(true);
+        if (event->button() == Qt::LeftButton && radio && !radio->isChecked()) {
+            radio->click();
         }
         QLabel::mouseReleaseEvent(event);
     }
 };
 
-QRadioButton *addWrappingRadio(QVBoxLayout *layout, const QString &text, QWidget *parent) {
+QRadioButton *addWrappingRadio(
+    QVBoxLayout *layout,
+    const QString &text,
+    QWidget *parent,
+    QButtonGroup *group = nullptr) {
     auto *row = new QWidget(parent);
     auto *rowLayout = new QHBoxLayout(row);
     rowLayout->setContentsMargins(0, 0, 0, 0);
@@ -113,6 +117,10 @@ QRadioButton *addWrappingRadio(QVBoxLayout *layout, const QString &text, QWidget
     auto *radio = new QRadioButton(row);
     radio->setText(QString());
     radio->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    // У каждой radio свой parent-row → autoExclusive не работает; нужна группа.
+    if (group) {
+        group->addButton(radio);
+    }
     auto *label = new RadioTextLabel(row);
     label->radio = radio;
     label->setText(text);
@@ -3078,14 +3086,18 @@ public:
         optLayout->addWidget(m_liveHintCheck);
         optLayout->addWidget(m_liveTemplateCheck);
         // 1.22: то же окно, что pset3 / 1.5 — подсветка vs перемещение.
+        auto *liveSelectGroup = new QButtonGroup(m_optionsGroup);
+        liveSelectGroup->setExclusive(true);
         m_liveHighlightRadio = addWrappingRadio(
             optLayout,
             QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
-            m_optionsGroup);
+            m_optionsGroup,
+            liveSelectGroup);
         m_liveMoveRadio = addWrappingRadio(
             optLayout,
             QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
-            m_optionsGroup);
+            m_optionsGroup,
+            liveSelectGroup);
         m_liveHighlightRadio->setChecked(true);
         if (m_liveHighlightRadio->parentWidget()) {
             m_liveHighlightRadio->parentWidget()->hide();
@@ -4512,14 +4524,18 @@ public:
         auto *modeLayout = new QVBoxLayout(m_modeGroup);
         modeLayout->setContentsMargins(8, 10, 8, 6);
         modeLayout->setSpacing(4);
+        auto *e15SelectGroup = new QButtonGroup(m_modeGroup);
+        e15SelectGroup->setExclusive(true);
         m_highlightRadio = addWrappingRadio(
             modeLayout,
             QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
-            m_modeGroup);
+            m_modeGroup,
+            e15SelectGroup);
         m_moveRadio = addWrappingRadio(
             modeLayout,
             QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
-            m_modeGroup);
+            m_modeGroup,
+            e15SelectGroup);
         m_highlightRadio->setChecked(true);
         m_modeGroup->hide();
 

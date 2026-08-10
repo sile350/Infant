@@ -19,6 +19,7 @@
 #include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QBrush>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
@@ -93,14 +94,18 @@ public:
 
 protected:
     void mouseReleaseEvent(QMouseEvent *event) override {
-        if (event->button() == Qt::LeftButton && radio) {
-            radio->setChecked(true);
+        if (event->button() == Qt::LeftButton && radio && !radio->isChecked()) {
+            radio->click();
         }
         QLabel::mouseReleaseEvent(event);
     }
 };
 
-QRadioButton *addWrappingRadio(QVBoxLayout *layout, const QString &text, QWidget *parent) {
+QRadioButton *addWrappingRadio(
+    QVBoxLayout *layout,
+    const QString &text,
+    QWidget *parent,
+    QButtonGroup *group = nullptr) {
     auto *row = new QWidget(parent);
     auto *rowLayout = new QHBoxLayout(row);
     rowLayout->setContentsMargins(0, 0, 0, 0);
@@ -108,6 +113,10 @@ QRadioButton *addWrappingRadio(QVBoxLayout *layout, const QString &text, QWidget
     auto *radio = new QRadioButton(row);
     radio->setText(QString());
     radio->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    // У каждой radio свой parent-row → autoExclusive не работает; нужна группа.
+    if (group) {
+        group->addButton(radio);
+    }
     auto *label = new RadioTextLabel(row);
     label->radio = radio;
     label->setText(text);
@@ -933,16 +942,20 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     auto *e15Layout = new QVBoxLayout(m_e15ModeGroup);
     e15Layout->setContentsMargins(8, 10, 8, 6);
     e15Layout->setSpacing(4);
+    auto *e15ModeGroup = new QButtonGroup(m_e15ModeGroup);
+    e15ModeGroup->setExclusive(true);
     // radioButton1 в оригинале → param="select" (подсветка).
     m_e15HighlightRadio = addWrappingRadio(
         e15Layout,
         QStringLiteral("Выделение («подсвечивание») фрагментов при выборе"),
-        m_e15ModeGroup);
+        m_e15ModeGroup,
+        e15ModeGroup);
     // radioButton2 → перемещение на место (без анимации наклона).
     m_e15SelectRadio = addWrappingRadio(
         e15Layout,
         QStringLiteral("Перемещение фрагментов на основной рисунок для визуального сравнения узора"),
-        m_e15ModeGroup);
+        m_e15ModeGroup,
+        e15ModeGroup);
     m_e15HighlightRadio->setChecked(true);
     m_e15ModeGroup->hide();
 
