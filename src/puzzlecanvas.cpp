@@ -247,11 +247,15 @@ void PuzzleCanvas::applySpritePoses(const QVector<SpritePose> &poses) {
         sprite.y = pose.y;
         sprite.selected = pose.selected;
         sprite.hidden = pose.hidden;
-        while (sprite.rotateState < pose.rotateState) {
-            rotateSpriteTo(sprite);
-        }
-        while (sprite.rotateState > pose.rotateState) {
+        // rotateC: ++rotateState; rotateTo: --rotateState. Не путать направления —
+        // иначе while уходит в бесконечный цикл и UI зависает при синхронизации dual.
+        int guard = 0;
+        while (sprite.rotateState < pose.rotateState && guard++ < 16) {
             rotateSpriteC(sprite);
+        }
+        guard = 0;
+        while (sprite.rotateState > pose.rotateState && guard++ < 16) {
+            rotateSpriteTo(sprite);
         }
         if (sprite.closed != pose.closed
             && (!sprite.openFile.isEmpty() || !sprite.closedFile.isEmpty())) {
