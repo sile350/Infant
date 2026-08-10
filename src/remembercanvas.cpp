@@ -37,7 +37,11 @@ QPoint RememberCanvas::mapFromDesign(int x, int y) const {
     return QPoint(offsetX + static_cast<int>(x * scale), offsetY + static_cast<int>(y * scale));
 }
 
-bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
+bool RememberCanvas::loadRememberLayout(
+    const QString &exerciseId,
+    const QString &stepId,
+    PuzzleLayout *layout,
+    const QString &remPictureMask) {
     // Не брать autoGrid/puzzle JSON для remember-методик — ломает раскладку.
     if (exerciseId != QStringLiteral("1.27")
         && exerciseId != QStringLiteral("3.1.20")
@@ -109,13 +113,20 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
     }
 
     if (exerciseId == QStringLiteral("4.1.7")) {
-        // 1.png…9.png; template traf.png @ (10,300).
+        // 1.png…9.png по маске rem.state; template traf.png @ (10,300).
         built.showTemplate = true;
         built.templateFile = QStringLiteral("traf.png");
         built.templateX = 10;
         built.templateY = 300;
+        const QStringList maskParts = remPictureMask.split(QLatin1Char(','));
+        const bool useMask = !remPictureMask.trimmed().isEmpty();
         int linex = 10;
         for (int i = 1; i <= 9; ++i) {
+            if (useMask
+                && (i - 1 >= maskParts.size()
+                    || maskParts.at(i - 1).trimmed() != QStringLiteral("1"))) {
+                continue;
+            }
             const QString file = QString::number(i) + QStringLiteral(".png");
             if (ExerciseAssets::exerciseFile(exerciseId, file).isEmpty()) {
                 continue;
@@ -171,6 +182,13 @@ bool RememberCanvas::loadRememberLayout(const QString &exerciseId, const QString
 }
 
 void RememberCanvas::startExercise(const QString &exerciseId, const QString &stepId) {
+    startExercise(exerciseId, stepId, QString());
+}
+
+void RememberCanvas::startExercise(
+    const QString &exerciseId,
+    const QString &stepId,
+    const QString &remPictureMask) {
     m_exerciseId = exerciseId;
     m_stepId = stepId;
     m_elapsed = 0;
@@ -191,7 +209,7 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
     }
 
     PuzzleLayout layout;
-    if (!loadRememberLayout(exerciseId, stepId, &layout)) {
+    if (!loadRememberLayout(exerciseId, stepId, &layout, remPictureMask)) {
         update();
         return;
     }
@@ -256,8 +274,17 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
     } else if (exerciseId == QStringLiteral("3.1.21")) {
         // Две карты остаются на исходных координатах — без shuffle.
     } else if (exerciseId == QStringLiteral("3.1.20")) {
-        // offset 350 внутри shuffleSprites; baseY = 400 (упрощённый порт).
-        shuffleSprites(400);
+        // remember.cs: y = 400+dy; x = posx[mst]+dx (шаг1: dx=350,dy=50; шаг2: 350/80; шаг3: 30/70).
+        const QString step = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
+        int dx = 350;
+        int dy = 50;
+        if (step == QStringLiteral("2")) {
+            dy = 80;
+        } else if (step == QStringLiteral("3")) {
+            dx = 30;
+            dy = 70;
+        }
+        shuffleSprites(400 + dy, dx);
     } else {
         shuffleSprites(400);
     }
@@ -268,7 +295,7 @@ void RememberCanvas::startExercise(const QString &exerciseId, const QString &ste
     update();
 }
 
-void RememberCanvas::shuffleSprites(int baseY) {
+void RememberCanvas::shuffleSprites(int baseY, int offsetX) {
     // Перестановка слотов, как mst[] в remember.cs: sprite[i].x = posx[mst[i]] (+ dx).
     QVector<int> order;
     for (int i = 0; i < m_sprites.size(); ++i) {
@@ -278,15 +305,35 @@ void RememberCanvas::shuffleSprites(int baseY) {
         const int j = QRandomGenerator::global()->bounded(i + 1);
         order.swapItemsAt(i, j);
     }
-    const int offset = m_exerciseId == QStringLiteral("3.1.20") ? 350 : 0;
     for (int i = 0; i < m_sprites.size(); ++i) {
         const int slotIdx = order.at(i);
         const int slot = slotIdx < m_slotPositions.size() ? m_slotPositions.at(slotIdx) : slotIdx * 200;
         m_sprites[i].slotIndex = slotIdx;
-        m_sprites[i].homeSlotX = slot + offset;
-        m_sprites[i].x = slot + offset;
+        m_sprites[i].homeSlotX = slot + offsetX;
+        m_sprites[i].x = slot + offsetX;
         m_sprites[i].y = baseY;
     }
+}
+
+QVector<RememberCanvas::SpritePose> RememberCanvas::spritePoses() const {
+    QVector<SpritePose> poses;
+    poses.reserve(m_sprites.size());
+    for (const Sprite &sprite : m_sprites) {
+        SpritePose pose;
+        pose.x = sprite.x;
+        pose.y = sprite.y;
+        poses.append(pose);
+    }
+    return poses;
+}
+
+void RememberCanvas::applySpritePoses(const QVector<SpritePose> &poses) {
+    const int n = qMin(poses.size(), m_sprites.size());
+    for (int i = 0; i < n; ++i) {
+        m_sprites[i].x = poses.at(i).x;
+        m_sprites[i].y = poses.at(i).y;
+    }
+    update();
 }
 
 void RememberCanvas::updateRemoveButton() {
@@ -305,6 +352,7 @@ void RememberCanvas::advanceRemovePhase() {
         m_removeButtonImage = QStringLiteral("showp.png");
         update();
         updateRemoveButton();
+        emit spritesChanged();
         return;
     }
 
@@ -314,6 +362,7 @@ void RememberCanvas::advanceRemovePhase() {
         m_removeButtonImage = QStringLiteral("showp.png");
         update();
         updateRemoveButton();
+        emit spritesChanged();
         return;
     }
 
@@ -338,6 +387,7 @@ void RememberCanvas::advanceRemovePhase() {
         m_removeButtonImage = QStringLiteral("removep.png");
         update();
         updateRemoveButton();
+        emit spritesChanged();
     }
 }
 
@@ -405,12 +455,14 @@ void RememberCanvas::mouseMoveEvent(QMouseEvent *event) {
     m_sprites[m_moving].x = static_cast<int>((event->x() - offsetX - m_dragOffset.x()) / scale);
     m_sprites[m_moving].y = static_cast<int>((event->y() - offsetY - m_dragOffset.y()) / scale);
     update();
+    emit spritesChanged();
 }
 
 void RememberCanvas::mouseReleaseEvent(QMouseEvent *event) {
     Q_UNUSED(event);
     m_dragging = false;
     m_moving = -1;
+    emit spritesChanged();
 }
 
 void RememberCanvas::keyPressEvent(QKeyEvent *event) {

@@ -227,6 +227,12 @@ private:
     QRadioButton *m_e15HighlightRadio = nullptr;
     QRadioButton *m_e15SelectRadio = nullptr;
     QPushButton *m_shardButton = nullptr;
+    QGroupBox *m_aparamGroup = nullptr;
+    QRadioButton *m_aparamAllRadio = nullptr;
+    QRadioButton *m_aparamCurrentRadio = nullptr;
+    QWidget *m_remPanel = nullptr;
+    QCheckBox *m_remChecks[9] = {};
+    int m_attemptCount = 0;
     QTimer *m_protocolSaveTimer = nullptr;
     OnlyPExercise *m_onlyP = nullptr;
     ExerciseRunnerWidget *m_sessionRunner = nullptr;

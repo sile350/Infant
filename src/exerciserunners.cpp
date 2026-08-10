@@ -497,6 +497,32 @@ public:
         raise();
         setFocus(Qt::OtherFocusReason);
         layoutUi();
+        if (m_patientDisplay
+            && (m_exerciseId == QStringLiteral("1.12")
+                || m_exerciseId == QStringLiteral("3.3.1")
+                || m_exerciseId == QStringLiteral("3.3.2")
+                || m_exerciseId == QStringLiteral("3.3.3"))) {
+            bindPatientDisplay(m_patientDisplay);
+        }
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        m_patientDisplay = display;
+        if (!display) {
+            teardownPatientPaintUi();
+            return;
+        }
+        if (m_exerciseId == QStringLiteral("1.12")
+            || m_exerciseId == QStringLiteral("3.3.1")
+            || m_exerciseId == QStringLiteral("3.3.2")
+            || m_exerciseId == QStringLiteral("3.3.3")) {
+            ensurePatientPaintUi(display);
+            display->attachContentWidget(m_patientRoot);
+            syncPatientPaintDisplay();
+            return;
+        }
+        teardownPatientPaintUi();
+        ExerciseRunnerWidget::bindPatientDisplay(display);
     }
 
     void switchStep(const QString &stepId) override {
@@ -602,6 +628,7 @@ protected:
         drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.traf2File, m_layout.traf2Pos);
         updateHintToggleIcon();
         updateCanvasDisplay();
+        syncPatientPaintDisplay();
     }
 
     void raiseOverlayControls() {
@@ -614,6 +641,180 @@ protected:
         if (m_hintToggle && m_hintToggle->isVisible()) {
             m_hintToggle->raise();
         }
+    }
+
+    void ensurePatientPaintUi(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientRoot->setAttribute(Qt::WA_OpaquePaintEvent, true);
+            m_patientPicture = new QLabel(m_patientRoot);
+            m_patientPicture->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+            m_patientPicture->setStyleSheet(QStringLiteral("background:white;"));
+            m_patientPicture->setMouseTracking(false);
+            m_patientPicture->installEventFilter(this);
+
+            m_patientPalette = new PointClickLabel(m_patientRoot);
+            m_patientPalette->setCursor(Qt::PointingHandCursor);
+            m_patientPalette->onClickAt = [this](const QPoint &localPos) {
+                pickColorAtPatient(localPos);
+            };
+        }
+        if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+        if (!m_paletteImage.isNull() && m_patientPalette) {
+            QPixmap pm = QPixmap::fromImage(m_paletteImage);
+            m_patientPalette->setPixmap(pm);
+            m_patientPalette->setFixedSize(pm.size());
+            m_patientPalette->show();
+            m_patientPalette->raise();
+        } else if (m_patientPalette) {
+            m_patientPalette->hide();
+        }
+        layoutPatientPaintUi();
+        m_patientRoot->show();
+    }
+
+    void teardownPatientPaintUi() {
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
+    }
+
+    void layoutPatientPaintUi() {
+        if (!m_patientRoot) {
+            return;
+        }
+        const int w = m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->width() : 1920;
+        const int h = m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->height() : 1080;
+        m_patientRoot->setGeometry(0, 0, w, h);
+        if (m_patientPalette && m_patientPalette->isVisible()) {
+            m_patientPalette->move(900, 80);
+            m_patientPalette->raise();
+        }
+    }
+
+    void pickColorAtPatient(const QPoint &labelPos) {
+        if (!m_patientPalette || m_paletteImage.isNull()) {
+            return;
+        }
+        const int dispW = qMax(1, m_patientPalette->width());
+        const int dispH = qMax(1, m_patientPalette->height());
+        const int x = qBound(0, qRound(labelPos.x() * double(m_paletteImage.width()) / dispW),
+            m_paletteImage.width() - 1);
+        const int y = qBound(0, qRound(labelPos.y() * double(m_paletteImage.height()) / dispH),
+            m_paletteImage.height() - 1);
+        const QColor c = m_paletteImage.pixelColor(x, y);
+        if (c.alpha() < 16) {
+            return;
+        }
+        m_brushColor = QColor(c.red(), c.green(), c.blue());
+        m_brushWidth = 10;
+    }
+
+    void syncPatientPaintDisplay() {
+        if (!m_patientPicture || m_canvas.isNull()) {
+            return;
+        }
+        layoutPatientPaintUi();
+        QPixmap full = QPixmap::fromImage(m_canvas);
+        const int maxW = qMax(100, m_patientRoot->width() - m_layout.pos.x() - 20);
+        const int maxH = qMax(100, m_patientRoot->height() - m_layout.pos.y() - 20);
+        QPixmap display = full;
+        if (display.width() > maxW || display.height() > maxH) {
+            display = full.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+        m_patientPicture->setPixmap(display);
+        m_patientPicture->setFixedSize(display.size());
+        m_patientPicture->move(m_layout.pos);
+        m_patientPicture->show();
+        m_patientPicture->lower();
+        if (m_patientPalette && m_patientPalette->isVisible()) {
+            m_patientPalette->raise();
+        }
+    }
+
+    QPoint mapPatientToCanvas(const QPoint &pictureLocal) const {
+        if (!m_patientPicture || m_patientPicture->width() <= 0 || m_patientPicture->height() <= 0) {
+            return QPoint(-1, -1);
+        }
+        if (pictureLocal.x() < 0 || pictureLocal.y() < 0
+            || pictureLocal.x() >= m_patientPicture->width()
+            || pictureLocal.y() >= m_patientPicture->height()) {
+            return QPoint(-1, -1);
+        }
+        const double sx = m_canvas.width() > 0
+            ? static_cast<double>(m_canvas.width()) / m_patientPicture->width()
+            : 1.0;
+        const double sy = m_canvas.height() > 0
+            ? static_cast<double>(m_canvas.height()) / m_patientPicture->height()
+            : 1.0;
+        return QPoint(qRound(pictureLocal.x() * sx), qRound(pictureLocal.y() * sy));
+    }
+
+    void paintCanvasPoint(const QPoint &canvasPt, bool forceDot) {
+        if (canvasPt.x() < 0 || m_canvas.isNull()) {
+            return;
+        }
+        QPainter painter(&m_canvas);
+        // Как paint.cs FillEllipse: штампы кисти, не тонкая линия.
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(m_brushColor);
+        const int r = qMax(1, m_brushWidth / 2);
+        auto stamp = [&](const QPoint &p) {
+            painter.drawEllipse(p, r, r);
+        };
+        if (m_hasLast) {
+            const int dx = canvasPt.x() - m_lastPoint.x();
+            const int dy = canvasPt.y() - m_lastPoint.y();
+            const int steps = qMax(1, qMax(qAbs(dx), qAbs(dy)) / qMax(1, r));
+            for (int i = 0; i <= steps; ++i) {
+                const double t = static_cast<double>(i) / steps;
+                stamp(QPoint(
+                    m_lastPoint.x() + qRound(dx * t),
+                    m_lastPoint.y() + qRound(dy * t)));
+            }
+        } else if (forceDot) {
+            stamp(canvasPt);
+        }
+        m_lastPoint = canvasPt;
+        m_hasLast = true;
+        updateCanvasDisplay();
+        syncPatientPaintDisplay();
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == m_patientPicture && m_patientPicture) {
+            if (event->type() == QEvent::MouseButtonPress) {
+                const auto *me = static_cast<QMouseEvent *>(event);
+                if (me->button() == Qt::LeftButton) {
+                    m_drawing = true;
+                    m_hasLast = false;
+                    m_patientDrawing = true;
+                    paintCanvasPoint(mapPatientToCanvas(me->pos()), true);
+                    return true;
+                }
+            } else if (event->type() == QEvent::MouseMove) {
+                const auto *me = static_cast<QMouseEvent *>(event);
+                if (m_drawing && m_patientDrawing && me->buttons().testFlag(Qt::LeftButton)) {
+                    paintCanvasPoint(mapPatientToCanvas(me->pos()), false);
+                    return true;
+                }
+            } else if (event->type() == QEvent::MouseButtonRelease) {
+                const auto *me = static_cast<QMouseEvent *>(event);
+                if (me->button() == Qt::LeftButton) {
+                    m_drawing = false;
+                    m_hasLast = false;
+                    m_patientDrawing = false;
+                    return true;
+                }
+            }
+        }
+        return QWidget::eventFilter(watched, event);
     }
 
     void refreshPalettePixmap() {
@@ -639,7 +840,8 @@ protected:
             }
             if (m_palette && m_palette->isVisible()) {
                 refreshPalettePixmap();
-                m_palette->move(900, 160);
+                // paint.cs: Top=160; поднять на 80px → 80.
+                m_palette->move(900, 80);
             }
         } else if (exerciseId() == QStringLiteral("3.3.1") || exerciseId() == QStringLiteral("3.3.2")
             || exerciseId() == QStringLiteral("3.3.3")) {
@@ -683,20 +885,7 @@ protected:
     }
 
     void paintAt(const QPoint &widgetPos, bool forceDot) {
-        const QPoint canvasPt = mapToCanvas(widgetPos);
-        if (canvasPt.x() < 0) {
-            return;
-        }
-        QPainter painter(&m_canvas);
-        painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        if (m_hasLast) {
-            painter.drawLine(m_lastPoint, canvasPt);
-        } else if (forceDot) {
-            painter.drawPoint(canvasPt);
-        }
-        m_lastPoint = canvasPt;
-        m_hasLast = true;
-        updateCanvasDisplay();
+        paintCanvasPoint(mapToCanvas(widgetPos), forceDot);
     }
 
     void finish() override {
@@ -706,6 +895,7 @@ protected:
         if (m_hintToggle) {
             m_hintToggle->hide();
         }
+        teardownPatientPaintUi();
         const QString path = scansDirectory() + QStringLiteral("/") + m_exerciseId + QStringLiteral("-")
             + QString::number(QDateTime::currentMSecsSinceEpoch()) + QStringLiteral(".png");
         // 3.3.3: оригинал сохраняет кроп лабиринта (1070,40)/(627×930).
@@ -757,12 +947,14 @@ protected:
         m_picture->move(m_layout.pos);
         m_picture->raise();
         raiseOverlayControls();
+        syncPatientPaintDisplay();
     }
 
     QImage m_canvas;
     CanvasLayout m_layout;
     bool m_drawing = false;
     bool m_hasLast = false;
+    bool m_patientDrawing = false;
     QPoint m_lastPoint;
     QColor m_brushColor = Qt::blue;
     int m_brushWidth = 20;
@@ -770,6 +962,10 @@ protected:
     ClickableLabel *m_hintToggle = nullptr;
     QImage m_paletteImage;
     bool m_hintHidden = true;
+    PatientDisplay *m_patientDisplay = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    QLabel *m_patientPicture = nullptr;
+    PointClickLabel *m_patientPalette = nullptr;
 };
 
 class FindMarkRunner final : public PaintRunner {
@@ -3105,6 +3301,40 @@ public:
         if (m_liveMoveRadio->parentWidget()) {
             m_liveMoveRadio->parentWidget()->hide();
         }
+        // 3.1.16: «Показать все фрагменты» / «Только к данному заданию» (groupBox3).
+        auto *aparamGroup = new QButtonGroup(m_optionsGroup);
+        aparamGroup->setExclusive(true);
+        m_aparamAllRadio = addWrappingRadio(
+            optLayout,
+            QStringLiteral("Показать все фрагменты"),
+            m_optionsGroup,
+            aparamGroup);
+        m_aparamCurrentRadio = addWrappingRadio(
+            optLayout,
+            QStringLiteral("Только к данному заданию"),
+            m_optionsGroup,
+            aparamGroup);
+        m_aparamCurrentRadio->setChecked(true);
+        if (m_aparamAllRadio->parentWidget()) {
+            m_aparamAllRadio->parentWidget()->hide();
+        }
+        if (m_aparamCurrentRadio->parentWidget()) {
+            m_aparamCurrentRadio->parentWidget()->hide();
+        }
+        connect(m_aparamAllRadio, &QRadioButton::toggled, this, [this](bool checked) {
+            if (!checked || m_exerciseId != QStringLiteral("3.1.16")) {
+                return;
+            }
+            m_sessionOptions.puzzleAparam = QStringLiteral("1");
+            reloadLayoutWithAparam();
+        });
+        connect(m_aparamCurrentRadio, &QRadioButton::toggled, this, [this](bool checked) {
+            if (!checked || m_exerciseId != QStringLiteral("3.1.16")) {
+                return;
+            }
+            m_sessionOptions.puzzleAparam = QStringLiteral("2");
+            reloadLayoutWithAparam();
+        });
         m_optionsGroup->hide();
         connect(m_liveHintCheck, &QCheckBox::toggled, this, [this](bool checked) {
             m_sessionOptions.showHint = checked;
@@ -3189,7 +3419,7 @@ public:
         m_storyVisible = true;
 
         PuzzleLayout layout;
-        if (!loadPuzzleLayout(exerciseId, stepId, &layout)) {
+        if (!loadPuzzleLayout(exerciseId, stepId, &layout, m_sessionOptions.puzzleAparam)) {
             layout.templateFile = QStringLiteral("f1.png");
             layout.templateX = 500;
             layout.templateY = 70;
@@ -3275,7 +3505,18 @@ public:
 
 private:
     bool usesPatientPuzzleCanvas() const {
-        return m_exerciseId == QStringLiteral("1.11") && m_stepId.trimmed() == QStringLiteral("2");
+        if (m_exerciseId == QStringLiteral("1.11") && m_stepId.trimmed() == QStringLiteral("2")) {
+            return true;
+        }
+        static const QStringList kDual = {
+            QStringLiteral("3.1.7"),
+            QStringLiteral("3.1.8"),
+            QStringLiteral("3.1.15"),
+            QStringLiteral("3.1.16"),
+            QStringLiteral("3.1.23"),
+            QStringLiteral("3.1.24"),
+        };
+        return kDual.contains(m_exerciseId);
     }
 
     void ensurePatientPuzzleUi(PatientDisplay *display) {
@@ -3300,7 +3541,7 @@ private:
             m_patientRoot->setParent(display);
         }
         PuzzleLayout layout;
-        if (!loadPuzzleLayout(m_exerciseId, m_stepId, &layout)) {
+        if (!loadPuzzleLayout(m_exerciseId, m_stepId, &layout, m_sessionOptions.puzzleAparam)) {
             layout.templateFile = QStringLiteral("traf2.png");
             layout.templateX = 10;
             layout.templateY = 20;
@@ -3396,6 +3637,26 @@ private:
         layoutOptionsPopup();
     }
 
+    void reloadLayoutWithAparam() {
+        if (!m_canvas || m_exerciseId != QStringLiteral("3.1.16")) {
+            return;
+        }
+        PuzzleLayout layout;
+        if (!loadPuzzleLayout(m_exerciseId, m_stepId, &layout, m_sessionOptions.puzzleAparam)) {
+            return;
+        }
+        const int elapsed = m_canvas->elapsedSeconds();
+        m_canvas->loadExercise(m_exerciseId, m_stepId, layout);
+        m_canvas->applySessionOptions(m_sessionOptions);
+        Q_UNUSED(elapsed);
+        if (usesPatientPuzzleCanvas() && m_patientCanvas) {
+            m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
+            m_patientCanvas->applySessionOptions(m_sessionOptions);
+            m_patientCanvas->stopElapsedTimer();
+            syncSpritesToPatient();
+        }
+    }
+
     void layoutOptionsPopup() {
         const bool show114 =
             m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2");
@@ -3403,7 +3664,9 @@ private:
         const bool show120 = m_exerciseId == QStringLiteral("1.20");
         const bool show121 = m_exerciseId == QStringLiteral("1.21");
         const bool show122 = m_exerciseId == QStringLiteral("1.22");
-        const bool showShard = show114 || show119 || show120 || show121 || show122;
+        const bool show316 =
+            m_exerciseId == QStringLiteral("3.1.16") && m_stepId.toInt() >= 3;
+        const bool showShard = show114 || show119 || show120 || show121 || show122 || show316;
         if (!m_shardLink || !m_optionsGroup) {
             return;
         }
@@ -3426,6 +3689,23 @@ private:
         if (m_liveMoveRadio && m_liveMoveRadio->parentWidget()) {
             m_liveMoveRadio->parentWidget()->setVisible(show122);
         }
+        if (m_aparamAllRadio && m_aparamAllRadio->parentWidget()) {
+            m_aparamAllRadio->parentWidget()->setVisible(show316);
+        }
+        if (m_aparamCurrentRadio && m_aparamCurrentRadio->parentWidget()) {
+            m_aparamCurrentRadio->parentWidget()->setVisible(show316);
+        }
+        if (show316) {
+            const bool all = m_sessionOptions.puzzleAparam.trimmed() == QStringLiteral("1");
+            if (m_aparamAllRadio && m_aparamCurrentRadio) {
+                m_aparamAllRadio->blockSignals(true);
+                m_aparamCurrentRadio->blockSignals(true);
+                m_aparamAllRadio->setChecked(all);
+                m_aparamCurrentRadio->setChecked(!all);
+                m_aparamAllRadio->blockSignals(false);
+                m_aparamCurrentRadio->blockSignals(false);
+            }
+        }
 
         constexpr int kDesignW = 1920;
         constexpr int kDesignH = 1080;
@@ -3442,7 +3722,7 @@ private:
             if (QLayout *lay = m_optionsGroup->layout()) {
                 lay->activate();
             }
-            const int groupH = qMax(m_optionsGroup->sizeHint().height(), show122 ? 110 : 100);
+            const int groupH = qMax(m_optionsGroup->sizeHint().height(), show122 || show316 ? 110 : 100);
             m_optionsGroup->setGeometry(linkX, linkY + m_shardLink->height() + 4, 320, groupH);
             m_optionsGroup->show();
             m_optionsGroup->raise();
@@ -3562,6 +3842,7 @@ private:
         }
         if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")
             || m_exerciseId == QStringLiteral("2.11") || m_exerciseId == QStringLiteral("2.12")
+            || m_exerciseId == QStringLiteral("3.1.7")
             || m_exerciseId == QStringLiteral("3.1.8") || m_exerciseId == QStringLiteral("3.1.15")
             || m_exerciseId == QStringLiteral("3.1.16") || m_exerciseId == QStringLiteral("3.1.23")
             || m_exerciseId == QStringLiteral("3.1.24")) {
@@ -3621,6 +3902,8 @@ private:
     QCheckBox *m_liveTemplateCheck = nullptr;
     QRadioButton *m_liveHighlightRadio = nullptr;
     QRadioButton *m_liveMoveRadio = nullptr;
+    QRadioButton *m_aparamAllRadio = nullptr;
+    QRadioButton *m_aparamCurrentRadio = nullptr;
     bool m_optionsPopupVisible = false;
     bool m_storyVisible = true;
     QString m_exerciseId;
@@ -4833,6 +5116,7 @@ public:
         };
         connect(m_canvas, &RememberCanvas::stopRequested, this, [this]() { finishSession(); });
         connect(m_canvas, &RememberCanvas::removeButtonChanged, this, [this]() { syncRemoveButton(); });
+        connect(m_canvas, &RememberCanvas::spritesChanged, this, [this]() { syncSpritesToPatient(); });
 
         // 3.1.21: панель «Ответы ребенка» (как questions.cs поверх remember).
         m_questionsPanel = new QWidget(this);
@@ -4863,7 +5147,7 @@ public:
         m_exerciseId = exerciseId;
         m_stepId = stepId;
         m_canvas->setGeometry(0, 0, width(), height());
-        m_canvas->startExercise(exerciseId, stepId);
+        m_canvas->startExercise(exerciseId, stepId, m_sessionOptions.remPictureMask);
         m_canvas->show();
         m_canvas->raise();
         layoutStopPosition(exerciseId);
@@ -4885,6 +5169,25 @@ public:
         }
         show();
         raise();
+        if (m_patientDisplay && usesPatientRememberCanvas()) {
+            bindPatientDisplay(m_patientDisplay);
+        }
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        m_patientDisplay = display;
+        if (!display) {
+            teardownPatientRememberUi();
+            return;
+        }
+        if (usesPatientRememberCanvas()) {
+            ensurePatientRememberUi(display);
+            display->attachContentWidget(m_patientRoot);
+            syncSpritesToPatient();
+            return;
+        }
+        teardownPatientRememberUi();
+        ExerciseRunnerWidget::bindPatientDisplay(display);
     }
 
     void stopSession() override { finishSession(); }
@@ -4898,15 +5201,87 @@ public:
             layoutStopPosition(m_exerciseId);
         }
         if (m_removek && m_removek->isVisible()) {
-            m_removek->move(m_stop ? m_stop->x() + m_stop->width() + 20 : 280, m_stop ? m_stop->y() : 72);
+            // remember.cs: removep.Left = pstop.Left + 200.
+            m_removek->move(m_stop ? m_stop->x() + 200 : 280, m_stop ? m_stop->y() : 72);
         }
         if (m_questionsPanel && m_questionsPanel->isVisible()) {
             m_questionsPanel->move(12, 120);
             m_questionsPanel->raise();
         }
+        layoutPatientRememberUi();
     }
 
 private:
+    bool usesPatientRememberCanvas() const {
+        return m_exerciseId == QStringLiteral("3.1.20")
+            || m_exerciseId == QStringLiteral("3.1.21")
+            || m_exerciseId == QStringLiteral("4.1.7");
+    }
+
+    void ensurePatientRememberUi(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientCanvas = new RememberCanvas(m_patientRoot);
+            m_patientCanvas->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            connect(m_patientCanvas, &RememberCanvas::spritesChanged, this, [this]() {
+                syncSpritesFromPatient();
+            }, Qt::UniqueConnection);
+        }
+        if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+        m_patientCanvas->startExercise(m_exerciseId, m_stepId, m_sessionOptions.remPictureMask);
+        if (m_canvas) {
+            m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
+        }
+        layoutPatientRememberUi();
+        m_patientCanvas->show();
+        m_patientRoot->show();
+    }
+
+    void teardownPatientRememberUi() {
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
+        if (m_patientCanvas) {
+            m_patientCanvas->hide();
+        }
+    }
+
+    void layoutPatientRememberUi() {
+        if (!m_patientRoot || !m_patientCanvas) {
+            return;
+        }
+        m_patientRoot->setGeometry(
+            0,
+            0,
+            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->width() : 1920,
+            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->height() : 1080);
+        m_patientCanvas->setGeometry(0, 0, m_patientRoot->width(), m_patientRoot->height());
+    }
+
+    void syncSpritesToPatient() {
+        if (m_syncingSprites || !m_canvas || !m_patientCanvas) {
+            return;
+        }
+        m_syncingSprites = true;
+        m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
+        m_syncingSprites = false;
+    }
+
+    void syncSpritesFromPatient() {
+        if (m_syncingSprites || !m_canvas || !m_patientCanvas) {
+            return;
+        }
+        m_syncingSprites = true;
+        m_canvas->applySpritePoses(m_patientCanvas->spritePoses());
+        m_syncingSprites = false;
+    }
+
     void layoutStopPosition(const QString &exerciseId) {
         if (!m_stop) {
             return;
@@ -4940,7 +5315,7 @@ private:
             m_removek->setPixmap(pixmap);
             m_removek->setFixedSize(pixmap.size());
         }
-        m_removek->move(m_stop ? m_stop->x() + m_stop->width() + 20 : 280, m_stop ? m_stop->y() : 72);
+        m_removek->move(m_stop ? m_stop->x() + 200 : 280, m_stop ? m_stop->y() : 72);
         m_removek->show();
         m_removek->raise();
     }
@@ -4970,6 +5345,7 @@ private:
         if (m_questionsPanel) {
             m_questionsPanel->hide();
         }
+        teardownPatientRememberUi();
         hide();
         emitFinished(result);
     }
@@ -4979,6 +5355,10 @@ private:
     ClickableLabel *m_removek = nullptr;
     QWidget *m_questionsPanel = nullptr;
     QLineEdit *m_answerEdits[3] = {nullptr, nullptr, nullptr};
+    QWidget *m_patientRoot = nullptr;
+    RememberCanvas *m_patientCanvas = nullptr;
+    PatientDisplay *m_patientDisplay = nullptr;
+    bool m_syncingSprites = false;
     QString m_exerciseId;
     QString m_stepId;
 };

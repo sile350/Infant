@@ -4,11 +4,6 @@
   "showTemplate": true,
   "sprites": [
     {
-      "file": "ex.png",
-      "x": 500,
-      "y": 150
-    },
-    {
       "file": "ex1.png",
       "x": 500,
       "y": 700

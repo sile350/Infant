@@ -149,7 +149,7 @@ bool autoGridLayout(const QString &exerciseId, const QString &stepId, PuzzleLayo
     return !layout->sprites.isEmpty();
 }
 
-bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
+bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout, const QString &aparam) {
     // 1.21 «Сложи круг»: трафарет на высоте подсказки (y=250);
     // детали — правая половина экрана, на 200 px ниже исходных.
     if (exerciseId == QStringLiteral("1.21")) {
@@ -490,6 +490,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
     if (exerciseId == QStringLiteral("3.1.16")) {
         layout->showTemplate = true;
         const int step = stepId.toInt();
+        const QString mode = aparam.trimmed().isEmpty() ? QStringLiteral("2") : aparam.trimmed();
         if (step == 1) {
             const int dy = 110;
             layout->templateFile = QStringLiteral("traf1.png");
@@ -510,50 +511,51 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
             addSprite(layout, QStringLiteral("23.png"), 457, 500 + dy);
             return true;
         }
-        // aparam == "2": только фрагменты текущего задания.
+        if (step < 3 || step > 7) {
+            return false;
+        }
         const int dy = 40;
+        layout->templateFile = QStringLiteral("traf%1.png").arg(step);
+        layout->templateX = 650;
+        layout->templateY = (step == 3) ? 0 : dy;
+        if (mode == QStringLiteral("1")) {
+            // puzzles.cs aparam=="1": все фрагменты заданий 3–7.
+            addSprite(layout, QStringLiteral("31.png"), 457, 43);
+            addSprite(layout, QStringLiteral("32.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("41.png"), 257, 1 + dy);
+            addSprite(layout, QStringLiteral("42.png"), 257, 248 + dy);
+            addSprite(layout, QStringLiteral("51.png"), 0, 1 + dy);
+            addSprite(layout, QStringLiteral("52.png"), 0, 248 + dy);
+            addSprite(layout, QStringLiteral("61.png"), 0, 500 + dy);
+            addSprite(layout, QStringLiteral("62.png"), 257, 500 + dy);
+            addSprite(layout, QStringLiteral("71.png"), 457, 500 + dy);
+            addSprite(layout, QStringLiteral("72.png"), 0, 750 + dy);
+            return true;
+        }
+        // aparam == "2": только фрагменты текущего задания.
         if (step == 3) {
-            layout->templateFile = QStringLiteral("traf3.png");
-            layout->templateX = 650;
-            layout->templateY = 0;
             addSprite(layout, QStringLiteral("31.png"), 457, 51 + dy);
             addSprite(layout, QStringLiteral("32.png"), 457, 248 + dy);
             return true;
         }
         if (step == 4) {
-            layout->templateFile = QStringLiteral("traf4.png");
-            layout->templateX = 650;
-            layout->templateY = dy;
             addSprite(layout, QStringLiteral("41.png"), 457, 51);
             addSprite(layout, QStringLiteral("42.png"), 457, 248 + dy);
             return true;
         }
         if (step == 5) {
-            layout->templateFile = QStringLiteral("traf5.png");
-            layout->templateX = 650;
-            layout->templateY = dy;
             addSprite(layout, QStringLiteral("51.png"), 457, 1 + dy);
             addSprite(layout, QStringLiteral("52.png"), 457, 248 + dy);
             return true;
         }
         if (step == 6) {
-            layout->templateFile = QStringLiteral("traf6.png");
-            layout->templateX = 650;
-            layout->templateY = dy;
-            // puzzles.cs: 61.y = 51 (не 1+dy), 62.y = 248+dy
             addSprite(layout, QStringLiteral("61.png"), 457, 51);
             addSprite(layout, QStringLiteral("62.png"), 457, 248 + dy);
             return true;
         }
-        if (step == 7) {
-            layout->templateFile = QStringLiteral("traf7.png");
-            layout->templateX = 650;
-            layout->templateY = dy;
-            addSprite(layout, QStringLiteral("71.png"), 457, 1 + dy);
-            addSprite(layout, QStringLiteral("72.png"), 457, 248 + dy);
-            return true;
-        }
-        return false;
+        addSprite(layout, QStringLiteral("71.png"), 457, 1 + dy);
+        addSprite(layout, QStringLiteral("72.png"), 457, 248 + dy);
+        return true;
     }
 
     if (exerciseId == QStringLiteral("3.1.23")) {
@@ -681,7 +683,11 @@ QString layoutFileName(const QString &stepId) {
 
 } // namespace
 
-bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout) {
+bool loadPuzzleLayout(
+    const QString &exerciseId,
+    const QString &stepId,
+    PuzzleLayout *layout,
+    const QString &aparam) {
     if (!layout) {
         return false;
     }
@@ -694,12 +700,13 @@ bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLa
         || exerciseId == QStringLiteral("2.11") || exerciseId == QStringLiteral("2.12")
         || exerciseId == QStringLiteral("3.1.8") || exerciseId == QStringLiteral("3.1.15")
         || exerciseId == QStringLiteral("3.1.16") || exerciseId == QStringLiteral("3.1.23")) {
-        return builtinLayout(exerciseId, stepId, layout);
+        return builtinLayout(exerciseId, stepId, layout, aparam);
     }
 
     const QString dir = ExerciseAssets::exerciseDir(exerciseId);
     if (dir.isEmpty()) {
-        return builtinLayout(exerciseId, stepId, layout) || autoGridLayout(exerciseId, stepId, layout);
+        return builtinLayout(exerciseId, stepId, layout, aparam)
+            || autoGridLayout(exerciseId, stepId, layout);
     }
 
     const QStringList candidates = {
@@ -712,7 +719,7 @@ bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLa
         }
     }
 
-    if (builtinLayout(exerciseId, stepId, layout)) {
+    if (builtinLayout(exerciseId, stepId, layout, aparam)) {
         return true;
     }
 

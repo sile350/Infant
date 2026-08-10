@@ -30,6 +30,7 @@
 #include <QFile>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGridLayout>
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
@@ -536,6 +537,47 @@ protected:
     }
 };
 
+// 1.12 «Оценка результатов»: кружки как ◦ / • на скрине, текст с <b>.
+ExerciseCheckRow makeCircleBulletCheckRow(
+    const QString &htmlText,
+    QVBoxLayout *layout,
+    int contentWidth,
+    bool solidWhenChecked) {
+    ExerciseCheckRow row;
+    auto *wrap = new OpaquePanel(kDocumentBg);
+    wrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    auto *rowLayout = new QHBoxLayout(wrap);
+    rowLayout->setContentsMargins(8, 2, 0, 2);
+    rowLayout->setSpacing(8);
+
+    row.box = new WhiteCheckBox(wrap);
+    row.box->setFixedSize(14, 14);
+    const QString checkedFill = solidWhenChecked ? QStringLiteral("#000000") : QStringLiteral("#888888");
+    row.box->setStyleSheet(QStringLiteral(
+        "QCheckBox { background:transparent; spacing:0; }"
+        "QCheckBox::indicator { width:12px; height:12px; border-radius:6px;"
+        "  border:1px solid #000000; background:#ffffff; }"
+        "QCheckBox::indicator:checked { background:%1; border:1px solid #000000; }")
+                               .arg(checkedFill));
+
+    auto *label = new WrapCheckLabel(wrap);
+    label->box = row.box;
+    label->setTextFormat(Qt::RichText);
+    label->setText(htmlText);
+    label->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:14px;"
+        "background:transparent;"));
+    if (contentWidth > 40) {
+        label->setFixedWidth(contentWidth - 34);
+    }
+    row.label = label;
+
+    rowLayout->addWidget(row.box, 0, Qt::AlignTop);
+    rowLayout->addWidget(row.label, 1, Qt::AlignTop);
+    layout->addWidget(wrap, 0, Qt::AlignTop);
+    return row;
+}
+
 QCheckBox *addWrappingCheckBox(QVBoxLayout *layout, const QString &text, QWidget *parent, int width) {
     auto *row = new QWidget(parent);
     auto *rowLayout = new QHBoxLayout(row);
@@ -942,6 +984,54 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         "QPushButton:hover { color:#222222; }"));
     m_shardButton->hide();
     optionsLayout->addWidget(m_shardButton, 0, Qt::AlignLeft);
+
+    // 3.1.16 (pset2): режим фрагментов до старта.
+    m_aparamGroup = new QGroupBox(QStringLiteral("Фрагменты"), m_exerciseOptionsPanel);
+    m_aparamGroup->setStyleSheet(QStringLiteral(
+        "QGroupBox { background:#ffffff; border:1px solid #888; margin-top:4px; padding:4px; }"
+        "QGroupBox::title { subcontrol-origin: margin; left:6px; padding:0 3px; }"));
+    auto *aparamLayout = new QVBoxLayout(m_aparamGroup);
+    aparamLayout->setContentsMargins(8, 10, 8, 6);
+    auto *aparamButtons = new QButtonGroup(m_aparamGroup);
+    aparamButtons->setExclusive(true);
+    m_aparamAllRadio = new QRadioButton(QStringLiteral("Показать все фрагменты"), m_aparamGroup);
+    m_aparamCurrentRadio = new QRadioButton(QStringLiteral("Только к данному заданию"), m_aparamGroup);
+    aparamButtons->addButton(m_aparamAllRadio);
+    aparamButtons->addButton(m_aparamCurrentRadio);
+    m_aparamCurrentRadio->setChecked(true);
+    aparamLayout->addWidget(m_aparamAllRadio);
+    aparamLayout->addWidget(m_aparamCurrentRadio);
+    m_aparamGroup->hide();
+    optionsLayout->addWidget(m_aparamGroup, 0, Qt::AlignLeft);
+
+    // 4.1.7 (rem): выбор картинок 1–9.
+    m_remPanel = new QWidget(m_rightPanel);
+    m_remPanel->setStyleSheet(QStringLiteral("background:#f8f8f8; border:1px solid #888;"));
+    auto *remGrid = new QGridLayout(m_remPanel);
+    remGrid->setContentsMargins(8, 8, 8, 8);
+    remGrid->setHorizontalSpacing(12);
+    remGrid->setVerticalSpacing(8);
+    for (int i = 0; i < 9; ++i) {
+        auto *cell = new QWidget(m_remPanel);
+        auto *cellLay = new QVBoxLayout(cell);
+        cellLay->setContentsMargins(0, 0, 0, 0);
+        cellLay->setSpacing(2);
+        m_remChecks[i] = new QCheckBox(cell);
+        m_remChecks[i]->setChecked(true);
+        auto *thumb = new QLabel(cell);
+        thumb->setFixedSize(72, 72);
+        thumb->setAlignment(Qt::AlignCenter);
+        thumb->setStyleSheet(QStringLiteral("background:#fff; border:1px solid #ccc;"));
+        const QString path = ExerciseAssets::exerciseFile(
+            QStringLiteral("4.1.7"), QString::number(i + 1) + QStringLiteral(".png"));
+        if (!path.isEmpty()) {
+            thumb->setPixmap(QPixmap(path).scaled(70, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        }
+        cellLay->addWidget(m_remChecks[i], 0, Qt::AlignLeft);
+        cellLay->addWidget(thumb, 0, Qt::AlignLeft);
+        remGrid->addWidget(cell, i / 3, i % 3);
+    }
+    m_remPanel->hide();
 
     // Как на форме e15: всплывающая группа поверх, без сдвига layout.
     m_e15ModeGroup = new QGroupBox(QStringLiteral("Настройки"), m_rightPanel);
@@ -2522,13 +2612,31 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     if (m_helpPenaltyHintLabel) {
         m_helpPenaltyHintLabel->setText(
             QStringLiteral("За каждый вид помощи оценка снижается на 0,5 балла"));
+        if (help112) {
+            m_helpPenaltyHintLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:14px; font-style:normal; font-weight:bold; padding:2px 8px 8px 8px;"));
+            m_helpPenaltyHintLabel->setAlignment(Qt::AlignCenter);
+        } else {
+            m_helpPenaltyHintLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:13px; font-style:italic; font-weight:normal; padding:2px 8px 4px 8px;"));
+            m_helpPenaltyHintLabel->setAlignment(Qt::AlignCenter);
+        }
         m_helpPenaltyHintLabel->setVisible(showPenaltyHint);
     }
     if (m_stimHelpLabel) {
         if (help112) {
             m_stimHelpLabel->setText(QStringLiteral("При выполнении задания на I уровне"));
+            m_stimHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            m_stimHelpLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:14px; font-weight:normal; padding:8px 0 2px 8px;"));
         } else {
             m_stimHelpLabel->setText(QStringLiteral("Стимулирующая помощь"));
+            m_stimHelpLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
         }
         m_stimHelpLabel->setVisible(!flatCustom);
     }
@@ -2536,8 +2644,13 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         if (help112) {
             m_directHelpLabel->setText(
                 QStringLiteral("При выполнении задания с ошибками (II и III уровни)"));
+            m_directHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            m_directHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
         } else {
             m_directHelpLabel->setText(QStringLiteral("Направляющая помощь:"));
+            m_directHelpLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
         }
         m_directHelpLabel->setVisible(!flatCustom);
     }
@@ -2545,8 +2658,13 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         if (help112) {
             m_teachHelpLabel->setText(
                 QStringLiteral("Если предыдущий вариант помощи не возымел действия"));
+            m_teachHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            m_teachHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
         } else {
             m_teachHelpLabel->setText(QStringLiteral("Обучающая помощь:"));
+            m_teachHelpLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
         }
         m_teachHelpLabel->setVisible(!flatCustom);
     }
@@ -2628,7 +2746,12 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     int stimAt = insertAfter(m_stimHelpLabel);
     for (int i = 0; i < stimCount && i < labels.size(); ++i) {
-        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        if (help112) {
+            m_helpChecks << makeCircleBulletCheckRow(
+                labels.at(i).toHtmlEscaped(), m_helpChecksLayout, checkWidth, true);
+        } else {
+            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        }
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
             m_helpChecksLayout->insertWidget(stimAt++, row);
@@ -2637,7 +2760,12 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     int directAt = insertAfter(m_directHelpLabel);
     for (int i = stimCount; i < stimCount + directCount && i < labels.size(); ++i) {
-        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        if (help112) {
+            m_helpChecks << makeCircleBulletCheckRow(
+                labels.at(i).toHtmlEscaped(), m_helpChecksLayout, checkWidth, true);
+        } else {
+            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        }
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
             m_helpChecksLayout->insertWidget(directAt++, row);
@@ -2646,7 +2774,12 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
 
     int teachAt = insertAfter(m_teachHelpLabel);
     for (int i = stimCount + directCount; i < labels.size(); ++i) {
-        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        if (help112) {
+            m_helpChecks << makeCircleBulletCheckRow(
+                labels.at(i).toHtmlEscaped(), m_helpChecksLayout, checkWidth, true);
+        } else {
+            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+        }
         if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
             m_helpChecksLayout->removeWidget(row);
             m_helpChecksLayout->insertWidget(teachAt++, row);
@@ -2682,6 +2815,26 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
                 "0 баллов (очень низкий уровень) – ребенок не может выполнить задание даже в "
                 "условиях предъявления помощи, не идентифицирует изображения эмоциональных "
                 "состояний на картинках с эмоциями героев сказки."),
+        };
+    }
+    // 3.1.21: оценка — radio idch1..5 (value 0–4), не idd.
+    if (m_exerciseId == QStringLiteral("3.1.21")) {
+        effectiveLabels = QStringList{
+            QStringLiteral(
+                "4 балла (высокий уровень) – ребенок полностью самостоятельно выполняет задание "
+                "на установление причинно-следственных связей."),
+            QStringLiteral(
+                "3 балла (средний уровень) – для установления причинно-следственной связи ребенку "
+                "требуется первый вид помощи – указание экспериментатором на ошибку."),
+            QStringLiteral(
+                "2 балла (уровень ниже среднего) – ребенку требуется второй вид помощи для "
+                "выполнения задания."),
+            QStringLiteral(
+                "1 балл (низкий уровень) – ребенок способен выполнить задание только в случае "
+                "применения третьего и (или четвертого) вида помощи."),
+            QStringLiteral(
+                "0 баллов (очень низкий уровень) – ни один из видов помощи не привел к правильному "
+                "выполнению задания ребенком."),
         };
     }
     // 1.26 / 1.272 / 2.8 / 2.9 / 2.10: все 5 пунктов (fallback при сбое парсинга).
@@ -2732,7 +2885,7 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     }
     const bool hasActivity = !effectiveLabels.isEmpty();
     if (m_activityTitle) {
-        if (m_exerciseId == QStringLiteral("5.4.2")) {
+        if (m_exerciseId == QStringLiteral("5.4.2") || m_exerciseId == QStringLiteral("3.1.21")) {
             m_activityTitle->setText(QStringLiteral("Баллы"));
         } else if (m_exerciseId == QStringLiteral("1.12")) {
             m_activityTitle->setText(
@@ -2754,7 +2907,25 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
         : 760;
 
     for (const QString &text : effectiveLabels) {
-        m_activityChecks << makeCheckRow(text, m_activityChecksLayout, checkWidth);
+        if (m_exerciseId == QStringLiteral("1.12")) {
+            QString html = text.toHtmlEscaped();
+            // Жирные «уровень» и баллы — как на скрине (IV→I, чтобы не задеть III).
+            const QStringList levelTags = {
+                QStringLiteral("IV уровень"),
+                QStringLiteral("III уровень"),
+                QStringLiteral("II уровень"),
+                QStringLiteral("I уровень"),
+            };
+            for (const QString &tag : levelTags) {
+                html.replace(tag, QStringLiteral("<b>%1</b>").arg(tag));
+            }
+            html.replace(QStringLiteral("(0 баллов)"), QStringLiteral("(<b>0 баллов</b>)"));
+            html.replace(QStringLiteral("(2 балла)"), QStringLiteral("(<b>2 балла</b>)"));
+            html.replace(QStringLiteral("(3 балла)"), QStringLiteral("(<b>3 балла</b>)"));
+            m_activityChecks << makeCircleBulletCheckRow(html, m_activityChecksLayout, checkWidth, false);
+        } else {
+            m_activityChecks << makeCheckRow(text, m_activityChecksLayout, checkWidth);
+        }
     }
 
     const bool allowMulti = m_exerciseId == QStringLiteral("1.13")
@@ -2785,6 +2956,7 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
 
 void ExerciseHost::loadExercise() {
     m_evaluationPanel->show();
+    m_attemptCount = 0;
 
     m_rawOrHtml = loadExerciseHtmlFile(m_exerciseId, QStringLiteral("or.html"));
     reloadOrBrowser();
@@ -3093,6 +3265,7 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
     m_exerciseDone = true;
     m_protocolFormed = false;
     m_exerciseRunning = false;
+    updateExerciseOptionsPanel();
     if (m_patientDisplay) {
         m_patientDisplay->hideDisplay();
     }
@@ -3434,6 +3607,9 @@ void ExerciseHost::runExerciseSession() {
     m_protocolFormed = false;
     m_protocolSavedThisSession = false;
     m_stepElapsedSeconds.clear();
+    if (m_exerciseId == QStringLiteral("4.1.7")) {
+        ++m_attemptCount;
+    }
     // Закрыть всплывающие «Настройки» перед стартом (1.5 / 1.22 / 1.14).
     m_shardPanelVisible = false;
     if (m_e15ModeGroup) {
@@ -3441,6 +3617,9 @@ void ExerciseHost::runExerciseSession() {
     }
     if (m_puzzleOptionsGroup) {
         m_puzzleOptionsGroup->hide();
+    }
+    if (m_remPanel) {
+        m_remPanel->hide();
     }
     m_rightCountLabel->hide();
     m_wrongCountLabel->hide();
@@ -3665,6 +3844,13 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 }
 
 bool ExerciseHost::needsDoneStatePanel() const {
+    // 1.12 / 3.3.x: в «Оценке результатов» нет блока «Выполнение» (как в or.html).
+    if (m_exerciseId == QStringLiteral("1.12")
+        || m_exerciseId == QStringLiteral("3.3.1")
+        || m_exerciseId == QStringLiteral("3.3.2")
+        || m_exerciseId == QStringLiteral("3.3.3")) {
+        return false;
+    }
     const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
     if (!definition) {
         return false;
@@ -3788,7 +3974,14 @@ ProtocolSessionInput ExerciseHost::buildProtocolSession() const {
         }
         session.additional = step + QLatin1Char(';') + emptyAnswers.join(QLatin1Char(';'));
     } else if (definition && definition->protocol == ExerciseProtocolKind::NumberedDoneTime) {
-        if (ExerciseConfig::usesAppendOnlyMultiStepLogic(m_exerciseId)) {
+        if (m_exerciseId == QStringLiteral("4.1.7")) {
+            // Оригинал: additional = ecount + ";" + doneState.
+            const QString attempt = QString::number(qMax(1, m_attemptCount));
+            session.stepId = attempt;
+            session.stepIds << attempt;
+            session.stepElapsedSeconds.insert(attempt, m_elapsedSeconds);
+            session.additional = attempt + QLatin1Char(';') + session.doneState;
+        } else if (ExerciseConfig::usesAppendOnlyMultiStepLogic(m_exerciseId)) {
             // Как упр. 6 / 1.272: каждое задание формируется отдельно — в form только текущий №.
             const QString step = session.stepId.trimmed().isEmpty()
                 ? QStringLiteral("1")
@@ -4095,12 +4288,16 @@ void ExerciseHost::sumProtocolScores() {
         sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(6)"));
         return;
     }
-    if (m_exerciseId == QStringLiteral("2.12") || m_exerciseId == QStringLiteral("3.1.8")) {
+    if (m_exerciseId == QStringLiteral("2.12")) {
         sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(4)"));
         return;
     }
+    if (m_exerciseId == QStringLiteral("3.1.8")) {
+        sumProtocolOrHlpBalls(QStringLiteral("idb"), QStringLiteral("(4)"));
+        return;
+    }
     if (m_exerciseId == QStringLiteral("3.1.21")) {
-        sumProtocolOrHlpBalls(QStringLiteral("ids"), QStringLiteral("(12)"));
+        sumProtocolOrHlpBalls(QStringLiteral("idb"), QStringLiteral("(12)"));
         return;
     }
 }
@@ -5030,14 +5227,28 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     const bool isPuzzleShard = m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
         || (m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2"));
+    const bool is316 = m_exerciseId == QStringLiteral("3.1.16");
+    const bool is417 = m_exerciseId == QStringLiteral("4.1.7");
     // «Настройка уровня сложности» + закрывающееся окошко (как у 1.5 / 1.14-2 / 1.21).
-    const bool showShard = isE15 || is122 || isPuzzleShard;
+    const bool showShard = isE15 || is122 || isPuzzleShard || is316;
 
     if (m_exerciseOptionsPanel) {
-        m_exerciseOptionsPanel->setVisible(showShard);
+        m_exerciseOptionsPanel->setVisible(showShard || is417);
     }
     if (m_shardButton) {
-        m_shardButton->setVisible(showShard);
+        m_shardButton->setVisible(isE15 || is122 || isPuzzleShard || (is316 && step.toInt() >= 3));
+    }
+    if (m_aparamGroup) {
+        m_aparamGroup->setVisible(is316);
+    }
+    if (m_remPanel) {
+        m_remPanel->setVisible(is417 && !m_exerciseRunning);
+        if (is417 && m_rightPanel) {
+            m_remPanel->adjustSize();
+            const int x = qMax(8, m_rightPanel->width() - m_remPanel->sizeHint().width() - 12);
+            m_remPanel->move(x, 52);
+            m_remPanel->raise();
+        }
     }
     if (m_e15ModeGroup) {
         if (isE15 || is122) {
@@ -5114,6 +5325,20 @@ ExerciseSessionOptions ExerciseHost::buildSessionOptions() const {
         options.genderPrefix = m_previewGenderPrefix.isEmpty()
             ? QStringLiteral("d")
             : m_previewGenderPrefix;
+    }
+    if (m_exerciseId == QStringLiteral("3.1.16")) {
+        options.puzzleAparam = (m_aparamAllRadio && m_aparamAllRadio->isChecked())
+            ? QStringLiteral("1")
+            : QStringLiteral("2");
+    }
+    if (m_exerciseId == QStringLiteral("4.1.7")) {
+        QStringList parts;
+        for (int i = 0; i < 9; ++i) {
+            parts << ((m_remChecks[i] && m_remChecks[i]->isChecked())
+                          ? QStringLiteral("1")
+                          : QStringLiteral("0"));
+        }
+        options.remPictureMask = parts.join(QLatin1Char(','));
     }
     return options;
 }

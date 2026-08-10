@@ -34,6 +34,10 @@ struct PuzzleLayout {
     double scale = 1.0;
 };
 
-bool loadPuzzleLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout);
+bool loadPuzzleLayout(
+    const QString &exerciseId,
+    const QString &stepId,
+    PuzzleLayout *layout,
+    const QString &aparam = QStringLiteral("2"));
 
 #endif

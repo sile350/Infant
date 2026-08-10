@@ -4,11 +4,6 @@
   "showTemplate": true,
   "sprites": [
     {
-      "file": "fone1.png",
-      "x": 500,
-      "y": 250
-    },
-    {
       "file": "11.png",
       "x": 500,
       "y": 700

@@ -475,9 +475,12 @@ QMap<QString, QString> buildVariables(
         ? QStringLiteral("не определено")
         : session.doneState;
     bool additionalIsStepDone = false;
-    if (!session.additional.isEmpty() && session.additional.contains(QLatin1Char(';'))) {
+    if (!session.additional.isEmpty() && session.additional.contains(QLatin1Char(';'))
+        && tmpl.id != QStringLiteral("3.1.21")
+        && tmpl.id != QStringLiteral("1.26")
+        && tmpl.id != QStringLiteral("5.2.1")) {
         const QStringList parts = session.additional.split(QLatin1Char(';'));
-        if (parts.size() >= +2) {
+        if (parts.size() >= 2) {
             stepId = parts.at(0);
             doneState = parts.at(1);
             additionalIsStepDone = true;
@@ -531,7 +534,19 @@ QMap<QString, QString> buildVariables(
                || tmpl.id == QStringLiteral("2.11")
                || tmpl.id == QStringLiteral("2.12")
                || tmpl.id == QStringLiteral("3.1.8")) {
-        score = activityLevelScoreMax3(checkboxes.activity);
+        if (tmpl.id == QStringLiteral("3.1.8")) {
+            // protocols.cs: idd3 → 2, idd4 → 3 (по id, не по тексту «N балла»).
+            if (checkboxes.activity.contains(QStringLiteral("Хаотическая"), Qt::CaseInsensitive)) {
+                score = 3.0;
+            } else if (checkboxes.activity.contains(
+                           QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)) {
+                score = 2.0;
+            } else {
+                score = 0.0;
+            }
+        } else {
+            score = activityLevelScoreMax3(checkboxes.activity);
+        }
         score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
         if (score < 0) {
             score = 0;
