@@ -3590,9 +3590,19 @@ private:
         }
         if (!m_patientRoot) {
             m_patientRoot = new QWidget(display);
+            m_patientRoot->setProperty("dokitPatientInteractiveRoot", true);
+            m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
+            m_patientRoot->setAutoFillBackground(true);
             m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            {
+                QPalette pal = m_patientRoot->palette();
+                pal.setColor(QPalette::Window, Qt::white);
+                m_patientRoot->setPalette(pal);
+            }
             m_patientCanvas = new PuzzleCanvas(m_patientRoot);
+            m_patientCanvas->setProperty("dokitPatientInteractiveCanvas", true);
             m_patientCanvas->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientCanvas->setAttribute(Qt::WA_TransparentForMouseEvents, false);
             connect(m_patientCanvas, &PuzzleCanvas::spritesChanged, this, [this]() {
                 syncSpritesFromPatient();
             }, Qt::UniqueConnection);
@@ -3605,17 +3615,24 @@ private:
         if (m_patientRoot->parentWidget() != display) {
             m_patientRoot->setParent(display);
         }
-        PuzzleLayout layout;
-        if (!loadPuzzleLayout(m_exerciseId, m_stepId, &layout, m_sessionOptions.puzzleAparam)) {
-            layout.templateFile = QStringLiteral("traf2.png");
-            layout.templateX = 10;
-            layout.templateY = 20;
+        const bool needReload = m_patientLoadedExercise != m_exerciseId
+            || m_patientLoadedStep != m_stepId;
+        if (needReload) {
+            PuzzleLayout layout;
+            if (!loadPuzzleLayout(m_exerciseId, m_stepId, &layout, m_sessionOptions.puzzleAparam)) {
+                layout.templateFile = QStringLiteral("traf2.png");
+                layout.templateX = 10;
+                layout.templateY = 20;
+            }
+            m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
+            m_patientCanvas->applySessionOptions(m_sessionOptions);
+            m_patientCanvas->stopElapsedTimer();
+            m_patientLoadedExercise = m_exerciseId;
+            m_patientLoadedStep = m_stepId;
         }
-        m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
-        m_patientCanvas->applySessionOptions(m_sessionOptions);
-        m_patientCanvas->stopElapsedTimer();
         layoutPatientPuzzleUi();
         m_patientCanvas->show();
+        m_patientCanvas->raise();
         m_patientRoot->show();
     }
 
@@ -3626,18 +3643,32 @@ private:
         if (m_patientCanvas) {
             m_patientCanvas->hide();
         }
+        m_patientLoadedExercise.clear();
+        m_patientLoadedStep.clear();
     }
 
     void layoutPatientPuzzleUi() {
         if (!m_patientRoot || !m_patientCanvas) {
             return;
         }
-        m_patientRoot->setGeometry(
-            0,
-            0,
-            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->width() : 1920,
-            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->height() : 1080);
-        m_patientCanvas->setGeometry(0, 0, m_patientRoot->width(), m_patientRoot->height());
+        int w = 1920;
+        int h = 1080;
+        if (QWidget *parent = m_patientRoot->parentWidget()) {
+            w = parent->width() > 0 ? parent->width() : w;
+            h = parent->height() > 0 ? parent->height() : h;
+            if (w < 800 || h < 600) {
+                if (QWindow *win = parent->windowHandle()) {
+                    if (QScreen *screen = win->screen()) {
+                        const QRect g = screen->geometry();
+                        w = qMax(w, g.width());
+                        h = qMax(h, g.height());
+                    }
+                }
+            }
+        }
+        m_patientRoot->setGeometry(0, 0, w, h);
+        m_patientCanvas->setGeometry(0, 0, w, h);
+        m_patientCanvas->raise();
     }
 
     void syncSpritesToPatient() {
@@ -3945,6 +3976,8 @@ private:
     PatientDisplay *m_patientDisplay = nullptr;
     QWidget *m_patientRoot = nullptr;
     PuzzleCanvas *m_patientCanvas = nullptr;
+    QString m_patientLoadedExercise;
+    QString m_patientLoadedStep;
     bool m_syncingSprites = false;
 };
 
@@ -5258,9 +5291,19 @@ private:
         }
         if (!m_patientRoot) {
             m_patientRoot = new QWidget(display);
+            m_patientRoot->setProperty("dokitPatientInteractiveRoot", true);
+            m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
+            m_patientRoot->setAutoFillBackground(true);
             m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            {
+                QPalette pal = m_patientRoot->palette();
+                pal.setColor(QPalette::Window, Qt::white);
+                m_patientRoot->setPalette(pal);
+            }
             m_patientCanvas = new RememberCanvas(m_patientRoot);
+            m_patientCanvas->setProperty("dokitPatientInteractiveCanvas", true);
             m_patientCanvas->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            m_patientCanvas->setAttribute(Qt::WA_TransparentForMouseEvents, false);
             connect(m_patientCanvas, &RememberCanvas::spritesChanged, this, [this]() {
                 syncSpritesFromPatient();
             }, Qt::UniqueConnection);
@@ -5268,12 +5311,19 @@ private:
         if (m_patientRoot->parentWidget() != display) {
             m_patientRoot->setParent(display);
         }
-        m_patientCanvas->startExercise(m_exerciseId, m_stepId, m_sessionOptions.remPictureMask);
+        const bool needReload = m_patientLoadedExercise != m_exerciseId
+            || m_patientLoadedStep != m_stepId;
+        if (needReload) {
+            m_patientCanvas->startExercise(m_exerciseId, m_stepId, m_sessionOptions.remPictureMask);
+            m_patientLoadedExercise = m_exerciseId;
+            m_patientLoadedStep = m_stepId;
+        }
         if (m_canvas) {
             m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
         }
         layoutPatientRememberUi();
         m_patientCanvas->show();
+        m_patientCanvas->raise();
         m_patientRoot->show();
     }
 
@@ -5284,18 +5334,32 @@ private:
         if (m_patientCanvas) {
             m_patientCanvas->hide();
         }
+        m_patientLoadedExercise.clear();
+        m_patientLoadedStep.clear();
     }
 
     void layoutPatientRememberUi() {
         if (!m_patientRoot || !m_patientCanvas) {
             return;
         }
-        m_patientRoot->setGeometry(
-            0,
-            0,
-            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->width() : 1920,
-            m_patientRoot->parentWidget() ? m_patientRoot->parentWidget()->height() : 1080);
-        m_patientCanvas->setGeometry(0, 0, m_patientRoot->width(), m_patientRoot->height());
+        int w = 1920;
+        int h = 1080;
+        if (QWidget *parent = m_patientRoot->parentWidget()) {
+            w = parent->width() > 0 ? parent->width() : w;
+            h = parent->height() > 0 ? parent->height() : h;
+            if (w < 800 || h < 600) {
+                if (QWindow *win = parent->windowHandle()) {
+                    if (QScreen *screen = win->screen()) {
+                        const QRect g = screen->geometry();
+                        w = qMax(w, g.width());
+                        h = qMax(h, g.height());
+                    }
+                }
+            }
+        }
+        m_patientRoot->setGeometry(0, 0, w, h);
+        m_patientCanvas->setGeometry(0, 0, w, h);
+        m_patientCanvas->raise();
     }
 
     void syncSpritesToPatient() {
@@ -5392,6 +5456,8 @@ private:
     QWidget *m_patientRoot = nullptr;
     RememberCanvas *m_patientCanvas = nullptr;
     PatientDisplay *m_patientDisplay = nullptr;
+    QString m_patientLoadedExercise;
+    QString m_patientLoadedStep;
     bool m_syncingSprites = false;
     QString m_exerciseId;
     QString m_stepId;
@@ -5531,6 +5597,19 @@ public:
         ExerciseRunnerWidget::setSessionOptions(options);
         m_demo->setSessionOptions(options);
         m_puzzles->setSessionOptions(options);
+    }
+
+    void bindPatientDisplay(PatientDisplay *display) override {
+        // 1.14 шаг 2: интерактивный пазл на 2-м экране, а не зеркало OnlyDemo.
+        if (m_puzzles && m_puzzles->isVisible()) {
+            m_puzzles->bindPatientDisplay(display);
+            return;
+        }
+        if (m_demo && m_demo->isVisible()) {
+            m_demo->bindPatientDisplay(display);
+            return;
+        }
+        ExerciseRunnerWidget::bindPatientDisplay(display);
     }
 
     void startSession(

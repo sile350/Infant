@@ -32,6 +32,22 @@ void PatientDisplay::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     if (m_contentWidget) {
         m_contentWidget->setGeometry(0, 0, width(), height());
+        // Интерактивный холст (пазл/remember) должен заполнять корень — иначе после
+        // showOnSecondaryScreen остаётся 0×0 и на 2-м экране нет drag.
+        if (m_contentWidget->property("dokitPatientInteractiveRoot").toBool()) {
+            const QObjectList kids = m_contentWidget->children();
+            for (QObject *obj : kids) {
+                auto *child = qobject_cast<QWidget *>(obj);
+                if (!child) {
+                    continue;
+                }
+                if (child->property("dokitPatientInteractiveCanvas").toBool()) {
+                    child->setGeometry(0, 0, m_contentWidget->width(), m_contentWidget->height());
+                }
+            }
+        }
+        m_contentWidget->show();
+        m_contentWidget->raise();
     }
     if (m_mirrorLabel) {
         m_mirrorLabel->setGeometry(0, 0, width(), height());
@@ -234,6 +250,17 @@ void PatientDisplay::attachContentWidget(QWidget *widget) {
     }
     widget->show();
     widget->raise();
+    if (widget->property("dokitPatientInteractiveRoot").toBool()) {
+        const QObjectList kids = widget->children();
+        for (QObject *obj : kids) {
+            auto *child = qobject_cast<QWidget *>(obj);
+            if (child && child->property("dokitPatientInteractiveCanvas").toBool()) {
+                child->setGeometry(0, 0, widget->width(), widget->height());
+                child->show();
+                child->raise();
+            }
+        }
+    }
 }
 
 void PatientDisplay::updateMirrorPixmap() {
@@ -326,6 +353,15 @@ void PatientDisplay::showOnSecondaryScreen() {
             m_mirrorLabel->hide();
         }
         m_contentWidget->setGeometry(0, 0, geometry.width(), geometry.height());
+        if (m_contentWidget->property("dokitPatientInteractiveRoot").toBool()) {
+            const QObjectList kids = m_contentWidget->children();
+            for (QObject *obj : kids) {
+                auto *child = qobject_cast<QWidget *>(obj);
+                if (child && child->property("dokitPatientInteractiveCanvas").toBool()) {
+                    child->setGeometry(0, 0, geometry.width(), geometry.height());
+                }
+            }
+        }
         m_contentWidget->show();
         m_contentWidget->raise();
     } else if (m_emotionsSource && m_patientEmotions) {
