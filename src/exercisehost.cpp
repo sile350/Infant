@@ -3861,7 +3861,7 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
 }
 
 bool ExerciseHost::needsDoneStatePanel() const {
-    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 1.27 / 2.1 / 2.2 / 2.3 / 2.11 / 3.3.x: нет блока «Выполнение».
+    // 1.12 / 1.14 / 1.15 / 1.20 / 1.21 / 1.27 / 2.1 / 2.2 / 2.3 / 2.11 / 2.12 / 3.3.x: нет блока «Выполнение».
     if (m_exerciseId == QStringLiteral("1.12")
         || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.15")
@@ -3872,6 +3872,7 @@ bool ExerciseHost::needsDoneStatePanel() const {
         || m_exerciseId == QStringLiteral("2.2")
         || m_exerciseId == QStringLiteral("2.3")
         || m_exerciseId == QStringLiteral("2.11")
+        || m_exerciseId == QStringLiteral("2.12")
         || m_exerciseId == QStringLiteral("3.3.1")
         || m_exerciseId == QStringLiteral("3.3.2")
         || m_exerciseId == QStringLiteral("3.3.3")) {
