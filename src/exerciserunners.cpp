@@ -3961,8 +3961,8 @@ private:
             return;
         }
         if (m_exerciseId == QStringLiteral("1.28")) {
-            // Оригинал puzzles.cs: pstop @ 970; было 1120 — сдвинуть на 500 влево.
-            placeStop(620.0, 70.0);
+            // Оригинал puzzles.cs: pstop @ 970; итого −1100 от прежних 1120 → 20.
+            placeStop(20.0, 70.0);
             return;
         }
         m_stop->move(80, 72);
