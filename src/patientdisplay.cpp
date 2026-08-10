@@ -7,6 +7,7 @@
 #include <QGuiApplication>
 #include <QLabel>
 #include <QPainter>
+#include <QPalette>
 #include <QPixmap>
 #include <QResizeEvent>
 #include <QScreen>
@@ -224,6 +225,13 @@ void PatientDisplay::attachContentWidget(QWidget *widget) {
         widget->setParent(this);
     }
     widget->setGeometry(0, 0, width() > 0 ? width() : 1920, height() > 0 ? height() : 1080);
+    widget->setAttribute(Qt::WA_StyledBackground, true);
+    widget->setAutoFillBackground(true);
+    {
+        QPalette pal = widget->palette();
+        pal.setColor(QPalette::Window, Qt::white);
+        widget->setPalette(pal);
+    }
     widget->show();
     widget->raise();
 }

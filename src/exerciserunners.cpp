@@ -35,6 +35,7 @@
 #include <QMouseEvent>
 #include <QSizePolicy>
 #include <QPainter>
+#include <QPalette>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
@@ -651,11 +652,19 @@ protected:
         }
         if (!m_patientRoot) {
             m_patientRoot = new QWidget(display);
+            // WA_StyledBackground + autoFill: иначе вокруг холста (1.7 @ 600,150) остаётся чёрный.
+            m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
+            m_patientRoot->setAutoFillBackground(true);
+            QPalette pal = m_patientRoot->palette();
+            pal.setColor(QPalette::Window, Qt::white);
+            pal.setColor(QPalette::Base, Qt::white);
+            m_patientRoot->setPalette(pal);
             m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
-            m_patientRoot->setAttribute(Qt::WA_OpaquePaintEvent, true);
             m_patientPicture = new QLabel(m_patientRoot);
             m_patientPicture->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-            m_patientPicture->setStyleSheet(QStringLiteral("background:white;"));
+            m_patientPicture->setAttribute(Qt::WA_StyledBackground, true);
+            m_patientPicture->setAutoFillBackground(true);
+            m_patientPicture->setStyleSheet(QStringLiteral("background-color:#ffffff; border:none;"));
             m_patientPicture->setMouseTracking(false);
             m_patientPicture->installEventFilter(this);
 
@@ -668,6 +677,12 @@ protected:
         if (m_patientRoot->parentWidget() != display) {
             m_patientRoot->setParent(display);
         }
+        display->setAutoFillBackground(true);
+        {
+            QPalette pal = display->palette();
+            pal.setColor(QPalette::Window, Qt::white);
+            display->setPalette(pal);
+        }
         if (!m_paletteImage.isNull() && m_patientPalette) {
             QPixmap pm = QPixmap::fromImage(m_paletteImage);
             m_patientPalette->setPixmap(pm);
@@ -679,6 +694,7 @@ protected:
         }
         layoutPatientPaintUi();
         m_patientRoot->show();
+        m_patientRoot->raise();
     }
 
     void teardownPatientPaintUi() {
