@@ -4540,10 +4540,9 @@ void ExerciseHost::sumProtocolOrHlpBalls(const QString &idPrefix, const QString 
     if (storedBody.trimmed().isEmpty()) {
         return;
     }
-    if (idPrefix == QStringLiteral("ids")) {
-        storedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
-            storedBody, m_templateBrowser->document());
-    }
+    // Введённые в QTextEdit баллы (idb*/ids*) иначе не попадают в stored body → сумма 0.
+    storedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+        storedBody, m_templateBrowser->document(), idPrefix);
     storedBody = ExerciseProtocol::applyProtocolIdbSum(storedBody, maxSuffix, idPrefix);
 
     QString error;
@@ -4724,7 +4723,20 @@ void ExerciseHost::saveProtocolEdits() {
             storedBody, m_templateBrowser->document());
     } else if (m_exerciseId == QStringLiteral("1.272")) {
         body = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
-            storedBody, m_templateBrowser->document());
+            storedBody, m_templateBrowser->document(), QStringLiteral("ids"));
+    } else if (m_exerciseId == QStringLiteral("1.14")
+               || m_exerciseId == QStringLiteral("3.1.8")
+               || m_exerciseId == QStringLiteral("3.1.21")) {
+        body = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+            storedBody, m_templateBrowser->document(), QStringLiteral("idb"));
+    } else if (m_exerciseId == QStringLiteral("1.15")
+               || m_exerciseId == QStringLiteral("1.20")
+               || m_exerciseId == QStringLiteral("1.21")
+               || m_exerciseId == QStringLiteral("1.27")
+               || m_exerciseId == QStringLiteral("2.11")
+               || m_exerciseId == QStringLiteral("2.12")) {
+        body = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+            storedBody, m_templateBrowser->document(), QStringLiteral("ids"));
     } else if (m_exerciseId == QStringLiteral("3.1.10")) {
         body = ExerciseProtocol::mergeProtocol3110EditorIntoStoredBody(
             storedBody, m_templateBrowser->document());

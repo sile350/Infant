@@ -165,10 +165,11 @@ public:
         QTextDocument *editorDocument,
         QTextTable *processTable = nullptr);
 
-    // 1.272: перенос баллов idsN / OR / HLP из редактора.
+    // 1.272 / 1.14 / OrHlpBalls: перенос баллов idsN|idbN / OR / HLP из редактора.
     static QString mergeProtocol1272EditorIntoStoredBody(
         const QString &storedBody,
-        QTextDocument *editorDocument);
+        QTextDocument *editorDocument,
+        const QString &idPrefix = QStringLiteral("ids"));
 
     // Безопасно дописывает строки <tr> к телу протокола (не внутрь последней ячейки).
     static QString appendRowsToStoredBody(const QString &existingBody, const QString &rowsHtml);

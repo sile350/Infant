@@ -7028,10 +7028,13 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
 
 QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
     const QString &storedBody,
-    QTextDocument *editorDocument) {
+    QTextDocument *editorDocument,
+    const QString &idPrefix) {
     if (storedBody.trimmed().isEmpty() || !editorDocument) {
         return storedBody;
     }
+    const QString scorePrefix =
+        idPrefix.trimmed().isEmpty() ? QStringLiteral("ids") : idPrefix.trimmed();
     QString body = mergeLimitedEditableFieldsIntoStoredBody(storedBody, editorDocument);
 
     QStringList sessions = extractProtocol126SessionsByDate(body);
@@ -7117,7 +7120,7 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
                 continue;
             }
             const QString stepNo = numMatch.captured(1);
-            const QString scoreId = QStringLiteral("ids") + stepNo;
+            const QString scoreId = scorePrefix + stepNo;
 
             if (ballsCol >= 0) {
                 const QString score = readTableCellText(table, r, ballsCol);
@@ -7132,7 +7135,7 @@ QString ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
             const QString activity = readTableCellMultilineText(table, r, activityCol);
             const QString help = readTableCellMultilineText(table, r, helpCol);
 
-            // Строка процесса с idsN — обновляем ячейки характера и помощи.
+            // Строка процесса с idsN/idbN — обновляем ячейки характера и помощи.
             const QRegularExpression idProbe(
                 QStringLiteral("\\bid\\s*=\\s*['\"]%1['\"]").arg(QRegularExpression::escape(scoreId)),
                 QRegularExpression::CaseInsensitiveOption);

@@ -3199,15 +3199,24 @@ public:
 
         m_rotateHintLeft = new QLabel(this);
         m_rotateHintRight = new QLabel(this);
-        const QString counterPath = ExerciseAssets::sysImage(QStringLiteral("counter.png"));
-        const QString toPath = ExerciseAssets::sysImage(QStringLiteral("to.png"));
-        if (!counterPath.isEmpty()) {
-            m_rotateHintLeft->setPixmap(QPixmap(counterPath));
-            m_rotateHintLeft->setFixedSize(QPixmap(counterPath).size());
-        }
-        if (!toPath.isEmpty()) {
-            m_rotateHintRight->setPixmap(QPixmap(toPath));
-            m_rotateHintRight->setFixedSize(QPixmap(toPath).size());
+        // Справка 1.14/1.19: подсказка с текстом «л.к.м./п.к.м. поворот фрагмента…»,
+        // а не только иконки мыши (counter.png / to.png).
+        const QString rotateHintPath = ExerciseAssets::sysImage(QStringLiteral("rotate_hint.jpg"));
+        if (!rotateHintPath.isEmpty()) {
+            const QPixmap hintPm(rotateHintPath);
+            m_rotateHintLeft->setPixmap(hintPm);
+            m_rotateHintLeft->setFixedSize(hintPm.size());
+        } else {
+            const QString counterPath = ExerciseAssets::sysImage(QStringLiteral("counter.png"));
+            const QString toPath = ExerciseAssets::sysImage(QStringLiteral("to.png"));
+            if (!counterPath.isEmpty()) {
+                m_rotateHintLeft->setPixmap(QPixmap(counterPath));
+                m_rotateHintLeft->setFixedSize(QPixmap(counterPath).size());
+            }
+            if (!toPath.isEmpty()) {
+                m_rotateHintRight->setPixmap(QPixmap(toPath));
+                m_rotateHintRight->setFixedSize(QPixmap(toPath).size());
+            }
         }
         m_rotateHintLeft->hide();
         m_rotateHintRight->hide();
@@ -3782,18 +3791,22 @@ private:
             m_stop->move(qRound(dx * sx), qRound(dy * sy));
         };
 
+        auto placeRotateHint = [&](double dx, double dy) {
+            if (!m_rotateHintLeft) {
+                return;
+            }
+            m_rotateHintLeft->move(qRound(dx * sx), qRound(dy * sy));
+            m_rotateHintLeft->show();
+            m_rotateHintLeft->raise();
+            // Комбинированная картинка с текстом — одна; правую иконку не показываем.
+            if (m_rotateHintRight) {
+                m_rotateHintRight->hide();
+            }
+        };
+
         if (m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2")) {
             placeStop(960.0, 68.0);
-            if (m_rotateHintLeft) {
-                m_rotateHintLeft->move(qRound(1400.0 * sx), qRound(150.0 * sy));
-                m_rotateHintLeft->show();
-                m_rotateHintLeft->raise();
-            }
-            if (m_rotateHintRight) {
-                m_rotateHintRight->move(qRound(1520.0 * sx), qRound(150.0 * sy));
-                m_rotateHintRight->show();
-                m_rotateHintRight->raise();
-            }
+            placeRotateHint(1400.0, 150.0);
             return;
         }
         if (m_rotateHintLeft) {
@@ -3804,16 +3817,7 @@ private:
         }
         if (m_exerciseId == QStringLiteral("1.29")) {
             placeStop(570.0, 70.0);
-            if (m_rotateHintLeft) {
-                m_rotateHintLeft->move(qRound(1190.0 * sx), qRound(50.0 * sy));
-                m_rotateHintLeft->show();
-                m_rotateHintLeft->raise();
-            }
-            if (m_rotateHintRight) {
-                m_rotateHintRight->move(qRound(1290.0 * sx), qRound(50.0 * sy));
-                m_rotateHintRight->show();
-                m_rotateHintRight->raise();
-            }
+            placeRotateHint(1190.0, 50.0);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.22")) {
@@ -3823,16 +3827,7 @@ private:
         if (m_exerciseId == QStringLiteral("1.20")) {
             // puzzles.cs: pstop 977@70; pcntr 1450@100, pto = +100.
             placeStop(977.0, 70.0);
-            if (m_rotateHintLeft) {
-                m_rotateHintLeft->move(qRound(1450.0 * sx), qRound(100.0 * sy));
-                m_rotateHintLeft->show();
-                m_rotateHintLeft->raise();
-            }
-            if (m_rotateHintRight) {
-                m_rotateHintRight->move(qRound(1550.0 * sx), qRound(100.0 * sy));
-                m_rotateHintRight->show();
-                m_rotateHintRight->raise();
-            }
+            placeRotateHint(1450.0, 100.0);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.19")) {
@@ -3847,31 +3842,13 @@ private:
                 btnY = 130;
             }
             placeStop(977.0, 70.0);
-            if (m_rotateHintLeft) {
-                m_rotateHintLeft->move(qRound(btnX * sx), qRound(btnY * sy));
-                m_rotateHintLeft->show();
-                m_rotateHintLeft->raise();
-            }
-            if (m_rotateHintRight) {
-                m_rotateHintRight->move(qRound((btnX + 100) * sx), qRound(btnY * sy));
-                m_rotateHintRight->show();
-                m_rotateHintRight->raise();
-            }
+            placeRotateHint(btnX, btnY);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.21")) {
             // puzzles.cs: pstop 977@70; pcntr 1440@150, pto = pcntr+100.
             placeStop(977.0, 70.0);
-            if (m_rotateHintLeft) {
-                m_rotateHintLeft->move(qRound(1440.0 * sx), qRound(150.0 * sy));
-                m_rotateHintLeft->show();
-                m_rotateHintLeft->raise();
-            }
-            if (m_rotateHintRight) {
-                m_rotateHintRight->move(qRound(1540.0 * sx), qRound(150.0 * sy));
-                m_rotateHintRight->show();
-                m_rotateHintRight->raise();
-            }
+            placeRotateHint(1440.0, 150.0);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.11")) {
