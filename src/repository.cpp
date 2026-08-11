@@ -1164,7 +1164,10 @@ bool Repository::updateProtocolsFromEditedDocument(
                 mergedBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                     storedBody, &sectionDocument, liveOrHlpTable);
             } else if (uprid == QStringLiteral("3.1.17")
-                       || uprid == QStringLiteral("3.1.18")) {
+                       || uprid == QStringLiteral("3.1.18")
+                       || uprid == QStringLiteral("3.3.1")
+                       || uprid == QStringLiteral("3.3.2")
+                       || uprid == QStringLiteral("3.3.3")) {
                 mergedBody = ExerciseProtocol::applyProtocol318SumFromDocument(
                     storedBody, &sectionDocument, liveOrHlpTable);
             } else if (uprid == QStringLiteral("3.1.10")) {

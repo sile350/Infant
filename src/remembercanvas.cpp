@@ -61,14 +61,14 @@ bool RememberCanvas::loadRememberLayout(
         if (!ExerciseAssets::exerciseFile(exerciseId, a).isEmpty()) {
             PuzzleSpriteDef s;
             s.file = a;
-            s.x = 100;
+            s.x = 600;
             s.y = 422;
             built.sprites.append(s);
         }
         if (!ExerciseAssets::exerciseFile(exerciseId, b).isEmpty()) {
             PuzzleSpriteDef s;
             s.file = b;
-            s.x = 100;
+            s.x = 600;
             s.y = 0;
             built.sprites.append(s);
         }

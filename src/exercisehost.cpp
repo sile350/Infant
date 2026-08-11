@@ -81,6 +81,41 @@ constexpr int kScrollWidth = 870;
 constexpr int kScrollBarGutter = 20;
 constexpr int kTemplateTableWidth = 671;
 constexpr int kTemplateViewportPadding = 4;
+constexpr int kRemThumbW = 120;
+constexpr int kRemThumbH = 155;
+
+void layoutRemPanelWidget(QWidget *remPanel, QWidget *rightPanel) {
+    if (!remPanel || !rightPanel || !remPanel->isVisible()) {
+        return;
+    }
+    remPanel->adjustSize();
+    const int pw = rightPanel->width();
+    const int ph = rightPanel->height();
+    const int w = remPanel->sizeHint().width();
+    const int h = remPanel->sizeHint().height();
+    const int x = qMax(8, (pw - w) / 2);
+    const int y = qMax(48, (ph - h) / 2);
+    remPanel->setGeometry(x, y, w, h);
+    remPanel->raise();
+}
+
+class RemThumbLabel final : public QLabel {
+public:
+    explicit RemThumbLabel(QWidget *parent = nullptr) : QLabel(parent) {
+        setCursor(Qt::PointingHandCursor);
+    }
+    QCheckBox *check = nullptr;
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && check) {
+            check->toggle();
+            event->accept();
+            return;
+        }
+        QLabel::mouseReleaseEvent(event);
+    }
+};
 
 // QRadioButton в Qt не переносит текст — индикатор + QLabel с word wrap.
 class RadioTextLabel final : public QLabel {
@@ -1017,28 +1052,34 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     aparamLayout->addWidget(m_aparamCurrentRadio);
     m_aparamGroup->hide();
 
-    // 4.1.7 (rem): выбор картинок 1–9.
+    // 4.1.7 (rem): выбор картинок 1–9 (как rem.cs; pfront скрыт).
     m_remPanel = new QWidget(m_rightPanel);
+    m_remPanel->setAttribute(Qt::WA_StyledBackground, true);
     m_remPanel->setStyleSheet(QStringLiteral("background:#f8f8f8; border:1px solid #888;"));
     auto *remGrid = new QGridLayout(m_remPanel);
-    remGrid->setContentsMargins(8, 8, 8, 8);
-    remGrid->setHorizontalSpacing(12);
-    remGrid->setVerticalSpacing(8);
+    remGrid->setContentsMargins(12, 12, 12, 12);
+    remGrid->setHorizontalSpacing(14);
+    remGrid->setVerticalSpacing(10);
     for (int i = 0; i < 9; ++i) {
         auto *cell = new QWidget(m_remPanel);
         auto *cellLay = new QVBoxLayout(cell);
         cellLay->setContentsMargins(0, 0, 0, 0);
-        cellLay->setSpacing(2);
+        cellLay->setSpacing(4);
         m_remChecks[i] = new QCheckBox(cell);
         m_remChecks[i]->setChecked(true);
-        auto *thumb = new QLabel(cell);
-        thumb->setFixedSize(72, 72);
+        auto *thumb = new RemThumbLabel(cell);
+        thumb->check = m_remChecks[i];
+        thumb->setFixedSize(kRemThumbW, kRemThumbH);
         thumb->setAlignment(Qt::AlignCenter);
         thumb->setStyleSheet(QStringLiteral("background:#fff; border:1px solid #ccc;"));
         const QString path = ExerciseAssets::exerciseFile(
             QStringLiteral("4.1.7"), QString::number(i + 1) + QStringLiteral(".png"));
         if (!path.isEmpty()) {
-            thumb->setPixmap(QPixmap(path).scaled(70, 70, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            thumb->setPixmap(QPixmap(path).scaled(
+                kRemThumbW - 4,
+                kRemThumbH - 4,
+                Qt::KeepAspectRatio,
+                Qt::SmoothTransformation));
         }
         cellLay->addWidget(m_remChecks[i], 0, Qt::AlignLeft);
         cellLay->addWidget(thumb, 0, Qt::AlignLeft);
@@ -1563,6 +1604,9 @@ void ExerciseHost::updateChromeLayout() {
     }
     if (m_previewImage) {
         updatePreviewLayout();
+    }
+    if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_remPanel->isVisible() && m_rightPanel) {
+        layoutRemPanelWidget(m_remPanel, m_rightPanel);
     }
     if (m_rightPanel && m_rightCountLabel && m_wrongCountLabel) {
         const int panelW = qMax(120, m_rightPanel->width());
@@ -2193,6 +2237,16 @@ void ExerciseHost::updatePreviewLayout() {
     if (!m_previewImage) {
         return;
     }
+    if (m_exerciseId == QStringLiteral("4.1.7")) {
+        m_previewImage->hide();
+        if (m_previewGenderPanel) {
+            m_previewGenderPanel->hide();
+        }
+        if (m_remPanel && m_remPanel->isVisible() && m_rightPanel) {
+            layoutRemPanelWidget(m_remPanel, m_rightPanel);
+        }
+        return;
+    }
     if (m_exerciseRunning) {
         const ExerciseDefinition *definition = ExerciseConfig::find(m_exerciseId);
         if (m_dualScreen
@@ -2506,6 +2560,15 @@ void ExerciseHost::refreshProtocolViewAfterScanUpload() {
 }
 
 void ExerciseHost::reloadPreviewForCurrentStep() {
+    if (m_exerciseId == QStringLiteral("4.1.7")) {
+        // Как exbegin: pfront скрыт — только панель выбора картинок rem.
+        m_previewSource = QPixmap();
+        if (m_previewImage) {
+            m_previewImage->hide();
+        }
+        updateExerciseOptionsPanel();
+        return;
+    }
     if (m_exerciseId == QStringLiteral("1.22")) {
         // Как просили: без картинки предварительного просмотра (fкруг/fквадрат/…).
         m_previewSource = QPixmap();
@@ -4737,6 +4800,9 @@ void ExerciseHost::onProtocolCursorMoved() {
         || m_exerciseId == QStringLiteral("2.3")
         || m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18")
+        || m_exerciseId == QStringLiteral("3.3.1")
+        || m_exerciseId == QStringLiteral("3.3.2")
+        || m_exerciseId == QStringLiteral("3.3.3")
         || m_exerciseId == QStringLiteral("4.1.4")
         || m_exerciseId == QStringLiteral("4.2.1")
         || m_exerciseId == QStringLiteral("4.2.2")
@@ -4757,6 +4823,9 @@ void ExerciseHost::syncProtocol317BallsToResult() {
         || m_exerciseId == QStringLiteral("2.3")
         || m_exerciseId == QStringLiteral("3.1.17")
         || m_exerciseId == QStringLiteral("3.1.18")
+        || m_exerciseId == QStringLiteral("3.3.1")
+        || m_exerciseId == QStringLiteral("3.3.2")
+        || m_exerciseId == QStringLiteral("3.3.3")
         || m_exerciseId == QStringLiteral("4.1.4")
         || m_exerciseId == QStringLiteral("4.2.1")
         || m_exerciseId == QStringLiteral("4.2.2")
@@ -4883,7 +4952,10 @@ void ExerciseHost::saveProtocolEdits() {
         body = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             storedBody, m_templateBrowser->document());
     } else if (m_exerciseId == QStringLiteral("3.1.17")
-               || m_exerciseId == QStringLiteral("3.1.18")) {
+               || m_exerciseId == QStringLiteral("3.1.18")
+               || m_exerciseId == QStringLiteral("3.3.1")
+               || m_exerciseId == QStringLiteral("3.3.2")
+               || m_exerciseId == QStringLiteral("3.3.3")) {
         body = ExerciseProtocol::applyProtocol318SumFromDocument(
             storedBody, m_templateBrowser->document());
     } else {
@@ -5362,7 +5434,8 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     const bool showShard = isE15 || is122 || isPuzzleShard;
 
     if (m_exerciseOptionsPanel) {
-        m_exerciseOptionsPanel->setVisible((showShard || is417) && !show316Options);
+        // 4.1.7: только rem-панель, без пустой options-панели поверх (блокировала клики).
+        m_exerciseOptionsPanel->setVisible(showShard && !show316Options);
     }
     if (m_shardButton) {
         m_shardButton->setVisible(showShard);
@@ -5382,10 +5455,7 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     if (m_remPanel) {
         m_remPanel->setVisible(is417 && !m_exerciseRunning);
         if (is417 && m_rightPanel) {
-            m_remPanel->adjustSize();
-            const int x = qMax(8, m_rightPanel->width() - m_remPanel->sizeHint().width() - 12);
-            m_remPanel->move(x, 52);
-            m_remPanel->raise();
+            layoutRemPanelWidget(m_remPanel, m_rightPanel);
         }
     }
     if (m_e15ModeGroup) {

@@ -3979,9 +3979,14 @@ private:
             placeStop(1170.0, 70.0);
             return;
         }
+        if (m_exerciseId == QStringLiteral("3.1.23")) {
+            // Было 970@70; смещение Стоп на 500 px влево.
+            placeStop(470.0, 70.0);
+            return;
+        }
         if (m_exerciseId == QStringLiteral("1.15") || m_exerciseId == QStringLiteral("1.24")
             || m_exerciseId == QStringLiteral("2.11") || m_exerciseId == QStringLiteral("2.12")
-            || m_exerciseId == QStringLiteral("3.1.16") || m_exerciseId == QStringLiteral("3.1.23")
+            || m_exerciseId == QStringLiteral("3.1.16")
             || m_exerciseId == QStringLiteral("3.1.24")) {
             placeStop(970.0, 70.0);
             return;
