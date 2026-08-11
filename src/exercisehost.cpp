@@ -81,8 +81,9 @@ constexpr int kScrollWidth = 870;
 constexpr int kScrollBarGutter = 20;
 constexpr int kTemplateTableWidth = 671;
 constexpr int kTemplateViewportPadding = 4;
-constexpr int kRemThumbW = 120;
-constexpr int kRemThumbH = 155;
+constexpr int kRemThumbW = 180;
+constexpr int kRemThumbH = 233;
+constexpr int kRemPanelDownShift = 200;
 
 void layoutRemPanelWidget(QWidget *remPanel, QWidget *rightPanel) {
     if (!remPanel || !rightPanel || !remPanel->isVisible()) {
@@ -94,7 +95,7 @@ void layoutRemPanelWidget(QWidget *remPanel, QWidget *rightPanel) {
     const int w = remPanel->sizeHint().width();
     const int h = remPanel->sizeHint().height();
     const int x = qMax(8, (pw - w) / 2);
-    const int y = qMax(48, (ph - h) / 2);
+    const int y = qMin(ph - h - 8, qMax(48, (ph - h) / 2 + kRemPanelDownShift));
     remPanel->setGeometry(x, y, w, h);
     remPanel->raise();
 }
@@ -1057,14 +1058,14 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_remPanel->setAttribute(Qt::WA_StyledBackground, true);
     m_remPanel->setStyleSheet(QStringLiteral("background:#f8f8f8; border:1px solid #888;"));
     auto *remGrid = new QGridLayout(m_remPanel);
-    remGrid->setContentsMargins(12, 12, 12, 12);
-    remGrid->setHorizontalSpacing(14);
-    remGrid->setVerticalSpacing(10);
+    remGrid->setContentsMargins(18, 18, 18, 18);
+    remGrid->setHorizontalSpacing(21);
+    remGrid->setVerticalSpacing(15);
     for (int i = 0; i < 9; ++i) {
         auto *cell = new QWidget(m_remPanel);
         auto *cellLay = new QVBoxLayout(cell);
         cellLay->setContentsMargins(0, 0, 0, 0);
-        cellLay->setSpacing(4);
+        cellLay->setSpacing(6);
         m_remChecks[i] = new QCheckBox(cell);
         m_remChecks[i]->setChecked(true);
         auto *thumb = new RemThumbLabel(cell);
