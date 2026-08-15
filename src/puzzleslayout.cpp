@@ -360,12 +360,12 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
             return true;
         }
         if (stepId == QStringLiteral("2")) {
+            // Опустить поле/фрагменты ~100px под «Стоп» (не ниже низа 1080).
             layout->templateFile = QStringLiteral("traf2.png");
             layout->templateX = 10;
-            layout->templateY = 20;
-            // Сетка 4×4: клетки на 50px ниже, шаг уменьшен в 1.2 раза.
-            const int xs[] = {1000, 1125, 1292, 1417};
-            const int ys[] = {85, 258, 475, 633};
+            layout->templateY = 120;
+            const int xs[] = {1000, 1150, 1350, 1500};
+            const int ys[] = {135, 350, 610, 800};
             int index = 21;
             for (int row = 0; row < 4; ++row) {
                 for (int col = 0; col < 4; ++col) {

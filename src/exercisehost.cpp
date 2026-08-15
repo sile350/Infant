@@ -1833,8 +1833,9 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 «Дорисуй»: при каждом входе протоколы формируются с нуля (не дописывать прошлый визит).
+    // 1.7 / 1.11: при каждом входе протоколы формируются с нуля (не дописывать прошлый визит).
     if (m_exerciseId == QStringLiteral("1.7")
+        || m_exerciseId == QStringLiteral("1.11")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -4971,6 +4972,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.5")
                || m_exerciseId == QStringLiteral("1.6")
                || m_exerciseId == QStringLiteral("1.7")
+               || m_exerciseId == QStringLiteral("1.11")
                || m_exerciseId == QStringLiteral("1.8")
                || m_exerciseId == QStringLiteral("1.13")
                || m_exerciseId == QStringLiteral("1.17")
