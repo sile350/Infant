@@ -1032,8 +1032,8 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_shard316Button->setStyleSheet(m_shardButton->styleSheet());
     m_shard316Button->hide();
 
-    // 1.5: ссылка в одну линию с «Начать» (~1550 × высота begin).
-    m_shard15Button = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), this);
+    // 1.5: ссылка в правой области, в одну линию с «Начать» (~1550 abs / y=12).
+    m_shard15Button = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), m_rightPanel);
     m_shard15Button->setFlat(true);
     m_shard15Button->setCursor(Qt::PointingHandCursor);
     m_shard15Button->setStyleSheet(m_shardButton->styleSheet());
@@ -1617,20 +1617,30 @@ void ExerciseHost::updateChromeLayout() {
         }
         layoutE15ModePopup();
     }
-    // 1.5: «Настройка уровня сложности» @ ~1550, высота кнопки «Начать».
-    if (m_shard15Button && m_shard15Button->isVisible()) {
+    // 1.5: «Настройка уровня сложности» на правой панели (поверх превью), ~1550 abs.
+    if (m_shard15Button && m_shard15Button->isVisible() && m_rightPanel) {
         m_shard15Button->adjustSize();
         constexpr int kLinkAbsX = 1550;
         constexpr int kLinkAbsY = 12;
         constexpr int kLinkH = 33;
+        const int rightPanelLeft = kPanelX + kScrollWidth;
         const int linkW = qMax(m_shard15Button->sizeHint().width(), 280);
-        const int maxX = qMax(8, width() - linkW - 8);
-        const int linkX = qBound(8, kLinkAbsX, maxX);
-        m_shard15Button->setGeometry(linkX, kLinkAbsY, linkW, kLinkH);
+        const int localX = qMax(8, kLinkAbsX - rightPanelLeft);
+        const int maxLocalX = qMax(8, m_rightPanel->width() - linkW - 8);
+        m_shard15Button->setGeometry(qMin(localX, maxLocalX), kLinkAbsY, linkW, kLinkH);
+        m_shard15Button->show();
         m_shard15Button->raise();
     }
     if (m_previewImage) {
         updatePreviewLayout();
+    }
+    // После превью снова поднять ссылку 1.5 (превью иначе перекрывает).
+    if (m_exerciseId == QStringLiteral("1.5") && m_shard15Button && m_shard15Button->isVisible()) {
+        m_shard15Button->raise();
+        if (m_e15ModeGroup && m_e15ModeGroup->isVisible()) {
+            m_e15ModeGroup->raise();
+            m_shard15Button->raise();
+        }
     }
     if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_remPanel->isVisible() && m_rightPanel) {
         layoutRemPanelWidget(m_remPanel, m_rightPanel);
@@ -5409,9 +5419,9 @@ void ExerciseHost::layoutE15ModePopup() {
             }
             const int groupH = qMax(m_e15ModeGroup->sizeHint().height(), 110);
             if (show15Popup) {
-                // Попап на корне окна под ссылкой @ ~1550.
-                if (m_e15ModeGroup->parentWidget() != this) {
-                    m_e15ModeGroup->setParent(this);
+                // Попап на правой панели под ссылкой.
+                if (m_e15ModeGroup->parentWidget() != m_rightPanel) {
+                    m_e15ModeGroup->setParent(m_rightPanel);
                 }
                 const int popupX = m_shard15Button->x();
                 const int popupY = m_shard15Button->y() + m_shard15Button->height() + 2;
@@ -5426,9 +5436,12 @@ void ExerciseHost::layoutE15ModePopup() {
             }
             m_e15ModeGroup->show();
             m_e15ModeGroup->raise();
+            if (show15Popup && m_shard15Button) {
+                m_shard15Button->raise();
+            }
         } else {
             m_e15ModeGroup->hide();
-            if (!is15 && m_e15ModeGroup->parentWidget() != m_rightPanel) {
+            if (m_e15ModeGroup->parentWidget() != m_rightPanel) {
                 m_e15ModeGroup->setParent(m_rightPanel);
             }
         }
