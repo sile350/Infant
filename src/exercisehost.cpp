@@ -2824,10 +2824,10 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     if (m_stimHelpLabel) {
         if (help112) {
             m_stimHelpLabel->setText(QStringLiteral("При выполнении задания на I уровне"));
-            m_stimHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            m_stimHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
             m_stimHelpLabel->setStyleSheet(QStringLiteral(
                 "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
-                "font-size:14px; font-weight:normal; padding:8px 0 2px 8px;"));
+                "font-size:14px; font-style:italic; font-weight:normal; padding:8px 8px 2px 8px;"));
         } else {
             m_stimHelpLabel->setText(QStringLiteral("Стимулирующая помощь"));
             m_stimHelpLabel->setStyleSheet(QStringLiteral(
@@ -2840,7 +2840,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         if (help112) {
             m_directHelpLabel->setText(
                 QStringLiteral("При выполнении задания с ошибками (II и III уровни)"));
-            m_directHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            m_directHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
             m_directHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
         } else {
             m_directHelpLabel->setText(QStringLiteral("Направляющая помощь:"));
@@ -2854,7 +2854,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         if (help112) {
             m_teachHelpLabel->setText(
                 QStringLiteral("Если предыдущий вариант помощи не возымел действия"));
-            m_teachHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            m_teachHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
             m_teachHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
         } else {
             m_teachHelpLabel->setText(QStringLiteral("Обучающая помощь:"));
@@ -4973,6 +4973,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.6")
                || m_exerciseId == QStringLiteral("1.7")
                || m_exerciseId == QStringLiteral("1.11")
+               || m_exerciseId == QStringLiteral("1.12")
                || m_exerciseId == QStringLiteral("1.8")
                || m_exerciseId == QStringLiteral("1.13")
                || m_exerciseId == QStringLiteral("1.17")

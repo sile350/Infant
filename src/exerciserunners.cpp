@@ -468,9 +468,11 @@ public:
         m_capturePath.clear();
         m_pixmap = QPixmap();
         m_hintHidden = true;
+        m_selectedPaletteY = -1;
         m_layout = paintCanvasLayout(exerciseId, stepId);
         m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
         // 1.7: без серой «рамки» вокруг рисунка — холст по размеру картинки, белый фон.
+        // 1.12: белый фон вместо серых прямоугольников.
         if (exerciseId == QStringLiteral("1.7") && !m_layout.trafFile.isEmpty()) {
             const QString path = ExerciseAssets::exerciseFile(exerciseId, m_layout.trafFile);
             const QPixmap traf(path);
@@ -478,6 +480,8 @@ public:
                 m_layout.size = traf.size();
                 m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
             }
+            m_canvas.fill(Qt::white);
+        } else if (exerciseId == QStringLiteral("1.12")) {
             m_canvas.fill(Qt::white);
         } else {
             m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
@@ -641,6 +645,11 @@ protected:
         }
         m_brushColor = QColor(c.red(), c.green(), c.blue());
         m_brushWidth = 10;
+        m_selectedPaletteY = y;
+        refreshPalettePixmap();
+        if (m_patientPalette && m_patientPalette->isVisible()) {
+            refreshPatientPalettePixmap();
+        }
     }
 
     void toggleHint() {
@@ -708,9 +717,7 @@ protected:
             display->setPalette(pal);
         }
         if (!m_paletteImage.isNull() && m_patientPalette) {
-            QPixmap pm = QPixmap::fromImage(m_paletteImage);
-            m_patientPalette->setPixmap(pm);
-            m_patientPalette->setFixedSize(pm.size());
+            refreshPatientPalettePixmap();
             m_patientPalette->show();
             m_patientPalette->raise();
         } else if (m_patientPalette) {
@@ -770,6 +777,9 @@ protected:
         }
         m_brushColor = QColor(c.red(), c.green(), c.blue());
         m_brushWidth = 10;
+        m_selectedPaletteY = y;
+        refreshPalettePixmap();
+        refreshPatientPalettePixmap();
     }
 
     void syncPatientPaintDisplay() {
@@ -882,13 +892,53 @@ protected:
         if (!m_palette || m_paletteImage.isNull()) {
             return;
         }
-        QPixmap pm = QPixmap::fromImage(m_paletteImage);
+        QPixmap pm = palettePixmapWithSelection();
         const int maxH = qMax(120, height() - 200);
         if (pm.height() > maxH) {
             pm = pm.scaledToHeight(maxH, Qt::SmoothTransformation);
         }
         m_palette->setPixmap(pm);
         m_palette->setFixedSize(pm.size());
+    }
+
+    void refreshPatientPalettePixmap() {
+        if (!m_patientPalette || m_paletteImage.isNull()) {
+            return;
+        }
+        QPixmap pm = palettePixmapWithSelection();
+        m_patientPalette->setPixmap(pm);
+        m_patientPalette->setFixedSize(pm.size());
+    }
+
+    QPixmap palettePixmapWithSelection() const {
+        QImage img = m_paletteImage.copy();
+        if (m_selectedPaletteY >= 0 && m_selectedPaletteY < img.height()) {
+            int top = m_selectedPaletteY;
+            int bottom = m_selectedPaletteY;
+            const QColor sample = img.pixelColor(qMax(0, img.width() / 2), m_selectedPaletteY);
+            auto similar = [&](int yy) {
+                const QColor p = img.pixelColor(qMax(0, img.width() / 2), yy);
+                return qAbs(p.red() - sample.red()) < 28
+                    && qAbs(p.green() - sample.green()) < 28
+                    && qAbs(p.blue() - sample.blue()) < 28
+                    && p.alpha() > 16;
+            };
+            while (top > 0 && similar(top - 1)) {
+                --top;
+            }
+            while (bottom < img.height() - 1 && similar(bottom + 1)) {
+                ++bottom;
+            }
+            QPainter painter(&img);
+            painter.setRenderHint(QPainter::Antialiasing, false);
+            const QRect band(1, top, qMax(1, img.width() - 2), qMax(1, bottom - top + 1));
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(Qt::white, 3));
+            painter.drawRect(band.adjusted(0, 0, -1, -1));
+            painter.setPen(QPen(Qt::black, 2));
+            painter.drawRect(band.adjusted(1, 1, -2, -2));
+        }
+        return QPixmap::fromImage(img);
     }
 
     void layoutUi() override {
@@ -1019,6 +1069,7 @@ protected:
     QPoint m_lastPoint;
     QColor m_brushColor = Qt::blue;
     int m_brushWidth = 20;
+    int m_selectedPaletteY = -1;
     PointClickLabel *m_palette = nullptr;
     ClickableLabel *m_hintToggle = nullptr;
     QImage m_paletteImage;
