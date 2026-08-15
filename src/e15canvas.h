@@ -13,10 +13,12 @@ public:
     void startExercise(const QString &exerciseId, bool selectOnlyMode);
     void setSelectOnlyMode(bool selectOnlyMode);
     void abortSession();
-    // Копия игрового состояния с парного холста (dual 1.5).
+    // Копия игрового состояния с парного холста (dual 1.5/1.6).
     void copyPlayStateFrom(const E15Canvas *peer);
     // 1.6: «Следующее задание» (как f16p1) — переход без проверки ответа.
     void skipToNextTask16();
+    // 1.6 dual: на 2-м экране кнопку «Следующее задание» не показывать.
+    void setShowNextButton(bool show) { m_showNextButton = show; update(); }
     int elapsedSeconds() const { return m_elapsed; }
     bool completedSuccessfully() const { return m_completed; }
     bool isFinished() const { return m_finished; }
@@ -79,6 +81,7 @@ private:
     QPixmap m_readyPixmap;
     QPixmap m_notReadyPixmap;
     QPixmap m_nextPixmap;
+    bool m_showNextButton = true;
     QTimer m_elapsedTimer;
     QTimer m_timeoutTimer;
     int m_elapsed = 0;

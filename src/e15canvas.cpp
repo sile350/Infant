@@ -87,6 +87,7 @@ void E15Canvas::startExercise(const QString &exerciseId, bool selectOnlyMode) {
     m_snapTargetY = 266;
     m_sprites.clear();
     m_nextPixmap = QPixmap();
+    m_showNextButton = true;
 
     m_notReadyPixmap = QPixmap(ExerciseAssets::exerciseFile(QStringLiteral("1.5"), QStringLiteral("notready.png")));
 
@@ -134,7 +135,18 @@ void E15Canvas::abortSession() {
 }
 
 void E15Canvas::copyPlayStateFrom(const E15Canvas *peer) {
-    if (!peer || peer == this || peer->m_sprites.size() != m_sprites.size()) {
+    if (!peer || peer == this) {
+        return;
+    }
+    // 1.6 dual: смена номера задания → перегрузить картинки, затем позиции.
+    if (m_exerciseId == QStringLiteral("1.6")
+        && peer->m_exerciseNumber != m_exerciseNumber) {
+        m_exerciseNumber = peer->m_exerciseNumber;
+        if (m_exerciseNumber >= 1 && m_exerciseNumber <= 10) {
+            loadSprites16(m_exerciseNumber);
+        }
+    }
+    if (peer->m_sprites.size() != m_sprites.size()) {
         return;
     }
     for (int i = 0; i < m_sprites.size(); ++i) {
@@ -261,9 +273,11 @@ void E15Canvas::updateSnapTarget16() {
         m_snapTargetX = 1558;
         m_snapTargetY = 262;
         break;
+    case 1:
     default:
-        m_snapTargetX = 1560;
-        m_snapTargetY = 266;
+        // Оригинал exInit("1.6"): targetx/targety = 1512/399 (не 1560/266 от 1.5).
+        m_snapTargetX = 1512;
+        m_snapTargetY = 399;
         break;
     }
 }
@@ -427,7 +441,7 @@ bool E15Canvas::hitReadyButton(int x, int y) const {
 }
 
 bool E15Canvas::hitNextButton(int x, int y) const {
-    if (m_exerciseId != QStringLiteral("1.6") || m_nextPixmap.isNull()) {
+    if (!m_showNextButton || m_exerciseId != QStringLiteral("1.6") || m_nextPixmap.isNull()) {
         return false;
     }
     return x >= kNextX && x < kNextX + m_nextPixmap.width()
@@ -478,7 +492,7 @@ void E15Canvas::paintEvent(QPaintEvent *event) {
         painter.drawPixmap(kReadyX, kReadyY, kReadyW, kReadyH, readyPix);
     }
     if (m_exerciseId == QStringLiteral("1.6")) {
-        if (!m_nextPixmap.isNull()) {
+        if (m_showNextButton && !m_nextPixmap.isNull()) {
             painter.drawPixmap(kNextX, kNextY, m_nextPixmap);
         }
         QFont labelFont(QStringLiteral("Microsoft Sans Serif"), 14);

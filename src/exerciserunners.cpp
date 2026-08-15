@@ -5213,8 +5213,9 @@ public:
 
 private:
     bool usesPatientE15Canvas() const {
-        // Только 1.5: интерактивный холст на 2-м экране (не grab-зеркало).
-        return m_exerciseId == QStringLiteral("1.5");
+        // 1.5 / 1.6: интерактивный холст на 2-м экране (не grab-зеркало).
+        return m_exerciseId == QStringLiteral("1.5")
+            || m_exerciseId == QStringLiteral("1.6");
     }
 
     void ensurePatientE15Ui(PatientDisplay *display) {
@@ -5261,6 +5262,8 @@ private:
         }
         if (m_patientCanvas) {
             m_patientCanvas->startExercise(m_exerciseId, m_sessionOptions.e15SelectMode);
+            // 1.6: на 2-м экране без «Следующее задание».
+            m_patientCanvas->setShowNextButton(m_exerciseId != QStringLiteral("1.6"));
             m_patientLoadedExercise = m_exerciseId;
         }
         layoutPatientE15Ui();
