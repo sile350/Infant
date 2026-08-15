@@ -69,17 +69,13 @@ QString scanAnchorHtml(const QString &protocolId, int slot, const QString &label
 }
 
 bool exerciseUsesMultiScanSlots(const QString &uprid) {
-    return uprid == QStringLiteral("1.7")
-        || uprid == QStringLiteral("2.1");
+    Q_UNUSED(uprid);
+    return false;
 }
 
 bool exerciseUsesSingleScanSlot(const QString &uprid) {
-    return uprid == QStringLiteral("1.12")
-        || uprid == QStringLiteral("2.2")
-        || uprid == QStringLiteral("2.3")
-        || uprid == QStringLiteral("3.3.1")
-        || uprid == QStringLiteral("3.3.2")
-        || uprid == QStringLiteral("3.3.3");
+    Q_UNUSED(uprid);
+    return false;
 }
 
 // Если автосохранение съело плейсхолдеры — вернуть их в строку «Результат».
@@ -1058,6 +1054,7 @@ bool Repository::updateProtocolsFromEditedDocument(
             || uprid == QStringLiteral("1.4")
             || uprid == QStringLiteral("1.5")
             || uprid == QStringLiteral("1.6")
+            || uprid == QStringLiteral("1.7")
             || uprid == QStringLiteral("1.8")
             || uprid == QStringLiteral("1.13")
             || uprid == QStringLiteral("1.17")
@@ -1136,6 +1133,7 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("1.4")
                 || uprid == QStringLiteral("1.5")
                 || uprid == QStringLiteral("1.6")
+                || uprid == QStringLiteral("1.7")
                 || uprid == QStringLiteral("1.8")
                 || uprid == QStringLiteral("1.13")
                 || uprid == QStringLiteral("1.17")

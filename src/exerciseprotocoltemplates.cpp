@@ -617,12 +617,11 @@ QMap<QString, QString> buildVariables(
     }
 
     if (!session.capturedImagePath.isEmpty()) {
-        vars.insert(QStringLiteral("{{SCAN}}"), scanLinkHtml(session.capturedImagePath));
+        vars.insert(QStringLiteral("{{SCAN}}"), QString());
     } else {
-        // Плейсхолдер для applyProtocolScanPlaceholders («Показать изображение»).
-        vars.insert(QStringLiteral("{{SCAN}}"), QStringLiteral("скачать"));
+        vars.insert(QStringLiteral("{{SCAN}}"), QString());
     }
-    vars.insert(QStringLiteral("{{SCAN_SLOTS}}"), QStringLiteral("скачать1 скачать2 скачать3"));
+    vars.insert(QStringLiteral("{{SCAN_SLOTS}}"), QString());
 
     if (tmpl.kind == QStringLiteral("wolf_542")) {
         fillWolfVariables(session.additional, &vars);

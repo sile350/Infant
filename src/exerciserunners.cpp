@@ -470,7 +470,18 @@ public:
         m_hintHidden = true;
         m_layout = paintCanvasLayout(exerciseId, stepId);
         m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
-        m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
+        // 1.7: без серой «рамки» вокруг рисунка — холст по размеру картинки, белый фон.
+        if (exerciseId == QStringLiteral("1.7") && !m_layout.trafFile.isEmpty()) {
+            const QString path = ExerciseAssets::exerciseFile(exerciseId, m_layout.trafFile);
+            const QPixmap traf(path);
+            if (!traf.isNull()) {
+                m_layout.size = traf.size();
+                m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
+            }
+            m_canvas.fill(Qt::white);
+        } else {
+            m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
+        }
         drawPixmapOnImage(&m_canvas, exerciseId, m_layout.trafFile, m_layout.trafPos);
         drawPixmapOnImage(&m_canvas, exerciseId, m_layout.traf2File, m_layout.traf2Pos);
         m_drawing = false;
@@ -529,7 +540,15 @@ public:
         applyBrushFor17(stepId);
         m_layout = paintCanvasLayout(m_exerciseId, stepId);
         m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
-        m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));
+        if (!m_layout.trafFile.isEmpty()) {
+            const QString path = ExerciseAssets::exerciseFile(m_exerciseId, m_layout.trafFile);
+            const QPixmap traf(path);
+            if (!traf.isNull()) {
+                m_layout.size = traf.size();
+                m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
+            }
+        }
+        m_canvas.fill(Qt::white);
         drawPixmapOnImage(&m_canvas, m_exerciseId, m_layout.trafFile, m_layout.trafPos);
         m_hasLast = false;
         updateCanvasDisplay();

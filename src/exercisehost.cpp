@@ -1833,7 +1833,9 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    if (m_exerciseId == QStringLiteral("4.2.2")
+    // 1.7 «Дорисуй»: при каждом входе протоколы формируются с нуля (не дописывать прошлый визит).
+    if (m_exerciseId == QStringLiteral("1.7")
+        || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
         || m_exerciseId == QStringLiteral("5.3.1")
@@ -2526,6 +2528,12 @@ void ExerciseHost::updatePreviewLayout() {
 }
 
 bool ExerciseHost::supportsScanUpload(const QString &exerciseId) {
+    Q_UNUSED(exerciseId);
+    // Механизм «Показать изображение» / «Загрузить» отключён во всех упражнениях.
+    return false;
+}
+
+bool ExerciseHost::supportsStimulusPrint(const QString &exerciseId) {
     return exerciseId == QStringLiteral("1.7")
         || exerciseId == QStringLiteral("1.12")
         || exerciseId == QStringLiteral("2.1")
@@ -2534,10 +2542,6 @@ bool ExerciseHost::supportsScanUpload(const QString &exerciseId) {
         || exerciseId == QStringLiteral("3.3.1")
         || exerciseId == QStringLiteral("3.3.2")
         || exerciseId == QStringLiteral("3.3.3");
-}
-
-bool ExerciseHost::supportsStimulusPrint(const QString &exerciseId) {
-    return supportsScanUpload(exerciseId);
 }
 
 QString ExerciseHost::stimulusPrintImagePath() const {
@@ -4966,6 +4970,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.4")
                || m_exerciseId == QStringLiteral("1.5")
                || m_exerciseId == QStringLiteral("1.6")
+               || m_exerciseId == QStringLiteral("1.7")
                || m_exerciseId == QStringLiteral("1.8")
                || m_exerciseId == QStringLiteral("1.13")
                || m_exerciseId == QStringLiteral("1.17")
