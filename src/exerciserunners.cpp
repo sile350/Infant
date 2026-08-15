@@ -930,13 +930,17 @@ protected:
                 ++bottom;
             }
             QPainter painter(&img);
-            painter.setRenderHint(QPainter::Antialiasing, false);
-            const QRect band(1, top, qMax(1, img.width() - 2), qMax(1, bottom - top + 1));
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            const int bandH = qMax(1, bottom - top + 1);
+            const int side = qMin(img.width() - 4, bandH);
+            const int cx = img.width() / 2;
+            const int cy = (top + bottom) / 2;
+            const QRect circle(cx - side / 2, cy - side / 2, side, side);
             painter.setBrush(Qt::NoBrush);
             painter.setPen(QPen(Qt::white, 3));
-            painter.drawRect(band.adjusted(0, 0, -1, -1));
+            painter.drawEllipse(circle);
             painter.setPen(QPen(Qt::black, 2));
-            painter.drawRect(band.adjusted(1, 1, -2, -2));
+            painter.drawEllipse(circle.adjusted(2, 2, -2, -2));
         }
         return QPixmap::fromImage(img);
     }
