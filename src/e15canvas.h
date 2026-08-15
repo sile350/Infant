@@ -13,16 +13,20 @@ public:
     void startExercise(const QString &exerciseId, bool selectOnlyMode);
     void setSelectOnlyMode(bool selectOnlyMode);
     void abortSession();
+    // Копия игрового состояния с парного холста (dual 1.5).
+    void copyPlayStateFrom(const E15Canvas *peer);
     // 1.6: «Следующее задание» (как f16p1) — переход без проверки ответа.
     void skipToNextTask16();
     int elapsedSeconds() const { return m_elapsed; }
     bool completedSuccessfully() const { return m_completed; }
+    bool isFinished() const { return m_finished; }
     QString doneState() const;
     int exerciseNumber() const { return m_exerciseNumber; }
 
 signals:
     void stopRequested();
     void exerciseCompleted();
+    void stateChanged();
 
 protected:
     void paintEvent(QPaintEvent *event) override;

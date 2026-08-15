@@ -1032,6 +1032,13 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     m_shard316Button->setStyleSheet(m_shardButton->styleSheet());
     m_shard316Button->hide();
 
+    // 1.5: ссылка в одну линию с «Начать» (~1550 × высота begin).
+    m_shard15Button = new QPushButton(QStringLiteral("Настройка уровня сложности ▾"), this);
+    m_shard15Button->setFlat(true);
+    m_shard15Button->setCursor(Qt::PointingHandCursor);
+    m_shard15Button->setStyleSheet(m_shardButton->styleSheet());
+    m_shard15Button->hide();
+
     // 3.1.16: всплывающее окно как в руководстве (img3) — рамка с двумя radio под ссылкой.
     m_aparamGroup = new QGroupBox(QString(), this);
     m_aparamGroup->setFixedWidth(280);
@@ -1164,6 +1171,12 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         updateChromeLayout();
     });
     connect(m_shard316Button, &QPushButton::clicked, this, [this]() {
+        m_shardPanelVisible = !m_shardPanelVisible;
+        layoutE15ModePopup();
+        updateExerciseOptionsPanel();
+        updateChromeLayout();
+    });
+    connect(m_shard15Button, &QPushButton::clicked, this, [this]() {
         m_shardPanelVisible = !m_shardPanelVisible;
         layoutE15ModePopup();
         updateExerciseOptionsPanel();
@@ -1585,7 +1598,8 @@ void ExerciseHost::updateChromeLayout() {
         const bool is316Shard = m_exerciseId == QStringLiteral("3.1.16")
             && currentStepId().trimmed().toInt() >= 3;
         // 3.1.16: своя ссылка на корне окна; общая панель опций для неё не нужна.
-        if (is316Shard) {
+        // 1.5: ссылка на корне рядом с «Начать» — options-панель на правой не нужна.
+        if (is316Shard || m_exerciseId == QStringLiteral("1.5")) {
             m_exerciseOptionsPanel->hide();
         } else {
             // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
@@ -1602,6 +1616,18 @@ void ExerciseHost::updateChromeLayout() {
             }
         }
         layoutE15ModePopup();
+    }
+    // 1.5: «Настройка уровня сложности» @ ~1550, высота кнопки «Начать».
+    if (m_shard15Button && m_shard15Button->isVisible()) {
+        m_shard15Button->adjustSize();
+        constexpr int kLinkAbsX = 1550;
+        constexpr int kLinkAbsY = 12;
+        constexpr int kLinkH = 33;
+        const int linkW = qMax(m_shard15Button->sizeHint().width(), 280);
+        const int maxX = qMax(8, width() - linkW - 8);
+        const int linkX = qBound(8, kLinkAbsX, maxX);
+        m_shard15Button->setGeometry(linkX, kLinkAbsY, linkW, kLinkH);
+        m_shard15Button->raise();
     }
     if (m_previewImage) {
         updatePreviewLayout();
@@ -2461,6 +2487,9 @@ void ExerciseHost::updatePreviewLayout() {
     }
     if (m_shard316Button && m_shard316Button->isVisible()) {
         m_shard316Button->raise();
+    }
+    if (m_shard15Button && m_shard15Button->isVisible()) {
+        m_shard15Button->raise();
     }
     layoutE15ModePopup();
     if (m_aparamGroup && m_aparamGroup->isVisible()) {
@@ -4920,6 +4949,7 @@ void ExerciseHost::saveProtocolEdits() {
     } else if (m_exerciseId == QStringLiteral("1.1")
                || m_exerciseId == QStringLiteral("1.2")
                || m_exerciseId == QStringLiteral("1.4")
+               || m_exerciseId == QStringLiteral("1.5")
                || m_exerciseId == QStringLiteral("1.8")
                || m_exerciseId == QStringLiteral("1.13")
                || m_exerciseId == QStringLiteral("1.17")
@@ -5359,27 +5389,48 @@ void ExerciseHost::layoutE15ModePopup() {
         return;
     }
     const QString step = currentStepId().trimmed();
-    const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+    const bool is15 = m_exerciseId == QStringLiteral("1.5");
+    const bool isE15 = is15 || m_exerciseId == QStringLiteral("1.6");
     const bool is122 = m_exerciseId == QStringLiteral("1.22");
     const bool isPuzzleShard = m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
         || (m_exerciseId == QStringLiteral("1.14") && step == QStringLiteral("2"));
     const bool is316 = m_exerciseId == QStringLiteral("3.1.16") && step.toInt() >= 3;
 
-    if (m_e15ModeGroup && m_shardButton) {
-        if ((isE15 || is122) && m_shardPanelVisible && m_shardButton->isVisible()) {
+    if (m_e15ModeGroup) {
+        const bool show15Popup = is15 && m_shardPanelVisible && m_shard15Button
+            && m_shard15Button->isVisible();
+        const bool showOtherPopup = !is15 && (isE15 || is122) && m_shardPanelVisible
+            && m_shardButton && m_shardButton->isVisible();
+        if (show15Popup || showOtherPopup) {
             m_e15ModeGroup->setFixedWidth(300);
             if (QLayout *lay = m_e15ModeGroup->layout()) {
                 lay->activate();
             }
             const int groupH = qMax(m_e15ModeGroup->sizeHint().height(), 110);
-            const QPoint below =
-                m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
-            m_e15ModeGroup->setGeometry(below.x(), below.y(), 300, groupH);
+            if (show15Popup) {
+                // Попап на корне окна под ссылкой @ ~1550.
+                if (m_e15ModeGroup->parentWidget() != this) {
+                    m_e15ModeGroup->setParent(this);
+                }
+                const int popupX = m_shard15Button->x();
+                const int popupY = m_shard15Button->y() + m_shard15Button->height() + 2;
+                m_e15ModeGroup->setGeometry(popupX, popupY, 300, groupH);
+            } else {
+                if (m_e15ModeGroup->parentWidget() != m_rightPanel) {
+                    m_e15ModeGroup->setParent(m_rightPanel);
+                }
+                const QPoint below =
+                    m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
+                m_e15ModeGroup->setGeometry(below.x(), below.y(), 300, groupH);
+            }
             m_e15ModeGroup->show();
             m_e15ModeGroup->raise();
         } else {
             m_e15ModeGroup->hide();
+            if (!is15 && m_e15ModeGroup->parentWidget() != m_rightPanel) {
+                m_e15ModeGroup->setParent(m_rightPanel);
+            }
         }
     }
 
@@ -5424,6 +5475,7 @@ void ExerciseHost::layoutE15ModePopup() {
 void ExerciseHost::updateExerciseOptionsPanel() {
     const QString step = currentStepId().trimmed();
     const bool isE15 = m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6");
+    const bool is15 = m_exerciseId == QStringLiteral("1.5");
     const bool is122 = m_exerciseId == QStringLiteral("1.22");
     const bool isPuzzleShard = m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20") || m_exerciseId == QStringLiteral("1.21")
@@ -5432,14 +5484,20 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     // Руководство: ссылка только в заданиях 3–7.
     const bool show316Options = is316 && step.toInt() >= 3;
     const bool is417 = m_exerciseId == QStringLiteral("4.1.7");
-    const bool showShard = isE15 || is122 || isPuzzleShard;
+    const bool showShard = (isE15 && !is15) || is122 || isPuzzleShard;
 
     if (m_exerciseOptionsPanel) {
-        // 4.1.7: только rem-панель, без пустой options-панели поверх (блокировала клики).
+        // 4.1.7 / 1.5: без options-панели на правой (своя ссылка / rem).
         m_exerciseOptionsPanel->setVisible(showShard && !show316Options);
     }
     if (m_shardButton) {
         m_shardButton->setVisible(showShard);
+    }
+    if (m_shard15Button) {
+        m_shard15Button->setVisible(is15 && !m_exerciseRunning);
+        if (m_shard15Button->isVisible()) {
+            m_shard15Button->raise();
+        }
     }
     if (m_shard316Button) {
         m_shard316Button->setVisible(show316Options && !m_exerciseRunning);

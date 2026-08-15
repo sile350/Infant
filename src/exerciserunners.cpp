@@ -5106,6 +5106,17 @@ public:
 
     void bindPatientDisplay(PatientDisplay *display) override {
         m_patientDisplay = display;
+        if (!display) {
+            teardownPatientE15Ui();
+            return;
+        }
+        if (usesPatientE15Canvas()) {
+            ensurePatientE15Ui(display);
+            display->attachContentWidget(m_patientRoot);
+            syncStateToPatient();
+            return;
+        }
+        teardownPatientE15Ui();
         ExerciseRunnerWidget::bindPatientDisplay(display);
     }
 
@@ -5121,8 +5132,10 @@ public:
         if (m_canvas) {
             m_canvas->setSelectOnlyMode(selectOnly);
         }
-        // Зеркало 2-го экрана (grab) — сразу обновить, не ждать тика таймера.
-        if (m_patientDisplay) {
+        if (m_patientCanvas) {
+            m_patientCanvas->setSelectOnlyMode(selectOnly);
+        }
+        if (m_patientDisplay && !usesPatientE15Canvas()) {
             m_patientDisplay->refreshMirrorNow();
         }
     }
@@ -5169,6 +5182,9 @@ public:
         m_shard->raise();
         show();
         raise();
+        if (m_patientDisplay && usesPatientE15Canvas()) {
+            bindPatientDisplay(m_patientDisplay);
+        }
     }
 
     void stopSession() override { finishSession(); }
@@ -5192,9 +5208,105 @@ public:
             }
         }
         layoutModeUi();
+        layoutPatientE15Ui();
     }
 
 private:
+    bool usesPatientE15Canvas() const {
+        // Только 1.5: интерактивный холст на 2-м экране (не grab-зеркало).
+        return m_exerciseId == QStringLiteral("1.5");
+    }
+
+    void ensurePatientE15Ui(PatientDisplay *display) {
+        if (!display) {
+            return;
+        }
+        if (!m_patientRoot) {
+            m_patientRoot = new QWidget(display);
+            m_patientRoot->setProperty("dokitPatientInteractiveRoot", true);
+            m_patientRoot->setAttribute(Qt::WA_StyledBackground, true);
+            m_patientRoot->setAutoFillBackground(true);
+            m_patientRoot->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            {
+                QPalette pal = m_patientRoot->palette();
+                pal.setColor(QPalette::Window, Qt::white);
+                m_patientRoot->setPalette(pal);
+            }
+            m_patientCanvas = new E15Canvas(m_patientRoot);
+            m_patientCanvas->setProperty("dokitPatientInteractiveCanvas", true);
+            m_patientCanvas->setStyleSheet(QStringLiteral("background-color:#ffffff;"));
+            connect(m_patientCanvas, &E15Canvas::stateChanged, this, [this]() {
+                syncStateFromPatient();
+            }, Qt::UniqueConnection);
+            connect(m_patientCanvas, &E15Canvas::exerciseCompleted, this, [this]() {
+                if (m_canvas && !m_canvas->isFinished()) {
+                    m_canvas->copyPlayStateFrom(m_patientCanvas);
+                }
+                finishSession();
+            }, Qt::UniqueConnection);
+            connect(m_patientCanvas, &E15Canvas::stopRequested, this, [this]() {
+                if (m_canvas) {
+                    m_canvas->abortSession();
+                }
+                finishSession();
+            }, Qt::UniqueConnection);
+            if (m_canvas) {
+                connect(m_canvas, &E15Canvas::stateChanged, this, [this]() {
+                    syncStateToPatient();
+                }, Qt::UniqueConnection);
+            }
+        }
+        if (m_patientRoot->parentWidget() != display) {
+            m_patientRoot->setParent(display);
+        }
+        if (m_patientCanvas) {
+            m_patientCanvas->startExercise(m_exerciseId, m_sessionOptions.e15SelectMode);
+            m_patientLoadedExercise = m_exerciseId;
+        }
+        layoutPatientE15Ui();
+    }
+
+    void teardownPatientE15Ui() {
+        if (m_patientDisplay) {
+            m_patientDisplay->attachContentWidget(nullptr);
+        }
+        if (m_patientRoot) {
+            m_patientRoot->hide();
+        }
+        m_patientLoadedExercise.clear();
+    }
+
+    void layoutPatientE15Ui() {
+        if (!m_patientRoot || !m_patientDisplay) {
+            return;
+        }
+        m_patientRoot->setGeometry(0, 0, m_patientDisplay->width(), m_patientDisplay->height());
+        if (m_patientCanvas) {
+            m_patientCanvas->setGeometry(0, 0, m_patientRoot->width(), m_patientRoot->height());
+            m_patientCanvas->show();
+            m_patientCanvas->raise();
+        }
+        m_patientRoot->show();
+    }
+
+    void syncStateToPatient() {
+        if (m_syncingState || !m_canvas || !m_patientCanvas) {
+            return;
+        }
+        m_syncingState = true;
+        m_patientCanvas->copyPlayStateFrom(m_canvas);
+        m_syncingState = false;
+    }
+
+    void syncStateFromPatient() {
+        if (m_syncingState || !m_canvas || !m_patientCanvas) {
+            return;
+        }
+        m_syncingState = true;
+        m_canvas->copyPlayStateFrom(m_patientCanvas);
+        m_syncingState = false;
+    }
+
     void layoutModeUi() {
         if (!m_shard) {
             return;
@@ -5227,7 +5339,13 @@ private:
         ExerciseSessionResult result;
         result.elapsedSeconds = m_canvas ? m_canvas->elapsedSeconds() : 0;
         result.doneState = m_canvas ? m_canvas->doneState() : QString();
-        m_canvas->hide();
+        if (m_canvas) {
+            m_canvas->abortSession();
+            m_canvas->hide();
+        }
+        if (m_patientCanvas) {
+            m_patientCanvas->abortSession();
+        }
         m_stop->hide();
         if (m_shard) {
             m_shard->hide();
@@ -5236,6 +5354,7 @@ private:
             m_modeGroup->hide();
         }
         m_modeOpen = false;
+        teardownPatientE15Ui();
         hide();
         emitFinished(result);
     }
@@ -5247,7 +5366,12 @@ private:
     QRadioButton *m_highlightRadio = nullptr;
     QRadioButton *m_moveRadio = nullptr;
     PatientDisplay *m_patientDisplay = nullptr;
+    QWidget *m_patientRoot = nullptr;
+    E15Canvas *m_patientCanvas = nullptr;
+    QString m_patientLoadedExercise;
+    bool m_syncingState = false;
     bool m_modeOpen = false;
+    QString m_exerciseId;
 };
 
 class RememberRunner final : public ExerciseRunnerWidget {

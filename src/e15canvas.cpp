@@ -112,6 +112,7 @@ void E15Canvas::setSelectOnlyMode(bool selectOnlyMode) {
     resetSelectionsForModeChange();
     setReadyVisual(true);
     update();
+    emit stateChanged();
 }
 
 void E15Canvas::resetSelectionsForModeChange() {
@@ -130,6 +131,30 @@ void E15Canvas::abortSession() {
     m_finished = true;
     m_elapsedTimer.stop();
     m_timeoutTimer.stop();
+}
+
+void E15Canvas::copyPlayStateFrom(const E15Canvas *peer) {
+    if (!peer || peer == this || peer->m_sprites.size() != m_sprites.size()) {
+        return;
+    }
+    for (int i = 0; i < m_sprites.size(); ++i) {
+        m_sprites[i].x = peer->m_sprites.at(i).x;
+        m_sprites[i].y = peer->m_sprites.at(i).y;
+        m_sprites[i].selected = peer->m_sprites.at(i).selected;
+        m_sprites[i].done = peer->m_sprites.at(i).done;
+    }
+    m_choose1 = peer->m_choose1;
+    m_choose2 = peer->m_choose2;
+    m_readyOk = peer->m_readyOk;
+    m_completed = peer->m_completed;
+    m_finished = peer->m_finished;
+    m_selectOnly = peer->m_selectOnly;
+    if (m_finished) {
+        m_elapsedTimer.stop();
+        m_timeoutTimer.stop();
+    }
+    setReadyVisual(m_readyOk);
+    update();
 }
 
 QString E15Canvas::doneState() const {
@@ -472,11 +497,13 @@ void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
 
     if (hitNextButton(design.x(), design.y())) {
         skipToNextTask16();
+        emit stateChanged();
         return;
     }
 
     if (hitReadyButton(design.x(), design.y())) {
         onReadyClicked();
+        emit stateChanged();
         return;
     }
 
@@ -498,6 +525,7 @@ void E15Canvas::mouseReleaseEvent(QMouseEvent *event) {
             spriteChosen(i);
         }
         update();
+        emit stateChanged();
         return;
     }
 }
