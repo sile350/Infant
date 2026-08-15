@@ -1178,9 +1178,10 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     });
     connect(m_shard15Button, &QPushButton::clicked, this, [this]() {
         m_shardPanelVisible = !m_shardPanelVisible;
-        layoutE15ModePopup();
+        // Сначала показать/разложить ссылку, потом попап — иначе geometry (0,0).
         updateExerciseOptionsPanel();
         updateChromeLayout();
+        layoutE15ModePopup();
     });
     auto applyE15ModeFromUi = [this]() {
         if (!m_exerciseRunning || !m_sessionRunner) {
@@ -1618,16 +1619,17 @@ void ExerciseHost::updateChromeLayout() {
         layoutE15ModePopup();
     }
     // 1.5: «Настройка уровня сложности» на правой панели (поверх превью), ~1550 abs.
-    if (m_shard15Button && m_shard15Button->isVisible() && m_rightPanel) {
+    if (m_shard15Button && m_rightPanel
+        && m_exerciseId == QStringLiteral("1.5") && !m_exerciseRunning) {
         m_shard15Button->adjustSize();
         constexpr int kLinkAbsX = 1550;
         constexpr int kLinkAbsY = 12;
         constexpr int kLinkH = 33;
         const int rightPanelLeft = kPanelX + kScrollWidth;
         const int linkW = qMax(m_shard15Button->sizeHint().width(), 280);
+        // Без clamp по width панели: при первом layout width часто мал → ссылка уезжала в (8,12).
         const int localX = qMax(8, kLinkAbsX - rightPanelLeft);
-        const int maxLocalX = qMax(8, m_rightPanel->width() - linkW - 8);
-        m_shard15Button->setGeometry(qMin(localX, maxLocalX), kLinkAbsY, linkW, kLinkH);
+        m_shard15Button->setGeometry(localX, kLinkAbsY, linkW, kLinkH);
         m_shard15Button->show();
         m_shard15Button->raise();
     }
@@ -5423,6 +5425,16 @@ void ExerciseHost::layoutE15ModePopup() {
                 if (m_e15ModeGroup->parentWidget() != m_rightPanel) {
                     m_e15ModeGroup->setParent(m_rightPanel);
                 }
+                // Гарантировать актуальные координаты ссылки до чтения x/y.
+                m_shard15Button->adjustSize();
+                constexpr int kLinkAbsX = 1550;
+                constexpr int kLinkAbsY = 12;
+                constexpr int kLinkH = 33;
+                const int rightPanelLeft = kPanelX + kScrollWidth;
+                const int linkW = qMax(m_shard15Button->sizeHint().width(), 280);
+                const int localX = qMax(8, kLinkAbsX - rightPanelLeft);
+                m_shard15Button->setGeometry(localX, kLinkAbsY, linkW, kLinkH);
+                m_shard15Button->show();
                 const int popupX = m_shard15Button->x();
                 const int popupY = m_shard15Button->y() + m_shard15Button->height() + 2;
                 m_e15ModeGroup->setGeometry(popupX, popupY, 300, groupH);
@@ -5507,8 +5519,17 @@ void ExerciseHost::updateExerciseOptionsPanel() {
         m_shardButton->setVisible(showShard);
     }
     if (m_shard15Button) {
-        m_shard15Button->setVisible(is15 && !m_exerciseRunning);
-        if (m_shard15Button->isVisible()) {
+        const bool show15 = is15 && !m_exerciseRunning;
+        m_shard15Button->setVisible(show15);
+        if (show15 && m_rightPanel) {
+            m_shard15Button->adjustSize();
+            constexpr int kLinkAbsX = 1550;
+            constexpr int kLinkAbsY = 12;
+            constexpr int kLinkH = 33;
+            const int rightPanelLeft = kPanelX + kScrollWidth;
+            const int linkW = qMax(m_shard15Button->sizeHint().width(), 280);
+            const int localX = qMax(8, kLinkAbsX - rightPanelLeft);
+            m_shard15Button->setGeometry(localX, kLinkAbsY, linkW, kLinkH);
             m_shard15Button->raise();
         }
     }
