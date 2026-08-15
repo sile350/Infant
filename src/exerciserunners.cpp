@@ -3659,6 +3659,7 @@ public:
         if (usesPatientPuzzleCanvas()) {
             ensurePatientPuzzleUi(display);
             display->attachContentWidget(m_patientRoot);
+            layoutPatientPuzzleUi();
             syncSpritesToPatient();
             return;
         }
@@ -3737,6 +3738,20 @@ private:
             }
             // Инструкция поворота (л.к.м./п.к.м.) на 2-м экране для 1.14/2.
             m_patientRotateHint = new QLabel(m_patientRoot);
+            m_patientRotateHint->setProperty("dokitPatientOverlay", true);
+            m_patientRotateHint->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+            const QString rotateHintPath = ExerciseAssets::sysImage(QStringLiteral("rotate_hint.jpg"));
+            if (!rotateHintPath.isEmpty()) {
+                const QPixmap hintPm(rotateHintPath);
+                m_patientRotateHint->setPixmap(hintPm);
+                m_patientRotateHint->setFixedSize(hintPm.size());
+            }
+            m_patientRotateHint->hide();
+        }
+        // Если корень создали раньше без оверлея — добавить сейчас.
+        if (m_patientRoot && !m_patientRotateHint) {
+            m_patientRotateHint = new QLabel(m_patientRoot);
+            m_patientRotateHint->setProperty("dokitPatientOverlay", true);
             m_patientRotateHint->setAttribute(Qt::WA_TransparentForMouseEvents, true);
             const QString rotateHintPath = ExerciseAssets::sysImage(QStringLiteral("rotate_hint.jpg"));
             if (!rotateHintPath.isEmpty()) {

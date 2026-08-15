@@ -6,6 +6,7 @@
 
 #include <QGuiApplication>
 #include <QLabel>
+#include <QList>
 #include <QPainter>
 #include <QPalette>
 #include <QPixmap>
@@ -26,6 +27,37 @@ QScreen *secondaryScreen() {
     return nullptr;
 }
 
+// Холст заполняет корень; поверх него — оверлеи (инструкция поворота и т.п.).
+void layoutInteractivePatientRoot(QWidget *root) {
+    if (!root || !root->property("dokitPatientInteractiveRoot").toBool()) {
+        return;
+    }
+    QWidget *canvas = nullptr;
+    QList<QWidget *> overlays;
+    const QObjectList kids = root->children();
+    for (QObject *obj : kids) {
+        auto *child = qobject_cast<QWidget *>(obj);
+        if (!child) {
+            continue;
+        }
+        if (child->property("dokitPatientInteractiveCanvas").toBool()) {
+            canvas = child;
+        } else if (child->property("dokitPatientOverlay").toBool()) {
+            overlays.append(child);
+        }
+    }
+    if (canvas) {
+        canvas->setGeometry(0, 0, root->width(), root->height());
+        canvas->show();
+        canvas->raise();
+    }
+    for (QWidget *overlay : overlays) {
+        if (!overlay->isHidden()) {
+            overlay->raise();
+        }
+    }
+}
+
 } // namespace
 
 void PatientDisplay::resizeEvent(QResizeEvent *event) {
@@ -34,18 +66,7 @@ void PatientDisplay::resizeEvent(QResizeEvent *event) {
         m_contentWidget->setGeometry(0, 0, width(), height());
         // Интерактивный холст (пазл/remember) должен заполнять корень — иначе после
         // showOnSecondaryScreen остаётся 0×0 и на 2-м экране нет drag.
-        if (m_contentWidget->property("dokitPatientInteractiveRoot").toBool()) {
-            const QObjectList kids = m_contentWidget->children();
-            for (QObject *obj : kids) {
-                auto *child = qobject_cast<QWidget *>(obj);
-                if (!child) {
-                    continue;
-                }
-                if (child->property("dokitPatientInteractiveCanvas").toBool()) {
-                    child->setGeometry(0, 0, m_contentWidget->width(), m_contentWidget->height());
-                }
-            }
-        }
+        layoutInteractivePatientRoot(m_contentWidget);
         m_contentWidget->show();
         m_contentWidget->raise();
     }
@@ -255,17 +276,7 @@ void PatientDisplay::attachContentWidget(QWidget *widget) {
     }
     widget->show();
     widget->raise();
-    if (widget->property("dokitPatientInteractiveRoot").toBool()) {
-        const QObjectList kids = widget->children();
-        for (QObject *obj : kids) {
-            auto *child = qobject_cast<QWidget *>(obj);
-            if (child && child->property("dokitPatientInteractiveCanvas").toBool()) {
-                child->setGeometry(0, 0, widget->width(), widget->height());
-                child->show();
-                child->raise();
-            }
-        }
-    }
+    layoutInteractivePatientRoot(widget);
 }
 
 void PatientDisplay::updateMirrorPixmap() {
@@ -358,15 +369,7 @@ void PatientDisplay::showOnSecondaryScreen() {
             m_mirrorLabel->hide();
         }
         m_contentWidget->setGeometry(0, 0, geometry.width(), geometry.height());
-        if (m_contentWidget->property("dokitPatientInteractiveRoot").toBool()) {
-            const QObjectList kids = m_contentWidget->children();
-            for (QObject *obj : kids) {
-                auto *child = qobject_cast<QWidget *>(obj);
-                if (child && child->property("dokitPatientInteractiveCanvas").toBool()) {
-                    child->setGeometry(0, 0, geometry.width(), geometry.height());
-                }
-            }
-        }
+        layoutInteractivePatientRoot(m_contentWidget);
         m_contentWidget->show();
         m_contentWidget->raise();
     } else if (m_emotionsSource && m_patientEmotions) {
