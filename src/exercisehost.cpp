@@ -1833,9 +1833,10 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 / 1.11: при каждом входе протоколы формируются с нуля (не дописывать прошлый визит).
+    // 1.7 / 1.11 / 1.14: при каждом входе протоколы формируются с нуля (не дописывать прошлый визит).
     if (m_exerciseId == QStringLiteral("1.7")
         || m_exerciseId == QStringLiteral("1.11")
+        || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -2479,7 +2480,10 @@ void ExerciseHost::updatePreviewLayout() {
             : kPreviewAbsTop;
         int previewAbsLeft = kPreviewAbsLeft;
         if (m_exerciseId == QStringLiteral("1.14")) {
-            previewAbsLeft = currentStepId().trimmed() == QStringLiteral("1") ? 900 : 1100;
+            // До старта: оба задания чуть ниже (~125) и правее (~50).
+            previewAbsLeft =
+                (currentStepId().trimmed() == QStringLiteral("1") ? 900 : 1100) + 50;
+            previewAbsTop = kPreviewAbsTop + 125;
         }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
@@ -2804,11 +2808,14 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
             || m_exerciseId == QStringLiteral("3.1.10"));
     // 1.12: заголовки из or.html (не Стимулирующая/Направляющая/Обучающая).
     const bool help112 = m_exerciseId == QStringLiteral("1.12");
-    const bool showPenaltyHint = m_exerciseId == QStringLiteral("3.1.10") || help112;
+    // 1.14: «после 1 серии» / «После 2 серии» (по 4 пункта), без «Обучающая».
+    const bool help114 = m_exerciseId == QStringLiteral("1.14");
+    const bool showPenaltyHint =
+        m_exerciseId == QStringLiteral("3.1.10") || help112 || help114;
     if (m_helpPenaltyHintLabel) {
         m_helpPenaltyHintLabel->setText(
             QStringLiteral("За каждый вид помощи оценка снижается на 0,5 балла"));
-        if (help112) {
+        if (help112 || help114) {
             m_helpPenaltyHintLabel->setStyleSheet(QStringLiteral(
                 "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
                 "font-size:14px; font-style:normal; font-weight:bold; padding:2px 8px 8px 8px;"));
@@ -2828,8 +2835,15 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
             m_stimHelpLabel->setStyleSheet(QStringLiteral(
                 "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
                 "font-size:14px; font-style:italic; font-weight:normal; padding:8px 8px 2px 8px;"));
+        } else if (help114) {
+            m_stimHelpLabel->setText(QStringLiteral("после 1 серии"));
+            m_stimHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+            m_stimHelpLabel->setStyleSheet(QStringLiteral(
+                "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+                "font-size:14px; font-style:normal; font-weight:bold; padding:8px 8px 2px 8px;"));
         } else {
             m_stimHelpLabel->setText(QStringLiteral("Стимулирующая помощь"));
+            m_stimHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             m_stimHelpLabel->setStyleSheet(QStringLiteral(
                 "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
                 "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
@@ -2842,8 +2856,13 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
                 QStringLiteral("При выполнении задания с ошибками (II и III уровни)"));
             m_directHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
             m_directHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
+        } else if (help114) {
+            m_directHelpLabel->setText(QStringLiteral("После 2 серии"));
+            m_directHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+            m_directHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
         } else {
             m_directHelpLabel->setText(QStringLiteral("Направляющая помощь:"));
+            m_directHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             m_directHelpLabel->setStyleSheet(QStringLiteral(
                 "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
                 "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
@@ -2856,13 +2875,17 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
                 QStringLiteral("Если предыдущий вариант помощи не возымел действия"));
             m_teachHelpLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
             m_teachHelpLabel->setStyleSheet(m_stimHelpLabel->styleSheet());
+            m_teachHelpLabel->setVisible(!flatCustom);
+        } else if (help114) {
+            m_teachHelpLabel->hide();
         } else {
             m_teachHelpLabel->setText(QStringLiteral("Обучающая помощь:"));
+            m_teachHelpLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
             m_teachHelpLabel->setStyleSheet(QStringLiteral(
                 "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
                 "font-size:14px; font-weight:bold; padding:4px 0 0 16px;"));
+            m_teachHelpLabel->setVisible(!flatCustom);
         }
-        m_teachHelpLabel->setVisible(!flatCustom);
     }
 
     const int checkWidth = m_scrollArea && m_scrollArea->viewport()
@@ -2924,9 +2947,13 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     // Стимулирующая / Направляющая / Обучающая.
     // 5 пунктов (стандарт): 1+2+2; 7 пунктов (1.5 и др.): 1+2+4; иначе — 1 / до 2 / остаток.
     // 1.12: 4 пункта как в or.html — 1 + 1 + 2.
+    // 1.14: 8 пунктов — 4 (после 1 серии) + 4 (После 2 серии).
     int stimCount = 1;
     int directCount = 2;
-    if (help112 && labels.size() == 4) {
+    if (help114 && labels.size() >= 8) {
+        stimCount = 4;
+        directCount = 4;
+    } else if (help112 && labels.size() == 4) {
         stimCount = 1;
         directCount = 1;
     } else if (labels.size() == 3) {
@@ -2959,11 +2986,13 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     }
 
     int teachAt = insertAfter(m_teachHelpLabel);
-    for (int i = stimCount + directCount; i < labels.size(); ++i) {
-        m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
-        if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
-            m_helpChecksLayout->removeWidget(row);
-            m_helpChecksLayout->insertWidget(teachAt++, row);
+    if (!help114) {
+        for (int i = stimCount + directCount; i < labels.size(); ++i) {
+            m_helpChecks << makeCheckRow(labels.at(i), m_helpChecksLayout, checkWidth);
+            if (QWidget *row = m_helpChecks.last().label ? m_helpChecks.last().label->parentWidget() : nullptr) {
+                m_helpChecksLayout->removeWidget(row);
+                m_helpChecksLayout->insertWidget(teachAt++, row);
+            }
         }
     }
 }

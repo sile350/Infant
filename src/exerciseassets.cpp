@@ -247,6 +247,10 @@ QString ExerciseAssets::prepareOrHtml(
     result.replace(
         QStringLiteral("id='analis' style='font-size:16px;color:#000000' href='###'"),
         QStringLiteral("id='analis' style='font-size:16px;color:#000000' href='#analis'"));
+    // Вариант с пробелом после ';' (как у procedure в части or.html).
+    result.replace(
+        QStringLiteral("<a id='analis' style='font-size:16px; color:#000000' href='###'>"),
+        QStringLiteral("<a id='analis' style='font-size:16px; color:#000000' href='#analis'>"));
 
     const int hrPos = result.indexOf(QStringLiteral("<hr"), 0, Qt::CaseInsensitive);
     if (hrPos > 0) {

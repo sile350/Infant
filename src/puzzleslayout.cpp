@@ -328,7 +328,8 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->showTemplate = false;
         layout->templateFile = QStringLiteral("et2.png");
         layout->templateX = 700;
-        layout->templateY = 140;
+        // Одна высота с подсказкой p2 (hintY=230).
+        layout->templateY = 230;
         static const struct {
             const char *file;
             int x;

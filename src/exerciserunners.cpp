@@ -3735,6 +3735,16 @@ private:
                     syncSpritesToPatient();
                 }, Qt::UniqueConnection);
             }
+            // Инструкция поворота (л.к.м./п.к.м.) на 2-м экране для 1.14/2.
+            m_patientRotateHint = new QLabel(m_patientRoot);
+            m_patientRotateHint->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+            const QString rotateHintPath = ExerciseAssets::sysImage(QStringLiteral("rotate_hint.jpg"));
+            if (!rotateHintPath.isEmpty()) {
+                const QPixmap hintPm(rotateHintPath);
+                m_patientRotateHint->setPixmap(hintPm);
+                m_patientRotateHint->setFixedSize(hintPm.size());
+            }
+            m_patientRotateHint->hide();
         }
         if (m_patientRoot->parentWidget() != display) {
             m_patientRoot->setParent(display);
@@ -3767,6 +3777,14 @@ private:
         layoutPatientPuzzleUi();
         m_patientCanvas->show();
         m_patientCanvas->raise();
+        if (m_patientRotateHint
+            && m_exerciseId == QStringLiteral("1.14")
+            && m_stepId == QStringLiteral("2")) {
+            m_patientRotateHint->show();
+            m_patientRotateHint->raise();
+        } else if (m_patientRotateHint) {
+            m_patientRotateHint->hide();
+        }
         m_patientRoot->show();
     }
 
@@ -3803,6 +3821,20 @@ private:
         m_patientRoot->setGeometry(0, 0, w, h);
         m_patientCanvas->setGeometry(0, 0, w, h);
         m_patientCanvas->raise();
+        // Как на 1-м экране: rotate_hint @ (1400, 150) в координатах 1920×1080.
+        if (m_patientRotateHint
+            && m_exerciseId == QStringLiteral("1.14")
+            && m_stepId == QStringLiteral("2")) {
+            constexpr int kDesignW = 1920;
+            constexpr int kDesignH = 1080;
+            const double sx = w > 0 ? static_cast<double>(w) / kDesignW : 1.0;
+            const double sy = h > 0 ? static_cast<double>(h) / kDesignH : 1.0;
+            m_patientRotateHint->move(qRound(1400.0 * sx), qRound(150.0 * sy));
+            m_patientRotateHint->show();
+            m_patientRotateHint->raise();
+        } else if (m_patientRotateHint) {
+            m_patientRotateHint->hide();
+        }
     }
 
     void syncSpritesToPatient() {
@@ -4129,6 +4161,7 @@ private:
     PatientDisplay *m_patientDisplay = nullptr;
     QWidget *m_patientRoot = nullptr;
     PuzzleCanvas *m_patientCanvas = nullptr;
+    QLabel *m_patientRotateHint = nullptr;
     QString m_patientLoadedExercise;
     QString m_patientLoadedStep;
     bool m_syncingSprites = false;

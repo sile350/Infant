@@ -102,9 +102,9 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     m_hintX = 200;
     m_hintY = 100;
     if (exerciseId == QStringLiteral("1.14") && stepId == QStringLiteral("2")) {
-        // Как et2/t2 (y=140): подсказка и пустой прямоугольник на одной высоте.
+        // Подсказка p2 (Top=230) и трафарет et2 на одной высоте.
         m_hintX = 200;
-        m_hintY = 140;
+        m_hintY = 230;
     } else if (exerciseId == QStringLiteral("1.24")) {
         m_hintX = 200;
         m_hintY = stepId == QStringLiteral("4") ? 231 : 131;
@@ -291,9 +291,10 @@ void PuzzleCanvas::rotateSpriteC(Sprite &sprite) {
     if (sprite.done || sprite.pixmap.isNull()) {
         return;
     }
-    // Как Image.RotateFlip(Rotate270FlipNone) — поворот влево на 90°.
+    // Против часовой: в GDI Rotate270FlipNone ≈ 90° CCW.
+    // QTransform::rotate(положительный) — против часовой.
     QTransform transform;
-    transform.rotate(-90);
+    transform.rotate(90);
     sprite.pixmap = sprite.pixmap.transformed(transform, Qt::FastTransformation);
     ++sprite.rotateState;
 }
@@ -302,9 +303,9 @@ void PuzzleCanvas::rotateSpriteTo(Sprite &sprite) {
     if (sprite.done || sprite.pixmap.isNull()) {
         return;
     }
-    // Как Image.RotateFlip(Rotate90FlipNone) — поворот вправо на 90°.
+    // По часовой: в GDI Rotate90FlipNone ≈ 90° CW → в Qt отрицательный угол.
     QTransform transform;
-    transform.rotate(90);
+    transform.rotate(-90);
     sprite.pixmap = sprite.pixmap.transformed(transform, Qt::FastTransformation);
     --sprite.rotateState;
 }
