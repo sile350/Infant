@@ -518,9 +518,9 @@ QMap<QString, QString> buildVariables(
     } else if (tmpl.scoreKind == QStringLiteral("timed315_result") || tmpl.id == QStringLiteral("3.1.15")) {
         score = scoreExercise315(elapsedSeconds);
     } else if (tmpl.scoreKind == QStringLiteral("series15_activity")
-               || tmpl.scoreKind == QStringLiteral("timed15_help")
-               || tmpl.id == QStringLiteral("1.15")) {
-        // Руководство 1.15: баллы по уровню деятельности и помощи (не по времени).
+               || tmpl.scoreKind == QStringLiteral("timed15_help")) {
+        // Устаревшая автооценка 1.15 по уровню/помощи — в руководстве и C# ячейка
+        // ids оставлялась пустой (только вручную). См. manual_balls для 1.15.
         const double series = scoreExercise115Series(checkboxes.activity, checkboxes.help);
         if (series < 0) {
             scoreSelected = false;
@@ -529,6 +529,10 @@ QMap<QString, QString> buildVariables(
             score = series;
             scoreIsFractional = true;
         }
+    } else if (tmpl.id == QStringLiteral("1.15")) {
+        // Как protocols.cs: <div id='ids…'> </div> без автоподстановки.
+        scoreSelected = false;
+        score = 0;
     } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
                || tmpl.id == QStringLiteral("1.12")
                || tmpl.id == QStringLiteral("2.11")
@@ -601,7 +605,6 @@ QMap<QString, QString> buildVariables(
                || tmpl.scoreKind == QStringLiteral("series15_activity")
                || tmpl.id == QStringLiteral("3.1.10")
                || tmpl.id == QStringLiteral("1.12")
-               || tmpl.id == QStringLiteral("1.15")
                || tmpl.id == QStringLiteral("2.11")
                || tmpl.id == QStringLiteral("2.12")
                || tmpl.id == QStringLiteral("3.1.8")) {

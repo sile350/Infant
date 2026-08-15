@@ -5,6 +5,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QRegularExpression>
 #include <QTransform>
 #include <QtMath>
 
@@ -169,11 +170,15 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
     }
 
     for (const PuzzleSpriteDef &def : layout.sprites) {
-        // Не тащить на холст трафареты/превью как «детали» (t*/et*/f*/p*).
+        // Не тащить на холст трафареты/превью как «детали» (et*/traf*/f*/p*).
+        // t1.png…tN.png — игровые эталоны (1.15), не фильтровать.
         const QString &base = def.file;
+        const bool isDigitTemplateSprite = QRegularExpression(
+            QStringLiteral("^t\\d+\\.png$"),
+            QRegularExpression::CaseInsensitiveOption).match(base).hasMatch();
         if (base.startsWith(QStringLiteral("et"), Qt::CaseInsensitive)
             || base.startsWith(QStringLiteral("traf"), Qt::CaseInsensitive)
-            || base.startsWith(QStringLiteral("t"), Qt::CaseInsensitive)
+            || (base.startsWith(QStringLiteral("t"), Qt::CaseInsensitive) && !isDigitTemplateSprite)
             || base.startsWith(QStringLiteral("f"), Qt::CaseInsensitive)
             || base.startsWith(QStringLiteral("p"), Qt::CaseInsensitive)
             || base.compare(QStringLiteral("ex.png"), Qt::CaseInsensitive) == 0) {
@@ -185,6 +190,13 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         }
         Sprite sprite;
         sprite.pixmap = QPixmap(path);
+        // 1.15 задание 3: 12 предметов в один ряд — чуть уменьшить.
+        if (exerciseId == QStringLiteral("1.15") && stepId == QStringLiteral("3")
+            && !isDigitTemplateSprite && !sprite.pixmap.isNull()) {
+            constexpr int kObj = 118;
+            sprite.pixmap = sprite.pixmap.scaled(
+                kObj, kObj, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
         sprite.x = def.x;
         sprite.y = def.y;
         sprite.targetX = def.targetX;
@@ -499,6 +511,29 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
             qRound(m_template2.width() * m_scale),
             qRound(m_template2.height() * m_scale),
             m_template2);
+    }
+
+    // 1.15: продлить вертикали колонок почти до ряда предметов (~50 px зазор).
+    if (m_exerciseId == QStringLiteral("1.15") && m_showTemplate) {
+        int objectsTop = 900;
+        for (const Sprite &sprite : m_sprites) {
+            if (!sprite.returnable && !sprite.pixmap.isNull()) {
+                objectsTop = qMin(objectsTop, sprite.y);
+            }
+        }
+        const int lineBottom = qMax(250, objectsTop - 50);
+        const int lineTop = m_layout.templateY + 250;
+        if (lineBottom > lineTop) {
+            static const int kColXs[] = {178, 360, 538, 712, 895};
+            QPen pen(QColor(187, 187, 187));
+            pen.setWidthF(qMax(1.0, m_scale));
+            painter.setPen(pen);
+            for (int lx : kColXs) {
+                const QPoint a = mapFromDesign(m_layout.templateX + lx, lineTop);
+                const QPoint b = mapFromDesign(m_layout.templateX + lx, lineBottom);
+                painter.drawLine(a, b);
+            }
+        }
     }
 
     for (const Sprite &sprite : m_sprites) {
