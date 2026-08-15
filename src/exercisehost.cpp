@@ -1833,11 +1833,12 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 / 1.11 / 1.14 / 1.15: при каждом входе протоколы формируются с нуля.
+    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17: при каждом входе протоколы формируются с нуля.
     if (m_exerciseId == QStringLiteral("1.7")
         || m_exerciseId == QStringLiteral("1.11")
         || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.15")
+        || m_exerciseId == QStringLiteral("1.17")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
