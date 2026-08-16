@@ -2510,9 +2510,9 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsTop = horizontal ? 310 : 240;
         }
         if (m_exerciseId == QStringLiteral("1.20")) {
-            // ТЗ 10.7/10.9: трафарет/задание 1260×200; ниже вместе с rotate_hint.
+            // Трафарет/задание 1260×300.
             previewAbsLeft = 1260;
-            previewAbsTop = 200;
+            previewAbsTop = 300;
         }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
@@ -2532,7 +2532,7 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
-    // 1.20 до старта: инструкция поворота рядом с заданием (опущена вместе с ним, Y≈200).
+    // 1.20 до старта: инструкция поворота рядом с заданием (−80 влево от 1450).
     if (m_rightPanel) {
         QLabel *previewRotate = m_rightPanel->findChild<QLabel *>(QStringLiteral("dokitPreviewRotateHint"));
         if (m_exerciseId == QStringLiteral("1.20") && !m_exerciseRunning) {
@@ -2547,8 +2547,8 @@ void ExerciseHost::updatePreviewLayout() {
                     previewRotate->setFixedSize(hintPm.size());
                 }
             }
-            constexpr int kHintAbsX = 1450;
-            constexpr int kHintAbsY = 200;
+            constexpr int kHintAbsX = 1370; // 1450 − 80
+            constexpr int kHintAbsY = 300;
             previewRotate->move(qMax(0, kHintAbsX - rightPanelLeft), kHintAbsY);
             previewRotate->show();
             previewRotate->raise();

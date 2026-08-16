@@ -114,9 +114,9 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         m_hintX = 31;
         m_hintY = 250;
     } else if (exerciseId == QStringLiteral("1.20")) {
-        // Подсказка 40×200; трафарет 1260×200.
+        // Подсказка 40×300; трафарет 1260×300.
         m_hintX = 40;
-        m_hintY = 200;
+        m_hintY = 300;
     } else if (exerciseId == QStringLiteral("1.19")) {
         // Подсказка слева: гориз. 50×310, верт. 50×240.
         m_hintX = 50;

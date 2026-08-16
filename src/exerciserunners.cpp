@@ -3846,12 +3846,12 @@ private:
             constexpr int kDesignH = 1080;
             const double sx = w > 0 ? static_cast<double>(w) / kDesignW : 1.0;
             const double sy = h > 0 ? static_cast<double>(h) / kDesignH : 1.0;
-            // 1.20: ~1450×200; 1.19: рядом с зоной трафарета; 1.14/2: @ (1400,150).
+            // 1.20: ~1350×300 (−100 влево); 1.19: рядом с зоной трафарета; 1.14/2: @ (1400,150).
             double hx = 1400.0;
             double hy = 150.0;
             if (m_exerciseId == QStringLiteral("1.20")) {
-                hx = 1450.0;
-                hy = 200.0;
+                hx = 1350.0;
+                hy = 300.0;
             } else if (m_exerciseId == QStringLiteral("1.19")) {
                 hx = 1400.0;
                 hy = (m_stepId.contains(QStringLiteral("Матрешка"))
@@ -4069,9 +4069,9 @@ private:
             return;
         }
         if (m_exerciseId == QStringLiteral("1.20")) {
-            // puzzles.cs / ТЗ 10.7: опустить вместе с заданием (~Y=200).
+            // Поворот: −100 влево от 1450; по высоте с заданием (Y=300).
             placeStop(977.0, 70.0);
-            placeRotateHint(1450.0, 200.0);
+            placeRotateHint(1350.0, 300.0);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.19")) {
