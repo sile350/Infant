@@ -44,6 +44,7 @@
 #include <QTableWidget>
 #include <QTextBrowser>
 #include <QTimer>
+#include <QVector>
 #include <QVBoxLayout>
 #include <QWindow>
 #include <QtMath>
@@ -1221,6 +1222,8 @@ public:
         m_tu = 11;
         m_sampleHidden = false;
         m_sampleHideSeconds = 0;
+        m_cardSnaps23.clear();
+        m_cardSnaps23.resize(8);
         if (m_sampleHideTimer) {
             m_sampleHideTimer->stop();
         }
@@ -1414,33 +1417,91 @@ public:
         return QDir::temp().filePath(QStringLiteral("infant_2_3_temp%1.png").arg(cardTu));
     }
 
-    QString buildSummaryCollage23() {
-        // Как exbegin после findmark: 850×800, temp11..14 слева, temp15..18 справа.
-        if (!m_canvas.isNull() && m_tu >= 11 && m_tu <= 18) {
-            m_canvas.save(tempCardPath23(m_tu));
+    void restoreStimulusOnCanvas23() {
+        // Перед сохранением кадра вернуть стимул слева (как в оригинале перед Save).
+        if (m_canvas.isNull()) {
+            return;
         }
-        QImage collage(850, 800, QImage::Format_RGB32);
+        QPainter painter(&m_canvas);
+        painter.fillRect(0, 0, m_layout.traf2Pos.x(), m_canvas.height(), Qt::white);
+        painter.end();
+        const QString stimFile = QString::number(m_tu) + QStringLiteral(".png");
+        m_layout.trafFile = stimFile;
+        drawPixmapOnImage(&m_canvas, m_exerciseId, stimFile, m_layout.trafPos);
+        m_sampleHidden = false;
+    }
+
+    void snapshotCurrentCard23() {
+        if (m_exerciseId != QStringLiteral("2.3") || m_tu < 11 || m_tu > 18) {
+            return;
+        }
+        restoreStimulusOnCanvas23();
+        // Правая сетка должна остаться с точками пользователя; void не перерисовываем.
+        const int idx = m_tu - 11;
+        if (idx >= 0 && idx < m_cardSnaps23.size()) {
+            m_cardSnaps23[idx] = m_canvas.copy();
+        }
+        m_canvas.save(tempCardPath23(m_tu));
+        updateCanvasDisplay();
+        syncPatientPaintDisplay();
+    }
+
+    QImage cardImageForIndex23(int idx) const {
+        if (idx >= 0 && idx < m_cardSnaps23.size() && !m_cardSnaps23.at(idx).isNull()) {
+            return m_cardSnaps23.at(idx);
+        }
+        const QString path = tempCardPath23(11 + idx);
+        QImage fromDisk(path);
+        if (!fromDisk.isNull()) {
+            return fromDisk;
+        }
+        // Карточка не пройдена — стимул + пустая сетка.
+        QImage card(m_layout.size.isEmpty() ? QSize(430, 344) : m_layout.size, QImage::Format_RGB32);
+        card.fill(Qt::white);
+        const QString stim = QString::number(11 + idx) + QStringLiteral(".png");
+        drawPixmapOnImage(&card, QStringLiteral("2.3"), stim, QPoint(0, 0));
+        drawPixmapOnImage(
+            &card, QStringLiteral("2.3"), QStringLiteral("void.png"), QPoint(220, 3));
+        return card;
+    }
+
+    QString buildSummaryCollage23() {
+        // Сохранить текущую карточку, затем сетка 2×4 без наложений (как на скрине РП).
+        snapshotCurrentCard23();
+
+        constexpr int kCols = 2;
+        constexpr int kRows = 4;
+        constexpr int kGap = 10;
+        constexpr int kCellW = 420;
+        constexpr int kCellH = 190;
+        const int collageW = kCols * kCellW + (kCols + 1) * kGap;
+        const int collageH = kRows * kCellH + (kRows + 1) * kGap;
+
+        QImage collage(collageW, collageH, QImage::Format_RGB32);
         collage.fill(Qt::white);
         QPainter painter(&collage);
-        const QPoint positions[8] = {
-            QPoint(0, 0),
-            QPoint(0, 200),
-            QPoint(0, 400),
-            QPoint(0, 600),
-            QPoint(430, 0),
-            QPoint(430, 200),
-            QPoint(430, 400),
-            QPoint(430, 600),
-        };
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
         for (int i = 0; i < 8; ++i) {
-            const QString path = tempCardPath23(11 + i);
-            QImage card(path);
+            const int col = i / 4;
+            const int row = i % 4;
+            const QRect cell(
+                kGap + col * (kCellW + kGap),
+                kGap + row * (kCellH + kGap),
+                kCellW,
+                kCellH);
+            QImage card = cardImageForIndex23(i);
             if (card.isNull()) {
                 continue;
             }
-            painter.drawImage(positions[i], card);
+            const QImage scaled =
+                card.scaled(cell.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            const QPoint topLeft(
+                cell.x() + (cell.width() - scaled.width()) / 2,
+                cell.y() + (cell.height() - scaled.height()) / 2);
+            painter.drawImage(topLeft, scaled);
         }
         painter.end();
+
         const QString outPath = scansDirectory() + QStringLiteral("/") + m_exerciseId
             + QStringLiteral("-")
             + QString::number(QDateTime::currentMSecsSinceEpoch())
@@ -1541,17 +1602,12 @@ protected:
     }
 
     void forwardSample23() {
-        if (m_exerciseId != QStringLiteral("2.3") || m_tu >= 18) {
-            if (m_tu >= 18 && m_fwdSample) {
-                m_fwdSample->hide();
-            }
+        if (m_exerciseId != QStringLiteral("2.3")) {
             return;
         }
-        // Сохранить текущий кадр во временный файл (как оригинал temp{N}.png).
-        const QString tempPath = tempCardPath23(m_tu);
-        m_canvas.save(tempPath);
+        // Как оригинал: сохранить текущий кадр (со стимулом), даже на 18-й карточке.
+        snapshotCurrentCard23();
 
-        m_sampleHidden = false;
         if (m_sampleHideTimer) {
             m_sampleHideTimer->stop();
         }
@@ -1567,13 +1623,22 @@ protected:
             m_hideSample->setFixedSize(px.size());
         }
 
+        if (m_tu >= 18) {
+            if (m_fwdSample) {
+                m_fwdSample->hide();
+            }
+            layoutUi();
+            return;
+        }
+
         m_canvas.fill(Qt::white);
         ++m_tu;
         m_layout.trafFile = QString::number(m_tu) + QStringLiteral(".png");
         m_layout.traf2File = QStringLiteral("void.png");
+        m_sampleHidden = false;
         redrawTemplate();
         if (m_tu >= 18 && m_fwdSample) {
-            m_fwdSample->hide();
+            // Ещё можно расставить точки на 18-й; «Вперед» скроется после её сохранения.
         }
         layoutUi();
     }
@@ -1730,6 +1795,7 @@ protected:
     ClickableLabel *m_fwdSample = nullptr;
     QLabel *m_sampleTimerLabel = nullptr;
     QTimer *m_sampleHideTimer = nullptr;
+    QVector<QImage> m_cardSnaps23;
     int m_dotime = 0;
     int m_cycles = 0;
     bool m_redPhaseActive = false;
