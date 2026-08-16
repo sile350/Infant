@@ -2214,12 +2214,19 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             const bool imageCutTable = !numbered
                 && inner.contains(QStringLiteral("Изображение"), Qt::CaseInsensitive)
                 && orHlpFact;
+            // 1.22: Фигура / Факт / Характер / Виды помощи — 95+110+233+233 = 671.
+            const bool figuraFactTable = !numbered
+                && inner.contains(QStringLiteral("Фигура"), Qt::CaseInsensitive)
+                && orHlpFact;
             if (numbered) {
                 inner.prepend(QStringLiteral(
                     "<colgroup><col width='40'><col width='125'><col width='253'><col width='253'></colgroup>"));
             } else if (imageCutTable) {
                 inner.prepend(QStringLiteral(
                     "<colgroup><col width='185'><col width='95'><col width='196'><col width='195'></colgroup>"));
+            } else if (figuraFactTable) {
+                inner.prepend(QStringLiteral(
+                    "<colgroup><col width='95'><col width='110'><col width='233'><col width='233'></colgroup>"));
             } else if (orHlpFact) {
                 inner.prepend(QStringLiteral(
                     "<colgroup><col width='141'><col width='265'><col width='265'></colgroup>"));
@@ -2247,7 +2254,8 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     tds.append(tdIt.next());
                 }
                 if ((imageCutTable && tds.size() == 4)
-                    || (!numbered && !imageCutTable && tds.size() == 3)
+                    || (figuraFactTable && tds.size() == 4)
+                    || (!numbered && !imageCutTable && !figuraFactTable && tds.size() == 3)
                     || (numbered && tds.size() == 4)) {
                     QStringList widths;
                     if (numbered) {
@@ -2256,6 +2264,9 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     } else if (imageCutTable) {
                         widths << QStringLiteral("185") << QStringLiteral("95")
                                << QStringLiteral("196") << QStringLiteral("195");
+                    } else if (figuraFactTable) {
+                        widths << QStringLiteral("95") << QStringLiteral("110")
+                               << QStringLiteral("233") << QStringLiteral("233");
                     } else if (orHlpFact) {
                         widths << QStringLiteral("141") << QStringLiteral("265")
                                << QStringLiteral("265");
@@ -3924,6 +3935,12 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                    && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
             // 1.20: Изображение / Характер / Виды помощи / Баллы — 110+255+256+50.
             applied = setFixed({110, 255, 256, 50});
+        } else if (cols == 4
+                   && headerJoin.contains(QStringLiteral("Фигура"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
+            // 1.22: Фигура / Факт / Характер / Виды помощи.
+            applied = setFixed({95, 110, 233, 233});
         } else if (cols == 4
                    && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
                    && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
@@ -6723,6 +6740,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         // иначе отбрасывал строку с чекбоксом «…выполнить задание».
         if (firstPlain.compare(QStringLiteral("№"), Qt::CaseInsensitive) == 0
             || firstPlain.compare(QStringLiteral("N"), Qt::CaseInsensitive) == 0
+            || firstPlain.compare(QStringLiteral("Фигура"), Qt::CaseInsensitive) == 0
             || firstPlain.contains(QStringLiteral("Характер деятельности"), Qt::CaseInsensitive)
             || firstPlain.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)
             || firstPlain.compare(QStringLiteral("Вопросы"), Qt::CaseInsensitive) == 0

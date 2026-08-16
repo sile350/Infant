@@ -1599,12 +1599,13 @@ void ExerciseHost::updateChromeLayout() {
         const bool is316Shard = m_exerciseId == QStringLiteral("3.1.16")
             && currentStepId().trimmed().toInt() >= 3;
         // 3.1.16: своя ссылка на корне окна; общая панель опций для неё не нужна.
-        // 1.5 / 1.6 / 1.19 / 1.20 / 1.21: ссылка рядом с «Начать» — options-панель на правой не нужна.
+        // 1.5 / 1.6 / 1.19 / 1.20 / 1.21 / 1.22: ссылка рядом с «Начать» — options-панель на правой не нужна.
         if (is316Shard || m_exerciseId == QStringLiteral("1.5")
             || m_exerciseId == QStringLiteral("1.6")
             || m_exerciseId == QStringLiteral("1.19")
             || m_exerciseId == QStringLiteral("1.20")
-            || m_exerciseId == QStringLiteral("1.21")) {
+            || m_exerciseId == QStringLiteral("1.21")
+            || m_exerciseId == QStringLiteral("1.22")) {
             m_exerciseOptionsPanel->hide();
         } else {
             // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
@@ -1622,11 +1623,11 @@ void ExerciseHost::updateChromeLayout() {
         }
         layoutE15ModePopup();
     }
-    // 1.5 / 1.6 / 1.19 / 1.20 / 1.21: «Настройка уровня сложности» на правой панели (поверх превью), ~1550 abs.
+    // 1.5 / 1.6 / 1.19 / 1.20 / 1.21 / 1.22: «Настройка уровня сложности» на правой панели (поверх превью), ~1550 abs.
     if (m_shard15Button && m_rightPanel
         && (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")
             || m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
-            || m_exerciseId == QStringLiteral("1.21"))
+            || m_exerciseId == QStringLiteral("1.21") || m_exerciseId == QStringLiteral("1.22"))
         && !m_exerciseRunning) {
         m_shard15Button->adjustSize();
         constexpr int kLinkAbsX = 1550;
@@ -1643,10 +1644,10 @@ void ExerciseHost::updateChromeLayout() {
     if (m_previewImage) {
         updatePreviewLayout();
     }
-    // После превью снова поднять ссылку 1.5/1.6/1.19/1.20/1.21 (превью иначе перекрывает).
+    // После превью снова поднять ссылку 1.5/1.6/1.19/1.20/1.21/1.22 (превью иначе перекрывает).
     if ((m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")
          || m_exerciseId == QStringLiteral("1.19") || m_exerciseId == QStringLiteral("1.20")
-         || m_exerciseId == QStringLiteral("1.21"))
+         || m_exerciseId == QStringLiteral("1.21") || m_exerciseId == QStringLiteral("1.22"))
         && m_shard15Button && m_shard15Button->isVisible()) {
         m_shard15Button->raise();
         if (m_e15ModeGroup && m_e15ModeGroup->isVisible()) {
@@ -1848,7 +1849,7 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19 / 1.20 / 1.21: при каждом входе протоколы формируются с нуля.
+    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19 / 1.20 / 1.21 / 1.22: при каждом входе протоколы формируются с нуля.
     if (m_exerciseId == QStringLiteral("1.7")
         || m_exerciseId == QStringLiteral("1.11")
         || m_exerciseId == QStringLiteral("1.14")
@@ -1857,6 +1858,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("1.20")
         || m_exerciseId == QStringLiteral("1.21")
+        || m_exerciseId == QStringLiteral("1.22")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -2518,6 +2520,11 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsLeft = 1260;
             previewAbsTop = 300;
         }
+        if (m_exerciseId == QStringLiteral("1.22")) {
+            // Цельная фигура без вырезов: ~1200×190.
+            previewAbsLeft = 1200;
+            previewAbsTop = 190;
+        }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
             previewAbsLeft = 1100;
@@ -2681,11 +2688,20 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         return;
     }
     if (m_exerciseId == QStringLiteral("1.22")) {
-        // Как просили: без картинки предварительного просмотра (fкруг/fквадрат/…).
+        // Цельная фигура без вырезанных фрагментов (fкруг / fквадрат / fпирамида).
         m_previewSource = QPixmap();
-        if (m_previewImage) {
-            m_previewImage->hide();
+        const QString step = currentStepId().trimmed();
+        const QStringList candidates = {
+            QStringLiteral("f") + step.toLower() + QStringLiteral(".png"),
+            QStringLiteral("f") + step + QStringLiteral(".png"),
+        };
+        for (const QString &name : candidates) {
+            const QString path = ExerciseAssets::exerciseFile(m_exerciseId, name);
+            if (!path.isEmpty() && m_previewSource.load(path)) {
+                break;
+            }
         }
+        updatePreviewLayout();
         return;
     }
     if (m_exerciseId == QStringLiteral("4.2.2")) {
@@ -5078,6 +5094,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.17")
                || m_exerciseId == QStringLiteral("1.18")
                || m_exerciseId == QStringLiteral("1.19")
+               || m_exerciseId == QStringLiteral("1.22")
                || m_exerciseId == QStringLiteral("1.25")
                || m_exerciseId == QStringLiteral("2.8")
                || m_exerciseId == QStringLiteral("2.9")
@@ -5529,9 +5546,9 @@ void ExerciseHost::layoutE15ModePopup() {
     const bool is316 = m_exerciseId == QStringLiteral("3.1.16") && step.toInt() >= 3;
 
     if (m_e15ModeGroup) {
-        const bool show15Popup = (is15 || is16) && m_shardPanelVisible && m_shard15Button
+        const bool show15Popup = (is15 || is16 || is122) && m_shardPanelVisible && m_shard15Button
             && m_shard15Button->isVisible();
-        const bool showOtherPopup = !(is15 || is16) && (isE15 || is122) && m_shardPanelVisible
+        const bool showOtherPopup = !(is15 || is16 || is122) && (isE15 || is122) && m_shardPanelVisible
             && m_shardButton && m_shardButton->isVisible();
         if (show15Popup || showOtherPopup) {
             m_e15ModeGroup->setFixedWidth(300);
@@ -5655,14 +5672,15 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     // Руководство: ссылка только в заданиях 3–7.
     const bool show316Options = is316 && step.toInt() >= 3;
     const bool is417 = m_exerciseId == QStringLiteral("4.1.7");
-    // 1.5/1.6/1.19/1.20/1.21 — отдельная ссылка m_shard15Button; не options-панель.
-    const bool showShard = ((isE15 && !is15 && !is16) || is122 || isPuzzleShard)
+    // 1.5/1.6/1.19/1.20/1.21/1.22 — отдельная ссылка m_shard15Button; не options-панель.
+    const bool showShard = ((isE15 && !is15 && !is16) || isPuzzleShard)
         && m_exerciseId != QStringLiteral("1.19")
         && m_exerciseId != QStringLiteral("1.20")
-        && m_exerciseId != QStringLiteral("1.21");
+        && m_exerciseId != QStringLiteral("1.21")
+        && m_exerciseId != QStringLiteral("1.22");
 
     if (m_exerciseOptionsPanel) {
-        // 4.1.7 / 1.5 / 1.6 / 1.19 / 1.20 / 1.21: без options-панели на правой (своя ссылка / rem).
+        // 4.1.7 / 1.5 / 1.6 / 1.19–1.22: без options-панели на правой (своя ссылка / rem).
         m_exerciseOptionsPanel->setVisible(showShard && !show316Options);
     }
     if (m_shardButton) {
@@ -5670,7 +5688,7 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     }
     if (m_shard15Button) {
         const bool show15Link =
-            (is15 || is16 || m_exerciseId == QStringLiteral("1.19")
+            (is15 || is16 || is122 || m_exerciseId == QStringLiteral("1.19")
              || m_exerciseId == QStringLiteral("1.20")
              || m_exerciseId == QStringLiteral("1.21"))
             && !m_exerciseRunning;
