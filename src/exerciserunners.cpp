@@ -3795,7 +3795,8 @@ private:
         if (m_patientRotateHint
             && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
                 || m_exerciseId == QStringLiteral("1.19")
-                || m_exerciseId == QStringLiteral("1.20"))) {
+                || m_exerciseId == QStringLiteral("1.20")
+                || m_exerciseId == QStringLiteral("1.21"))) {
             m_patientRotateHint->show();
             m_patientRotateHint->raise();
         } else if (m_patientRotateHint) {
@@ -3841,17 +3842,21 @@ private:
         if (m_patientRotateHint
             && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
                 || m_exerciseId == QStringLiteral("1.19")
-                || m_exerciseId == QStringLiteral("1.20"))) {
+                || m_exerciseId == QStringLiteral("1.20")
+                || m_exerciseId == QStringLiteral("1.21"))) {
             constexpr int kDesignW = 1920;
             constexpr int kDesignH = 1080;
             const double sx = w > 0 ? static_cast<double>(w) / kDesignW : 1.0;
             const double sy = h > 0 ? static_cast<double>(h) / kDesignH : 1.0;
-            // 1.20: ~1270×200; 1.19: рядом с зоной трафарета; 1.14/2: @ (1400,150).
+            // 1.20: ~1270×200; 1.21: 1390×150; 1.19: рядом с зоной трафарета; 1.14/2: @ (1400,150).
             double hx = 1400.0;
             double hy = 150.0;
             if (m_exerciseId == QStringLiteral("1.20")) {
                 hx = 1270.0;
                 hy = 200.0;
+            } else if (m_exerciseId == QStringLiteral("1.21")) {
+                hx = 1390.0;
+                hy = 150.0;
             } else if (m_exerciseId == QStringLiteral("1.19")) {
                 hx = 1400.0;
                 hy = (m_stepId.contains(QStringLiteral("Матрешка"))
@@ -4090,9 +4095,9 @@ private:
             return;
         }
         if (m_exerciseId == QStringLiteral("1.21")) {
-            // puzzles.cs: pstop 977@70; pcntr 1440@150, pto = pcntr+100.
+            // puzzles.cs: pstop 977@70; pcntr −50 влево → 1390@150.
             placeStop(977.0, 70.0);
-            placeRotateHint(1440.0, 150.0);
+            placeRotateHint(1390.0, 150.0);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.11")) {
