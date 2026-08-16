@@ -402,17 +402,19 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->templateFile = QString();
         const QString prefix = stepId == QStringLiteral("2") ? QStringLiteral("2") : QStringLiteral("1");
         const int baseX = stepId == QStringLiteral("2") ? 200 : 370;
+        // 20.3: все картинки на 100 px ниже (оригинал y=111 / 600).
+        constexpr int kDown = 100;
         for (int i = 1; i <= (stepId == QStringLiteral("2") ? 5 : 4); ++i) {
             addSprite(
                 layout,
                 prefix + QString::number(i) + QStringLiteral(".png"),
                 27 + baseX + (i - 1) * 290,
-                111);
+                111 + kDown);
         }
         PuzzleSpriteDef cover1;
         cover1.file = QStringLiteral("close.png");
         cover1.x = 500;
-        cover1.y = 600;
+        cover1.y = 600 + kDown;
         cover1.name = QStringLiteral("cover1");
         cover1.clickable = true;
         cover1.closed = true;
@@ -424,7 +426,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         PuzzleSpriteDef cover2;
         cover2.file = QStringLiteral("close.png");
         cover2.x = 800;
-        cover2.y = 600;
+        cover2.y = 600 + kDown;
         cover2.name = QStringLiteral("cover2");
         cover2.clickable = true;
         cover2.closed = true;

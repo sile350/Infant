@@ -1877,6 +1877,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("1.24")
         || m_exerciseId == QStringLiteral("1.27")
         || m_exerciseId == QStringLiteral("1.28")
+        || m_exerciseId == QStringLiteral("2.11")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -3177,6 +3178,10 @@ void ExerciseHost::updatePreviewLayout() {
             // Превью f1/f2: на 100 px ниже (ТЗ 15.5).
             previewAbsTop = kPreviewAbsTop + 100;
         }
+        if (m_exerciseId == QStringLiteral("2.11")) {
+            // 20.3: до выполнения — картинки на 100 px ниже.
+            previewAbsTop = kPreviewAbsTop + 100;
+        }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
             previewAbsLeft = 1100;
@@ -3526,13 +3531,17 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         && (m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("1.21")
             || m_exerciseId == QStringLiteral("1.27")
+            || m_exerciseId == QStringLiteral("2.11")
             || m_exerciseId == QStringLiteral("3.1.10"));
     // 1.12: заголовки из or.html (не Стимулирующая/Направляющая/Обучающая).
     const bool help112 = m_exerciseId == QStringLiteral("1.12");
     // 1.14: «после 1 серии» / «После 2 серии» (по 4 пункта), без «Обучающая».
     const bool help114 = m_exerciseId == QStringLiteral("1.14");
     const bool showPenaltyHint =
-        m_exerciseId == QStringLiteral("3.1.10") || help112 || help114;
+        m_exerciseId == QStringLiteral("3.1.10")
+        || m_exerciseId == QStringLiteral("2.11")
+        || help112
+        || help114;
     if (m_helpPenaltyHintLabel) {
         m_helpPenaltyHintLabel->setText(
             QStringLiteral("За каждый вид помощи оценка снижается на 0,5 балла"));
