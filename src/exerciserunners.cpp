@@ -830,11 +830,21 @@ protected:
         return QPoint(qRound(pictureLocal.x() * sx), qRound(pictureLocal.y() * sy));
     }
 
+    virtual void afterPaintStroke() {}
+    virtual bool paintBlockedBySession() const { return false; }
+    virtual bool acceptCanvasPaintAt(const QPoint &canvasPt) const {
+        Q_UNUSED(canvasPt);
+        return true;
+    }
+
     void paintCanvasPoint(const QPoint &canvasPt, bool forceDot) {
         if (paintBlockedBySession()) {
             return;
         }
         if (canvasPt.x() < 0 || m_canvas.isNull()) {
+            return;
+        }
+        if (!acceptCanvasPaintAt(canvasPt)) {
             return;
         }
         QPainter painter(&m_canvas);
@@ -843,6 +853,9 @@ protected:
         painter.setBrush(m_brushColor);
         const int r = qMax(1, m_brushWidth / 2);
         auto stamp = [&](const QPoint &p) {
+            if (!acceptCanvasPaintAt(p)) {
+                return;
+            }
             painter.drawEllipse(p, r, r);
         };
         if (m_hasLast) {
@@ -864,9 +877,6 @@ protected:
         syncPatientPaintDisplay();
         afterPaintStroke();
     }
-
-    virtual void afterPaintStroke() {}
-    virtual bool paintBlockedBySession() const { return false; }
 
     bool eventFilter(QObject *watched, QEvent *event) override {
         if (watched == m_patientPicture && m_patientPicture) {
@@ -1379,6 +1389,66 @@ public:
         return isPaintBlockedByRedLock();
     }
 
+    bool acceptCanvasPaintAt(const QPoint &canvasPt) const override {
+        if (m_exerciseId != QStringLiteral("2.3")) {
+            return true;
+        }
+        // 19.6: только правый квадрат (void.png @ 220,3 — 182×182).
+        return dotsPlacementRect23().contains(canvasPt);
+    }
+
+    QRect dotsPlacementRect23() const {
+        QSize voidSize(182, 182);
+        const QString voidPath =
+            ExerciseAssets::exerciseFile(QStringLiteral("2.3"), QStringLiteral("void.png"));
+        if (!voidPath.isEmpty()) {
+            const QPixmap px(voidPath);
+            if (!px.isNull()) {
+                voidSize = px.size();
+            }
+        }
+        return QRect(m_layout.traf2Pos, voidSize);
+    }
+
+    static QString tempCardPath23(int cardTu) {
+        return QDir::temp().filePath(QStringLiteral("infant_2_3_temp%1.png").arg(cardTu));
+    }
+
+    QString buildSummaryCollage23() {
+        // Как exbegin после findmark: 850×800, temp11..14 слева, temp15..18 справа.
+        if (!m_canvas.isNull() && m_tu >= 11 && m_tu <= 18) {
+            m_canvas.save(tempCardPath23(m_tu));
+        }
+        QImage collage(850, 800, QImage::Format_RGB32);
+        collage.fill(Qt::white);
+        QPainter painter(&collage);
+        const QPoint positions[8] = {
+            QPoint(0, 0),
+            QPoint(0, 200),
+            QPoint(0, 400),
+            QPoint(0, 600),
+            QPoint(430, 0),
+            QPoint(430, 200),
+            QPoint(430, 400),
+            QPoint(430, 600),
+        };
+        for (int i = 0; i < 8; ++i) {
+            const QString path = tempCardPath23(11 + i);
+            QImage card(path);
+            if (card.isNull()) {
+                continue;
+            }
+            painter.drawImage(positions[i], card);
+        }
+        painter.end();
+        const QString outPath = scansDirectory() + QStringLiteral("/") + m_exerciseId
+            + QStringLiteral("-")
+            + QString::number(QDateTime::currentMSecsSinceEpoch())
+            + QStringLiteral(".png");
+        collage.save(outPath);
+        return outPath;
+    }
+
     void raiseSessionOverlays() override {
         raiseOverlayControls();
         if (m_redPhaseActive) {
@@ -1478,8 +1548,7 @@ protected:
             return;
         }
         // Сохранить текущий кадр во временный файл (как оригинал temp{N}.png).
-        const QString tempPath = QDir::temp().filePath(
-            QStringLiteral("infant_2_3_temp%1.png").arg(m_tu));
+        const QString tempPath = tempCardPath23(m_tu);
         m_canvas.save(tempPath);
 
         m_sampleHidden = false;
@@ -1516,21 +1585,19 @@ protected:
             m_continueButton->move(m_stop->x() + m_stop->width() + 24, m_stop->y());
         }
         if (m_exerciseId == QStringLiteral("2.3")) {
-            constexpr int kDesignW = 1920;
-            constexpr int kDesignH = 1080;
-            const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
-            const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
+            // 19.1: Вперед / Скрыть / таймер в одну линию со Стоп (оригинал Top=70).
+            const int y = m_stop ? m_stop->y() : 70;
+            if (m_sampleTimerLabel && m_sampleTimerLabel->isVisible()) {
+                m_sampleTimerLabel->move(1200, y);
+                m_sampleTimerLabel->raise();
+            }
             if (m_fwdSample && m_fwdSample->isVisible()) {
-                m_fwdSample->move(qRound(1293.0 * sx), qRound(13.0 * sy));
+                m_fwdSample->move(1293, y);
                 m_fwdSample->raise();
             }
             if (m_hideSample && m_hideSample->isVisible()) {
-                m_hideSample->move(qRound(1547.0 * sx), qRound(12.0 * sy));
+                m_hideSample->move(1547, y);
                 m_hideSample->raise();
-            }
-            if (m_sampleTimerLabel && m_sampleTimerLabel->isVisible()) {
-                m_sampleTimerLabel->move(qRound(1004.0 * sx), qRound(22.0 * sy));
-                m_sampleTimerLabel->raise();
             }
         }
         // После перекладки холста снова поднять красное / «Продолжить».
@@ -1556,7 +1623,7 @@ protected:
             m_patientDrawing = false;
             if (m_exerciseId == QStringLiteral("2.3")) {
                 const QPoint canvasPt = mapToCanvas(event->pos());
-                if (canvasPt.x() >= 0) {
+                if (canvasPt.x() >= 0 && acceptCanvasPaintAt(canvasPt)) {
                     QPainter painter(&m_canvas);
                     painter.setPen(QPen(m_brushColor, m_brushWidth, Qt::SolidLine, Qt::RoundCap));
                     painter.drawPoint(canvasPt);
@@ -1580,7 +1647,7 @@ protected:
         }
         if (event->button() == Qt::RightButton && m_exerciseId == QStringLiteral("2.3")) {
             const QPoint canvasPt = mapToCanvas(event->pos());
-            if (canvasPt.x() >= 0) {
+            if (canvasPt.x() >= 0 && acceptCanvasPaintAt(canvasPt)) {
                 QPainter painter(&m_canvas);
                 painter.setPen(QPen(QColor(QStringLiteral("#f8f8f8")), 23, Qt::SolidLine, Qt::RoundCap));
                 painter.drawPoint(canvasPt);
@@ -1610,6 +1677,15 @@ protected:
         if (m_sampleHideTimer) {
             m_sampleHideTimer->stop();
         }
+        if (m_hideSample) {
+            m_hideSample->hide();
+        }
+        if (m_fwdSample) {
+            m_fwdSample->hide();
+        }
+        if (m_sampleTimerLabel) {
+            m_sampleTimerLabel->hide();
+        }
         // 18.4: красную блокировку 2.2 не снимать по «Стоп».
         if (m_exerciseId == QStringLiteral("2.2") && m_redPhaseActive) {
             const QString path = scansDirectory() + QStringLiteral("/") + m_exerciseId
@@ -1626,6 +1702,19 @@ protected:
             }
             TimedSessionRunner::finish();
             showRedOverlays();
+            return;
+        }
+        // 19.2: после Стоп — коллаж всех выполненных карточек (как в РП / exbegin).
+        if (m_exerciseId == QStringLiteral("2.3")) {
+            teardownPatientPaintUi();
+            m_capturePath = buildSummaryCollage23();
+            if (m_palette) {
+                m_palette->hide();
+            }
+            if (m_hintToggle) {
+                m_hintToggle->hide();
+            }
+            TimedSessionRunner::finish();
             return;
         }
         hideRedOverlays();
