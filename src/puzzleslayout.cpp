@@ -187,7 +187,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->rotateAllowed = true;
         layout->selectMode = false;
         layout->showTemplate = true;
-        layout->templateX = 700;
+        layout->templateX = 1200; // 700 + 500
         layout->templateY = 250; // как pexample.Top
         const QString slug = stepId;
         layout->templateFile = QStringLiteral("t") + slug + QStringLiteral(".png");
@@ -207,7 +207,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         if (pieceCount <= 0) {
             return false;
         }
-        constexpr int kRightShift = 900; // 100→1000 — правая половина
+        constexpr int kRightShift = 830; // 900 − 70 влево
         constexpr int kDownShift = 200;
         for (int i = 1; i <= pieceCount; ++i) {
             int x = 100;
