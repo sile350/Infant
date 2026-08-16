@@ -3919,6 +3919,12 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
             // 1.19: Изображение / Факт / Характер / Виды помощи.
             applied = setFixed({185, 95, 196, 195});
         } else if (cols == 4
+                   && headerJoin.contains(QStringLiteral("Изображение"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)) {
+            // 1.20: Изображение / Характер / Виды помощи / Баллы — 110+255+256+50.
+            applied = setFixed({110, 255, 256, 50});
+        } else if (cols == 4
                    && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
                    && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
             applied = setFixed({35, 145, 245, 246});

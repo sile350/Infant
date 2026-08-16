@@ -655,47 +655,48 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->rotateAllowed = true;
         layout->selectMode = false;
         layout->showTemplate = true;
-        layout->templateX = 700;
-        layout->templateY = 100;
+        // Трафарет 1260×200; подсказка 40×200; фрагменты между ними на той же высоте.
+        layout->templateX = 1260;
+        layout->templateY = 200;
         const QString step = stepId.trimmed();
         if (step == QStringLiteral("Мяч 2")) {
             layout->templateFile = QStringLiteral("tмяч2.png");
-            addSprite(layout, QStringLiteral("мяч21.png"), 100, 100);
-            addSprite(layout, QStringLiteral("мяч22.png"), 130, 130);
+            addSprite(layout, QStringLiteral("мяч21.png"), 420, 200);
+            addSprite(layout, QStringLiteral("мяч22.png"), 620, 230);
             return true;
         }
         if (step == QStringLiteral("Дом 3")) {
             layout->templateFile = QStringLiteral("tдом3.png");
-            addSprite(layout, QStringLiteral("дом31.png"), 100, 100);
-            addSprite(layout, QStringLiteral("дом32.png"), 100, 100);
-            addSprite(layout, QStringLiteral("дом33.png"), 100, 100);
+            addSprite(layout, QStringLiteral("дом31.png"), 380, 200);
+            addSprite(layout, QStringLiteral("дом32.png"), 560, 220);
+            addSprite(layout, QStringLiteral("дом33.png"), 740, 240);
             return true;
         }
         if (step == QStringLiteral("Мишка 4")) {
             layout->templateFile = QStringLiteral("tмишка4.png");
-            addSprite(layout, QStringLiteral("мишка41.png"), 100, 100);
-            addSprite(layout, QStringLiteral("мишка42.png"), 100, 100);
-            addSprite(layout, QStringLiteral("мишка43.png"), 100, 100);
-            addSprite(layout, QStringLiteral("мишка44.png"), 100, 100);
+            addSprite(layout, QStringLiteral("мишка41.png"), 350, 200);
+            addSprite(layout, QStringLiteral("мишка42.png"), 520, 220);
+            addSprite(layout, QStringLiteral("мишка43.png"), 690, 240);
+            addSprite(layout, QStringLiteral("мишка44.png"), 520, 360);
             return true;
         }
         if (step == QStringLiteral("Машинка 5")) {
             layout->templateFile = QStringLiteral("tмашинка5.png");
-            addSprite(layout, QStringLiteral("машинка51.png"), 100, 100);
-            addSprite(layout, QStringLiteral("машинка52.png"), 100, 100);
-            addSprite(layout, QStringLiteral("машинка53.png"), 100, 100);
-            addSprite(layout, QStringLiteral("машинка54.png"), 100, 100, 953, 354);
-            addSprite(layout, QStringLiteral("машинка55.png"), 100, 100);
+            addSprite(layout, QStringLiteral("машинка51.png"), 320, 200);
+            addSprite(layout, QStringLiteral("машинка52.png"), 470, 220);
+            addSprite(layout, QStringLiteral("машинка53.png"), 620, 240);
+            addSprite(layout, QStringLiteral("машинка54.png"), 770, 220, 953, 354);
+            addSprite(layout, QStringLiteral("машинка55.png"), 540, 360);
             return true;
         }
         if (step == QStringLiteral("Чайник 6")) {
             layout->templateFile = QStringLiteral("tчайник6.png");
-            addSprite(layout, QStringLiteral("чайник61.png"), 100, 100);
-            addSprite(layout, QStringLiteral("чайник62.png"), 100, 100);
-            addSprite(layout, QStringLiteral("чайник63.png"), 100, 100);
-            addSprite(layout, QStringLiteral("чайник64.png"), 100, 100);
-            addSprite(layout, QStringLiteral("чайник65.png"), 100, 100);
-            addSprite(layout, QStringLiteral("чайник66.png"), 100, 100);
+            addSprite(layout, QStringLiteral("чайник61.png"), 300, 200);
+            addSprite(layout, QStringLiteral("чайник62.png"), 430, 215);
+            addSprite(layout, QStringLiteral("чайник63.png"), 560, 230);
+            addSprite(layout, QStringLiteral("чайник64.png"), 690, 245);
+            addSprite(layout, QStringLiteral("чайник65.png"), 820, 220);
+            addSprite(layout, QStringLiteral("чайник66.png"), 540, 360);
             return true;
         }
         return false;

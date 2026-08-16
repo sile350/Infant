@@ -3794,7 +3794,8 @@ private:
         m_patientCanvas->raise();
         if (m_patientRotateHint
             && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
-                || m_exerciseId == QStringLiteral("1.19"))) {
+                || m_exerciseId == QStringLiteral("1.19")
+                || m_exerciseId == QStringLiteral("1.20"))) {
             m_patientRotateHint->show();
             m_patientRotateHint->raise();
         } else if (m_patientRotateHint) {
@@ -3836,18 +3837,22 @@ private:
         m_patientRoot->setGeometry(0, 0, w, h);
         m_patientCanvas->setGeometry(0, 0, w, h);
         m_patientCanvas->raise();
-        // Как на 1-м экране: rotate_hint @ (1400, 150) в координатах 1920×1080.
+        // Как на 1-м экране: rotate_hint в координатах 1920×1080.
         if (m_patientRotateHint
             && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
-                || m_exerciseId == QStringLiteral("1.19"))) {
+                || m_exerciseId == QStringLiteral("1.19")
+                || m_exerciseId == QStringLiteral("1.20"))) {
             constexpr int kDesignW = 1920;
             constexpr int kDesignH = 1080;
             const double sx = w > 0 ? static_cast<double>(w) / kDesignW : 1.0;
             const double sy = h > 0 ? static_cast<double>(h) / kDesignH : 1.0;
-            // 1.19: рядом с зоной трафарета; 1.14/2: как на 1-м экране @ (1400,150).
+            // 1.20: ~1450×200; 1.19: рядом с зоной трафарета; 1.14/2: @ (1400,150).
             double hx = 1400.0;
             double hy = 150.0;
-            if (m_exerciseId == QStringLiteral("1.19")) {
+            if (m_exerciseId == QStringLiteral("1.20")) {
+                hx = 1450.0;
+                hy = 200.0;
+            } else if (m_exerciseId == QStringLiteral("1.19")) {
                 hx = 1400.0;
                 hy = (m_stepId.contains(QStringLiteral("Матрешка"))
                       || m_stepId.contains(QStringLiteral("Мишка")))
@@ -4064,9 +4069,9 @@ private:
             return;
         }
         if (m_exerciseId == QStringLiteral("1.20")) {
-            // puzzles.cs: pstop 977@70; pcntr 1450@100, pto = +100.
+            // puzzles.cs / ТЗ 10.7: опустить вместе с заданием (~Y=200).
             placeStop(977.0, 70.0);
-            placeRotateHint(1450.0, 100.0);
+            placeRotateHint(1450.0, 200.0);
             return;
         }
         if (m_exerciseId == QStringLiteral("1.19")) {

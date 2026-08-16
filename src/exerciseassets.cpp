@@ -244,6 +244,10 @@ QString ExerciseAssets::prepareOrHtml(
     result.replace(
         QStringLiteral("<a id='procedure' style='font-size:16px; color:#000000' href='###'>"),
         QStringLiteral("<a id='procedure' style='font-size:16px; color:#000000' href='#procedure'>"));
+    // 1.20 и др.: без пробела после «;» в style.
+    result.replace(
+        QStringLiteral("<a id='procedure' style='font-size:16px;color:#000000' href='###'>"),
+        QStringLiteral("<a id='procedure' style='font-size:16px;color:#000000' href='#procedure'>"));
     result.replace(
         QStringLiteral("id='analis' style='font-size:16px;color:#000000' href='###'"),
         QStringLiteral("id='analis' style='font-size:16px;color:#000000' href='#analis'"));

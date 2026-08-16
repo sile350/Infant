@@ -114,8 +114,8 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         m_hintX = 31;
         m_hintY = 250;
     } else if (exerciseId == QStringLiteral("1.20")) {
-        // puzzles.cs: pexample.Top = 200.
-        m_hintX = 31;
+        // Подсказка 40×200; трафарет 1260×200.
+        m_hintX = 40;
         m_hintY = 200;
     } else if (exerciseId == QStringLiteral("1.19")) {
         // Подсказка слева: гориз. 50×310, верт. 50×240.
