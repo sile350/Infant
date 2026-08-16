@@ -6776,7 +6776,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                 tdCountIt.next();
                 ++tdCount;
             }
-            if (tdCount != 3 && tdCount != 4) {
+            if (tdCount != 3 && tdCount != 4 && tdCount != 5) {
                 continue;
             }
         }

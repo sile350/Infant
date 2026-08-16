@@ -34,6 +34,7 @@
 #include <QGuiApplication>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -747,6 +748,12 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
     evaluationLayout->addWidget(evalTitle);
     evaluationLayout->addSpacing(12);
 
+    ensureFindMark21Panel();
+    if (m_findMark21Panel) {
+        evaluationLayout->addWidget(m_findMark21Panel);
+        evaluationLayout->addSpacing(8);
+    }
+
     m_activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     m_activityTitle->setAlignment(Qt::AlignCenter);
     m_activityTitle->setStyleSheet(QStringLiteral(
@@ -1243,6 +1250,7 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         }
         refreshRotateCombos();
         reloadPreviewForCurrentStep();
+        updateFindMark21TimesForStep();
         updateExerciseOptionsPanel();
         updateChromeLayout();
         if (m_exerciseRunning && m_onlyP && !m_sessionStepId.isEmpty()) {
@@ -2285,6 +2293,349 @@ void ExerciseHost::layoutWords511Panel() {
     }
 }
 
+namespace {
+
+QString replaceHtmlDivInnerById(QString html, const QString &divId, const QString &innerHtml) {
+    const QRegularExpression re(
+        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
+            .arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = re.match(html);
+    if (!match.hasMatch()) {
+        return html;
+    }
+    return html.left(match.capturedStart())
+        + match.captured(1) + innerHtml + match.captured(3)
+        + html.mid(match.capturedEnd());
+}
+
+QString replaceLastHtmlDivInnerById(QString html, const QString &divId, const QString &innerHtml) {
+    const QRegularExpression re(
+        QStringLiteral("(<div\\b[^>]*\\bid\\s*=\\s*['\"]%1['\"][^>]*>)([\\s\\S]*?)(</div>)")
+            .arg(QRegularExpression::escape(divId)),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator it = re.globalMatch(html);
+    QRegularExpressionMatch last;
+    bool found = false;
+    while (it.hasNext()) {
+        last = it.next();
+        found = true;
+    }
+    if (!found) {
+        return html;
+    }
+    return html.left(last.capturedStart())
+        + last.captured(1) + innerHtml + last.captured(3)
+        + html.mid(last.capturedEnd());
+}
+
+double parseLocaleDouble(QString text, bool *ok) {
+    text = text.trimmed();
+    text.replace(QLatin1Char(','), QLatin1Char('.'));
+    return text.toDouble(ok);
+}
+
+int findMark21BallsFromS(double value) {
+    // Как exbegin.cs buildGraph для 2.1 (детальная шкала внутри диапазонов ТЗ).
+    if (value > 1.25) {
+        return 10;
+    }
+    if (value <= 1.25 && value >= 1.12) {
+        return 9;
+    }
+    if (value < 1.12 && value >= 1.0) {
+        return 8;
+    }
+    if (value < 1.0 && value >= 0.87) {
+        return 7;
+    }
+    if (value < 0.87 && value >= 0.75) {
+        return 6;
+    }
+    if (value < 0.75 && value >= 0.62) {
+        return 5;
+    }
+    if (value < 0.62 && value >= 0.5) {
+        return 4;
+    }
+    if (value < 0.5 && value >= 0.36) {
+        return 3;
+    }
+    if (value < 0.36 && value >= 0.24) {
+        return 2;
+    }
+    if (value < 0.24 && value >= 0.1) {
+        return 1;
+    }
+    return 0;
+}
+
+QString findMark21ConclusionFromBalls(int balls) {
+    if (balls >= 10) {
+        return QStringLiteral(
+            "продуктивность внимания очень высокая, устойчивость внимания очень высокая.");
+    }
+    if (balls >= 8) {
+        return QStringLiteral(
+            "продуктивность внимания высокая, устойчивость внимания высокая.");
+    }
+    if (balls >= 4) {
+        return QStringLiteral(
+            "продуктивность внимания средняя, устойчивость внимания средняя.");
+    }
+    if (balls >= 2) {
+        return QStringLiteral(
+            "продуктивность внимания низкая, устойчивость внимания низкая.");
+    }
+    return QStringLiteral(
+        "продуктивность внимания очень низкая, устойчивость внимания очень низкая.");
+}
+
+} // namespace
+
+void ExerciseHost::ensureFindMark21Panel() {
+    if (m_findMark21Panel) {
+        return;
+    }
+    m_findMark21Panel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
+    m_findMark21Panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    auto *outer = new QVBoxLayout(m_findMark21Panel);
+    outer->setContentsMargins(4, 4, 4, 4);
+    outer->setSpacing(8);
+
+    auto *tableHost = new QWidget(m_findMark21Panel);
+    tableHost->setAttribute(Qt::WA_StyledBackground, true);
+    tableHost->setStyleSheet(QStringLiteral(
+        "QWidget { background:#ffffff; }"
+        "QLineEdit {"
+        "  background:#ffffff; color:#000000; border:1px solid #000000;"
+        "  font-family:'Microsoft Sans Serif',sans-serif; font-size:13px;"
+        "  padding:2px; min-height:22px;"
+        "}"
+        "QLabel {"
+        "  color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:13px;"
+        "}"));
+    auto *grid = new QGridLayout(tableHost);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setHorizontalSpacing(0);
+    grid->setVerticalSpacing(0);
+
+    const QString cellBorder = QStringLiteral(
+        "border:1px solid #000000; padding:4px; background:#ffffff;");
+    auto makeHeader = [&](const QString &text) {
+        auto *lab = new QLabel(text, tableHost);
+        lab->setWordWrap(true);
+        lab->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        lab->setStyleSheet(cellBorder);
+        return lab;
+    };
+    auto makeCenterLabel = [&](const QString &text = QString()) {
+        auto *lab = new QLabel(text, tableHost);
+        lab->setAlignment(Qt::AlignCenter);
+        lab->setStyleSheet(cellBorder);
+        lab->setMinimumWidth(52);
+        return lab;
+    };
+
+    grid->addWidget(makeHeader(QStringLiteral("t (время работы (сек.))")), 0, 0);
+    grid->addWidget(makeHeader(QStringLiteral("N (количество просмотренных предметов)")), 1, 0);
+    grid->addWidget(makeHeader(QStringLiteral("n (количество ошибок)")), 2, 0);
+    grid->addWidget(makeHeader(QStringLiteral("S (продуктивность)")), 3, 0);
+    auto *ballsHeader = makeHeader(QStringLiteral("Баллы (продуктивность)"));
+    grid->addWidget(ballsHeader, 4, 0, 1, 6);
+
+    for (int i = 0; i < 6; ++i) {
+        m_findMark21TimeLabels[i] = makeCenterLabel(i < 5 ? QStringLiteral("30") : QStringLiteral("150"));
+        grid->addWidget(m_findMark21TimeLabels[i], 0, i + 1);
+
+        m_findMark21NEdits[i] = new QLineEdit(tableHost);
+        m_findMark21NEdits[i]->setAlignment(Qt::AlignCenter);
+        m_findMark21NEdits[i]->setFixedWidth(52);
+        grid->addWidget(m_findMark21NEdits[i], 1, i + 1);
+
+        m_findMark21ErrEdits[i] = new QLineEdit(tableHost);
+        m_findMark21ErrEdits[i]->setAlignment(Qt::AlignCenter);
+        m_findMark21ErrEdits[i]->setFixedWidth(52);
+        grid->addWidget(m_findMark21ErrEdits[i], 2, i + 1);
+
+        m_findMark21SLabels[i] = makeCenterLabel();
+        grid->addWidget(m_findMark21SLabels[i], 3, i + 1);
+    }
+    // Колонка 6 (сумма): N/n считаются автоматически — только чтение.
+    m_findMark21NEdits[5]->setReadOnly(true);
+    m_findMark21ErrEdits[5]->setReadOnly(true);
+
+    m_findMark21BallsLabel = makeCenterLabel();
+    grid->addWidget(m_findMark21BallsLabel, 4, 6);
+
+    grid->setColumnStretch(0, 1);
+    outer->addWidget(tableHost);
+
+    m_findMark21BuildButton = new ImageButton(m_findMark21Panel);
+    const QString buildPath = ExerciseAssets::sysImage(QStringLiteral("build.png"));
+    if (!buildPath.isEmpty()) {
+        m_findMark21BuildButton->setImagePath(buildPath);
+        m_findMark21BuildButton->setFixedSize(189, 34);
+    } else {
+        m_findMark21BuildButton->setText(QStringLiteral("Построить график"));
+        m_findMark21BuildButton->setFixedSize(189, 34);
+        m_findMark21BuildButton->setStyleSheet(QStringLiteral(
+            "QLabel { background:#e8e8e8; border:1px solid #888; color:#000;"
+            " font-family:'Microsoft Sans Serif',sans-serif; font-size:13px; }"));
+        m_findMark21BuildButton->setAlignment(Qt::AlignCenter);
+    }
+    m_findMark21BuildButton->setToolTip(QStringLiteral("Построить график"));
+    connect(m_findMark21BuildButton, &ImageButton::clicked, this, [this]() {
+        buildFindMark21Graph(true);
+        updateContentHeights();
+    });
+    outer->addWidget(m_findMark21BuildButton, 0, Qt::AlignHCenter);
+
+    m_findMark21Graph = new QLabel(m_findMark21Panel);
+    m_findMark21Graph->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_findMark21Graph->setStyleSheet(QStringLiteral("background:transparent;"));
+    m_findMark21Graph->hide();
+    outer->addWidget(m_findMark21Graph, 0, Qt::AlignHCenter);
+
+    m_findMark21Panel->hide();
+}
+
+void ExerciseHost::updateFindMark21PanelVisibility() {
+    ensureFindMark21Panel();
+    if (!m_findMark21Panel) {
+        return;
+    }
+    const bool show = m_exerciseId == QStringLiteral("2.1");
+    m_findMark21Panel->setVisible(show);
+    if (!show) {
+        return;
+    }
+    updateFindMark21TimesForStep();
+}
+
+void ExerciseHost::updateFindMark21TimesForStep() {
+    if (!m_findMark21Panel || m_exerciseId != QStringLiteral("2.1")) {
+        return;
+    }
+    const QString step = currentStepId().trimmed();
+    const bool isStep3 = step == QStringLiteral("3");
+    const QString interval = isStep3 ? QStringLiteral("60") : QStringLiteral("30");
+    const QString total = isStep3 ? QStringLiteral("300") : QStringLiteral("150");
+    for (int i = 0; i < 5; ++i) {
+        if (m_findMark21TimeLabels[i]) {
+            m_findMark21TimeLabels[i]->setText(interval);
+        }
+    }
+    if (m_findMark21TimeLabels[5]) {
+        m_findMark21TimeLabels[5]->setText(total);
+    }
+}
+
+bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
+    if (m_exerciseId != QStringLiteral("2.1")) {
+        return false;
+    }
+    ensureFindMark21Panel();
+    updateFindMark21TimesForStep();
+
+    double nVals[5] = {};
+    double eVals[5] = {};
+    double sVals[5] = {};
+    const QString step = currentStepId().trimmed();
+    const bool isStep3 = step == QStringLiteral("3");
+    const double intervalT = isStep3 ? 60.0 : 30.0;
+    const double totalT = isStep3 ? 300.0 : 150.0;
+
+    for (int i = 0; i < 5; ++i) {
+        bool okN = false;
+        bool okE = false;
+        nVals[i] = parseLocaleDouble(m_findMark21NEdits[i] ? m_findMark21NEdits[i]->text() : QString(), &okN);
+        eVals[i] = parseLocaleDouble(m_findMark21ErrEdits[i] ? m_findMark21ErrEdits[i]->text() : QString(), &okE);
+        if (!okN) {
+            nVals[i] = 0.0;
+        }
+        if (!okE) {
+            eVals[i] = 0.0;
+        }
+        // ТЗ: S = (0,5N − 2,8n) / t
+        sVals[i] = (0.5 * nVals[i] - 2.8 * eVals[i]) / intervalT;
+        sVals[i] = qRound(sVals[i] * 100.0) / 100.0;
+        if (m_findMark21SLabels[i]) {
+            m_findMark21SLabels[i]->setText(QString::number(sVals[i], 'f', 2));
+        }
+    }
+
+    double nSum = 0.0;
+    double eSum = 0.0;
+    for (int i = 0; i < 5; ++i) {
+        nSum += nVals[i];
+        eSum += eVals[i];
+    }
+    if (m_findMark21NEdits[5]) {
+        m_findMark21NEdits[5]->setText(QString::number(nSum, 'f', 0));
+    }
+    if (m_findMark21ErrEdits[5]) {
+        m_findMark21ErrEdits[5]->setText(QString::number(eSum, 'f', 0));
+    }
+    double sTotal = (0.5 * nSum - 2.8 * eSum) / totalT;
+    sTotal = qRound(sTotal * 100.0) / 100.0;
+    if (m_findMark21SLabels[5]) {
+        m_findMark21SLabels[5]->setText(QString::number(sTotal, 'f', 2));
+    }
+
+    const int balls = findMark21BallsFromS(sTotal);
+    m_findMark21Balls = balls;
+    m_findMark21Conclusion = findMark21ConclusionFromBalls(balls);
+    if (m_findMark21BallsLabel) {
+        m_findMark21BallsLabel->setText(QString::number(balls));
+    }
+
+    if (showGraph && m_findMark21Graph) {
+        const QString graphFile = isStep3 ? QStringLiteral("graph2.png") : QStringLiteral("graph11.png");
+        const QString graphPath = ExerciseAssets::exerciseFile(QStringLiteral("2.1"), graphFile);
+        if (!graphPath.isEmpty() && m_findMark21GraphBase.load(graphPath)) {
+            QPixmap canvas = m_findMark21GraphBase;
+            QPainter painter(&canvas);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            QPen pen(QColor(239, 71, 227), 5);
+            painter.setPen(pen);
+
+            auto coordByValue = [](double value) -> int {
+                const double x = value * 100.0 / 1.25;
+                double xx = 180.0 * x / 100.0;
+                xx = 226.0 - xx;
+                return qRound(xx);
+            };
+            constexpr int dY = 60;
+            const int xs[] = {164, 216, 270, 321, 372};
+            QPoint prev(xs[0], coordByValue(sVals[0]) + dY);
+            for (int i = 1; i < 5; ++i) {
+                const QPoint next(xs[i], coordByValue(sVals[i]) + dY);
+                painter.drawLine(prev, next);
+                prev = next;
+            }
+            painter.end();
+            m_findMark21Graph->setPixmap(canvas);
+            m_findMark21Graph->setFixedSize(canvas.size());
+            m_findMark21Graph->show();
+        }
+    }
+    return true;
+}
+
+QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
+    if (m_findMark21Balls < 0 || body.trimmed().isEmpty()) {
+        return body;
+    }
+    const QString ballsText = QString::number(m_findMark21Balls);
+    const QString resultText =
+        ballsText + QStringLiteral(" — ") + m_findMark21Conclusion;
+    body = replaceLastHtmlDivInnerById(body, QStringLiteral("idprod"), ballsText);
+    body = replaceLastHtmlDivInnerById(body, QStringLiteral("idstab"), ballsText);
+    body = replaceHtmlDivInnerById(body, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
+    return body;
+}
+
 void ExerciseHost::updatePreviewLayout() {
     if (m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("4.2.1")) {
@@ -3271,6 +3622,8 @@ void ExerciseHost::loadExercise() {
     m_currentProtocolId.clear();
     m_protocolSavedThisSession = false;
     m_cursorInBallsColumn = false;
+    m_findMark21Balls = -1;
+    m_findMark21Conclusion.clear();
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
     finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateProtocolEditMode();
@@ -3278,6 +3631,8 @@ void ExerciseHost::loadExercise() {
     if (m_donePanel) {
         m_donePanel->setVisible(needsDoneStatePanel());
     }
+    updateFindMark21PanelVisibility();
+    updateFindMark21TimesForStep();
     for (const ExerciseCheckRow &row : m_doneChecks) {
         if (row.box) {
             row.box->setChecked(false);
@@ -5117,6 +5472,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.25")
                || m_exerciseId == QStringLiteral("1.28")
                || m_exerciseId == QStringLiteral("1.29")
+               || m_exerciseId == QStringLiteral("2.1")
                || m_exerciseId == QStringLiteral("2.8")
                || m_exerciseId == QStringLiteral("2.9")
                || m_exerciseId == QStringLiteral("2.10")
@@ -5350,6 +5706,11 @@ void ExerciseHost::formProtocol() {
             checkboxValues(),
             session);
         m_forceNewProtocolSession = false;
+    }
+
+    if (m_exerciseId == QStringLiteral("2.1")) {
+        buildFindMark21Graph(false);
+        protocolBody = applyFindMark21ScoresToProtocolBody(protocolBody);
     }
 
     QString error;

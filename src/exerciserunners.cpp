@@ -856,7 +856,10 @@ protected:
         m_hasLast = true;
         updateCanvasDisplay();
         syncPatientPaintDisplay();
+        afterPaintStroke();
     }
+
+    virtual void afterPaintStroke() {}
 
     bool eventFilter(QObject *watched, QEvent *event) override {
         if (watched == m_patientPicture && m_patientPicture) {
@@ -1098,10 +1101,11 @@ public:
 
         m_redTimer = new QTimer(this);
         connect(m_redTimer, &QTimer::timeout, this, [this]() {
-            // 2.1: кисть остаётся красной (и на 1-м, и на 2-м экране).
+            // 17.5: после красного поля — синяя кисть до «Продолжить».
             if (m_exerciseId == QStringLiteral("2.1")) {
-                m_brushColor = QColor(QStringLiteral("#e02020"));
+                m_brushColor = QColor(QStringLiteral("#4220ef"));
                 m_brushWidth = 6;
+                m_redPhaseActive = true;
             }
             if (m_redOverlay) {
                 m_redOverlay->setGeometry(m_picture->geometry());
@@ -1117,11 +1121,8 @@ public:
             if (m_exerciseId != QStringLiteral("2.1")) {
                 return;
             }
-            m_redOverlay->hide();
-            if (m_continueButton) {
-                m_continueButton->show();
-                m_continueButton->raise();
-            }
+            // 17.6: красное выделение не снимать — только показать «Продолжить».
+            offerContinueButton();
         };
 
         m_continueButton = new ClickableLabel(this);
@@ -1133,7 +1134,10 @@ public:
                 finish();
                 return;
             }
-            m_redOverlay->hide();
+            m_redPhaseActive = false;
+            if (m_redOverlay) {
+                m_redOverlay->hide();
+            }
             if (m_continueButton) {
                 m_continueButton->hide();
             }
@@ -1184,6 +1188,7 @@ public:
         m_capturePath.clear();
         m_dotime = 0;
         m_cycles = 0;
+        m_redPhaseActive = false;
         m_drawing = false;
         m_hasLast = false;
         m_tu = 11;
@@ -1252,6 +1257,22 @@ public:
         layoutUi();
         if (m_patientDisplay && usesPatientPaintCanvas()) {
             bindPatientDisplay(m_patientDisplay);
+        }
+    }
+
+    void offerContinueButton() {
+        if (!m_continueButton || m_exerciseId != QStringLiteral("2.1")) {
+            return;
+        }
+        layoutUi();
+        m_continueButton->show();
+        m_continueButton->raise();
+    }
+
+    void afterPaintStroke() override {
+        // 17.7: после красного поля рисование на любом экране показывает «Продолжить».
+        if (m_redPhaseActive && m_exerciseId == QStringLiteral("2.1")) {
+            offerContinueButton();
         }
     }
 
@@ -1475,6 +1496,7 @@ protected:
     QTimer *m_sampleHideTimer = nullptr;
     int m_dotime = 0;
     int m_cycles = 0;
+    bool m_redPhaseActive = false;
     int m_tu = 11;
     bool m_sampleHidden = false;
     int m_sampleHideSeconds = 0;

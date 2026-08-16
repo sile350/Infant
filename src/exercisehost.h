@@ -13,6 +13,7 @@
 
 class ImageButton;
 class QLabel;
+class QLineEdit;
 class QTextBrowser;
 class QTextEdit;
 class QScrollArea;
@@ -94,6 +95,11 @@ private:
     void ensureWords511Panel();
     void layoutWords511Panel();
     void setWords511TableEditable(bool editable);
+    void ensureFindMark21Panel();
+    void updateFindMark21PanelVisibility();
+    void updateFindMark21TimesForStep();
+    bool buildFindMark21Graph(bool showGraph);
+    QString applyFindMark21ScoresToProtocolBody(QString body) const;
     void ensureDigitsPreviewRunner();
     void connectSessionRunnerFinished();
     void handleSessionRunnerFinished(const ExerciseSessionResult &result);
@@ -208,6 +214,17 @@ private:
     bool m_words422Editable = false;
     QWidget *m_words511Panel = nullptr;
     QTableWidget *m_words511Table = nullptr;
+    QWidget *m_findMark21Panel = nullptr;
+    QLabel *m_findMark21TimeLabels[6] = {};
+    QLineEdit *m_findMark21NEdits[6] = {};
+    QLineEdit *m_findMark21ErrEdits[6] = {};
+    QLabel *m_findMark21SLabels[6] = {};
+    QLabel *m_findMark21BallsLabel = nullptr;
+    ImageButton *m_findMark21BuildButton = nullptr;
+    QLabel *m_findMark21Graph = nullptr;
+    QPixmap m_findMark21GraphBase;
+    int m_findMark21Balls = -1;
+    QString m_findMark21Conclusion;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;
     QLabel *m_timeResultLabel = nullptr;
