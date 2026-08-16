@@ -79,10 +79,12 @@ bool exerciseUsesSingleScanSlot(const QString &uprid) {
 }
 
 bool exerciseDisablesProtocolScanLinks(const QString &uprid) {
-    return uprid == QStringLiteral("3.3.1") || uprid == QStringLiteral("3.3.2");
+    return uprid == QStringLiteral("3.3.1")
+        || uprid == QStringLiteral("3.3.2")
+        || uprid == QStringLiteral("3.3.3");
 }
 
-// Убрать «скачать» / «Показать изображение» из протоколов без сканов (3.3.1, 3.3.2).
+// Убрать «скачать» / «Показать изображение» из протоколов без сканов (3.3.1–3.3.3).
 void stripScanUiFromProtocolHtml(QString *html) {
     if (!html || html->isEmpty()) {
         return;
@@ -1129,6 +1131,7 @@ bool Repository::updateProtocolsFromEditedDocument(
             || uprid == QStringLiteral("4.1.4")
             || uprid == QStringLiteral("4.1.5")
             || uprid == QStringLiteral("4.1.6")
+            || uprid == QStringLiteral("4.1.7")
             || uprid == QStringLiteral("4.2.1")
             || uprid == QStringLiteral("4.2.2")
             || uprid == QStringLiteral("5.1.1")
@@ -1221,6 +1224,7 @@ bool Repository::updateProtocolsFromEditedDocument(
                 || uprid == QStringLiteral("4.1.4")
                 || uprid == QStringLiteral("4.1.5")
                 || uprid == QStringLiteral("4.1.6")
+                || uprid == QStringLiteral("4.1.7")
                 || uprid == QStringLiteral("4.2.1")
                 || uprid == QStringLiteral("4.2.2")
                 || uprid == QStringLiteral("5.1.1")

@@ -30,6 +30,8 @@ public:
     };
     QVector<SpritePose> spritePoses() const;
     void applySpritePoses(const QVector<SpritePose> &poses);
+    // 33.6: фаза/подсказки с экрана врача на экран пациента.
+    void mirrorPhaseUiFrom(const RememberCanvas *source);
 
 signals:
     void stopRequested();

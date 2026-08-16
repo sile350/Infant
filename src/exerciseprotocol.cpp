@@ -799,6 +799,41 @@ void collectTables(QTextFrame *frame, QList<QTextTable *> &tables) {
     }
 }
 
+// Последняя строка «Результат» из живых таблиц (без привязки к секции Дата — idvivod часто теряется).
+QString readLastResultPlainFromDocument(QTextDocument *document) {
+    if (!document) {
+        return {};
+    }
+    QString result;
+    QList<QTextTable *> tables;
+    collectTables(document->rootFrame(), tables);
+    for (QTextTable *table : tables) {
+        if (!table || table->columns() < 2) {
+            continue;
+        }
+        for (int r = 0; r < table->rows(); ++r) {
+            const QString first = readTableCellText(table, r, 0);
+            if (!first.contains(QStringLiteral("Результат"), Qt::CaseInsensitive)) {
+                continue;
+            }
+            result = stripScanDisplayLabelsFromResult(
+                readTableCellMultilineText(table, r, 1));
+        }
+    }
+    return result;
+}
+
+bool isAutoOrPlaceholderResultText(const QString &text) {
+    const QString t = text.trimmed();
+    if (t.isEmpty() || t == QStringLiteral("(10)")) {
+        return true;
+    }
+    static const QRegularExpression autoRe(
+        QStringLiteral("^\\d+(?:[.,]\\d+)?\\(10\\)/"),
+        QRegularExpression::CaseInsensitiveOption);
+    return autoRe.match(t).hasMatch();
+}
+
 // В т.ч. таблицы, вложенные Qt в ячейку шапки (без </table> до процесса).
 void collectTablesDeep(QTextFrame *frame, QList<QTextTable *> &tables) {
     if (!frame) {
@@ -5177,6 +5212,19 @@ QString ExerciseProtocol::mergeLimitedEditableFieldsIntoStoredBody(
     }
     ParsedProtocolFields parsed = parseProtocolFieldsFromDocument(editorDocument, editorSectionIndex);
 
+    // «Результат» — как «Примечание»: из таблиц (idvivod часто теряется после Qt).
+    {
+        const QString fromTable = readLastResultPlainFromDocument(editorDocument);
+        if (!fromTable.isEmpty() || parsed.hasResult) {
+            parsed.hasResult = true;
+            if (!fromTable.isEmpty()) {
+                parsed.resultText = fromTable;
+            } else {
+                parsed.resultText = stripScanDisplayLabelsFromResult(parsed.resultText);
+            }
+        }
+    }
+
     // Примечание из таблицы / idnote (на «Протоколы» id часто теряется).
     QString noteFromTable;
     bool haveNoteFromTable = false;
@@ -7282,8 +7330,8 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
         }
     }
     // Текст «Результат» из редактора: не затирать ручной ввод автосуммой баллов.
-    QString editorResultPlain;
-    if (editorDocument) {
+    QString editorResultPlain = readLastResultPlainFromDocument(editorDocument);
+    if (editorResultPlain.isEmpty() && editorDocument) {
         int editorSectionIndex = 0;
         const QStringList editorSessions =
             ExerciseProtocol::extractProtocolBodiesByDateRows(editorDocument->toHtml());
@@ -7295,34 +7343,22 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
         if (parsed.hasResult) {
             editorResultPlain = stripScanDisplayLabelsFromResult(parsed.resultText).trimmed();
         }
-        if (editorResultPlain.isEmpty()) {
-            const QString fromId = htmlFragmentToPlainText(
-                extractDivInnerById(editorDocument->toHtml(), QStringLiteral("idvivod")));
-            editorResultPlain = stripScanDisplayLabelsFromResult(fromId).trimmed();
-        }
     }
-    auto isAutoOrPlaceholderResult = [](const QString &text) {
-        const QString t = text.trimmed();
-        if (t.isEmpty() || t == QStringLiteral("(10)")) {
-            return true;
+
+    auto writeResultToChunk = [&](QString target, const QString &plain) {
+        if (target.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+            const QString merged = mergeResultTextPreservingScanPlaceholders(
+                plain, extractResultCellInnerHtml(target));
+            return replaceDivInnerById(
+                target, QStringLiteral("idvivod"), merged.toHtmlEscaped());
         }
-        static const QRegularExpression autoRe(
-            QStringLiteral("^\\d+(?:[.,]\\d+)?\\(10\\)/"),
-            QRegularExpression::CaseInsensitiveOption);
-        return autoRe.match(t).hasMatch();
+        return replaceResultRowSecondCell(target, plain);
     };
 
     if (!ok) {
-        // Баллов нет — сохранить ручной «Результат» из редактора.
+        // Баллов нет — сохранить ручной «Результат» из редактора (в т.ч. очистку не делаем).
         if (!editorResultPlain.isEmpty()) {
-            if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
-                const QString merged = mergeResultTextPreservingScanPlaceholders(
-                    editorResultPlain, extractResultCellInnerHtml(chunk));
-                chunk = replaceDivInnerById(
-                    chunk, QStringLiteral("idvivod"), merged.toHtmlEscaped());
-            } else {
-                chunk = replaceResultRowSecondCell(chunk, editorResultPlain);
-            }
+            chunk = writeResultToChunk(chunk, editorResultPlain);
         }
         if (multi) {
             sessions[sessions.size() - 1] = chunk;
@@ -7336,21 +7372,14 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
                                        .arg(formatBallsNumber(scoreInt), developmentLevelFromBalls(scoreInt));
         // Ручной текст (не плейсхолдер и не автошаблон N(10)/…) сохраняем как есть.
         const QString resultText =
-            (!editorResultPlain.isEmpty() && !isAutoOrPlaceholderResult(editorResultPlain)
+            (!editorResultPlain.isEmpty() && !isAutoOrPlaceholderResultText(editorResultPlain)
              && editorResultPlain != autoResult)
                 ? editorResultPlain
                 : autoResult;
         if (chunk.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)) {
             chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
         }
-        if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
-            const QString merged = mergeResultTextPreservingScanPlaceholders(
-                resultText, extractResultCellInnerHtml(chunk));
-            chunk = replaceDivInnerById(
-                chunk, QStringLiteral("idvivod"), merged.toHtmlEscaped());
-        } else {
-            chunk = replaceResultRowSecondCell(chunk, resultText);
-        }
+        chunk = writeResultToChunk(chunk, resultText);
 
         if (multi) {
             sessions[sessions.size() - 1] = chunk;

@@ -119,11 +119,13 @@ bool RememberCanvas::loadRememberLayout(
     }
 
     if (exerciseId == QStringLiteral("4.1.7")) {
-        // 1.png…9.png по маске rem.state; template traf.png @ (10,300).
+        // 1.png…9.png по маске rem.state; template traf.png.
+        // 33.4: всё на ~100 px ниже (ниже Стоп@70 минимум на 50).
+        constexpr int kYShift = 100;
         built.showTemplate = true;
         built.templateFile = QStringLiteral("traf.png");
         built.templateX = 10;
-        built.templateY = 300;
+        built.templateY = 300 + kYShift;
         const QStringList maskParts = remPictureMask.split(QLatin1Char(','));
         const bool useMask = !remPictureMask.trimmed().isEmpty();
         int linex = 10;
@@ -141,7 +143,7 @@ bool RememberCanvas::loadRememberLayout(
             s.file = file;
             s.name = QString::number(i);
             s.x = linex;
-            s.y = 250;
+            s.y = 250 + kYShift;
             built.sprites.append(s);
             linex += 200;
         }
@@ -237,9 +239,10 @@ void RememberCanvas::startExercise(
         m_templateY = 70 + 50;
         m_showTemplate = true;
     } else if (exerciseId == QStringLiteral("4.1.7")) {
+        constexpr int kYShift = 100;
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf.png")));
         m_templateX = 10;
-        m_templateY = 300;
+        m_templateY = 300 + kYShift;
         m_showTemplate = true;
     } else {
         // 1.27 / 3.1.21: без трафарета во время выполнения.
@@ -270,13 +273,15 @@ void RememberCanvas::startExercise(
     }
 
     if (exerciseId == QStringLiteral("4.1.7")) {
-        shuffleSprites(300);
+        constexpr int kYShift = 100;
+        // Запомнить: картинки на сетке ячеек (y=300+shift); кнопка «Убрать картинки».
+        shuffleSprites(300 + kYShift);
         for (int i = 0; i < m_sprites.size(); ++i) {
             m_hintRecords.append(
                 m_sprites[i].spriteId + QLatin1Char(';') + QString::number(m_sprites[i].homeSlotX));
         }
         m_removeButtonVisible = true;
-        m_removeButtonImage = QStringLiteral("showp.png");
+        m_removeButtonImage = QStringLiteral("deletep.png");
     } else if (exerciseId == QStringLiteral("1.27")) {
         // Как remember.cs: после перемешивания y = 650; ТЗ 14.3: +50.
         shuffleSprites(650 + 50);
@@ -353,6 +358,17 @@ void RememberCanvas::applySpritePoses(const QVector<SpritePose> &poses) {
     update();
 }
 
+void RememberCanvas::mirrorPhaseUiFrom(const RememberCanvas *source) {
+    if (!source || source == this) {
+        return;
+    }
+    m_phase = source->m_phase;
+    m_removeButtonVisible = source->m_removeButtonVisible;
+    m_removeButtonImage = source->m_removeButtonImage;
+    m_hintSprites = source->m_hintSprites;
+    update();
+}
+
 void RememberCanvas::updateRemoveButton() {
     emit removeButtonChanged();
 }
@@ -364,7 +380,8 @@ void RememberCanvas::advanceRemovePhase() {
 
     if (m_phase == 0) {
         m_phase = 1;
-        shuffleSprites(570);
+        constexpr int kYShift = 100;
+        shuffleSprites(570 + kYShift);
         m_hintSprites.clear();
         m_removeButtonImage = QStringLiteral("showp.png");
         update();
@@ -386,6 +403,7 @@ void RememberCanvas::advanceRemovePhase() {
     if (m_phase == 1) {
         m_phase = 2;
         m_hintSprites.clear();
+        constexpr int kHintY = 35 + 100;
         for (const QString &record : m_hintRecords) {
             const QStringList parts = record.split(QLatin1Char(';'));
             if (parts.size() < 2) {
@@ -398,7 +416,7 @@ void RememberCanvas::advanceRemovePhase() {
             }
             hint.pixmap = QPixmap(path);
             hint.x = parts.at(1).toInt();
-            hint.y = 35;
+            hint.y = kHintY;
             m_hintSprites.append(hint);
         }
         m_removeButtonImage = QStringLiteral("removep.png");

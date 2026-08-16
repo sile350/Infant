@@ -84,20 +84,22 @@ constexpr int kTemplateTableWidth = 671;
 constexpr int kTemplateViewportPadding = 4;
 constexpr int kRemThumbW = 180;
 constexpr int kRemThumbH = 233;
-constexpr int kRemPanelDownShift = 200;
+// Как rem: Left=1040, Top=80; ТЗ 33.1: +100 вправо и +100 вниз.
+constexpr int kRemPanelAbsLeft = 1040 + 100;
+constexpr int kRemPanelAbsTop = 80 + 100;
 
 void layoutRemPanelWidget(QWidget *remPanel, QWidget *rightPanel) {
     if (!remPanel || !rightPanel || !remPanel->isVisible()) {
         return;
     }
+    // Фиксированные координаты (не от sizeHint/центра) — иначе после прогона раскладка «прыгает».
     remPanel->adjustSize();
-    const int pw = rightPanel->width();
-    const int ph = rightPanel->height();
-    const int w = remPanel->sizeHint().width();
-    const int h = remPanel->sizeHint().height();
-    const int x = qMax(8, (pw - w) / 2);
-    const int y = qMin(ph - h - 8, qMax(48, (ph - h) / 2 + kRemPanelDownShift));
-    remPanel->setGeometry(x, y, w, h);
+    const QSize hint = remPanel->sizeHint();
+    const int w = qMax(hint.width(), 18 * 2 + kRemThumbW * 3 + 21 * 2);
+    const int h = qMax(hint.height(), 18 * 2 + (kRemThumbH + 30) * 3 + 15 * 2);
+    remPanel->setFixedSize(w, h);
+    const int localX = kRemPanelAbsLeft - (kPanelX + kScrollWidth);
+    remPanel->setGeometry(qMax(0, localX), kRemPanelAbsTop, w, h);
     remPanel->raise();
 }
 
@@ -3206,6 +3208,11 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsLeft = kPreviewAbsLeft - 50;
             previewAbsTop = kPreviewAbsTop + 50;
         }
+        if (m_exerciseId == QStringLiteral("3.3.3")) {
+            // exbegin: Left=1090, Top=100; после выполнения — те же координаты, без уменьшения.
+            previewAbsLeft = 1090;
+            previewAbsTop = 100;
+        }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
             previewAbsLeft = 1100;
@@ -3213,10 +3220,12 @@ void ExerciseHost::updatePreviewLayout() {
         }
         localX = previewAbsLeft - rightPanelLeft;
         localY = previewAbsTop;
-        const int maxW = qMax(120, width() - previewAbsLeft - 16);
-        const int maxH = qMax(120, height() - previewAbsTop - 16);
-        if (display.width() > maxW || display.height() > maxH) {
-            display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        if (m_exerciseId != QStringLiteral("3.3.3")) {
+            const int maxW = qMax(120, width() - previewAbsLeft - 16);
+            const int maxH = qMax(120, height() - previewAbsTop - 16);
+            if (display.width() > maxW || display.height() > maxH) {
+                display = m_previewSource.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            }
         }
     }
 
@@ -4245,6 +4254,9 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
     if (!result.capturedImagePath.isEmpty()) {
         m_previewSource.load(result.capturedImagePath);
         updatePreviewLayout();
+    } else if (m_exerciseId == QStringLiteral("3.3.3")) {
+        // 32.1 / 32.5: без скана — снова f1 в тех же координатах, без уменьшения.
+        reloadPreviewForCurrentStep();
     }
     m_exerciseDone = true;
     m_protocolFormed = false;
@@ -4833,7 +4845,8 @@ void ExerciseHost::showResultLabels(const QList<bool> &answers, int elapsedSecon
     // Таймер результата — не для методик без времени в протоколе.
     const bool hideResultTimer = m_exerciseId == QStringLiteral("1.26")
         || m_exerciseId == QStringLiteral("1.272")
-        || m_exerciseId == QStringLiteral("3.1.10");
+        || m_exerciseId == QStringLiteral("3.1.10")
+        || m_exerciseId == QStringLiteral("4.1.7");
     if (m_timeResultLabel && !showAnswerCounts && !hideResultTimer && elapsedSeconds >= 0
         && m_exerciseDone) {
         m_timeResultLabel->setText(timeText);
@@ -5831,6 +5844,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("4.1.4")
                || m_exerciseId == QStringLiteral("4.1.5")
                || m_exerciseId == QStringLiteral("4.1.6")
+               || m_exerciseId == QStringLiteral("4.1.7")
                || m_exerciseId == QStringLiteral("4.2.1")
                || m_exerciseId == QStringLiteral("4.2.2")
                || m_exerciseId == QStringLiteral("5.1.1")

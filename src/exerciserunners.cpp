@@ -172,10 +172,13 @@ CanvasLayout paintCanvasLayout(const QString &exerciseId, const QString &stepId)
         return layout;
     }
     if (exerciseId == QStringLiteral("3.3.3")) {
-        // Как в paint.Designer: pictureBox 1856×961 @ (52,107); traf1 @ (1100,50)
-        layout.size = QSize(1856, 961);
-        layout.pos = QPoint(52, 107);
-        layout.trafPos = QPoint(1100, 50);
+        // Холст = только лабиринт (traf1 627×930): рисование в границах картинки, центр по X.
+        const QString trafPath = ExerciseAssets::exerciseFile(
+            exerciseId, QStringLiteral("traf1.png"));
+        QPixmap traf(trafPath);
+        layout.size = traf.isNull() ? QSize(627, 930) : traf.size();
+        layout.pos = QPoint(0, 100); // X пересчитается в layoutUi по центру
+        layout.trafPos = QPoint(0, 0);
         layout.trafFile = QStringLiteral("traf1.png");
         return layout;
     }
@@ -792,6 +795,20 @@ protected:
         }
         layoutPatientPaintUi();
         QPixmap full = QPixmap::fromImage(m_canvas);
+        if (m_exerciseId == QStringLiteral("3.3.3")) {
+            // 32.3: тот же лабиринт по центру 2-го экрана, без уменьшения.
+            const int x = qMax(0, (m_patientRoot->width() - full.width()) / 2);
+            const int y = m_layout.pos.y() > 0 ? m_layout.pos.y() : 100;
+            m_patientPicture->setPixmap(full);
+            m_patientPicture->setFixedSize(full.size());
+            m_patientPicture->move(x, y);
+            m_patientPicture->show();
+            m_patientPicture->lower();
+            if (m_patientPalette && m_patientPalette->isVisible()) {
+                m_patientPalette->raise();
+            }
+            return;
+        }
         int availW = m_patientRoot->width() - m_layout.pos.x() - 20;
         int availH = m_patientRoot->height() - m_layout.pos.y() - 20;
         // Первый кадр: parent ещё 0×0 / крошечный — не сжимать до «100px».
@@ -985,6 +1002,11 @@ protected:
         } else {
             m_stop->move(80, 72);
         }
+        if (exerciseId() == QStringLiteral("3.3.3") && !m_canvas.isNull()) {
+            // 32.3: лабиринт по центру экрана по горизонтали (1/2 экрана).
+            const int x = qMax(0, (width() - m_canvas.width()) / 2);
+            m_layout.pos = QPoint(x, m_layout.pos.y() > 0 ? m_layout.pos.y() : 100);
+        }
         updateCanvasDisplay();
         raiseOverlayControls();
     }
@@ -1032,16 +1054,15 @@ protected:
             m_hintToggle->hide();
         }
         teardownPatientPaintUi();
+        // 3.3.3: без скана / «Показать изображение» — после Стоп снова f1 в превью.
+        if (m_exerciseId == QStringLiteral("3.3.3")) {
+            m_capturePath.clear();
+            TimedSessionRunner::finish();
+            return;
+        }
         const QString path = scansDirectory() + QStringLiteral("/") + m_exerciseId + QStringLiteral("-")
             + QString::number(QDateTime::currentMSecsSinceEpoch()) + QStringLiteral(".png");
-        // 3.3.3: оригинал сохраняет кроп лабиринта (1070,40)/(627×930).
-        if (m_exerciseId == QStringLiteral("3.3.3")
-            && m_canvas.width() >= 1070 + 627
-            && m_canvas.height() >= 40 + 930) {
-            m_canvas.copy(1070, 40, 627, 930).save(path);
-        } else {
-            m_canvas.save(path);
-        }
+        m_canvas.save(path);
         m_capturePath = path;
         TimedSessionRunner::finish();
     }
@@ -1070,11 +1091,23 @@ protected:
         if (m_canvas.isNull() || !m_picture) {
             return;
         }
-        // Не вылезаем за экран: при необходимости уменьшаем отображение, сохраняя hit-test через mapToCanvas.
         QPixmap full = QPixmap::fromImage(m_canvas);
+        QPixmap display = full;
+        // 3.3.3: не уменьшать лабиринт — нативный размер, центр по X.
+        if (m_exerciseId == QStringLiteral("3.3.3")) {
+            const int x = qMax(0, (width() - display.width()) / 2);
+            const int y = m_layout.pos.y() > 0 ? m_layout.pos.y() : 100;
+            m_layout.pos = QPoint(x, y);
+            m_picture->setPixmap(display);
+            m_picture->setFixedSize(display.size());
+            m_picture->move(m_layout.pos);
+            syncPatientPaintDisplay();
+            raiseSessionOverlays();
+            return;
+        }
+        // Не вылезаем за экран: при необходимости уменьшаем отображение, сохраняя hit-test через mapToCanvas.
         const int maxW = qMax(100, width() - m_layout.pos.x() - 20);
         const int maxH = qMax(100, height() - m_layout.pos.y() - 20);
-        QPixmap display = full;
         if (display.width() > maxW || display.height() > maxH) {
             display = full.scaled(maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         }
@@ -6017,6 +6050,9 @@ private:
         }
         if (m_canvas) {
             m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
+            if (m_exerciseId == QStringLiteral("4.1.7")) {
+                m_patientCanvas->mirrorPhaseUiFrom(m_canvas);
+            }
         }
         layoutPatientRememberUi();
         m_patientCanvas->show();
@@ -6065,6 +6101,9 @@ private:
         }
         m_syncingSprites = true;
         m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
+        if (m_exerciseId == QStringLiteral("4.1.7")) {
+            m_patientCanvas->mirrorPhaseUiFrom(m_canvas);
+        }
         m_syncingSprites = false;
     }
 
