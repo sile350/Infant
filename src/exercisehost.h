@@ -100,6 +100,10 @@ private:
     void updateFindMark21TimesForStep();
     bool buildFindMark21Graph(bool showGraph);
     QString applyFindMark21ScoresToProtocolBody(QString body) const;
+    void ensureFindMark22Panel();
+    void updateFindMark22PanelVisibility();
+    bool calculateFindMark22Score();
+    QString applyFindMark22ScoresToProtocolBody(QString body) const;
     void ensureDigitsPreviewRunner();
     void connectSessionRunnerFinished();
     void handleSessionRunnerFinished(const ExerciseSessionResult &result);
@@ -225,6 +229,13 @@ private:
     QPixmap m_findMark21GraphBase;
     int m_findMark21Balls = -1;
     QString m_findMark21Conclusion;
+    QWidget *m_findMark22Panel = nullptr;
+    QLineEdit *m_findMark22NEdit = nullptr;
+    QLineEdit *m_findMark22ErrEdit = nullptr;
+    QLabel *m_findMark22SLabel = nullptr;
+    QPushButton *m_findMark22CalcButton = nullptr;
+    int m_findMark22Balls = -1;
+    QString m_findMark22Conclusion;
     QLabel *m_rightCountLabel = nullptr;
     QLabel *m_wrongCountLabel = nullptr;
     QLabel *m_timeResultLabel = nullptr;

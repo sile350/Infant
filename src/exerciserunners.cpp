@@ -831,6 +831,9 @@ protected:
     }
 
     void paintCanvasPoint(const QPoint &canvasPt, bool forceDot) {
+        if (paintBlockedBySession()) {
+            return;
+        }
         if (canvasPt.x() < 0 || m_canvas.isNull()) {
             return;
         }
@@ -863,6 +866,7 @@ protected:
     }
 
     virtual void afterPaintStroke() {}
+    virtual bool paintBlockedBySession() const { return false; }
 
     bool eventFilter(QObject *watched, QEvent *event) override {
         if (watched == m_patientPicture && m_patientPicture) {
@@ -1104,11 +1108,27 @@ public:
 
         m_redTimer = new QTimer(this);
         connect(m_redTimer, &QTimer::timeout, this, [this]() {
-            // 17.5: поле красное → синяя кисть до «Продолжить» (все задания, 1/2 экрана).
             if (m_exerciseId == QStringLiteral("2.1")) {
+                // 17.5: поле красное → синяя кисть до «Продолжить».
                 m_brushColor = QColor(QStringLiteral("#4220ef"));
                 m_brushWidth = 6;
                 m_redPhaseActive = true;
+                if (m_redOverlay) {
+                    m_redOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+                }
+                if (m_patientRedOverlay) {
+                    m_patientRedOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+                }
+                showRedOverlays();
+            } else if (m_exerciseId == QStringLiteral("2.2")) {
+                // 18.4: красная блокировка — рисовать нельзя; оверлей ловит мышь.
+                m_redPhaseActive = true;
+                if (m_redOverlay) {
+                    m_redOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+                }
+                if (m_patientRedOverlay) {
+                    m_patientRedOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+                }
                 showRedOverlays();
             } else if (m_redOverlay) {
                 m_redOverlay->setGeometry(m_picture->geometry());
@@ -1120,8 +1140,7 @@ public:
 
         m_redOverlay = new ClickableLabel(this);
         m_redOverlay->hide();
-        // Красное видно, но рисование синим проходит сквозь оверлей (17.5 / 17.6).
-        m_redOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        // По умолчанию прозрачен для мыши; для 2.2 при блокировке снимаем.
 
         m_continueButton = new ClickableLabel(this);
         markPatientControl(m_continueButton);
@@ -1267,8 +1286,10 @@ public:
         m_patientRedOverlay = new ClickableLabel(m_patientRoot);
         m_patientRedOverlay->hide();
         m_patientRedOverlay->setScaledContents(true);
-        // Визуальное красное выделение, но клики/рисование проходят на холст (17.7).
-        m_patientRedOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        // 2.1: прозрачен для рисования; 2.2: блокирует (ставится при showRedOverlays).
+        m_patientRedOverlay->setAttribute(
+            Qt::WA_TransparentForMouseEvents,
+            m_exerciseId != QStringLiteral("2.2"));
         if (m_redOverlay && !m_redOverlay->pixmap(Qt::ReturnByValue).isNull()) {
             m_patientRedOverlay->setPixmap(m_redOverlay->pixmap(Qt::ReturnByValue));
         }
@@ -1276,6 +1297,8 @@ public:
 
     void showRedOverlays() {
         if (m_picture && m_redOverlay) {
+            const bool blockPaint = m_exerciseId == QStringLiteral("2.2");
+            m_redOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, !blockPaint);
             m_redOverlay->setGeometry(m_picture->geometry());
             m_redOverlay->show();
             m_redOverlay->raise();
@@ -1283,6 +1306,8 @@ public:
         if (m_patientPicture && m_patientRoot) {
             ensurePatientRedOverlay();
             if (m_patientRedOverlay) {
+                const bool blockPaint = m_exerciseId == QStringLiteral("2.2");
+                m_patientRedOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, !blockPaint);
                 if (m_redOverlay && !m_redOverlay->pixmap(Qt::ReturnByValue).isNull()) {
                     m_patientRedOverlay->setPixmap(m_redOverlay->pixmap(Qt::ReturnByValue));
                 }
@@ -1320,6 +1345,14 @@ public:
             // 17.7: рисование на любом экране показывает «Продолжить».
             offerContinueButton();
         }
+    }
+
+    bool isPaintBlockedByRedLock() const {
+        return m_redPhaseActive && m_exerciseId == QStringLiteral("2.2");
+    }
+
+    bool paintBlockedBySession() const override {
+        return isPaintBlockedByRedLock();
     }
 
     void raiseSessionOverlays() override {
@@ -1492,6 +1525,10 @@ protected:
 
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
+            // 18.4: после красной блокировки 2.2 рисовать нельзя.
+            if (isPaintBlockedByRedLock()) {
+                return;
+            }
             m_drawing = true;
             m_hasLast = false;
             m_patientDrawing = false;
@@ -1533,6 +1570,9 @@ protected:
     }
 
     void mouseMoveEvent(QMouseEvent *event) override {
+        if (isPaintBlockedByRedLock()) {
+            return;
+        }
         if (!m_drawing || !event->buttons().testFlag(Qt::LeftButton) || m_exerciseId == QStringLiteral("2.3")) {
             return;
         }
@@ -1548,6 +1588,25 @@ protected:
         if (m_sampleHideTimer) {
             m_sampleHideTimer->stop();
         }
+        // 18.4: красную блокировку 2.2 не снимать по «Стоп».
+        if (m_exerciseId == QStringLiteral("2.2") && m_redPhaseActive) {
+            const QString path = scansDirectory() + QStringLiteral("/") + m_exerciseId
+                + QStringLiteral("-")
+                + QString::number(QDateTime::currentMSecsSinceEpoch())
+                + QStringLiteral(".png");
+            m_canvas.save(path);
+            m_capturePath = path;
+            if (m_palette) {
+                m_palette->hide();
+            }
+            if (m_hintToggle) {
+                m_hintToggle->hide();
+            }
+            TimedSessionRunner::finish();
+            showRedOverlays();
+            return;
+        }
+        hideRedOverlays();
         PaintRunner::finish();
     }
 

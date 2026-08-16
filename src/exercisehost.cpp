@@ -753,6 +753,11 @@ ExerciseHost::ExerciseHost(QWidget *parent) : QWidget(parent) {
         evaluationLayout->addWidget(m_findMark21Panel);
         evaluationLayout->addSpacing(8);
     }
+    ensureFindMark22Panel();
+    if (m_findMark22Panel) {
+        evaluationLayout->addWidget(m_findMark22Panel);
+        evaluationLayout->addSpacing(8);
+    }
 
     m_activityTitle = new WhiteLabel(QStringLiteral("Характер деятельности ребенка:"), m_evaluationPanel);
     m_activityTitle->setAlignment(Qt::AlignCenter);
@@ -2711,6 +2716,194 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
     return body;
 }
 
+namespace {
+
+int findMark22BallsFromS(double value) {
+    // Шкала из ТЗ 18.2 (как для продуктивности внимания).
+    if (value > 1.25) {
+        return 10;
+    }
+    if (value <= 1.25 && value >= 1.12) {
+        return 9;
+    }
+    if (value < 1.12 && value >= 1.0) {
+        return 8;
+    }
+    if (value < 1.0 && value >= 0.87) {
+        return 7;
+    }
+    if (value < 0.87 && value >= 0.75) {
+        return 6;
+    }
+    if (value < 0.75 && value >= 0.62) {
+        return 5;
+    }
+    if (value < 0.62 && value >= 0.5) {
+        return 4;
+    }
+    if (value < 0.5 && value >= 0.36) {
+        return 3;
+    }
+    if (value < 0.36 && value >= 0.24) {
+        return 2;
+    }
+    if (value < 0.24 && value >= 0.1) {
+        return 1;
+    }
+    return 0;
+}
+
+QString findMark22ConclusionFromBalls(int balls) {
+    if (balls >= 10) {
+        return QStringLiteral("очень высокий");
+    }
+    if (balls >= 8) {
+        return QStringLiteral("высокий");
+    }
+    if (balls >= 6) {
+        return QStringLiteral("средний");
+    }
+    if (balls >= 4) {
+        return QStringLiteral("низкий");
+    }
+    return QStringLiteral("очень низкий");
+}
+
+} // namespace
+
+void ExerciseHost::ensureFindMark22Panel() {
+    if (m_findMark22Panel) {
+        return;
+    }
+    m_findMark22Panel = new OpaquePanel(kDocumentBg, m_evaluationPanel);
+    m_findMark22Panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+    auto *outer = new QVBoxLayout(m_findMark22Panel);
+    outer->setContentsMargins(4, 4, 4, 4);
+    outer->setSpacing(8);
+
+    auto *calcTitle = new WhiteLabel(
+        QStringLiteral("Расчет показателя переключения и распределения внимания"),
+        m_findMark22Panel);
+    calcTitle->setAlignment(Qt::AlignCenter);
+    calcTitle->setStyleSheet(QStringLiteral(
+        "color:#000000; font-family:'Microsoft Sans Serif',sans-serif;"
+        "font-size:15px; font-weight:bold; padding:0;"));
+    outer->addWidget(calcTitle);
+
+    auto *tableHost = new QWidget(m_findMark22Panel);
+    tableHost->setAttribute(Qt::WA_StyledBackground, true);
+    tableHost->setStyleSheet(QStringLiteral(
+        "QWidget { background:#ffffff; }"
+        "QLineEdit {"
+        "  background:#ffffff; color:#000000; border:1px solid #000000;"
+        "  font-family:'Microsoft Sans Serif',sans-serif; font-size:13px;"
+        "  padding:2px; min-height:22px;"
+        "}"
+        "QLabel {"
+        "  color:#000000; font-family:'Microsoft Sans Serif',sans-serif; font-size:13px;"
+        "}"));
+    auto *grid = new QGridLayout(tableHost);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setHorizontalSpacing(0);
+    grid->setVerticalSpacing(0);
+
+    const QString cellBorder = QStringLiteral(
+        "border:1px solid #000000; padding:4px; background:#ffffff;");
+    auto makeLeft = [&](const QString &text) {
+        auto *lab = new QLabel(text, tableHost);
+        lab->setWordWrap(true);
+        lab->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        lab->setStyleSheet(cellBorder);
+        return lab;
+    };
+    auto makeCenterLabel = [&]() {
+        auto *lab = new QLabel(tableHost);
+        lab->setAlignment(Qt::AlignCenter);
+        lab->setStyleSheet(cellBorder);
+        lab->setMinimumWidth(64);
+        return lab;
+    };
+
+    grid->addWidget(makeLeft(QStringLiteral("N (количество просмотренных предметов)")), 0, 0);
+    m_findMark22NEdit = new QLineEdit(tableHost);
+    m_findMark22NEdit->setAlignment(Qt::AlignCenter);
+    m_findMark22NEdit->setFixedWidth(64);
+    grid->addWidget(m_findMark22NEdit, 0, 1);
+
+    grid->addWidget(makeLeft(QStringLiteral("n (количество ошибок)")), 1, 0);
+    m_findMark22ErrEdit = new QLineEdit(tableHost);
+    m_findMark22ErrEdit->setAlignment(Qt::AlignCenter);
+    m_findMark22ErrEdit->setFixedWidth(64);
+    grid->addWidget(m_findMark22ErrEdit, 1, 1);
+
+    grid->addWidget(
+        makeLeft(QStringLiteral("S (показатель переключения и распределения внимания)")), 2, 0);
+    m_findMark22SLabel = makeCenterLabel();
+    grid->addWidget(m_findMark22SLabel, 2, 1);
+    grid->setColumnStretch(0, 1);
+    outer->addWidget(tableHost, 0, Qt::AlignHCenter);
+
+    m_findMark22CalcButton = new QPushButton(QStringLiteral("Рассчитать"), m_findMark22Panel);
+    m_findMark22CalcButton->setFixedSize(140, 32);
+    m_findMark22CalcButton->setStyleSheet(QStringLiteral(
+        "QPushButton {"
+        "  background:#e8e8e8; border:1px solid #888; color:#000;"
+        "  font-family:'Microsoft Sans Serif',sans-serif; font-size:13px;"
+        "}"
+        "QPushButton:pressed { background:#d0d0d0; }"));
+    connect(m_findMark22CalcButton, &QPushButton::clicked, this, [this]() {
+        calculateFindMark22Score();
+        updateContentHeights();
+    });
+    outer->addWidget(m_findMark22CalcButton, 0, Qt::AlignHCenter);
+
+    m_findMark22Panel->hide();
+}
+
+void ExerciseHost::updateFindMark22PanelVisibility() {
+    ensureFindMark22Panel();
+    if (!m_findMark22Panel) {
+        return;
+    }
+    m_findMark22Panel->setVisible(m_exerciseId == QStringLiteral("2.2"));
+}
+
+bool ExerciseHost::calculateFindMark22Score() {
+    if (m_exerciseId != QStringLiteral("2.2")) {
+        return false;
+    }
+    ensureFindMark22Panel();
+    bool okN = false;
+    bool okE = false;
+    const double nVal = parseLocaleDouble(
+        m_findMark22NEdit ? m_findMark22NEdit->text() : QString(), &okN);
+    const double eVal = parseLocaleDouble(
+        m_findMark22ErrEdit ? m_findMark22ErrEdit->text() : QString(), &okE);
+    const double n = okN ? nVal : 0.0;
+    const double e = okE ? eVal : 0.0;
+    // ТЗ: S = (0,5N − 2,8n) / 120
+    double s = (0.5 * n - 2.8 * e) / 120.0;
+    s = qRound(s * 100.0) / 100.0;
+    if (m_findMark22SLabel) {
+        m_findMark22SLabel->setText(QString::number(s, 'f', 2));
+    }
+    m_findMark22Balls = findMark22BallsFromS(s);
+    m_findMark22Conclusion = findMark22ConclusionFromBalls(m_findMark22Balls);
+    return true;
+}
+
+QString ExerciseHost::applyFindMark22ScoresToProtocolBody(QString body) const {
+    if (m_findMark22Balls < 0 || body.trimmed().isEmpty()) {
+        return body;
+    }
+    const QString ballsText = QString::number(m_findMark22Balls);
+    const QString resultText =
+        ballsText + QStringLiteral("(10)/") + m_findMark22Conclusion;
+    body = replaceLastHtmlDivInnerById(body, QStringLiteral("idballs"), ballsText);
+    body = replaceHtmlDivInnerById(body, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
+    return body;
+}
+
 void ExerciseHost::updatePreviewLayout() {
     if (m_exerciseId == QStringLiteral("4.2.2") || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("4.2.1")) {
@@ -3073,12 +3266,6 @@ QString ExerciseHost::stimulusPrintImagePath() const {
             m_exerciseId, QStringLiteral("traf") + step + QStringLiteral(".png"));
     }
     if (m_exerciseId == QStringLiteral("2.2")) {
-        // Оригинал печатает traf1 из папки 2.1.
-        const QString from21 = ExerciseAssets::exerciseFile(
-            QStringLiteral("2.1"), QStringLiteral("traf1.png"));
-        if (!from21.isEmpty()) {
-            return from21;
-        }
         return ExerciseAssets::exerciseFile(m_exerciseId, QStringLiteral("traf1.png"));
     }
     if (m_exerciseId == QStringLiteral("2.3")) {
@@ -3699,6 +3886,8 @@ void ExerciseHost::loadExercise() {
     m_cursorInBallsColumn = false;
     m_findMark21Balls = -1;
     m_findMark21Conclusion.clear();
+    m_findMark22Balls = -1;
+    m_findMark22Conclusion.clear();
     m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(rawTemplate, baseDir));
     finalizeProtocolTemplateDocument(m_templateBrowser->document());
     updateProtocolEditMode();
@@ -3708,6 +3897,7 @@ void ExerciseHost::loadExercise() {
     }
     updateFindMark21PanelVisibility();
     updateFindMark21TimesForStep();
+    updateFindMark22PanelVisibility();
     for (const ExerciseCheckRow &row : m_doneChecks) {
         if (row.box) {
             row.box->setChecked(false);
@@ -5548,6 +5738,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.28")
                || m_exerciseId == QStringLiteral("1.29")
                || m_exerciseId == QStringLiteral("2.1")
+               || m_exerciseId == QStringLiteral("2.2")
                || m_exerciseId == QStringLiteral("2.8")
                || m_exerciseId == QStringLiteral("2.9")
                || m_exerciseId == QStringLiteral("2.10")
@@ -5786,6 +5977,10 @@ void ExerciseHost::formProtocol() {
     if (m_exerciseId == QStringLiteral("2.1")) {
         buildFindMark21Graph(false);
         protocolBody = applyFindMark21ScoresToProtocolBody(protocolBody);
+    }
+    if (m_exerciseId == QStringLiteral("2.2")) {
+        calculateFindMark22Score();
+        protocolBody = applyFindMark22ScoresToProtocolBody(protocolBody);
     }
 
     QString error;
