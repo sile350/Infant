@@ -440,19 +440,21 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
     if (exerciseId == QStringLiteral("2.12")) {
         layout->showTemplate = false;
         layout->templateFile = QString();
+        // 21.3: все картинки на 100 px ниже (оригинал y=200).
+        constexpr int kDown = 100;
         if (stepId == QStringLiteral("1")) {
-            addSprite(layout, QStringLiteral("11.png"), 300, 200);
-            addSprite(layout, QStringLiteral("12.png"), 600, 200);
-            addSprite(layout, QStringLiteral("13.png"), 900, 200);
-            addSprite(layout, QStringLiteral("14.png"), 1200, 200);
+            addSprite(layout, QStringLiteral("11.png"), 300, 200 + kDown);
+            addSprite(layout, QStringLiteral("12.png"), 600, 200 + kDown);
+            addSprite(layout, QStringLiteral("13.png"), 900, 200 + kDown);
+            addSprite(layout, QStringLiteral("14.png"), 1200, 200 + kDown);
             return true;
         }
         if (stepId == QStringLiteral("2")) {
-            addSprite(layout, QStringLiteral("21.png"), 100, 200);
-            addSprite(layout, QStringLiteral("22.png"), 400, 200);
-            addSprite(layout, QStringLiteral("23.png"), 700, 200);
-            addSprite(layout, QStringLiteral("24.png"), 1000, 200);
-            addSprite(layout, QStringLiteral("25.png"), 1300, 200);
+            addSprite(layout, QStringLiteral("21.png"), 100, 200 + kDown);
+            addSprite(layout, QStringLiteral("22.png"), 400, 200 + kDown);
+            addSprite(layout, QStringLiteral("23.png"), 700, 200 + kDown);
+            addSprite(layout, QStringLiteral("24.png"), 1000, 200 + kDown);
+            addSprite(layout, QStringLiteral("25.png"), 1300, 200 + kDown);
             return true;
         }
         return false;
