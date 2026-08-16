@@ -187,7 +187,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->rotateAllowed = true;
         layout->selectMode = false;
         layout->showTemplate = true;
-        layout->templateX = 1300; // 700 + 500 + 100
+        layout->templateX = 1380;
         layout->templateY = 250; // как pexample.Top
         const QString slug = stepId;
         layout->templateFile = QStringLiteral("t") + slug + QStringLiteral(".png");
