@@ -1879,6 +1879,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("1.28")
         || m_exerciseId == QStringLiteral("2.11")
         || m_exerciseId == QStringLiteral("2.12")
+        || m_exerciseId == QStringLiteral("3.1.8")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -3187,6 +3188,11 @@ void ExerciseHost::updatePreviewLayout() {
             // 21.2: до выполнения — картинки на 100 px ниже.
             previewAbsTop = kPreviewAbsTop + 100;
         }
+        if (m_exerciseId == QStringLiteral("3.1.8")) {
+            // Как exbegin: Left=1050, Top=190; 23.4 — ещё −100 px.
+            previewAbsLeft = 1050;
+            previewAbsTop = 190 + 100;
+        }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
             previewAbsLeft = 1100;
@@ -3448,6 +3454,11 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         } else {
             candidates << QStringLiteral("p1.png") << QStringLiteral("1.png") << QStringLiteral("f1.png");
         }
+    } else if (m_exerciseId == QStringLiteral("3.1.8")) {
+        // 23.3: при смене задания 1/2 показывать f1.png / f2.png до старта.
+        const QString s = step.trimmed().isEmpty() ? QStringLiteral("1") : step.trimmed();
+        candidates << QStringLiteral("f") + s + QStringLiteral(".png")
+                   << QStringLiteral("f1.png");
     } else if (!step.isEmpty()) {
         candidates << QStringLiteral("f") + step + QStringLiteral(".png")
                    << step + QStringLiteral(".png")
@@ -3547,6 +3558,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
         m_exerciseId == QStringLiteral("3.1.10")
         || m_exerciseId == QStringLiteral("2.11")
         || m_exerciseId == QStringLiteral("2.12")
+        || m_exerciseId == QStringLiteral("3.1.8")
         || help112
         || help114;
     if (m_helpPenaltyHintLabel) {
@@ -4249,6 +4261,10 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
         }
     } else {
         destroySessionRunner();
+    }
+    // 3.1.8: после Стоп снова показать превью текущего задания (в т.ч. f2 при шаге 2).
+    if (m_exerciseId == QStringLiteral("3.1.8")) {
+        reloadPreviewForCurrentStep();
     }
     updateChromeLayout();
     showResultLabels(result.answers, result.elapsedSeconds);
@@ -5781,6 +5797,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("3.1.10")
                || m_exerciseId == QStringLiteral("3.1.11")
                || m_exerciseId == QStringLiteral("3.1.12")
+               || m_exerciseId == QStringLiteral("3.1.15")
                || m_exerciseId == QStringLiteral("3.1.23")
                || m_exerciseId == QStringLiteral("3.2.1")
                || m_exerciseId == QStringLiteral("3.2.2")

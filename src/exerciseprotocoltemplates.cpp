@@ -536,21 +536,8 @@ QMap<QString, QString> buildVariables(
     } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
                || tmpl.id == QStringLiteral("1.12")
                || tmpl.id == QStringLiteral("2.11")
-               || tmpl.id == QStringLiteral("2.12")
-               || tmpl.id == QStringLiteral("3.1.8")) {
-        if (tmpl.id == QStringLiteral("3.1.8")) {
-            // Методика: за часть без ошибок/помощи — 2 балла (макс. 4 за две части).
-            // idd3 «Целенаправленное» → 2; остальное (в т.ч. «Хаотическая») → 0;
-            // каждый вид помощи −0.5. (В C# idd4→3 — копипаст от 2.11, не пишется в ячейку.)
-            if (checkboxes.activity.contains(
-                    QStringLiteral("Целенаправленное"), Qt::CaseInsensitive)) {
-                score = 2.0;
-            } else {
-                score = 0.0;
-            }
-        } else {
-            score = activityLevelScoreMax3(checkboxes.activity);
-        }
+               || tmpl.id == QStringLiteral("2.12")) {
+        score = activityLevelScoreMax3(checkboxes.activity);
         score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
         if (score < 0) {
             score = 0;
@@ -606,8 +593,7 @@ QMap<QString, QString> buildVariables(
                || tmpl.id == QStringLiteral("3.1.10")
                || tmpl.id == QStringLiteral("1.12")
                || tmpl.id == QStringLiteral("2.11")
-               || tmpl.id == QStringLiteral("2.12")
-               || tmpl.id == QStringLiteral("3.1.8")) {
+               || tmpl.id == QStringLiteral("2.12")) {
         if (qFuzzyIsNull(score - std::floor(score))) {
             vars.insert(QStringLiteral("{{SCORE}}"), QString::number(static_cast<int>(score)));
         } else {

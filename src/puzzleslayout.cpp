@@ -463,10 +463,13 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
     if (exerciseId == QStringLiteral("3.1.8")) {
         layout->rotateAllowed = false;
         layout->showTemplate = true;
+        // 23.5: во время сессии −50 по Y и +50 по X (оба задания, один/два экрана).
+        constexpr int kDx = 50;
+        constexpr int kDy = 50;
         if (stepId == QStringLiteral("1")) {
             layout->templateFile = QStringLiteral("traf.png");
-            layout->templateX = 425;
-            layout->templateY = 65;
+            layout->templateX = 425 + kDx;
+            layout->templateY = 65 + kDy;
             static const struct {
                 const char *file;
                 int x;
@@ -490,23 +493,23 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
                 {"14.png", 1500, 675},
             };
             for (const auto &item : kSprites) {
-                addSprite(layout, QString::fromUtf8(item.file), item.x, item.y);
+                addSprite(layout, QString::fromUtf8(item.file), item.x + kDx, item.y + kDy);
             }
             return true;
         }
         if (stepId == QStringLiteral("2")) {
             layout->templateFile = QStringLiteral("traf2.png");
-            layout->templateX = 0;
-            layout->templateY = 70;
+            layout->templateX = 0 + kDx;
+            layout->templateY = 70 + kDy;
             static const char *const kRow1[] = {
                 "1.png", "5.png", "2.png", "3.png", "16.png", "4.png", "14.png", "6.png"};
             static const char *const kRow2[] = {
                 "7.png", "8.png", "9.png", "10.png", "11.png", "12.png", "13.png", "14.png"};
             for (int k = 0; k < 8; ++k) {
-                addSprite(layout, QString::fromUtf8(kRow1[k]), 27 + 200 * k, 510);
+                addSprite(layout, QString::fromUtf8(kRow1[k]), 27 + 200 * k + kDx, 510 + kDy);
             }
             for (int k = 0; k < 8; ++k) {
-                addSprite(layout, QString::fromUtf8(kRow2[k]), 27 + 200 * k, 710);
+                addSprite(layout, QString::fromUtf8(kRow2[k]), 27 + 200 * k + kDx, 710 + kDy);
             }
             return true;
         }
@@ -516,12 +519,14 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
     if (exerciseId == QStringLiteral("3.1.15")) {
         layout->showTemplate = true;
         layout->templateFile = QStringLiteral("traf.png");
+        // 24.2: опустить задание на 70 px (оригинал templateY=30, sprites y=830).
+        constexpr int kDy = 70;
         layout->templateX = 425;
-        layout->templateY = 30;
-        addSprite(layout, QStringLiteral("1.png"), 400, 830);
-        addSprite(layout, QStringLiteral("2.png"), 550, 830);
-        addSprite(layout, QStringLiteral("3.png"), 700, 830);
-        addSprite(layout, QStringLiteral("4.png"), 850, 830);
+        layout->templateY = 30 + kDy;
+        addSprite(layout, QStringLiteral("1.png"), 400, 830 + kDy);
+        addSprite(layout, QStringLiteral("2.png"), 550, 830 + kDy);
+        addSprite(layout, QStringLiteral("3.png"), 700, 830 + kDy);
+        addSprite(layout, QStringLiteral("4.png"), 850, 830 + kDy);
         return true;
     }
 
