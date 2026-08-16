@@ -1722,9 +1722,10 @@ void ExerciseHost::layoutStepCombo() {
     constexpr int kRightMargin = 24;
     // Руководство: ~70–100px между правым краем Start и combo (оригинал: begin@976, combo@1182).
     constexpr int kGapAfterBegin = 80;
-    // 1.19: «Леопард 3»; 1.20: «Машинка 5» — шире стандартных 121.
+    // 1.19: «Леопард 3»; 1.20: «Машинка 5»; 1.22: «Пирамида» — шире стандартных 121.
     const int kComboW = (m_exerciseId == QStringLiteral("1.19")
-                         || m_exerciseId == QStringLiteral("1.20"))
+                         || m_exerciseId == QStringLiteral("1.20")
+                         || m_exerciseId == QStringLiteral("1.22"))
         ? 168
         : 121;
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
