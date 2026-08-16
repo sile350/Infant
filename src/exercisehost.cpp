@@ -2547,7 +2547,7 @@ void ExerciseHost::updatePreviewLayout() {
                     previewRotate->setFixedSize(hintPm.size());
                 }
             }
-            constexpr int kHintAbsX = 1370; // 1450 − 80
+            constexpr int kHintAbsX = 1320; // 1450 − 80 − 50
             constexpr int kHintAbsY = 300;
             previewRotate->move(qMax(0, kHintAbsX - rightPanelLeft), kHintAbsY);
             previewRotate->show();
