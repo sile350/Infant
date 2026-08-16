@@ -78,6 +78,30 @@ bool exerciseUsesSingleScanSlot(const QString &uprid) {
     return false;
 }
 
+bool exerciseDisablesProtocolScanLinks(const QString &uprid) {
+    return uprid == QStringLiteral("3.3.1") || uprid == QStringLiteral("3.3.2");
+}
+
+// Убрать «скачать» / «Показать изображение» из протоколов без сканов (3.3.1, 3.3.2).
+void stripScanUiFromProtocolHtml(QString *html) {
+    if (!html || html->isEmpty()) {
+        return;
+    }
+    html->replace(
+        QRegularExpression(
+            QStringLiteral("<a\\b[^>]*>\\s*Показать изображение\\d*\\s*</a>"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    html->replace(
+        QRegularExpression(
+            QStringLiteral("Показать изображение\\d*"),
+            QRegularExpression::CaseInsensitiveOption),
+        QString());
+    html->replace(
+        QRegularExpression(QStringLiteral("\\s*скачать\\d*"), QRegularExpression::CaseInsensitiveOption),
+        QString());
+}
+
 // Если автосохранение съело плейсхолдеры — вернуть их в строку «Результат».
 void ensureScanPlaceholdersInProtocolHtml(QString *html, const QString &uprid) {
     if (!html || html->isEmpty()) {
@@ -269,7 +293,11 @@ void appendProtocolRecord(
             continuation ? QString() : rawHeader, protocolBody);
     }
     // Ссылки «Показать изображение» — после flatten/normalize, иначе они снова станут «скачать».
-    applyProtocolScanPlaceholders(&record, protocolId);
+    if (exerciseDisablesProtocolScanLinks(uprid)) {
+        stripScanUiFromProtocolHtml(&record);
+    } else {
+        applyProtocolScanPlaceholders(&record, protocolId);
+    }
     if (!protocolId.isEmpty()) {
         record = ExerciseProtocol::wrapProtocolRecord(protocolId, record);
     }
@@ -1022,8 +1050,12 @@ QString Repository::loadProtocolViewHtml(
         protocolBlock = ExerciseProtocol::buildProtocol118ViewRecord(
             exerciseHeaderFragment(exerciseId), body);
     }
-    ensureScanPlaceholdersInProtocolHtml(&protocolBlock, exerciseId);
-    applyProtocolScanPlaceholders(&protocolBlock, protocolId);
+    if (exerciseDisablesProtocolScanLinks(exerciseId)) {
+        stripScanUiFromProtocolHtml(&protocolBlock);
+    } else {
+        ensureScanPlaceholdersInProtocolHtml(&protocolBlock, exerciseId);
+        applyProtocolScanPlaceholders(&protocolBlock, protocolId);
+    }
     return QStringLiteral(
                "<div align='center' style='font-size:20px'><br>Протокол фиксации результатов исследования</div>"
                "<br>ФИО: %1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
@@ -1256,8 +1288,12 @@ bool Repository::updateProtocolBody(const QString &protocolId, const QString &pr
     QString normalizedBody = ExerciseProtocol::normalizeStoredProtocolBody(protocolBody);
     const QString uprid = m_local.queryScalar(
         "SELECT uprid FROM protocols WHERE id='" + LocalDatabase::escape(protocolId) + "'");
-    // Не дать автосохранению стереть «скачать»/«скачатьN» у методик со сканом.
-    ensureScanPlaceholdersInProtocolHtml(&normalizedBody, uprid);
+    if (exerciseDisablesProtocolScanLinks(uprid)) {
+        stripScanUiFromProtocolHtml(&normalizedBody);
+    } else {
+        // Не дать автосохранению стереть «скачать»/«скачатьN» у методик со сканом.
+        ensureScanPlaceholdersInProtocolHtml(&normalizedBody, uprid);
+    }
     if (uprid == QStringLiteral("1.2")) {
         normalizedBody = ExerciseProtocol::canonicalizeProtocol12StoredBody(normalizedBody);
     } else if (uprid == QStringLiteral("1.26")) {
