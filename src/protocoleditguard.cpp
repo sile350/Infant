@@ -41,12 +41,25 @@ bool isProtocolFieldAnchorName(const QString &raw) {
     if (name.isEmpty()) {
         return false;
     }
-    // Ячейки протокола (idb1, idsum, idvivod…) — не ссылки «Показать изображение».
+    // Ячейки протокола (idb1, idsum, idvivod, idprod…) — не ссылки «Показать изображение».
     static const QRegularExpression fieldRe(
         QStringLiteral(
-            "^(idballs|idsum|idvivod|idb\\d+|ids\\d+|idd\\d+|idp\\d+|idv\\d+|ide\\d+|dokit-pid)"),
+            "^(idballs|idsum|idvivod|idprod|idstab|idbls|idnote|idspc|cidd|"
+            "idb\\d+|ids\\d+|idd\\d+|idp\\d+|idv\\d+|ide\\d+|dokit-pid)"),
         QRegularExpression::CaseInsensitiveOption);
     return fieldRe.match(name).hasMatch();
+}
+
+bool looksLikeProtocolScanIdKey(const QString &raw) {
+    QString key = raw.trimmed();
+    if (key.startsWith(QLatin1Char('#'))) {
+        key = key.mid(1);
+    }
+    // Скан-якоря: id{protocolId} или id{protocolId}-{slot} (только цифры).
+    static const QRegularExpression scanIdRe(
+        QStringLiteral("^id\\d+(-\\d+)?$"),
+        QRegularExpression::CaseInsensitiveOption);
+    return scanIdRe.match(key).hasMatch();
 }
 
 bool looksLikeProtocolScanAnchor(const QString &anchor) {
@@ -56,9 +69,18 @@ bool looksLikeProtocolScanAnchor(const QString &anchor) {
     if (isProtocolFieldAnchorName(anchor)) {
         return false;
     }
-    return anchor.startsWith(QLatin1Char('#'))
-        || anchor.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
-        || anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
+    if (looksLikeProtocolScanIdKey(anchor)) {
+        return true;
+    }
+    // Прочие id* (idprod, idstab, …) — поля протокола, не сканы.
+    QString key = anchor.trimmed();
+    if (key.startsWith(QLatin1Char('#'))) {
+        key = key.mid(1);
+    }
+    if (key.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)) {
+        return false;
+    }
+    return anchor.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral("/scans/"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral("\\scans\\"), Qt::CaseInsensitive)
         || anchor.contains(QStringLiteral(".JPG"), Qt::CaseInsensitive)
@@ -79,9 +101,8 @@ QString hrefFromCharFormat(const QTextCharFormat &fmt) {
         if (isProtocolFieldAnchorName(trimmed)) {
             continue;
         }
-        if (trimmed.startsWith(QStringLiteral("id"), Qt::CaseInsensitive)
-            && !trimmed.startsWith(QStringLiteral("dokit-pid"), Qt::CaseInsensitive)) {
-            return QLatin1Char('#') + trimmed;
+        if (looksLikeProtocolScanIdKey(trimmed)) {
+            return trimmed.startsWith(QLatin1Char('#')) ? trimmed : (QLatin1Char('#') + trimmed);
         }
         if (looksLikeProtocolScanAnchor(trimmed)) {
             return trimmed.startsWith(QLatin1Char('#')) ? trimmed : (QLatin1Char('#') + trimmed);
@@ -182,7 +203,7 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
     // OR/HLP/Баллы + «Ответ ребенка» + ячейки итоговых сумм (прочие методики).
     // protocolLockBallsEdit: запрет курсора в колонке «Баллы» (3.1.17 и т.п.).
     const bool lockBalls = editor && editor->property("protocolLockBallsEdit").toBool();
-    int ballsCol = -1;
+    QList<int> ballsCols;
     int answerCol = -1;
     int correctCol = -1;
     int ballsHeaderRow = -1;
@@ -192,13 +213,17 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
     int helpCol = -1;
     int reproducedBeforeCol = -1;
     int reproducedAfterCol = -1;
+    auto isBallsHeaderText = [](const QString &header) {
+        return header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
+            || (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
+                && (header.length() <= 12
+                    || header.contains(QStringLiteral("продуктив"), Qt::CaseInsensitive)
+                    || header.contains(QStringLiteral("устойчив"), Qt::CaseInsensitive)));
+    };
     for (int r = 0; r < table->rows(); ++r) {
         for (int c = 0; c < table->columns(); ++c) {
             const QString header = readProtocolTableCellText(table, r, c);
-            if (ballsCol < 0
-                && (header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0
-                    || (header.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive)
-                        && header.length() <= 12))) {
+            if (isBallsHeaderText(header)) {
                 // 5.4.2: «Баллы» в col0 последней строки — подпись строки, не заголовок колонки.
                 if (c == 0
                     && header.compare(QStringLiteral("Баллы"), Qt::CaseInsensitive) == 0) {
@@ -217,7 +242,9 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
                         continue;
                     }
                 }
-                ballsCol = c;
+                if (!ballsCols.contains(c)) {
+                    ballsCols.append(c);
+                }
                 // Не затирать уже найденную строку заголовков (Ответы/Виды помощи).
                 if (ballsHeaderRow < 0) {
                     ballsHeaderRow = r;
@@ -314,8 +341,11 @@ bool isEditableProtocolCursor(const QTextCursor &cursor, QTextEdit *editor = nul
         if (reproducedAfterCol >= 0 && col == reproducedAfterCol) {
             return true;
         }
+        if (ballsCols.contains(col)) {
+            return !lockBalls;
+        }
     }
-    if (ballsCol >= 0 && col == ballsCol && row > ballsHeaderRow) {
+    if (ballsCols.contains(col) && row > ballsHeaderRow) {
         // 4.1.8: ячейка idsum в строке «Итоговая оценка» — не редактировать.
         if (firstCell.contains(QStringLiteral("Итоговая"), Qt::CaseInsensitive)) {
             return false;
