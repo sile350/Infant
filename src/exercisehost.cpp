@@ -2847,6 +2847,32 @@ void ExerciseHost::ensureFindMark22Panel() {
     grid->setColumnStretch(1, 0);
     outer->addWidget(tableHost, 0, Qt::AlignHCenter);
 
+    // В оригинале отдельной картинки «Рассчитать» нет; стиль как у build.png.
+    m_findMark22CalcButton = new ImageButton(m_findMark22Panel);
+    QString calcPath = ExerciseAssets::sysImage(QStringLiteral("calc.png"));
+    if (calcPath.isEmpty()) {
+        calcPath = ExerciseAssets::sysImage(QStringLiteral("build.png"));
+    }
+    if (!calcPath.isEmpty()) {
+        m_findMark22CalcButton->setImagePath(calcPath);
+        m_findMark22CalcButton->setFixedSize(189, 34);
+    } else {
+        m_findMark22CalcButton->setText(QStringLiteral("Рассчитать"));
+        m_findMark22CalcButton->setFixedSize(189, 34);
+        m_findMark22CalcButton->setAlignment(Qt::AlignCenter);
+        m_findMark22CalcButton->setStyleSheet(QStringLiteral(
+            "QLabel { background:#2a7a6c; border:1px solid #6a8a8a; border-radius:4px;"
+            " color:#ffffff; font-family:'Microsoft Sans Serif',sans-serif;"
+            " font-size:13px; font-weight:bold; }"));
+    }
+    m_findMark22CalcButton->setToolTip(QStringLiteral("Рассчитать"));
+    m_findMark22CalcButton->setCursor(Qt::PointingHandCursor);
+    connect(m_findMark22CalcButton, &ImageButton::clicked, this, [this]() {
+        calculateFindMark22Score();
+        updateContentHeights();
+    });
+    outer->addWidget(m_findMark22CalcButton, 0, Qt::AlignHCenter);
+
     m_findMark22Panel->hide();
 }
 
