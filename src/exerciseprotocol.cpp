@@ -4163,6 +4163,11 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                    && (headerJoin.contains(QStringLiteral("Выбранная картинка"), Qt::CaseInsensitive)
                        || headerJoin.contains(QStringLiteral("Объяснение выбора"), Qt::CaseInsensitive))) {
             applied = setFixed({30, 121, 143, 141, 175, 61});
+        } else if (cols == 6
+                   && headerJoin.contains(QStringLiteral("Ответы ребенка"), Qt::CaseInsensitive)
+                   && headerJoin.contains(QStringLiteral("Виды помощи"), Qt::CaseInsensitive)) {
+            // 3.1.21: № / Вопрос1 / Вопрос2 / Вопрос3 / Виды помощи / Баллы.
+            applied = setFixed({40, 104, 104, 104, 250, 69});
         }
 
         if (!applied) {

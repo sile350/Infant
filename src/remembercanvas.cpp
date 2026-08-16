@@ -57,20 +57,21 @@ bool RememberCanvas::loadRememberLayout(
         // remember.cs: две карты столбцом, без shuffle.
         // 27.6: в оригинале pictureBox.Top=150; у нас холст с 0 — смещаем ниже Стоп@70+50.
         constexpr int kYOffset = 120;
+        constexpr int kX = 600 + 100; // 27.6 + сдвиг правее для обоих экранов
         built.showTemplate = false;
         const QString a = step + QStringLiteral("1.png");
         const QString b = step + QStringLiteral("2.png");
         if (!ExerciseAssets::exerciseFile(exerciseId, a).isEmpty()) {
             PuzzleSpriteDef s;
             s.file = a;
-            s.x = 600;
+            s.x = kX;
             s.y = 422 + kYOffset;
             built.sprites.append(s);
         }
         if (!ExerciseAssets::exerciseFile(exerciseId, b).isEmpty()) {
             PuzzleSpriteDef s;
             s.file = b;
-            s.x = 600;
+            s.x = kX;
             s.y = 0 + kYOffset;
             built.sprites.append(s);
         }
