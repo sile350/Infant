@@ -5116,6 +5116,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.24")
                || m_exerciseId == QStringLiteral("1.25")
                || m_exerciseId == QStringLiteral("1.28")
+               || m_exerciseId == QStringLiteral("1.29")
                || m_exerciseId == QStringLiteral("2.8")
                || m_exerciseId == QStringLiteral("2.9")
                || m_exerciseId == QStringLiteral("2.10")

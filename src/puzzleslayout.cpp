@@ -762,8 +762,10 @@ bool loadPuzzleLayout(
     }
 
     // 1.24: опустить трафарет и фрагменты на 70 px (до и во время выполнения).
-    if (loaded && exerciseId == QStringLiteral("1.24")) {
-        constexpr int kDy = 70;
+    // 1.29: опустить задание ниже кнопок (кроме Стоп) на 50 px (ТЗ 16.1).
+    if (loaded
+        && (exerciseId == QStringLiteral("1.24") || exerciseId == QStringLiteral("1.29"))) {
+        const int kDy = exerciseId == QStringLiteral("1.29") ? 50 : 70;
         layout->templateY += kDy;
         layout->template2Y += kDy;
         for (PuzzleSpriteDef &sprite : layout->sprites) {
