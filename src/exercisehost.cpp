@@ -1599,9 +1599,10 @@ void ExerciseHost::updateChromeLayout() {
         const bool is316Shard = m_exerciseId == QStringLiteral("3.1.16")
             && currentStepId().trimmed().toInt() >= 3;
         // 3.1.16: своя ссылка на корне окна; общая панель опций для неё не нужна.
-        // 1.5 / 1.6: ссылка рядом с «Начать» — options-панель на правой не нужна.
+        // 1.5 / 1.6 / 1.19: ссылка рядом с «Начать» — options-панель на правой не нужна.
         if (is316Shard || m_exerciseId == QStringLiteral("1.5")
-            || m_exerciseId == QStringLiteral("1.6")) {
+            || m_exerciseId == QStringLiteral("1.6")
+            || m_exerciseId == QStringLiteral("1.19")) {
             m_exerciseOptionsPanel->hide();
         } else {
             // Только ссылка; всплывающая группа — поверх (layoutE15ModePopup).
@@ -1619,9 +1620,10 @@ void ExerciseHost::updateChromeLayout() {
         }
         layoutE15ModePopup();
     }
-    // 1.5 / 1.6: «Настройка уровня сложности» на правой панели (поверх превью), ~1550 abs.
+    // 1.5 / 1.6 / 1.19: «Настройка уровня сложности» на правой панели (поверх превью), ~1550 abs.
     if (m_shard15Button && m_rightPanel
-        && (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6"))
+        && (m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")
+            || m_exerciseId == QStringLiteral("1.19"))
         && !m_exerciseRunning) {
         m_shard15Button->adjustSize();
         constexpr int kLinkAbsX = 1550;
@@ -1638,12 +1640,17 @@ void ExerciseHost::updateChromeLayout() {
     if (m_previewImage) {
         updatePreviewLayout();
     }
-    // После превью снова поднять ссылку 1.5/1.6 (превью иначе перекрывает).
-    if ((m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6"))
+    // После превью снова поднять ссылку 1.5/1.6/1.19 (превью иначе перекрывает).
+    if ((m_exerciseId == QStringLiteral("1.5") || m_exerciseId == QStringLiteral("1.6")
+         || m_exerciseId == QStringLiteral("1.19"))
         && m_shard15Button && m_shard15Button->isVisible()) {
         m_shard15Button->raise();
         if (m_e15ModeGroup && m_e15ModeGroup->isVisible()) {
             m_e15ModeGroup->raise();
+            m_shard15Button->raise();
+        }
+        if (m_puzzleOptionsGroup && m_puzzleOptionsGroup->isVisible()) {
+            m_puzzleOptionsGroup->raise();
             m_shard15Button->raise();
         }
     }
@@ -1705,12 +1712,13 @@ void ExerciseHost::layoutStepCombo() {
         m_stepCombo->setParent(host);
     }
 
-    constexpr int kComboW = 121;
     constexpr int kComboH = 33;
     constexpr int kComboY = 15; // как param1 в exbegin.Designer (15)
     constexpr int kRightMargin = 24;
     // Руководство: ~70–100px между правым краем Start и combo (оригинал: begin@976, combo@1182).
     constexpr int kGapAfterBegin = 80;
+    // 1.19: «Леопард 3» и др. — шире стандартных 121.
+    const int kComboW = (m_exerciseId == QStringLiteral("1.19")) ? 168 : 121;
     int comboX = qMax(0, host->width() - kComboW - kRightMargin);
     if (!m_exerciseRunning && nearBeginCombo) {
         int beginRight = 976 + 158;
@@ -1833,12 +1841,13 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17: при каждом входе протоколы формируются с нуля.
+    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19: при каждом входе протоколы формируются с нуля.
     if (m_exerciseId == QStringLiteral("1.7")
         || m_exerciseId == QStringLiteral("1.11")
         || m_exerciseId == QStringLiteral("1.14")
         || m_exerciseId == QStringLiteral("1.15")
         || m_exerciseId == QStringLiteral("1.17")
+        || m_exerciseId == QStringLiteral("1.19")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -2486,6 +2495,14 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsLeft =
                 (currentStepId().trimmed() == QStringLiteral("1") ? 900 : 1100) + 50;
             previewAbsTop = kPreviewAbsTop + 125;
+        }
+        if (m_exerciseId == QStringLiteral("1.19")) {
+            // Как трафарет на холсте: гориз. 1150×310, верт. 1150×240.
+            const QString step = currentStepId().trimmed();
+            const bool horizontal =
+                step == QStringLiteral("Леопард 3") || step == QStringLiteral("Дом 4");
+            previewAbsLeft = 1150;
+            previewAbsTop = horizontal ? 310 : 240;
         }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
@@ -5009,6 +5026,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.13")
                || m_exerciseId == QStringLiteral("1.17")
                || m_exerciseId == QStringLiteral("1.18")
+               || m_exerciseId == QStringLiteral("1.19")
                || m_exerciseId == QStringLiteral("1.25")
                || m_exerciseId == QStringLiteral("2.8")
                || m_exerciseId == QStringLiteral("2.9")
@@ -5521,21 +5539,45 @@ void ExerciseHost::layoutE15ModePopup() {
         }
     }
 
-    if (!m_puzzleOptionsGroup || !m_shardButton) {
+    if (!m_puzzleOptionsGroup) {
         return;
     }
-    if (isPuzzleShard && m_shardPanelVisible && m_shardButton->isVisible()) {
+    const bool puzzleAnchor15 =
+        m_exerciseId == QStringLiteral("1.19") && m_shard15Button && m_shard15Button->isVisible();
+    const bool puzzleAnchorLegacy = m_shardButton && m_shardButton->isVisible();
+    if (isPuzzleShard && m_shardPanelVisible && (puzzleAnchor15 || puzzleAnchorLegacy)) {
         constexpr int kPopupW = 300;
         m_puzzleOptionsGroup->setFixedWidth(kPopupW);
         if (QLayout *lay = m_puzzleOptionsGroup->layout()) {
             lay->activate();
         }
         const int groupH = qMax(m_puzzleOptionsGroup->sizeHint().height(), 180);
-        const QPoint below =
-            m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
-        m_puzzleOptionsGroup->setGeometry(below.x(), below.y(), kPopupW, groupH);
+        if (puzzleAnchor15) {
+            if (m_puzzleOptionsGroup->parentWidget() != m_rightPanel) {
+                m_puzzleOptionsGroup->setParent(m_rightPanel);
+            }
+            m_shard15Button->adjustSize();
+            constexpr int kLinkAbsX = 1550;
+            constexpr int kLinkAbsY = 12;
+            constexpr int kLinkH = 33;
+            const int rightPanelLeft = kPanelX + kScrollWidth;
+            const int linkW = qMax(m_shard15Button->sizeHint().width(), 280);
+            const int localX = qMax(8, kLinkAbsX - rightPanelLeft);
+            m_shard15Button->setGeometry(localX, kLinkAbsY, linkW, kLinkH);
+            m_shard15Button->show();
+            const int popupX = m_shard15Button->x();
+            const int popupY = m_shard15Button->y() + m_shard15Button->height() + 2;
+            m_puzzleOptionsGroup->setGeometry(popupX, popupY, kPopupW, groupH);
+        } else {
+            const QPoint below =
+                m_shardButton->mapTo(m_rightPanel, QPoint(0, m_shardButton->height() + 2));
+            m_puzzleOptionsGroup->setGeometry(below.x(), below.y(), kPopupW, groupH);
+        }
         m_puzzleOptionsGroup->show();
         m_puzzleOptionsGroup->raise();
+        if (puzzleAnchor15) {
+            m_shard15Button->raise();
+        }
     } else if (isPuzzleShard) {
         m_puzzleOptionsGroup->hide();
     }
@@ -5554,18 +5596,20 @@ void ExerciseHost::updateExerciseOptionsPanel() {
     // Руководство: ссылка только в заданиях 3–7.
     const bool show316Options = is316 && step.toInt() >= 3;
     const bool is417 = m_exerciseId == QStringLiteral("4.1.7");
-    // 1.5/1.6 — отдельная ссылка m_shard15Button; не options-панель.
-    const bool showShard = (isE15 && !is15 && !is16) || is122 || isPuzzleShard;
+    // 1.5/1.6/1.19 — отдельная ссылка m_shard15Button; не options-панель.
+    const bool showShard = ((isE15 && !is15 && !is16) || is122 || isPuzzleShard)
+        && m_exerciseId != QStringLiteral("1.19");
 
     if (m_exerciseOptionsPanel) {
-        // 4.1.7 / 1.5 / 1.6: без options-панели на правой (своя ссылка / rem).
+        // 4.1.7 / 1.5 / 1.6 / 1.19: без options-панели на правой (своя ссылка / rem).
         m_exerciseOptionsPanel->setVisible(showShard && !show316Options);
     }
     if (m_shardButton) {
         m_shardButton->setVisible(showShard);
     }
     if (m_shard15Button) {
-        const bool show15Link = (is15 || is16) && !m_exerciseRunning;
+        const bool show15Link =
+            (is15 || is16 || m_exerciseId == QStringLiteral("1.19")) && !m_exerciseRunning;
         m_shard15Button->setVisible(show15Link);
         if (show15Link && m_rightPanel) {
             m_shard15Button->adjustSize();

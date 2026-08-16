@@ -6709,6 +6709,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             || (!anyActivityInFirstCol
                 && (firstPlain.contains(QStringLiteral("Кол-во цифр"), Qt::CaseInsensitive)
                     || firstPlain.contains(QStringLiteral("Факт выполнения"), Qt::CaseInsensitive)
+                    || firstPlain.contains(QStringLiteral("Изображение"), Qt::CaseInsensitive)
                     || firstPlain.contains(QStringLiteral("Картинка"), Qt::CaseInsensitive)
                     || firstPlain.contains(QStringLiteral("Задание"), Qt::CaseInsensitive)
                     || firstPlain.contains(QStringLiteral("Фрагменты речи"), Qt::CaseInsensitive)
@@ -6756,12 +6757,23 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             return -1;
         }
         if (!er.stepKey.isEmpty()) {
+            const QStringList editorTokens = numberedStepLookupTokens(er.stepKey);
             for (int i = 0; i < dataRows.size(); ++i) {
                 if (used.contains(i)) {
                     continue;
                 }
-                if (dataRows.at(i).stepKey.compare(er.stepKey, Qt::CaseInsensitive) == 0) {
+                const QString &storedKey = dataRows.at(i).stepKey;
+                if (storedKey.compare(er.stepKey, Qt::CaseInsensitive) == 0) {
                     return i;
+                }
+                // 1.19/1.20: в HTML <!--stepМатрешка 2-->, в 1-й ячейке «Матрешка/2 по горизонт.».
+                const QStringList storedTokens = numberedStepLookupTokens(storedKey);
+                for (const QString &et : editorTokens) {
+                    for (const QString &st : storedTokens) {
+                        if (et.compare(st, Qt::CaseInsensitive) == 0) {
+                            return i;
+                        }
+                    }
                 }
             }
         }

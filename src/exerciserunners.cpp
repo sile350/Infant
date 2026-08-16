@@ -3793,8 +3793,8 @@ private:
         m_patientCanvas->show();
         m_patientCanvas->raise();
         if (m_patientRotateHint
-            && m_exerciseId == QStringLiteral("1.14")
-            && m_stepId == QStringLiteral("2")) {
+            && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
+                || m_exerciseId == QStringLiteral("1.19"))) {
             m_patientRotateHint->show();
             m_patientRotateHint->raise();
         } else if (m_patientRotateHint) {
@@ -3838,13 +3838,23 @@ private:
         m_patientCanvas->raise();
         // Как на 1-м экране: rotate_hint @ (1400, 150) в координатах 1920×1080.
         if (m_patientRotateHint
-            && m_exerciseId == QStringLiteral("1.14")
-            && m_stepId == QStringLiteral("2")) {
+            && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
+                || m_exerciseId == QStringLiteral("1.19"))) {
             constexpr int kDesignW = 1920;
             constexpr int kDesignH = 1080;
             const double sx = w > 0 ? static_cast<double>(w) / kDesignW : 1.0;
             const double sy = h > 0 ? static_cast<double>(h) / kDesignH : 1.0;
-            m_patientRotateHint->move(qRound(1400.0 * sx), qRound(150.0 * sy));
+            // 1.19: рядом с зоной трафарета; 1.14/2: как на 1-м экране @ (1400,150).
+            double hx = 1400.0;
+            double hy = 150.0;
+            if (m_exerciseId == QStringLiteral("1.19")) {
+                hx = 1400.0;
+                hy = (m_stepId.contains(QStringLiteral("Матрешка"))
+                      || m_stepId.contains(QStringLiteral("Мишка")))
+                    ? 100.0
+                    : 130.0;
+            }
+            m_patientRotateHint->move(qRound(hx * sx), qRound(hy * sy));
             m_patientRotateHint->show();
             m_patientRotateHint->raise();
         } else if (m_patientRotateHint) {

@@ -611,41 +611,40 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->selectMode = false;
         layout->showTemplate = true;
         const QString step = stepId.trimmed();
+        // Горизонтальные: Леопард/Дом — трафарет 1150×310; вертикальные: Матрешка/Мишка — 1150×240.
+        // Подсказка слева (50×…); фрагменты между подсказкой и трафаретом.
+        const bool horizontal =
+            step == QStringLiteral("Леопард 3") || step == QStringLiteral("Дом 4");
+        const int templateY = horizontal ? 310 : 240;
+        layout->templateX = 1150;
+        layout->templateY = templateY;
         if (step == QStringLiteral("Матрешка 2")) {
             layout->templateFile = QStringLiteral("tматрешка2.png");
-            layout->templateX = 700;
-            layout->templateY = 100;
-            addSprite(layout, QStringLiteral("матрешка21.png"), 100, 100);
-            addSprite(layout, QStringLiteral("матрешка22.png"), 130, 130);
+            addSprite(layout, QStringLiteral("матрешка21.png"), 600, 240);
+            addSprite(layout, QStringLiteral("матрешка22.png"), 720, 280);
             return true;
         }
         if (step == QStringLiteral("Мишка 4")) {
             layout->templateFile = QStringLiteral("tмишка4.png");
-            layout->templateX = 550;
-            layout->templateY = 0;
-            addSprite(layout, QStringLiteral("мишка41.png"), 100, 100);
-            addSprite(layout, QStringLiteral("мишка42.png"), 130, 130);
-            addSprite(layout, QStringLiteral("мишка43.png"), 130, 170);
-            addSprite(layout, QStringLiteral("мишка44.png"), 150, 170);
+            addSprite(layout, QStringLiteral("мишка41.png"), 580, 240);
+            addSprite(layout, QStringLiteral("мишка42.png"), 700, 260);
+            addSprite(layout, QStringLiteral("мишка43.png"), 820, 280);
+            addSprite(layout, QStringLiteral("мишка44.png"), 700, 400);
             return true;
         }
         if (step == QStringLiteral("Дом 4")) {
             layout->templateFile = QStringLiteral("tдом4.png");
-            layout->templateX = 550;
-            layout->templateY = 0;
-            addSprite(layout, QStringLiteral("дом41.png"), 100, 100);
-            addSprite(layout, QStringLiteral("дом42.png"), 130, 130);
-            addSprite(layout, QStringLiteral("дом43.png"), 130, 170);
-            addSprite(layout, QStringLiteral("дом44.png"), 150, 170);
+            addSprite(layout, QStringLiteral("дом41.png"), 580, 310);
+            addSprite(layout, QStringLiteral("дом42.png"), 720, 330);
+            addSprite(layout, QStringLiteral("дом43.png"), 860, 350);
+            addSprite(layout, QStringLiteral("дом44.png"), 720, 430);
             return true;
         }
         if (step == QStringLiteral("Леопард 3")) {
             layout->templateFile = QStringLiteral("tлеопард3.png");
-            layout->templateX = 550;
-            layout->templateY = 200;
-            addSprite(layout, QStringLiteral("леопард31.png"), 100, 100);
-            addSprite(layout, QStringLiteral("леопард32.png"), 130, 130);
-            addSprite(layout, QStringLiteral("леопард33.png"), 130, 170);
+            addSprite(layout, QStringLiteral("леопард31.png"), 600, 310);
+            addSprite(layout, QStringLiteral("леопард32.png"), 760, 340);
+            addSprite(layout, QStringLiteral("леопард33.png"), 900, 370);
             return true;
         }
         return false;

@@ -118,8 +118,12 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         m_hintX = 31;
         m_hintY = 200;
     } else if (exerciseId == QStringLiteral("1.19")) {
-        m_hintX = 31;
-        m_hintY = 22;
+        // Подсказка слева: гориз. 50×310, верт. 50×240.
+        m_hintX = 50;
+        const QString step = stepId.trimmed();
+        const bool horizontal =
+            step == QStringLiteral("Леопард 3") || step == QStringLiteral("Дом 4");
+        m_hintY = horizontal ? 310 : 240;
     }
     if (hidePreviewHint) {
         // p* только по опции showHint (applySessionOptions); f* на холст не грузим.
