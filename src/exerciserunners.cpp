@@ -679,6 +679,9 @@ protected:
         }
     }
 
+    // FindMark: держать красное выделение / «Продолжить» поверх холста.
+    virtual void raiseSessionOverlays() { raiseOverlayControls(); }
+
     void ensurePatientPaintUi(PatientDisplay *display) {
         if (!display) {
             return;
@@ -1064,7 +1067,7 @@ protected:
         m_picture->setFixedSize(display.size());
         m_picture->move(m_layout.pos);
         m_picture->raise();
-        raiseOverlayControls();
+        raiseSessionOverlays();
         syncPatientPaintDisplay();
     }
 
@@ -1101,13 +1104,13 @@ public:
 
         m_redTimer = new QTimer(this);
         connect(m_redTimer, &QTimer::timeout, this, [this]() {
-            // 17.5: после красного поля — синяя кисть до «Продолжить».
+            // 17.5: поле красное → синяя кисть до «Продолжить» (все задания, 1/2 экрана).
             if (m_exerciseId == QStringLiteral("2.1")) {
                 m_brushColor = QColor(QStringLiteral("#4220ef"));
                 m_brushWidth = 6;
                 m_redPhaseActive = true;
-            }
-            if (m_redOverlay) {
+                showRedOverlays();
+            } else if (m_redOverlay) {
                 m_redOverlay->setGeometry(m_picture->geometry());
                 m_redOverlay->show();
                 m_redOverlay->raise();
@@ -1117,13 +1120,8 @@ public:
 
         m_redOverlay = new ClickableLabel(this);
         m_redOverlay->hide();
-        m_redOverlay->onClick = [this]() {
-            if (m_exerciseId != QStringLiteral("2.1")) {
-                return;
-            }
-            // 17.6: красное выделение не снимать — только показать «Продолжить».
-            offerContinueButton();
-        };
+        // Красное видно, но рисование синим проходит сквозь оверлей (17.5 / 17.6).
+        m_redOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
         m_continueButton = new ClickableLabel(this);
         markPatientControl(m_continueButton);
@@ -1135,13 +1133,11 @@ public:
                 return;
             }
             m_redPhaseActive = false;
-            if (m_redOverlay) {
-                m_redOverlay->hide();
-            }
+            hideRedOverlays();
             if (m_continueButton) {
                 m_continueButton->hide();
             }
-            // 2.1: снова красная кисть толщиной 6 (как setBrush в findmark.cs).
+            // После «Продолжить» снова рабочий цвет вычёркивания.
             m_brushColor = QColor(QStringLiteral("#e02020"));
             m_brushWidth = 6;
             m_redTimer->start();
@@ -1258,6 +1254,53 @@ public:
         if (m_patientDisplay && usesPatientPaintCanvas()) {
             bindPatientDisplay(m_patientDisplay);
         }
+        hideRedOverlays();
+        if (m_continueButton) {
+            m_continueButton->hide();
+        }
+    }
+
+    void ensurePatientRedOverlay() {
+        if (!m_patientRoot || m_patientRedOverlay) {
+            return;
+        }
+        m_patientRedOverlay = new ClickableLabel(m_patientRoot);
+        m_patientRedOverlay->hide();
+        m_patientRedOverlay->setScaledContents(true);
+        // Визуальное красное выделение, но клики/рисование проходят на холст (17.7).
+        m_patientRedOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        if (m_redOverlay && !m_redOverlay->pixmap(Qt::ReturnByValue).isNull()) {
+            m_patientRedOverlay->setPixmap(m_redOverlay->pixmap(Qt::ReturnByValue));
+        }
+    }
+
+    void showRedOverlays() {
+        if (m_picture && m_redOverlay) {
+            m_redOverlay->setGeometry(m_picture->geometry());
+            m_redOverlay->show();
+            m_redOverlay->raise();
+        }
+        if (m_patientPicture && m_patientRoot) {
+            ensurePatientRedOverlay();
+            if (m_patientRedOverlay) {
+                if (m_redOverlay && !m_redOverlay->pixmap(Qt::ReturnByValue).isNull()) {
+                    m_patientRedOverlay->setPixmap(m_redOverlay->pixmap(Qt::ReturnByValue));
+                }
+                m_patientRedOverlay->setGeometry(m_patientPicture->geometry());
+                m_patientRedOverlay->show();
+                m_patientRedOverlay->raise();
+            }
+        }
+        raiseSessionOverlays();
+    }
+
+    void hideRedOverlays() {
+        if (m_redOverlay) {
+            m_redOverlay->hide();
+        }
+        if (m_patientRedOverlay) {
+            m_patientRedOverlay->hide();
+        }
     }
 
     void offerContinueButton() {
@@ -1266,13 +1309,33 @@ public:
         }
         layoutUi();
         m_continueButton->show();
-        m_continueButton->raise();
+        raiseSessionOverlays();
     }
 
     void afterPaintStroke() override {
-        // 17.7: после красного поля рисование на любом экране показывает «Продолжить».
+        // 17.5: во время красного поля кисть всегда синяя (на случай сброса).
         if (m_redPhaseActive && m_exerciseId == QStringLiteral("2.1")) {
+            m_brushColor = QColor(QStringLiteral("#4220ef"));
+            m_brushWidth = 6;
+            // 17.7: рисование на любом экране показывает «Продолжить».
             offerContinueButton();
+        }
+    }
+
+    void raiseSessionOverlays() override {
+        raiseOverlayControls();
+        if (m_redPhaseActive) {
+            if (m_picture && m_redOverlay && m_redOverlay->isVisible()) {
+                m_redOverlay->setGeometry(m_picture->geometry());
+                m_redOverlay->raise();
+            }
+            if (m_patientPicture && m_patientRedOverlay && m_patientRedOverlay->isVisible()) {
+                m_patientRedOverlay->setGeometry(m_patientPicture->geometry());
+                m_patientRedOverlay->raise();
+            }
+        }
+        if (m_continueButton && m_continueButton->isVisible()) {
+            m_continueButton->raise();
         }
     }
 
@@ -1415,6 +1478,8 @@ protected:
                 m_sampleTimerLabel->raise();
             }
         }
+        // После перекладки холста снова поднять красное / «Продолжить».
+        raiseSessionOverlays();
     }
 
     void redrawTemplate() {
@@ -1489,6 +1554,7 @@ protected:
     QTimer *m_slideshowTimer = nullptr;
     QTimer *m_redTimer = nullptr;
     ClickableLabel *m_redOverlay = nullptr;
+    ClickableLabel *m_patientRedOverlay = nullptr;
     ClickableLabel *m_continueButton = nullptr;
     ClickableLabel *m_hideSample = nullptr;
     ClickableLabel *m_fwdSample = nullptr;
