@@ -6774,17 +6774,71 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     // (особенно после дописки задания 2) и правки по №1 с уже заполненными ячейками теряются.
     QString body = storedBody;
 
-    // 5.2.1: на каждое «Задание №N» — своя таблица OR/HLP. Нужны все таблицы документа,
-    // иначе после break сохранялась только первая (или при одной live-таблице — не та строка).
+    // 5.2.1: в одном протоколе несколько таблиц OR/HLP — брать соседние только
+    // в том же диапазоне dokit-pid, что и processTable (не все таблицы вкладки «Протоколы»).
     QList<QTextTable *> tables;
     if (processTable) {
         QTextDocument *liveDoc = processTable->document();
         const QList<QTextTable *> allLive =
             liveDoc ? collectOrHlpProcessTables(liveDoc) : QList<QTextTable *>();
-        if (allLive.size() > 1) {
-            tables = allLive;
-        } else {
+        if (allLive.size() <= 1) {
             tables.append(processTable);
+        } else {
+            int startPos = -1;
+            int endPos = -1;
+            const QTextTableCell anchorCell = processTable->cellAt(0, 0);
+            const int tablePos = anchorCell.isValid()
+                ? anchorCell.firstCursorPosition().position()
+                : -1;
+            if (liveDoc && tablePos >= 0) {
+                for (QTextBlock block = liveDoc->begin(); block.isValid(); block = block.next()) {
+                    for (QTextBlock::iterator it = block.begin(); !(it.atEnd()); ++it) {
+                        const QTextFragment frag = it.fragment();
+                        if (!frag.isValid()) {
+                            continue;
+                        }
+                        const QTextCharFormat fmt = frag.charFormat();
+                        if (!fmt.isAnchor()) {
+                            continue;
+                        }
+                        for (const QString &name : fmt.anchorNames()) {
+                            if (name.startsWith(QStringLiteral("dokit-pid-"))
+                                && name.endsWith(QStringLiteral("-start"))) {
+                                if (frag.position() <= tablePos) {
+                                    startPos = frag.position();
+                                }
+                            }
+                            if (name.startsWith(QStringLiteral("dokit-pid-"))
+                                && name.endsWith(QStringLiteral("-end"))) {
+                                if (frag.position() >= tablePos && endPos < 0) {
+                                    endPos = frag.position();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (startPos >= 0) {
+                if (endPos < 0 && liveDoc) {
+                    endPos = liveDoc->characterCount();
+                }
+                for (QTextTable *t : allLive) {
+                    if (!t || t->rows() <= 0) {
+                        continue;
+                    }
+                    const QTextTableCell c = t->cellAt(0, 0);
+                    if (!c.isValid()) {
+                        continue;
+                    }
+                    const int p = c.firstCursorPosition().position();
+                    if (p >= startPos && p < endPos) {
+                        tables.append(t);
+                    }
+                }
+            }
+            if (tables.isEmpty()) {
+                tables.append(processTable);
+            }
         }
     } else {
         tables = collectOrHlpProcessTables(editorDocument);
@@ -6986,7 +7040,12 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     auto findStoredRowIndex = [&](const EditorRow &er, const QSet<int> &used) -> int {
         // 3-кол. OR/HLP без «№» (3.1.11 / 5.2.1 и др.): stepKey = текст характера —
         // после правки с клавиатуры ключ меняется, сопоставление только по порядку.
-        if (er.activityInFirstCol) {
+        // 3.1.23 / done_time: «выполнено/0:12 сек» — тоже по порядку (время может чуть отличаться в Qt).
+        const bool factTimeRow =
+            er.stepKey.contains(QStringLiteral("сек"), Qt::CaseInsensitive)
+            || er.stepKey.contains(QStringLiteral("выполн"), Qt::CaseInsensitive)
+            || er.stepKey.contains(QStringLiteral("не определ"), Qt::CaseInsensitive);
+        if (er.activityInFirstCol || factTimeRow) {
             return -1;
         }
         if (!er.stepKey.isEmpty()) {

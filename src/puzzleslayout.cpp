@@ -612,15 +612,18 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->showTemplate = true;
         layout->templateFile = QStringLiteral("fone.png");
         layout->templateX = 600;
-        layout->templateY = 50;
-        addSprite(layout, QStringLiteral("11.png"), 600, 700);
-        addSprite(layout, QStringLiteral("12.png"), 720, 700);
-        addSprite(layout, QStringLiteral("13.png"), 840, 700);
-        addSprite(layout, QStringLiteral("14.png"), 960, 700);
-        addSprite(layout, QStringLiteral("15.png"), 600, 820);
-        addSprite(layout, QStringLiteral("16.png"), 720, 820);
-        addSprite(layout, QStringLiteral("17.png"), 840, 820);
-        addSprite(layout, QStringLiteral("18.png"), 960, 820);
+        // 28.1: Стоп@70 → трафарет и фрагменты не выше 70+50.
+        constexpr int kBelowStop = 70 + 50;
+        constexpr int kDy = kBelowStop - 50; // исходный traf.y=50
+        layout->templateY = kBelowStop;
+        addSprite(layout, QStringLiteral("11.png"), 600, 700 + kDy);
+        addSprite(layout, QStringLiteral("12.png"), 720, 700 + kDy);
+        addSprite(layout, QStringLiteral("13.png"), 840, 700 + kDy);
+        addSprite(layout, QStringLiteral("14.png"), 960, 700 + kDy);
+        addSprite(layout, QStringLiteral("15.png"), 600, 820 + kDy);
+        addSprite(layout, QStringLiteral("16.png"), 720, 820 + kDy);
+        addSprite(layout, QStringLiteral("17.png"), 840, 820 + kDy);
+        addSprite(layout, QStringLiteral("18.png"), 960, 820 + kDy);
         return true;
     }
 
@@ -779,6 +782,7 @@ bool loadPuzzleLayout(
 
     // 1.24: опустить трафарет и фрагменты на 70 px (до и во время выполнения).
     // 1.29: опустить задание ниже кнопок (кроме Стоп) на 50 px (ТЗ 16.1).
+    // 3.1.24 задание 2: ниже Стоп@70 ещё на 50 px (было dy=80 → нужно ≥120).
     if (loaded
         && (exerciseId == QStringLiteral("1.24") || exerciseId == QStringLiteral("1.29"))) {
         const int kDy = exerciseId == QStringLiteral("1.29") ? 50 : 70;
@@ -788,6 +792,20 @@ bool loadPuzzleLayout(
             sprite.y += kDy;
             if (sprite.targetY >= 0) {
                 sprite.targetY += kDy;
+            }
+        }
+    }
+    if (loaded && exerciseId == QStringLiteral("3.1.24")
+        && stepId.trimmed() == QStringLiteral("2")) {
+        constexpr int kBelowStop = 70 + 50;
+        const int lift = qMax(0, kBelowStop - layout->templateY);
+        if (lift > 0) {
+            layout->templateY += lift;
+            for (PuzzleSpriteDef &sprite : layout->sprites) {
+                sprite.y += lift;
+                if (sprite.targetY >= 0) {
+                    sprite.targetY += lift;
+                }
             }
         }
     }

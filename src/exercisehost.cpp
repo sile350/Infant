@@ -1883,6 +1883,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("3.1.16")
         || m_exerciseId == QStringLiteral("3.1.20")
         || m_exerciseId == QStringLiteral("3.1.21")
+        || m_exerciseId == QStringLiteral("3.1.24")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -5813,6 +5814,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("3.1.16")
                || m_exerciseId == QStringLiteral("3.1.20")
                || m_exerciseId == QStringLiteral("3.1.23")
+               || m_exerciseId == QStringLiteral("3.1.24")
                || m_exerciseId == QStringLiteral("3.2.1")
                || m_exerciseId == QStringLiteral("3.2.2")
                || m_exerciseId == QStringLiteral("3.2.3")
@@ -5888,11 +5890,12 @@ void ExerciseHost::formProtocol() {
     QString existingBody = partlySave
         ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
         : QString();
-    // 3.1.16 / 3.1.20 / 3.1.21: перед допиской строки сохранить OR/HLP из редактора в тело.
+    // 3.1.16 / 3.1.20 / 3.1.21 / 3.1.24: перед допиской строки сохранить OR/HLP из редактора в тело.
     if (partlySave && !existingBody.trimmed().isEmpty() && m_templateBrowser
         && (m_exerciseId == QStringLiteral("3.1.16")
             || m_exerciseId == QStringLiteral("3.1.20")
-            || m_exerciseId == QStringLiteral("3.1.21"))) {
+            || m_exerciseId == QStringLiteral("3.1.21")
+            || m_exerciseId == QStringLiteral("3.1.24"))) {
         commitTextEditChanges(m_templateBrowser, true);
         if (m_exerciseId == QStringLiteral("3.1.21")) {
             existingBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
