@@ -485,7 +485,9 @@ public:
                 m_canvas = QImage(m_layout.size, QImage::Format_RGB32);
             }
             m_canvas.fill(Qt::white);
-        } else if (exerciseId == QStringLiteral("1.12")) {
+        } else if (exerciseId == QStringLiteral("1.12")
+                   || exerciseId == QStringLiteral("3.3.3")) {
+            // 3.3.3: без серого прямоугольника за лабиринтом.
             m_canvas.fill(Qt::white);
         } else {
             m_canvas.fill(QColor(0xf2, 0xf0, 0xf0));

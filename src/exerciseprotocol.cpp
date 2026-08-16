@@ -370,6 +370,28 @@ QString normalizeStoredProtocolBody(QString body) {
     body.remove(QRegularExpression(
         QStringLiteral("<span[^>]*dokit-[^>]*>.*?</span>"),
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
+    // 4.1.7 / 1.7: в rowTemplate не было </td> после «факт/время» — Qt показывает 4 колонки,
+    // а regex-merge видит 3 и не сохраняет OR/HLP с вкладки «Протоколы».
+    {
+        const QRegularExpression unclosedTdRe(
+            QStringLiteral("(<td\\b[^>]*>)((?:(?!</?t[dr]\\b).)*)(?=<td\\b)"),
+            QRegularExpression::CaseInsensitiveOption
+                | QRegularExpression::DotMatchesEverythingOption);
+        QString fixed;
+        fixed.reserve(body.size() + 64);
+        int last = 0;
+        QRegularExpressionMatchIterator it = unclosedTdRe.globalMatch(body);
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            fixed += body.mid(last, m.capturedStart() - last);
+            fixed += m.captured(1) + m.captured(2) + QStringLiteral("</td>");
+            last = m.capturedEnd();
+        }
+        if (last > 0) {
+            fixed += body.mid(last);
+            body = fixed;
+        }
+    }
     // После просмотра/печати Qt часто оставляет «Показать изображение» или <a> вместо скачать.
     // В БД держим только плейсхолдеры — ссылки собираются при показе по id протокола.
     body.replace(
@@ -6997,6 +7019,27 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
     }
     const QString head = body.left(marker + QStringLiteral("<!--s-->").size());
     QString tail = body.mid(marker + QStringLiteral("<!--s-->").size());
+    // Уже сохранённые протоколы 4.1.7/1.7: дописать недостающий </td> перед OR/HLP.
+    {
+        const QRegularExpression unclosedTdRe(
+            QStringLiteral("(<td\\b[^>]*>)((?:(?!</?t[dr]\\b).)*)(?=<td\\b)"),
+            QRegularExpression::CaseInsensitiveOption
+                | QRegularExpression::DotMatchesEverythingOption);
+        QString fixed;
+        fixed.reserve(tail.size() + 64);
+        int last = 0;
+        QRegularExpressionMatchIterator uit = unclosedTdRe.globalMatch(tail);
+        while (uit.hasNext()) {
+            const QRegularExpressionMatch m = uit.next();
+            fixed += tail.mid(last, m.capturedStart() - last);
+            fixed += m.captured(1) + m.captured(2) + QStringLiteral("</td>");
+            last = m.capturedEnd();
+        }
+        if (last > 0) {
+            fixed += tail.mid(last);
+            tail = fixed;
+        }
+    }
 
     const QRegularExpression trRe(
         QStringLiteral("(<tr[^>]*>)([\\s\\S]*?)(</tr>)"),
