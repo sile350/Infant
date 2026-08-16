@@ -7281,7 +7281,49 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
             }
         }
     }
+    // Текст «Результат» из редактора: не затирать ручной ввод автосуммой баллов.
+    QString editorResultPlain;
+    if (editorDocument) {
+        int editorSectionIndex = 0;
+        const QStringList editorSessions =
+            ExerciseProtocol::extractProtocolBodiesByDateRows(editorDocument->toHtml());
+        if (editorSessions.size() > 1) {
+            editorSectionIndex = editorSessions.size() - 1;
+        }
+        const ParsedProtocolFields parsed =
+            parseProtocolFieldsFromDocument(editorDocument, editorSectionIndex);
+        if (parsed.hasResult) {
+            editorResultPlain = stripScanDisplayLabelsFromResult(parsed.resultText).trimmed();
+        }
+        if (editorResultPlain.isEmpty()) {
+            const QString fromId = htmlFragmentToPlainText(
+                extractDivInnerById(editorDocument->toHtml(), QStringLiteral("idvivod")));
+            editorResultPlain = stripScanDisplayLabelsFromResult(fromId).trimmed();
+        }
+    }
+    auto isAutoOrPlaceholderResult = [](const QString &text) {
+        const QString t = text.trimmed();
+        if (t.isEmpty() || t == QStringLiteral("(10)")) {
+            return true;
+        }
+        static const QRegularExpression autoRe(
+            QStringLiteral("^\\d+(?:[.,]\\d+)?\\(10\\)/"),
+            QRegularExpression::CaseInsensitiveOption);
+        return autoRe.match(t).hasMatch();
+    };
+
     if (!ok) {
+        // Баллов нет — сохранить ручной «Результат» из редактора.
+        if (!editorResultPlain.isEmpty()) {
+            if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
+                const QString merged = mergeResultTextPreservingScanPlaceholders(
+                    editorResultPlain, extractResultCellInnerHtml(chunk));
+                chunk = replaceDivInnerById(
+                    chunk, QStringLiteral("idvivod"), merged.toHtmlEscaped());
+            } else {
+                chunk = replaceResultRowSecondCell(chunk, editorResultPlain);
+            }
+        }
         if (multi) {
             sessions[sessions.size() - 1] = chunk;
             body = joinProtocol126Sessions(sessions);
@@ -7290,13 +7332,22 @@ QString ExerciseProtocol::applyProtocol318SumFromDocument(
         }
     } else {
         const int scoreInt = qBound(0, qRound(value), 10);
-        const QString resultText = QStringLiteral("%1(10)/%2")
+        const QString autoResult = QStringLiteral("%1(10)/%2")
                                        .arg(formatBallsNumber(scoreInt), developmentLevelFromBalls(scoreInt));
+        // Ручной текст (не плейсхолдер и не автошаблон N(10)/…) сохраняем как есть.
+        const QString resultText =
+            (!editorResultPlain.isEmpty() && !isAutoOrPlaceholderResult(editorResultPlain)
+             && editorResultPlain != autoResult)
+                ? editorResultPlain
+                : autoResult;
         if (chunk.contains(QStringLiteral("idballs"), Qt::CaseInsensitive)) {
             chunk = replaceDivInnerById(chunk, QStringLiteral("idballs"), formatBallsNumber(scoreInt));
         }
         if (chunk.contains(QStringLiteral("idvivod"), Qt::CaseInsensitive)) {
-            chunk = replaceDivInnerById(chunk, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
+            const QString merged = mergeResultTextPreservingScanPlaceholders(
+                resultText, extractResultCellInnerHtml(chunk));
+            chunk = replaceDivInnerById(
+                chunk, QStringLiteral("idvivod"), merged.toHtmlEscaped());
         } else {
             chunk = replaceResultRowSecondCell(chunk, resultText);
         }

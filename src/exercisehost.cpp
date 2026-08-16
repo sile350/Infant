@@ -3201,6 +3201,11 @@ void ExerciseHost::updatePreviewLayout() {
             // exbegin Top=170; 26.1 — опустить на 50 px.
             previewAbsTop = 170 + 50;
         }
+        if (m_exerciseId == QStringLiteral("3.3.2")) {
+            // 31.3: до/после выполнения — −50 влево, +50 вниз от базы 1100×75.
+            previewAbsLeft = kPreviewAbsLeft - 50;
+            previewAbsTop = kPreviewAbsTop + 50;
+        }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
             previewAbsLeft = 1100;
