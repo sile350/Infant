@@ -535,7 +535,8 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         const int step = stepId.toInt();
         const QString mode = aparam.trimmed().isEmpty() ? QStringLiteral("1") : aparam.trimmed();
         if (step == 1) {
-            const int dy = 110;
+            // 25.5: задания 1–2 — опустить на 50 px (оригинал dy=110).
+            const int dy = 110 + 50;
             layout->templateFile = QStringLiteral("traf1.png");
             layout->templateX = 750;
             layout->templateY = dy;
@@ -545,7 +546,7 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
             return true;
         }
         if (step == 2) {
-            const int dy = 110;
+            const int dy = 110 + 50;
             layout->templateFile = QStringLiteral("traf2.png");
             layout->templateX = 750;
             layout->templateY = dy;
@@ -557,47 +558,53 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         if (step < 3 || step > 7) {
             return false;
         }
+        // 25.6: ниже Стоп (≥70+50) и +100 px вправо.
+        constexpr int kDx = 100;
+        constexpr int kBelowStop = 70 + 50;
         const int dy = 40;
+        const int y0 = kBelowStop; // было templateY 0/40 — перекрывало Стоп
         layout->templateFile = QStringLiteral("traf%1.png").arg(step);
-        layout->templateX = 650;
-        layout->templateY = (step == 3) ? 0 : dy;
+        layout->templateX = 650 + kDx;
+        layout->templateY = y0 + ((step == 3) ? 0 : dy);
+        auto sx = [kDx](int x) { return x + kDx; };
+        auto sy = [y0](int y) { return y + y0; };
         if (mode == QStringLiteral("1")) {
             // puzzles.cs aparam=="1": все фрагменты заданий 3–7.
-            addSprite(layout, QStringLiteral("31.png"), 457, 43);
-            addSprite(layout, QStringLiteral("32.png"), 457, 248 + dy);
-            addSprite(layout, QStringLiteral("41.png"), 257, 1 + dy);
-            addSprite(layout, QStringLiteral("42.png"), 257, 248 + dy);
-            addSprite(layout, QStringLiteral("51.png"), 0, 1 + dy);
-            addSprite(layout, QStringLiteral("52.png"), 0, 248 + dy);
-            addSprite(layout, QStringLiteral("61.png"), 0, 500 + dy);
-            addSprite(layout, QStringLiteral("62.png"), 257, 500 + dy);
-            addSprite(layout, QStringLiteral("71.png"), 457, 500 + dy);
-            addSprite(layout, QStringLiteral("72.png"), 0, 750 + dy);
+            addSprite(layout, QStringLiteral("31.png"), sx(457), sy(43));
+            addSprite(layout, QStringLiteral("32.png"), sx(457), sy(248 + dy));
+            addSprite(layout, QStringLiteral("41.png"), sx(257), sy(1 + dy));
+            addSprite(layout, QStringLiteral("42.png"), sx(257), sy(248 + dy));
+            addSprite(layout, QStringLiteral("51.png"), sx(0), sy(1 + dy));
+            addSprite(layout, QStringLiteral("52.png"), sx(0), sy(248 + dy));
+            addSprite(layout, QStringLiteral("61.png"), sx(0), sy(500 + dy));
+            addSprite(layout, QStringLiteral("62.png"), sx(257), sy(500 + dy));
+            addSprite(layout, QStringLiteral("71.png"), sx(457), sy(500 + dy));
+            addSprite(layout, QStringLiteral("72.png"), sx(0), sy(750 + dy));
             return true;
         }
         // aparam == "2": только фрагменты текущего задания.
         if (step == 3) {
-            addSprite(layout, QStringLiteral("31.png"), 457, 51 + dy);
-            addSprite(layout, QStringLiteral("32.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("31.png"), sx(457), sy(51 + dy));
+            addSprite(layout, QStringLiteral("32.png"), sx(457), sy(248 + dy));
             return true;
         }
         if (step == 4) {
-            addSprite(layout, QStringLiteral("41.png"), 457, 51);
-            addSprite(layout, QStringLiteral("42.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("41.png"), sx(457), sy(51));
+            addSprite(layout, QStringLiteral("42.png"), sx(457), sy(248 + dy));
             return true;
         }
         if (step == 5) {
-            addSprite(layout, QStringLiteral("51.png"), 457, 1 + dy);
-            addSprite(layout, QStringLiteral("52.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("51.png"), sx(457), sy(1 + dy));
+            addSprite(layout, QStringLiteral("52.png"), sx(457), sy(248 + dy));
             return true;
         }
         if (step == 6) {
-            addSprite(layout, QStringLiteral("61.png"), 457, 51);
-            addSprite(layout, QStringLiteral("62.png"), 457, 248 + dy);
+            addSprite(layout, QStringLiteral("61.png"), sx(457), sy(51));
+            addSprite(layout, QStringLiteral("62.png"), sx(457), sy(248 + dy));
             return true;
         }
-        addSprite(layout, QStringLiteral("71.png"), 457, 1 + dy);
-        addSprite(layout, QStringLiteral("72.png"), 457, 248 + dy);
+        addSprite(layout, QStringLiteral("71.png"), sx(457), sy(1 + dy));
+        addSprite(layout, QStringLiteral("72.png"), sx(457), sy(248 + dy));
         return true;
     }
 

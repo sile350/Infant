@@ -1880,6 +1880,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("2.11")
         || m_exerciseId == QStringLiteral("2.12")
         || m_exerciseId == QStringLiteral("3.1.8")
+        || m_exerciseId == QStringLiteral("3.1.16")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -5798,6 +5799,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("3.1.11")
                || m_exerciseId == QStringLiteral("3.1.12")
                || m_exerciseId == QStringLiteral("3.1.15")
+               || m_exerciseId == QStringLiteral("3.1.16")
                || m_exerciseId == QStringLiteral("3.1.23")
                || m_exerciseId == QStringLiteral("3.2.1")
                || m_exerciseId == QStringLiteral("3.2.2")
@@ -5874,6 +5876,13 @@ void ExerciseHost::formProtocol() {
     QString existingBody = partlySave
         ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
         : QString();
+    // 3.1.16 (25.1): перед допиской строки сохранить OR/HLP из редактора в тело.
+    if (partlySave && !existingBody.trimmed().isEmpty() && m_templateBrowser
+        && m_exerciseId == QStringLiteral("3.1.16")) {
+        commitTextEditChanges(m_templateBrowser, true);
+        existingBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+            existingBody, m_templateBrowser->document());
+    }
 
     ProtocolSessionInput session = buildProtocolSession();
     if (m_exerciseId == QStringLiteral("1.26") && !session.additional.trimmed().isEmpty()) {

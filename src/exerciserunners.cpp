@@ -4333,8 +4333,10 @@ private:
         const double sx = width() > 0 ? static_cast<double>(width()) / kDesignW : 1.0;
         const double sy = height() > 0 ? static_cast<double>(height()) / kDesignH : 1.0;
         // Как shard в оригинале: справа вверху (Left=1281, Top=9).
+        // 3.1.16 (25.4): во время выполнения сдвинуть ссылку сложности на 100 px вправо.
         m_shardLink->adjustSize();
-        const int linkX = qRound(1281.0 * sx);
+        const double shardLeft = (m_exerciseId == QStringLiteral("3.1.16")) ? 1381.0 : 1281.0;
+        const int linkX = qRound(shardLeft * sx);
         const int linkY = qRound(9.0 * sy);
         m_shardLink->move(linkX, linkY);
         m_shardLink->show();
