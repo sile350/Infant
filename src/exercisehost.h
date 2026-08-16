@@ -233,7 +233,6 @@ private:
     QLineEdit *m_findMark22NEdit = nullptr;
     QLineEdit *m_findMark22ErrEdit = nullptr;
     QLabel *m_findMark22SLabel = nullptr;
-    QPushButton *m_findMark22CalcButton = nullptr;
     int m_findMark22Balls = -1;
     QString m_findMark22Conclusion;
     QLabel *m_rightCountLabel = nullptr;

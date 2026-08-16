@@ -2814,6 +2814,9 @@ void ExerciseHost::ensureFindMark22Panel() {
         lab->setWordWrap(true);
         lab->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         lab->setStyleSheet(cellBorder);
+        // Как в РП width=416 → ×1.5.
+        lab->setMinimumWidth(624);
+        lab->setMaximumWidth(624);
         return lab;
     };
     auto makeCenterLabel = [&]() {
@@ -2840,22 +2843,9 @@ void ExerciseHost::ensureFindMark22Panel() {
         makeLeft(QStringLiteral("S (показатель переключения и распределения внимания)")), 2, 0);
     m_findMark22SLabel = makeCenterLabel();
     grid->addWidget(m_findMark22SLabel, 2, 1);
-    grid->setColumnStretch(0, 1);
+    grid->setColumnStretch(0, 0);
+    grid->setColumnStretch(1, 0);
     outer->addWidget(tableHost, 0, Qt::AlignHCenter);
-
-    m_findMark22CalcButton = new QPushButton(QStringLiteral("Рассчитать"), m_findMark22Panel);
-    m_findMark22CalcButton->setFixedSize(140, 32);
-    m_findMark22CalcButton->setStyleSheet(QStringLiteral(
-        "QPushButton {"
-        "  background:#e8e8e8; border:1px solid #888; color:#000;"
-        "  font-family:'Microsoft Sans Serif',sans-serif; font-size:13px;"
-        "}"
-        "QPushButton:pressed { background:#d0d0d0; }"));
-    connect(m_findMark22CalcButton, &QPushButton::clicked, this, [this]() {
-        calculateFindMark22Score();
-        updateContentHeights();
-    });
-    outer->addWidget(m_findMark22CalcButton, 0, Qt::AlignHCenter);
 
     m_findMark22Panel->hide();
 }

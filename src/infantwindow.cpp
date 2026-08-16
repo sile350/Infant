@@ -4939,17 +4939,22 @@ void InfantWindow::closeExerciseHost() {
 }
 
 void InfantWindow::updateExerciseScanPrintButtons() {
-    const bool supported = m_exerciseOpen && m_exerciseHost
-        && ExerciseHost::supportsScanUpload(m_exerciseHost->exerciseId());
+    const bool exerciseOpen = m_exerciseOpen && m_exerciseHost;
+    const QString exerciseId = exerciseOpen ? m_exerciseHost->exerciseId() : QString();
+    // Печать стимула — независимо от загрузки сканов (загрузка отключена).
     if (m_bPicPrint) {
-        m_bPicPrint->setVisible(supported && ExerciseHost::supportsStimulusPrint(m_exerciseHost->exerciseId()));
-        if (m_bPicPrint->isVisible()) {
+        const bool showPrint =
+            exerciseOpen && ExerciseHost::supportsStimulusPrint(exerciseId);
+        m_bPicPrint->setVisible(showPrint);
+        if (showPrint) {
             m_bPicPrint->raise();
         }
     }
     if (m_bUpload) {
-        m_bUpload->setVisible(supported);
-        if (m_bUpload->isVisible()) {
+        const bool showUpload =
+            exerciseOpen && ExerciseHost::supportsScanUpload(exerciseId);
+        m_bUpload->setVisible(showUpload);
+        if (showUpload) {
             m_bUpload->raise();
         }
     }
