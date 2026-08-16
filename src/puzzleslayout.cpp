@@ -611,12 +611,13 @@ bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayou
         layout->selectMode = false;
         layout->showTemplate = true;
         const QString step = stepId.trimmed();
-        // Горизонтальные: Леопард/Дом — трафарет 1150×310; вертикальные: Матрешка/Мишка — 1150×240.
+        // Горизонтальные: Леопард/Дом — трафарет 1150×310;
+        // вертикальные: Матрешка/Мишка — 1250×240 (+100 вправо).
         // Подсказка слева (50×…); фрагменты между подсказкой и трафаретом.
         const bool horizontal =
             step == QStringLiteral("Леопард 3") || step == QStringLiteral("Дом 4");
         const int templateY = horizontal ? 310 : 240;
-        layout->templateX = 1150;
+        layout->templateX = horizontal ? 1150 : 1250;
         layout->templateY = templateY;
         if (step == QStringLiteral("Матрешка 2")) {
             layout->templateFile = QStringLiteral("tматрешка2.png");

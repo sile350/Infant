@@ -2497,11 +2497,11 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsTop = kPreviewAbsTop + 125;
         }
         if (m_exerciseId == QStringLiteral("1.19")) {
-            // Как трафарет на холсте: гориз. 1150×310, верт. 1150×240.
+            // Как трафарет на холсте: гориз. 1150×310, верт. 1250×240.
             const QString step = currentStepId().trimmed();
             const bool horizontal =
                 step == QStringLiteral("Леопард 3") || step == QStringLiteral("Дом 4");
-            previewAbsLeft = 1150;
+            previewAbsLeft = horizontal ? 1150 : 1250;
             previewAbsTop = horizontal ? 310 : 240;
         }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
