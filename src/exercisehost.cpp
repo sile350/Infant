@@ -1881,6 +1881,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("2.12")
         || m_exerciseId == QStringLiteral("3.1.8")
         || m_exerciseId == QStringLiteral("3.1.16")
+        || m_exerciseId == QStringLiteral("3.1.20")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -3193,6 +3194,10 @@ void ExerciseHost::updatePreviewLayout() {
             // Как exbegin: Left=1050, Top=190; 23.4 — ещё −100 px.
             previewAbsLeft = 1050;
             previewAbsTop = 190 + 100;
+        }
+        if (m_exerciseId == QStringLiteral("3.1.20")) {
+            // exbegin Top=170; 26.1 — опустить на 50 px.
+            previewAbsTop = 170 + 50;
         }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
@@ -5800,6 +5805,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("3.1.12")
                || m_exerciseId == QStringLiteral("3.1.15")
                || m_exerciseId == QStringLiteral("3.1.16")
+               || m_exerciseId == QStringLiteral("3.1.20")
                || m_exerciseId == QStringLiteral("3.1.23")
                || m_exerciseId == QStringLiteral("3.2.1")
                || m_exerciseId == QStringLiteral("3.2.2")
@@ -5876,9 +5882,10 @@ void ExerciseHost::formProtocol() {
     QString existingBody = partlySave
         ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
         : QString();
-    // 3.1.16 (25.1): перед допиской строки сохранить OR/HLP из редактора в тело.
+    // 3.1.16 / 3.1.20: перед допиской строки сохранить OR/HLP из редактора в тело.
     if (partlySave && !existingBody.trimmed().isEmpty() && m_templateBrowser
-        && m_exerciseId == QStringLiteral("3.1.16")) {
+        && (m_exerciseId == QStringLiteral("3.1.16")
+            || m_exerciseId == QStringLiteral("3.1.20"))) {
         commitTextEditChanges(m_templateBrowser, true);
         existingBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             existingBody, m_templateBrowser->document());

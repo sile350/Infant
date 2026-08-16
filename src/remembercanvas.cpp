@@ -81,18 +81,21 @@ bool RememberCanvas::loadRememberLayout(
 
     if (exerciseId == QStringLiteral("3.1.20")) {
         built.showTemplate = true;
+        // 26.5: трафарет не ниже Стоп@70 + 50 px.
+        constexpr int kBelowStop = 70 + 50;
         if (step == QStringLiteral("3")) {
             built.templateFile = QStringLiteral("traf2.png");
             built.templateX = 50;
-            built.templateY = 100;
+            built.templateY = qMax(100, kBelowStop);
         } else {
             built.templateFile = QStringLiteral("traf1.png");
             built.templateX = 400;
-            built.templateY = 50;
+            built.templateY = qMax(50, kBelowStop);
         }
         int linex = 40;
-        const int spacing = step == QStringLiteral("3") ? 450 : 250;
-        const int y = 350;
+        // 26.6: чуть шире шаг, чтобы после shuffle оставался зазор.
+        const int spacing = step == QStringLiteral("3") ? 470 : 270;
+        const int y = qMax(350, kBelowStop);
         for (int i = 1; i <= 4; ++i) {
             const QString file = step + QString::number(i) + QStringLiteral(".png");
             if (ExerciseAssets::exerciseFile(exerciseId, file).isEmpty()) {
@@ -227,7 +230,8 @@ void RememberCanvas::startExercise(
     } else if (exerciseId == QStringLiteral("3.1.20")) {
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf1.png")));
         m_templateX = 400;
-        m_templateY = 50;
+        // 26.5: не перекрывать Стоп@70.
+        m_templateY = 70 + 50;
         m_showTemplate = true;
     } else if (exerciseId == QStringLiteral("4.1.7")) {
         m_template = QPixmap(ExerciseAssets::exerciseFile(exerciseId, QStringLiteral("traf.png")));
@@ -277,6 +281,7 @@ void RememberCanvas::startExercise(
         // Две карты остаются на исходных координатах — без shuffle.
     } else if (exerciseId == QStringLiteral("3.1.20")) {
         // remember.cs: y = 400+dy; x = posx[mst]+dx (шаг1: dx=350,dy=50; шаг2: 350/80; шаг3: 30/70).
+        // 26.5: ещё +50 ниже Стоп; 26.6: раздвинуть слоты (mult2 как в remember.cs).
         const QString step = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
         int dx = 350;
         int dy = 50;
@@ -286,7 +291,14 @@ void RememberCanvas::startExercise(
             dx = 30;
             dy = 70;
         }
-        shuffleSprites(400 + dy, dx);
+        const int mult2 = (step == QStringLiteral("3")) ? 250 : 100;
+        m_slotPositions.clear();
+        for (int i = 0; i < int(sizeof(kDefaultSlots) / sizeof(kDefaultSlots[0])); ++i) {
+            m_slotPositions.append(kDefaultSlots[i] + mult2 * i);
+        }
+        // Стоп@70 → перемещаемые картинки не выше 70+50.
+        const int baseY = qMax(400 + dy + 50, 70 + 50);
+        shuffleSprites(baseY, dx);
     } else {
         shuffleSprites(400);
     }
