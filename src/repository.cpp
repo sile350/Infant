@@ -1213,6 +1213,11 @@ bool Repository::updateProtocolsFromEditedDocument(
             } else if (uprid == QStringLiteral("1.272")) {
                 mergedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
                     storedBody, &sectionDocument);
+            } else if (uprid == QStringLiteral("1.14")
+                       || uprid == QStringLiteral("3.1.8")
+                       || uprid == QStringLiteral("3.1.21")) {
+                mergedBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+                    storedBody, &sectionDocument, QStringLiteral("idb"));
             } else if (uprid == QStringLiteral("4.1.8")) {
                 mergedBody = ExerciseProtocol::mergeProtocol418EditorIntoStoredBody(
                     storedBody, &sectionDocument);

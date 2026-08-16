@@ -5871,24 +5871,31 @@ public:
         connect(m_canvas, &RememberCanvas::removeButtonChanged, this, [this]() { syncRemoveButton(); });
         connect(m_canvas, &RememberCanvas::spritesChanged, this, [this]() { syncSpritesToPatient(); });
 
-        // 3.1.21: панель «Ответы ребенка» (как questions.cs поверх remember).
+        // 3.1.21: панель «Вопросы к картинкам» (как questions.cs поверх remember).
         m_questionsPanel = new QWidget(this);
         markPatientControl(m_questionsPanel);
         m_questionsPanel->setStyleSheet(QStringLiteral(
-            "QWidget { background:#f8f8f8; border:1px solid #888; }"
+            "QWidget { background:#f0f0f0; border:1px solid #888; }"
             "QLabel { color:#000; font-family:'Microsoft Sans Serif'; font-size:13px; }"
-            "QLineEdit { background:#fff; border:1px solid #666; padding:2px; }"));
+            "QLineEdit { background:#fff; border:1px solid #666; padding:2px; min-height:22px; }"));
         auto *qLayout = new QVBoxLayout(m_questionsPanel);
-        qLayout->setContentsMargins(8, 8, 8, 8);
-        qLayout->setSpacing(6);
-        qLayout->addWidget(new QLabel(QStringLiteral("Ответы ребенка:"), m_questionsPanel));
+        qLayout->setContentsMargins(10, 8, 10, 8);
+        qLayout->setSpacing(4);
+        m_questionsTitle = new QLabel(QStringLiteral("Вопросы к картинкам"), m_questionsPanel);
+        m_questionsTitle->setStyleSheet(QStringLiteral(
+            "QLabel { font-size:16px; font-weight:bold; text-decoration:underline; "
+            "border:none; background:transparent; }"));
+        qLayout->addWidget(m_questionsTitle);
         for (int i = 0; i < 3; ++i) {
+            m_questionLabels[i] = new QLabel(m_questionsPanel);
+            m_questionLabels[i]->setWordWrap(true);
+            m_questionLabels[i]->setStyleSheet(QStringLiteral(
+                "QLabel { border:none; background:transparent; padding-top:4px; }"));
+            qLayout->addWidget(m_questionLabels[i]);
             m_answerEdits[i] = new QLineEdit(m_questionsPanel);
-            m_answerEdits[i]->setPlaceholderText(
-                QStringLiteral("Вопрос № %1").arg(i + 1));
             qLayout->addWidget(m_answerEdits[i]);
         }
-        m_questionsPanel->setFixedWidth(280);
+        m_questionsPanel->setFixedWidth(720);
         m_questionsPanel->hide();
     }
 
@@ -5916,6 +5923,8 @@ public:
             }
             m_questionsPanel->setVisible(showQ);
             if (showQ) {
+                fillQuestionsForStep(stepId);
+                m_questionsPanel->adjustSize();
                 m_questionsPanel->move(12, 120);
                 m_questionsPanel->raise();
             }
@@ -5958,6 +5967,7 @@ public:
             m_removek->move(m_stop ? m_stop->x() + 200 : 280, m_stop ? m_stop->y() : 72);
         }
         if (m_questionsPanel && m_questionsPanel->isVisible()) {
+            m_questionsPanel->adjustSize();
             m_questionsPanel->move(12, 120);
             m_questionsPanel->raise();
         }
@@ -6067,6 +6077,49 @@ private:
         m_syncingSprites = false;
     }
 
+    void fillQuestionsForStep(const QString &stepId) {
+        // Вопросы из РП / or.html (как questions.cs panel1..3).
+        static const QStringList kSeries1 = {
+            QStringLiteral(
+                "1. Что изображено на этой картинке (указать на картинку № 1)? Что сделала эта девочка?"),
+            QStringLiteral(
+                "2. А на этой картинке что нарисовано (указать на картинку № 2)? Что делают девочки? "
+                "Почему одна из девочек плачет?"),
+            QStringLiteral(
+                "3. Скажи, чем картинки связаны, что случилось и почему. Что было сначала, а что потом?"),
+        };
+        static const QStringList kSeries2 = {
+            QStringLiteral(
+                "1. Что изображено на этой картинке (указать на картинку № 1)? Что делает этот мальчик?"),
+            QStringLiteral(
+                "2. А на этой картинке что нарисовано (указать на картинку № 2)? Кому мальчик показал "
+                "рыбу? Почему мама удивилась?"),
+            QStringLiteral(
+                "3. Скажи, как картинки связаны, что между ними общего? Что было сначала, а что потом?"),
+        };
+        static const QStringList kSeries3 = {
+            QStringLiteral(
+                "1. Что изображено на этой картинке (указать на картинку № 1)? Что делают мальчики? "
+                "Для чего им нужен сачок?"),
+            QStringLiteral(
+                "2. А на этой картинке что нарисовано (указать на картинку № 2)? Кого поймали мальчики?"),
+            QStringLiteral(
+                "3. Скажи, как картинки связаны, что между ними общего? Что было сначала, а что потом?"),
+        };
+        const QString step = stepId.trimmed().isEmpty() ? QStringLiteral("1") : stepId.trimmed();
+        const QStringList *qs = &kSeries1;
+        if (step == QStringLiteral("2")) {
+            qs = &kSeries2;
+        } else if (step == QStringLiteral("3")) {
+            qs = &kSeries3;
+        }
+        for (int i = 0; i < 3; ++i) {
+            if (m_questionLabels[i]) {
+                m_questionLabels[i]->setText(qs->at(i));
+            }
+        }
+    }
+
     void layoutStopPosition(const QString &exerciseId) {
         if (!m_stop) {
             return;
@@ -6139,6 +6192,8 @@ private:
     ClickableLabel *m_stop = nullptr;
     ClickableLabel *m_removek = nullptr;
     QWidget *m_questionsPanel = nullptr;
+    QLabel *m_questionsTitle = nullptr;
+    QLabel *m_questionLabels[3] = {nullptr, nullptr, nullptr};
     QLineEdit *m_answerEdits[3] = {nullptr, nullptr, nullptr};
     QWidget *m_patientRoot = nullptr;
     RememberCanvas *m_patientCanvas = nullptr;

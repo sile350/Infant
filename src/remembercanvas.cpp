@@ -55,6 +55,8 @@ bool RememberCanvas::loadRememberLayout(
 
     if (exerciseId == QStringLiteral("3.1.21")) {
         // remember.cs: две карты столбцом, без shuffle.
+        // 27.6: в оригинале pictureBox.Top=150; у нас холст с 0 — смещаем ниже Стоп@70+50.
+        constexpr int kYOffset = 120;
         built.showTemplate = false;
         const QString a = step + QStringLiteral("1.png");
         const QString b = step + QStringLiteral("2.png");
@@ -62,14 +64,14 @@ bool RememberCanvas::loadRememberLayout(
             PuzzleSpriteDef s;
             s.file = a;
             s.x = 600;
-            s.y = 422;
+            s.y = 422 + kYOffset;
             built.sprites.append(s);
         }
         if (!ExerciseAssets::exerciseFile(exerciseId, b).isEmpty()) {
             PuzzleSpriteDef s;
             s.file = b;
             s.x = 600;
-            s.y = 0;
+            s.y = 0 + kYOffset;
             built.sprites.append(s);
         }
         if (built.sprites.isEmpty()) {

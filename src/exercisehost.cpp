@@ -1882,6 +1882,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("3.1.8")
         || m_exerciseId == QStringLiteral("3.1.16")
         || m_exerciseId == QStringLiteral("3.1.20")
+        || m_exerciseId == QStringLiteral("3.1.21")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -3555,7 +3556,8 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
             || m_exerciseId == QStringLiteral("1.27")
             || m_exerciseId == QStringLiteral("2.11")
             || m_exerciseId == QStringLiteral("2.12")
-            || m_exerciseId == QStringLiteral("3.1.10"));
+            || m_exerciseId == QStringLiteral("3.1.10")
+            || m_exerciseId == QStringLiteral("3.1.21"));
     // 1.12: заголовки из or.html (не Стимулирующая/Направляющая/Обучающая).
     const bool help112 = m_exerciseId == QStringLiteral("1.12");
     // 1.14: «после 1 серии» / «После 2 серии» (по 4 пункта), без «Обучающая».
@@ -3873,8 +3875,12 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     if (m_activityTitle) {
         if (m_exerciseId == QStringLiteral("5.4.2") || m_exerciseId == QStringLiteral("3.1.21")) {
             m_activityTitle->setText(QStringLiteral("Баллы"));
+            if (m_exerciseId == QStringLiteral("3.1.21")) {
+                m_activityTitle->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+            }
         } else {
             m_activityTitle->setText(QStringLiteral("Характер деятельности ребенка:"));
+            m_activityTitle->setAlignment(Qt::AlignCenter);
         }
         m_activityTitle->setVisible(hasActivity);
     }
@@ -5882,13 +5888,19 @@ void ExerciseHost::formProtocol() {
     QString existingBody = partlySave
         ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
         : QString();
-    // 3.1.16 / 3.1.20: перед допиской строки сохранить OR/HLP из редактора в тело.
+    // 3.1.16 / 3.1.20 / 3.1.21: перед допиской строки сохранить OR/HLP из редактора в тело.
     if (partlySave && !existingBody.trimmed().isEmpty() && m_templateBrowser
         && (m_exerciseId == QStringLiteral("3.1.16")
-            || m_exerciseId == QStringLiteral("3.1.20"))) {
+            || m_exerciseId == QStringLiteral("3.1.20")
+            || m_exerciseId == QStringLiteral("3.1.21"))) {
         commitTextEditChanges(m_templateBrowser, true);
-        existingBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
-            existingBody, m_templateBrowser->document());
+        if (m_exerciseId == QStringLiteral("3.1.21")) {
+            existingBody = ExerciseProtocol::mergeProtocol1272EditorIntoStoredBody(
+                existingBody, m_templateBrowser->document(), QStringLiteral("idb"));
+        } else {
+            existingBody = ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
+                existingBody, m_templateBrowser->document());
+        }
     }
 
     ProtocolSessionInput session = buildProtocolSession();
