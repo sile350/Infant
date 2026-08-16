@@ -1850,7 +1850,7 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19 / 1.20 / 1.21 / 1.22 / 1.24: при каждом входе протоколы формируются с нуля.
+    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19 / 1.20 / 1.21 / 1.22 / 1.24 / 1.27: при каждом входе протоколы формируются с нуля.
     if (m_exerciseId == QStringLiteral("1.7")
         || m_exerciseId == QStringLiteral("1.11")
         || m_exerciseId == QStringLiteral("1.14")
@@ -1861,6 +1861,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("1.21")
         || m_exerciseId == QStringLiteral("1.22")
         || m_exerciseId == QStringLiteral("1.24")
+        || m_exerciseId == QStringLiteral("1.27")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -2531,6 +2532,10 @@ void ExerciseHost::updatePreviewLayout() {
             // Превью fN: на 70 px ниже базового Top=75 (ТЗ 13.1).
             previewAbsTop = kPreviewAbsTop + 70;
         }
+        if (m_exerciseId == QStringLiteral("1.27")) {
+            // Превью f1/f2/f3: на 100 px ниже (ТЗ 14.2).
+            previewAbsTop = kPreviewAbsTop + 100;
+        }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
             previewAbsLeft = 1100;
@@ -2885,6 +2890,7 @@ void ExerciseHost::syncHelpChecksFromOrHtml() {
     const bool flatCustom = !categorizedThreeHelp
         && (m_exerciseId == QStringLiteral("1.272")
             || m_exerciseId == QStringLiteral("1.21")
+            || m_exerciseId == QStringLiteral("1.27")
             || m_exerciseId == QStringLiteral("3.1.10"));
     // 1.12: заголовки из or.html (не Стимулирующая/Направляющая/Обучающая).
     const bool help112 = m_exerciseId == QStringLiteral("1.12");

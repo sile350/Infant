@@ -151,11 +151,13 @@ bool RememberCanvas::loadRememberLayout(
     int liney = 450;
     int stepSpacing = 250;
     if (exerciseId == QStringLiteral("1.27")) {
+        // ТЗ 14.3: на 50 px ниже исходных координат remember.cs.
+        constexpr int kDy = 50;
         if (step == QStringLiteral("1")) {
-            liney = 450;
+            liney = 450 + kDy;
             stepSpacing = 250;
         } else {
-            liney = 250;
+            liney = 250 + kDy;
             stepSpacing = 300;
         }
     }
@@ -269,8 +271,8 @@ void RememberCanvas::startExercise(
         m_removeButtonVisible = true;
         m_removeButtonImage = QStringLiteral("showp.png");
     } else if (exerciseId == QStringLiteral("1.27")) {
-        // Как remember.cs: после перемешивания y = 650.
-        shuffleSprites(650);
+        // Как remember.cs: после перемешивания y = 650; ТЗ 14.3: +50.
+        shuffleSprites(650 + 50);
     } else if (exerciseId == QStringLiteral("3.1.21")) {
         // Две карты остаются на исходных координатах — без shuffle.
     } else if (exerciseId == QStringLiteral("3.1.20")) {
