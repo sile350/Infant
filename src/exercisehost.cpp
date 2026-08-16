@@ -1850,7 +1850,7 @@ void ExerciseHost::openExercise(
             }
         }
     }
-    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19 / 1.20 / 1.21 / 1.22: при каждом входе протоколы формируются с нуля.
+    // 1.7 / 1.11 / 1.14 / 1.15 / 1.17 / 1.19 / 1.20 / 1.21 / 1.22 / 1.24: при каждом входе протоколы формируются с нуля.
     if (m_exerciseId == QStringLiteral("1.7")
         || m_exerciseId == QStringLiteral("1.11")
         || m_exerciseId == QStringLiteral("1.14")
@@ -1860,6 +1860,7 @@ void ExerciseHost::openExercise(
         || m_exerciseId == QStringLiteral("1.20")
         || m_exerciseId == QStringLiteral("1.21")
         || m_exerciseId == QStringLiteral("1.22")
+        || m_exerciseId == QStringLiteral("1.24")
         || m_exerciseId == QStringLiteral("4.2.2")
         || m_exerciseId == QStringLiteral("5.1.1")
         || m_exerciseId == QStringLiteral("5.2.1")
@@ -2525,6 +2526,10 @@ void ExerciseHost::updatePreviewLayout() {
             // Цельная фигура без вырезов: ~1200×190.
             previewAbsLeft = 1200;
             previewAbsTop = 190;
+        }
+        if (m_exerciseId == QStringLiteral("1.24")) {
+            // Превью fN: на 70 px ниже базового Top=75 (ТЗ 13.1).
+            previewAbsTop = kPreviewAbsTop + 70;
         }
         // 3.1.16: как exbegin — не перекрывать ссылку сложности (Top=100/140).
         if (m_exerciseId == QStringLiteral("3.1.16")) {
@@ -5096,6 +5101,7 @@ void ExerciseHost::saveProtocolEdits() {
                || m_exerciseId == QStringLiteral("1.18")
                || m_exerciseId == QStringLiteral("1.19")
                || m_exerciseId == QStringLiteral("1.22")
+               || m_exerciseId == QStringLiteral("1.24")
                || m_exerciseId == QStringLiteral("1.25")
                || m_exerciseId == QStringLiteral("2.8")
                || m_exerciseId == QStringLiteral("2.9")

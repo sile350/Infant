@@ -737,25 +737,39 @@ bool loadPuzzleLayout(
         return builtinLayout(exerciseId, stepId, layout, aparam);
     }
 
+    bool loaded = false;
     const QString dir = ExerciseAssets::exerciseDir(exerciseId);
     if (dir.isEmpty()) {
-        return builtinLayout(exerciseId, stepId, layout, aparam)
+        loaded = builtinLayout(exerciseId, stepId, layout, aparam)
             || autoGridLayout(exerciseId, stepId, layout);
-    }
-
-    const QStringList candidates = {
-        dir + QLatin1Char('/') + layoutFileName(stepId),
-        dir + QStringLiteral("/puzzle_default.json"),
-    };
-    for (const QString &jsonPath : candidates) {
-        if (QFile::exists(jsonPath) && loadLayoutJson(jsonPath, layout)) {
-            return true;
+    } else {
+        const QStringList candidates = {
+            dir + QLatin1Char('/') + layoutFileName(stepId),
+            dir + QStringLiteral("/puzzle_default.json"),
+        };
+        for (const QString &jsonPath : candidates) {
+            if (QFile::exists(jsonPath) && loadLayoutJson(jsonPath, layout)) {
+                loaded = true;
+                break;
+            }
+        }
+        if (!loaded) {
+            loaded = builtinLayout(exerciseId, stepId, layout, aparam)
+                || autoGridLayout(exerciseId, stepId, layout);
         }
     }
 
-    if (builtinLayout(exerciseId, stepId, layout, aparam)) {
-        return true;
+    // 1.24: опустить трафарет и фрагменты на 70 px (до и во время выполнения).
+    if (loaded && exerciseId == QStringLiteral("1.24")) {
+        constexpr int kDy = 70;
+        layout->templateY += kDy;
+        layout->template2Y += kDy;
+        for (PuzzleSpriteDef &sprite : layout->sprites) {
+            sprite.y += kDy;
+            if (sprite.targetY >= 0) {
+                sprite.targetY += kDy;
+            }
+        }
     }
-
-    return autoGridLayout(exerciseId, stepId, layout);
+    return loaded;
 }

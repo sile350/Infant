@@ -107,8 +107,9 @@ void PuzzleCanvas::loadExercise(const QString &exerciseId, const QString &stepId
         m_hintX = 200;
         m_hintY = 230;
     } else if (exerciseId == QStringLiteral("1.24")) {
+        // Подсказка exN: как puzzles.cs (+70 по ТЗ 13.1).
         m_hintX = 200;
-        m_hintY = stepId == QStringLiteral("4") ? 231 : 131;
+        m_hintY = (stepId == QStringLiteral("4") ? 231 : 131) + 70;
     } else if (exerciseId == QStringLiteral("1.21")) {
         // puzzles.cs: pexample Left=31 (Designer), Top=250.
         m_hintX = 31;
@@ -540,6 +541,27 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
         }
     }
 
+    auto drawHint = [&]() {
+        // 1.24: иллюстрация сказки зависит от storyVisible; остальные — от showHint.
+        if (m_hintPixmap.isNull() || !m_showHint
+            || (m_exerciseId == QStringLiteral("1.24") && !m_storyVisible)) {
+            return;
+        }
+        const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
+        painter.drawPixmap(
+            hintOrigin.x(),
+            hintOrigin.y(),
+            qRound(m_hintPixmap.width() * m_scale),
+            qRound(m_hintPixmap.height() * m_scale),
+            m_hintPixmap);
+    };
+
+    // 1.24: фрагменты поверх подсказки, чтобы их нельзя было «потерять» под картинкой.
+    const bool hintUnderSprites = m_exerciseId == QStringLiteral("1.24");
+    if (hintUnderSprites) {
+        drawHint();
+    }
+
     for (const Sprite &sprite : m_sprites) {
         if (sprite.pixmap.isNull() || sprite.hidden) {
             continue;
@@ -564,18 +586,9 @@ void PuzzleCanvas::paintEvent(QPaintEvent *event) {
         }
     }
 
-    // Как PictureBox pexample поверх canvas: подсказка закрывает детали под собой,
-    // снаружи справа остаются фрагменты между подсказкой и пустым прямоугольником.
-    // 1.24: подсказка/иллюстрация сказки зависит от storyVisible; остальные — только от showHint.
-    if (!m_hintPixmap.isNull() && m_showHint
-        && (m_exerciseId != QStringLiteral("1.24") || m_storyVisible)) {
-        const QPoint hintOrigin = mapFromDesign(m_hintX, m_hintY);
-        painter.drawPixmap(
-            hintOrigin.x(),
-            hintOrigin.y(),
-            qRound(m_hintPixmap.width() * m_scale),
-            qRound(m_hintPixmap.height() * m_scale),
-            m_hintPixmap);
+    // Как PictureBox pexample поверх canvas (кроме 1.24 — см. выше).
+    if (!hintUnderSprites) {
+        drawHint();
     }
 }
 
