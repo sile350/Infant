@@ -1070,9 +1070,9 @@ protected:
         m_picture->setPixmap(display);
         m_picture->setFixedSize(display.size());
         m_picture->move(m_layout.pos);
-        m_picture->raise();
-        raiseSessionOverlays();
+        // Сначала пациентский холст (мог сменить размер), затем оверлеи поверх.
         syncPatientPaintDisplay();
+        raiseSessionOverlays();
     }
 
     QImage m_canvas;
@@ -1140,6 +1140,8 @@ public:
 
         m_redOverlay = new ClickableLabel(this);
         m_redOverlay->hide();
+        m_redOverlay->setAutoFillBackground(false);
+        m_redOverlay->setStyleSheet(QStringLiteral("background:transparent; border:none;"));
         // По умолчанию прозрачен для мыши; для 2.2 при блокировке снимаем.
 
         m_continueButton = new ClickableLabel(this);
@@ -1279,13 +1281,36 @@ public:
         }
     }
 
-    void ensurePatientRedOverlay() {
-        if (!m_patientRoot || m_patientRedOverlay) {
+    void configureRedOverlayWidget(ClickableLabel *overlay) {
+        if (!overlay) {
             return;
         }
-        m_patientRedOverlay = new ClickableLabel(m_patientRoot);
+        // red1.png полупрозрачный (alpha≈97) — нужен просвет стимула под ним.
+        overlay->setAutoFillBackground(false);
+        overlay->setAttribute(Qt::WA_OpaquePaintEvent, false);
+        overlay->setStyleSheet(QStringLiteral("background:transparent; border:none;"));
+        overlay->setScaledContents(true);
+    }
+
+    // Как в оригинале: pred.Parent = pictureBox1; Left/Top = 0.
+    void placeRedOverlayOnPicture(ClickableLabel *overlay, QLabel *picture) {
+        if (!overlay || !picture) {
+            return;
+        }
+        if (overlay->parentWidget() != picture) {
+            overlay->setParent(picture);
+        }
+        overlay->setGeometry(0, 0, picture->width(), picture->height());
+        overlay->raise();
+    }
+
+    void ensurePatientRedOverlay() {
+        if (!m_patientPicture || m_patientRedOverlay) {
+            return;
+        }
+        m_patientRedOverlay = new ClickableLabel(m_patientPicture);
         m_patientRedOverlay->hide();
-        m_patientRedOverlay->setScaledContents(true);
+        configureRedOverlayWidget(m_patientRedOverlay);
         // 2.1: прозрачен для рисования; 2.2: блокирует (ставится при showRedOverlays).
         m_patientRedOverlay->setAttribute(
             Qt::WA_TransparentForMouseEvents,
@@ -1296,24 +1321,23 @@ public:
     }
 
     void showRedOverlays() {
+        const bool blockPaint = m_exerciseId == QStringLiteral("2.2");
         if (m_picture && m_redOverlay) {
-            const bool blockPaint = m_exerciseId == QStringLiteral("2.2");
+            configureRedOverlayWidget(m_redOverlay);
             m_redOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, !blockPaint);
-            m_redOverlay->setGeometry(m_picture->geometry());
+            placeRedOverlayOnPicture(m_redOverlay, m_picture);
             m_redOverlay->show();
-            m_redOverlay->raise();
         }
-        if (m_patientPicture && m_patientRoot) {
+        if (m_patientPicture) {
             ensurePatientRedOverlay();
             if (m_patientRedOverlay) {
-                const bool blockPaint = m_exerciseId == QStringLiteral("2.2");
+                configureRedOverlayWidget(m_patientRedOverlay);
                 m_patientRedOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, !blockPaint);
                 if (m_redOverlay && !m_redOverlay->pixmap(Qt::ReturnByValue).isNull()) {
                     m_patientRedOverlay->setPixmap(m_redOverlay->pixmap(Qt::ReturnByValue));
                 }
-                m_patientRedOverlay->setGeometry(m_patientPicture->geometry());
+                placeRedOverlayOnPicture(m_patientRedOverlay, m_patientPicture);
                 m_patientRedOverlay->show();
-                m_patientRedOverlay->raise();
             }
         }
         raiseSessionOverlays();
@@ -1359,12 +1383,10 @@ public:
         raiseOverlayControls();
         if (m_redPhaseActive) {
             if (m_picture && m_redOverlay && m_redOverlay->isVisible()) {
-                m_redOverlay->setGeometry(m_picture->geometry());
-                m_redOverlay->raise();
+                placeRedOverlayOnPicture(m_redOverlay, m_picture);
             }
             if (m_patientPicture && m_patientRedOverlay && m_patientRedOverlay->isVisible()) {
-                m_patientRedOverlay->setGeometry(m_patientPicture->geometry());
-                m_patientRedOverlay->raise();
+                placeRedOverlayOnPicture(m_patientRedOverlay, m_patientPicture);
             }
         }
         if (m_continueButton && m_continueButton->isVisible()) {
