@@ -151,31 +151,33 @@ bool autoGridLayout(const QString &exerciseId, const QString &stepId, PuzzleLayo
 
 bool builtinLayout(const QString &exerciseId, const QString &stepId, PuzzleLayout *layout, const QString &aparam) {
     // 1.28 «Восприятие величины»: как puzzles.cs (traf1 / traf22+traf2+детали).
+    // ТЗ 15.5: все картинки на 100 px ниже.
     if (exerciseId == QStringLiteral("1.28")) {
+        constexpr int kDy = 100;
         layout->rotateAllowed = false;
         layout->selectMode = false;
         layout->showTemplate = true;
         if (stepId.trimmed() == QStringLiteral("1")) {
             layout->templateFile = QStringLiteral("traf1.png");
             layout->templateX = 500;
-            layout->templateY = 20;
+            layout->templateY = 20 + kDy;
             return true;
         }
         if (stepId.trimmed() == QStringLiteral("2")) {
             layout->templateFile = QStringLiteral("traf22.png");
             layout->templateX = 900;
-            layout->templateY = 20;
+            layout->templateY = 20 + kDy;
             layout->template2File = QStringLiteral("traf2.png");
             layout->template2X = 400;
-            layout->template2Y = 20;
-            addSprite(layout, QStringLiteral("21.png"), 945, 72, -1, -1, QStringLiteral("smalltree"));
-            addSprite(layout, QStringLiteral("22.png"), 1097, 61, -1, -1, QStringLiteral("bigmashroom"));
-            addSprite(layout, QStringLiteral("23.png"), 909, 258, -1, -1, QStringLiteral("bighouse"));
-            addSprite(layout, QStringLiteral("24.png"), 1119, 346, -1, -1, QStringLiteral("smallcar"));
-            addSprite(layout, QStringLiteral("25.png"), 903, 572, -1, -1, QStringLiteral("bigcar"));
-            addSprite(layout, QStringLiteral("26.png"), 1089, 503, -1, -1, QStringLiteral("bigtree"));
-            addSprite(layout, QStringLiteral("27.png"), 937, 796, -1, -1, QStringLiteral("smallhouse"));
-            addSprite(layout, QStringLiteral("28.png"), 1124, 813, -1, -1, QStringLiteral("smallmashroom"));
+            layout->template2Y = 20 + kDy;
+            addSprite(layout, QStringLiteral("21.png"), 945, 72 + kDy, -1, -1, QStringLiteral("smalltree"));
+            addSprite(layout, QStringLiteral("22.png"), 1097, 61 + kDy, -1, -1, QStringLiteral("bigmashroom"));
+            addSprite(layout, QStringLiteral("23.png"), 909, 258 + kDy, -1, -1, QStringLiteral("bighouse"));
+            addSprite(layout, QStringLiteral("24.png"), 1119, 346 + kDy, -1, -1, QStringLiteral("smallcar"));
+            addSprite(layout, QStringLiteral("25.png"), 903, 572 + kDy, -1, -1, QStringLiteral("bigcar"));
+            addSprite(layout, QStringLiteral("26.png"), 1089, 503 + kDy, -1, -1, QStringLiteral("bigtree"));
+            addSprite(layout, QStringLiteral("27.png"), 937, 796 + kDy, -1, -1, QStringLiteral("smallhouse"));
+            addSprite(layout, QStringLiteral("28.png"), 1124, 813 + kDy, -1, -1, QStringLiteral("smallmashroom"));
             return true;
         }
         return false;

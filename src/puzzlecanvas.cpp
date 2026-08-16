@@ -697,9 +697,8 @@ void PuzzleCanvas::keyPressEvent(QKeyEvent *event) {
 
 void PuzzleCanvas::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    if (m_sprites.isEmpty()) {
-        return;
-    }
+    // Нужно и без спрайтов (1.28 задание 1 — только трафарет): иначе после
+    // load при 0×0 и последующего resize картинка остаётся со смещением за экран.
     const QSize design = designSize();
     const double scaleX = width() > 0 ? static_cast<double>(width()) / design.width() : 1.0;
     const double scaleY = height() > 0 ? static_cast<double>(height()) / design.height() : 1.0;
