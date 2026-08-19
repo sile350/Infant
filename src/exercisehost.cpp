@@ -3165,9 +3165,15 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsTop = horizontal ? 310 : 240;
         }
         if (m_exerciseId == QStringLiteral("1.20")) {
-            // Трафарет/задание 1260×300.
-            previewAbsLeft = 1260;
-            previewAbsTop = 300;
+            // Как трафарет на холсте (templateY из puzzleslayout).
+            PuzzleLayout layout;
+            if (loadPuzzleLayout(m_exerciseId, currentStepId(), &layout)) {
+                previewAbsLeft = layout.templateX;
+                previewAbsTop = layout.templateY;
+            } else {
+                previewAbsLeft = 1260;
+                previewAbsTop = 300;
+            }
         }
         if (m_exerciseId == QStringLiteral("1.22")) {
             // Цельная фигура без вырезов: ~1200×190.
@@ -3233,7 +3239,7 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
-    // 1.20 до старта: инструкция поворота рядом с заданием (−80 влево от 1450).
+    // 1.20 до старта: задание по templateY; rotate_hint как при выполнении (1270×200).
     if (m_rightPanel) {
         QLabel *previewRotate = m_rightPanel->findChild<QLabel *>(QStringLiteral("dokitPreviewRotateHint"));
         if (m_exerciseId == QStringLiteral("1.20") && !m_exerciseRunning) {
@@ -3248,8 +3254,9 @@ void ExerciseHost::updatePreviewLayout() {
                     previewRotate->setFixedSize(hintPm.size());
                 }
             }
+            // По высоте как placeRotateHint при выполнении (1270×200).
             constexpr int kHintAbsX = 1330; // 1450 − 80 − 50 + 10
-            constexpr int kHintAbsY = 300;
+            constexpr int kHintAbsY = 200;
             previewRotate->move(qMax(0, kHintAbsX - rightPanelLeft), kHintAbsY);
             previewRotate->show();
             previewRotate->raise();
@@ -3481,6 +3488,19 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
         const QString s = step.trimmed().isEmpty() ? QStringLiteral("1") : step.trimmed();
         candidates << QStringLiteral("f") + s + QStringLiteral(".png")
                    << QStringLiteral("f1.png");
+    } else if (m_exerciseId == QStringLiteral("1.20")) {
+        // exbegin: pмяч2.png; выравнивание по трафарету — t*.png.
+        const QString s = step.trimmed();
+        if (!s.isEmpty()) {
+            PuzzleLayout layout;
+            if (loadPuzzleLayout(m_exerciseId, s, &layout) && !layout.templateFile.isEmpty()) {
+                candidates << layout.templateFile;
+            }
+            QString slug = s;
+            slug.replace(QLatin1Char(' '), QString());
+            candidates << QStringLiteral("p") + slug.toLower() + QStringLiteral(".png")
+                       << QStringLiteral("p") + slug + QStringLiteral(".png");
+        }
     } else if (!step.isEmpty()) {
         candidates << QStringLiteral("f") + step + QStringLiteral(".png")
                    << step + QStringLiteral(".png")

@@ -2267,7 +2267,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
             inner.remove(QRegularExpression(
                 QStringLiteral("<colgroup\\b[\\s\\S]*?</colgroup>\\s*"),
                 QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption));
-            // 1.19: Изображение / Факт / Характер / Виды помощи — 96+137+223+215 = 671.
+            // 1.19: Изображение / Факт / Характер / Виды помощи — 106+127+223+215 = 671.
             const bool imageCutTable = !numbered
                 && inner.contains(QStringLiteral("Изображение"), Qt::CaseInsensitive)
                 && orHlpFact;
@@ -2280,7 +2280,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     "<colgroup><col width='40'><col width='125'><col width='253'><col width='253'></colgroup>"));
             } else if (imageCutTable) {
                 inner.prepend(QStringLiteral(
-                    "<colgroup><col width='96'><col width='137'><col width='223'><col width='215'></colgroup>"));
+                    "<colgroup><col width='106'><col width='127'><col width='223'><col width='215'></colgroup>"));
             } else if (figuraFactTable) {
                 inner.prepend(QStringLiteral(
                     "<colgroup><col width='95'><col width='110'><col width='233'><col width='233'></colgroup>"));
@@ -2319,7 +2319,7 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                         widths << QStringLiteral("40") << QStringLiteral("125")
                                << QStringLiteral("253") << QStringLiteral("253");
                     } else if (imageCutTable) {
-                        widths << QStringLiteral("96") << QStringLiteral("137")
+                        widths << QStringLiteral("106") << QStringLiteral("127")
                                << QStringLiteral("223") << QStringLiteral("215");
                     } else if (figuraFactTable) {
                         widths << QStringLiteral("95") << QStringLiteral("110")
@@ -4171,7 +4171,7 @@ void ExerciseProtocol::forceProtocolDocumentTableWidths(QTextDocument *document,
                    && headerJoin.contains(QStringLiteral("Факт"), Qt::CaseInsensitive)
                    && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)) {
             // 1.19: Изображение / Факт / Характер / Виды помощи.
-            applied = setFixed({96, 137, 223, 215});
+            applied = setFixed({106, 127, 223, 215});
         } else if (cols == 4
                    && headerJoin.contains(QStringLiteral("Изображение"), Qt::CaseInsensitive)
                    && headerJoin.contains(QStringLiteral("Характер"), Qt::CaseInsensitive)

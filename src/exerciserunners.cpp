@@ -3972,6 +3972,18 @@ public:
             layout.rotateAllowed = false;
             layout.selectMode = m_sessionOptions.e15SelectMode;
         }
+        // 1.29 (ТЗ 3.1): на 1-м экране во время выполнения — ещё +50 px вниз.
+        if (exerciseId == QStringLiteral("1.29")) {
+            constexpr int kExtraDy = 50;
+            layout.templateY += kExtraDy;
+            layout.template2Y += kExtraDy;
+            for (PuzzleSpriteDef &sprite : layout.sprites) {
+                sprite.y += kExtraDy;
+                if (sprite.targetY >= 0) {
+                    sprite.targetY += kExtraDy;
+                }
+            }
+        }
 
         m_canvas->setGeometry(0, 0, width(), height());
         m_canvas->loadExercise(exerciseId, stepId, layout);
@@ -4095,7 +4107,7 @@ private:
                     syncSpritesToPatient();
                 }, Qt::UniqueConnection);
             }
-            // Инструкция поворота (л.к.м./п.к.м.) на 2-м экране для 1.14/2.
+            // Инструкция поворота (л.к.м./п.к.м.) на 2-м экране для 1.14/2, 1.19–1.21, 1.29.
             m_patientRotateHint = new QLabel(m_patientRoot);
             m_patientRotateHint->setProperty("dokitPatientOverlay", true);
             m_patientRotateHint->setAttribute(Qt::WA_TransparentForMouseEvents, true);
@@ -4155,7 +4167,8 @@ private:
             && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
                 || m_exerciseId == QStringLiteral("1.19")
                 || m_exerciseId == QStringLiteral("1.20")
-                || m_exerciseId == QStringLiteral("1.21"))) {
+                || m_exerciseId == QStringLiteral("1.21")
+                || m_exerciseId == QStringLiteral("1.29"))) {
             m_patientRotateHint->show();
             m_patientRotateHint->raise();
         } else if (m_patientRotateHint) {
@@ -4202,15 +4215,19 @@ private:
             && ((m_exerciseId == QStringLiteral("1.14") && m_stepId == QStringLiteral("2"))
                 || m_exerciseId == QStringLiteral("1.19")
                 || m_exerciseId == QStringLiteral("1.20")
-                || m_exerciseId == QStringLiteral("1.21"))) {
+                || m_exerciseId == QStringLiteral("1.21")
+                || m_exerciseId == QStringLiteral("1.29"))) {
             constexpr int kDesignW = 1920;
             constexpr int kDesignH = 1080;
             const double sx = w > 0 ? static_cast<double>(w) / kDesignW : 1.0;
             const double sy = h > 0 ? static_cast<double>(h) / kDesignH : 1.0;
-            // 1.20: ~1270×200; 1.21: 1390×150; 1.19: рядом с зоной трафарета; 1.14/2: @ (1400,150).
+            // 1.29: puzzles.cs pcntr 1190@50; 1.20: ~1270×200; 1.21: 1390×150; 1.19: рядом с трафаретом.
             double hx = 1400.0;
             double hy = 150.0;
-            if (m_exerciseId == QStringLiteral("1.20")) {
+            if (m_exerciseId == QStringLiteral("1.29")) {
+                hx = 1190.0;
+                hy = 50.0;
+            } else if (m_exerciseId == QStringLiteral("1.20")) {
                 hx = 1270.0;
                 hy = 200.0;
             } else if (m_exerciseId == QStringLiteral("1.21")) {
