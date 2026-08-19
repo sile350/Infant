@@ -19,6 +19,7 @@ class QTextEdit;
 class QScrollArea;
 class QCheckBox;
 class QComboBox;
+class QDialog;
 class QGroupBox;
 class QPushButton;
 class QRadioButton;
@@ -98,6 +99,9 @@ private:
     void ensureFindMark21Panel();
     void updateFindMark21PanelVisibility();
     void updateFindMark21TimesForStep();
+    void clearFindMark21Panel();
+    void closeFindMark21GraphWindow();
+    void showFindMark21GraphWindow(const QPixmap &pixmap);
     bool buildFindMark21Graph(bool showGraph);
     QString applyFindMark21ScoresToProtocolBody(QString body) const;
     void ensureFindMark22Panel();
@@ -227,6 +231,7 @@ private:
     ImageButton *m_findMark21BuildButton = nullptr;
     QLabel *m_findMark21Graph = nullptr;
     QPixmap m_findMark21GraphBase;
+    QDialog *m_findMark21GraphWindow = nullptr;
     int m_findMark21Balls = -1;
     QString m_findMark21Conclusion;
     QWidget *m_findMark22Panel = nullptr;

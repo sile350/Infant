@@ -54,6 +54,7 @@
 #include <QTextEdit>
 #include <QTextTable>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QUrl>
 #include <QFileInfo>
 #include <QTimer>
@@ -2350,39 +2351,244 @@ double parseLocaleDouble(QString text, bool *ok) {
 }
 
 int findMark21BallsFromS(double value) {
-    // Как exbegin.cs buildGraph для 2.1 (детальная шкала внутри диапазонов ТЗ).
     if (value > 1.25) {
         return 10;
     }
-    if (value <= 1.25 && value >= 1.12) {
+    if (value >= 1.13) {
         return 9;
     }
-    if (value < 1.12 && value >= 1.0) {
+    if (value >= 1.01) {
         return 8;
     }
-    if (value < 1.0 && value >= 0.87) {
+    if (value >= 0.88) {
         return 7;
     }
-    if (value < 0.87 && value >= 0.75) {
+    if (value >= 0.76) {
         return 6;
     }
-    if (value < 0.75 && value >= 0.62) {
+    if (value >= 0.64) {
         return 5;
     }
-    if (value < 0.62 && value >= 0.5) {
+    if (value >= 0.51) {
         return 4;
     }
-    if (value < 0.5 && value >= 0.36) {
+    if (value >= 0.36) {
         return 3;
     }
-    if (value < 0.36 && value >= 0.24) {
+    if (value >= 0.24) {
         return 2;
     }
-    if (value < 0.24 && value >= 0.1) {
+    if (value >= 0.12) {
         return 1;
     }
     return 0;
 }
+
+QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
+    const QString graphName =
+        step3Axis ? QStringLiteral("graph2.png") : QStringLiteral("graph11.png");
+    const QString graphPath = ExerciseAssets::exerciseFile(QStringLiteral("2.1"), graphName);
+    QPixmap canvas;
+    if (!graphPath.isEmpty()) {
+        canvas = QPixmap(graphPath);
+    }
+
+    if (!canvas.isNull()) {
+        QPainter painter(&canvas);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        const auto coordByValue = [](double rawValue) -> int {
+            const double value = qBound(0.0, rawValue, 1.25);
+            const double pct = value * 100.0 / 1.25;
+            const double px = 180.0 * pct / 100.0;
+            return qRound(226.0 - px);
+        };
+        constexpr int kDy = 60;
+        const int xs[] = {164, 216, 270, 321, 372};
+
+        QPen pen(QColor(239, 71, 227), 5);
+        painter.setPen(pen);
+        QPoint prev(xs[0], coordByValue(sVals[0]) + kDy);
+        for (int i = 1; i < 5; ++i) {
+            const QPoint next(xs[i], coordByValue(sVals[i]) + kDy);
+            painter.drawLine(prev, next);
+            prev = next;
+        }
+        return canvas;
+    }
+
+    // Запасной вариант без graph11.png / graph2.png.
+    constexpr int kW = 640;
+    constexpr int kH = 360;
+    canvas = QPixmap(kW, kH);
+    canvas.fill(QColor(0xe8, 0xe8, 0xe8));
+
+    QPainter painter(&canvas);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    const QRect plot(70, 24, 280, 280);
+    painter.fillRect(plot, QColor(0xe8, 0xe8, 0xe8));
+
+    QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 10);
+    QFont zoneFont(QStringLiteral("Microsoft Sans Serif"), 10, QFont::Bold);
+    painter.setFont(axisFont);
+    painter.setPen(QPen(Qt::black, 1));
+
+    const QStringList yLabels = {
+        QStringLiteral("1,25"),
+        QStringLiteral("1,00"),
+        QStringLiteral("0,75"),
+        QStringLiteral("0,50"),
+        QStringLiteral("0,25"),
+        QStringLiteral("0,00"),
+    };
+    const QStringList zoneLabels = {
+        QStringLiteral("Зона очень высокопродуктивного внимания"),
+        QStringLiteral("Зона высокопродуктивного внимания"),
+        QStringLiteral("Зона среднепродуктивного внимания"),
+        QStringLiteral("Зона низкопродуктивного внимания"),
+        QStringLiteral("Зона очень низкопродуктивного внимания"),
+    };
+
+    for (int i = 0; i < 6; ++i) {
+        const int y = plot.top() + (plot.height() * i) / 5;
+        painter.drawLine(plot.left(), y, plot.right(), y);
+        painter.drawText(
+            QRect(4, y - 10, plot.left() - 8, 20),
+            Qt::AlignRight | Qt::AlignVCenter,
+            yLabels.at(i));
+        if (i < 5) {
+            painter.setFont(zoneFont);
+            const int bandTop = y;
+            const int bandBot = plot.top() + (plot.height() * (i + 1)) / 5;
+            painter.drawText(
+                QRect(plot.right() + 10, bandTop, kW - plot.right() - 16, bandBot - bandTop),
+                Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap,
+                zoneLabels.at(i));
+            painter.setFont(axisFont);
+        }
+    }
+
+    painter.drawLine(plot.left(), plot.top(), plot.left(), plot.bottom());
+    painter.drawLine(plot.left(), plot.bottom(), plot.right(), plot.bottom());
+
+    const QStringList xLabels = step3Axis
+        ? QStringList{
+              QStringLiteral("1"),
+              QStringLiteral("2"),
+              QStringLiteral("3"),
+              QStringLiteral("4"),
+              QStringLiteral("5")}
+        : QStringList{
+              QStringLiteral("0,5"),
+              QStringLiteral("1"),
+              QStringLiteral("1,5"),
+              QStringLiteral("2,0"),
+              QStringLiteral("2,5")};
+    for (int i = 0; i < 5; ++i) {
+        const int x = plot.left() + (plot.width() * (i + 1)) / 5;
+        painter.drawLine(x, plot.bottom(), x, plot.bottom() + 4);
+        painter.drawText(
+            QRect(x - 24, plot.bottom() + 6, 48, 20),
+            Qt::AlignHCenter | Qt::AlignTop,
+            xLabels.at(i));
+    }
+    painter.drawText(
+        QRect(plot.right() + 12, plot.bottom() + 6, 72, 20),
+        Qt::AlignLeft | Qt::AlignTop,
+        QStringLiteral("t(мин)"));
+
+    const auto yFromS = [&](double value) -> int {
+        const double clamped = qBound(0.0, value, 1.25);
+        return plot.bottom() - qRound((clamped / 1.25) * plot.height());
+    };
+
+    QPen pen(QColor(239, 71, 227), 3);
+    painter.setPen(pen);
+    QPoint prev(plot.left() + plot.width() / 5, yFromS(sVals[0]));
+    for (int i = 1; i < 5; ++i) {
+        const QPoint next(
+            plot.left() + (plot.width() * (i + 1)) / 5,
+            yFromS(sVals[i]));
+        painter.drawLine(prev, next);
+        prev = next;
+    }
+    return canvas;
+}
+
+class FindMark21GraphWindow final : public QDialog {
+public:
+    explicit FindMark21GraphWindow(QWidget *parent = nullptr)
+        : QDialog(parent, Qt::FramelessWindowHint | Qt::Window) {
+        setAttribute(Qt::WA_DeleteOnClose, false);
+        setModal(false);
+
+        m_image = new QLabel(this);
+        m_image->setAlignment(Qt::AlignCenter);
+        m_image->setStyleSheet(QStringLiteral("background:transparent;"));
+
+        m_closeButton = new ImageButton(this);
+        m_closeButton->setToolTip(QStringLiteral("Закрыть"));
+        m_closeButton->setCursor(Qt::PointingHandCursor);
+        const QString closePath = ExerciseAssets::sysImage(QStringLiteral("close.png"));
+        if (!closePath.isEmpty()) {
+            m_closeButton->setImagePath(closePath);
+            const QPixmap closePixmap(closePath);
+            m_closeButton->setFixedSize(closePixmap.size());
+        } else {
+            m_closeButton->setText(QStringLiteral("×"));
+            m_closeButton->setFixedSize(24, 24);
+            m_closeButton->setAlignment(Qt::AlignCenter);
+            m_closeButton->setStyleSheet(QStringLiteral(
+                "QLabel { background:#2d6b2d; color:#ffffff; font-size:16px; font-weight:bold; }"));
+        }
+        connect(m_closeButton, &ImageButton::clicked, this, &QDialog::hide);
+    }
+
+    void setGraphPixmap(const QPixmap &pixmap) {
+        if (pixmap.isNull()) {
+            return;
+        }
+        m_image->setPixmap(pixmap);
+        m_image->setFixedSize(pixmap.size());
+        setFixedSize(pixmap.size());
+        m_image->setGeometry(0, 0, pixmap.width(), pixmap.height());
+        const int closeSize = m_closeButton->height();
+        m_closeButton->move(qMax(0, pixmap.width() - closeSize - 6), 6);
+        m_closeButton->raise();
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton
+            && !m_closeButton->geometry().contains(event->pos())) {
+            m_dragOffset = event->globalPos() - frameGeometry().topLeft();
+            m_dragging = true;
+        }
+        QDialog::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (m_dragging && (event->buttons() & Qt::LeftButton)) {
+            move(event->globalPos() - m_dragOffset);
+        }
+        QDialog::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            m_dragging = false;
+        }
+        QDialog::mouseReleaseEvent(event);
+    }
+
+private:
+    QLabel *m_image = nullptr;
+    ImageButton *m_closeButton = nullptr;
+    QPoint m_dragOffset;
+    bool m_dragging = false;
+};
 
 QString findMark21ConclusionFromBalls(int balls) {
     if (balls >= 10) {
@@ -2545,6 +2751,66 @@ void ExerciseHost::updateFindMark21TimesForStep() {
     }
 }
 
+void ExerciseHost::clearFindMark21Panel() {
+    if (!m_findMark21Panel) {
+        return;
+    }
+    for (int i = 0; i < 6; ++i) {
+        if (i < 5) {
+            if (m_findMark21NEdits[i]) {
+                m_findMark21NEdits[i]->clear();
+            }
+            if (m_findMark21ErrEdits[i]) {
+                m_findMark21ErrEdits[i]->clear();
+            }
+        } else {
+            if (m_findMark21NEdits[i]) {
+                m_findMark21NEdits[i]->clear();
+            }
+            if (m_findMark21ErrEdits[i]) {
+                m_findMark21ErrEdits[i]->clear();
+            }
+        }
+        if (m_findMark21SLabels[i]) {
+            m_findMark21SLabels[i]->clear();
+        }
+    }
+    if (m_findMark21BallsLabel) {
+        m_findMark21BallsLabel->clear();
+    }
+    if (m_findMark21Graph) {
+        m_findMark21Graph->clear();
+        m_findMark21Graph->hide();
+    }
+    m_findMark21Balls = -1;
+    m_findMark21Conclusion.clear();
+    closeFindMark21GraphWindow();
+}
+
+void ExerciseHost::closeFindMark21GraphWindow() {
+    if (m_findMark21GraphWindow) {
+        m_findMark21GraphWindow->hide();
+    }
+}
+
+void ExerciseHost::showFindMark21GraphWindow(const QPixmap &pixmap) {
+    if (pixmap.isNull()) {
+        return;
+    }
+    if (!m_findMark21GraphWindow) {
+        m_findMark21GraphWindow = new FindMark21GraphWindow(window());
+    }
+    auto *graphWindow = static_cast<FindMark21GraphWindow *>(m_findMark21GraphWindow);
+    graphWindow->setGraphPixmap(pixmap);
+    if (!graphWindow->isVisible()) {
+        const QPoint anchor = window() ? window()->mapToGlobal(QPoint(220, 100)) : QPoint(220, 100);
+        graphWindow->move(anchor);
+    }
+    graphWindow->show();
+    graphWindow->raise();
+    graphWindow->activateWindow();
+}
+
 bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
     if (m_exerciseId != QStringLiteral("2.1")) {
         return false;
@@ -2571,8 +2837,8 @@ bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
         if (!okE) {
             eVals[i] = 0.0;
         }
-        // ТЗ: S = (0,5N − 2,8n) / t
-        sVals[i] = (0.5 * nVals[i] - 2.8 * eVals[i]) / intervalT;
+        // ТЗ: S = (1,5N − 2,8n) / t
+        sVals[i] = (1.5 * nVals[i] - 2.8 * eVals[i]) / intervalT;
         sVals[i] = qRound(sVals[i] * 100.0) / 100.0;
         if (m_findMark21SLabels[i]) {
             m_findMark21SLabels[i]->setText(QString::number(sVals[i], 'f', 2));
@@ -2591,7 +2857,7 @@ bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
     if (m_findMark21ErrEdits[5]) {
         m_findMark21ErrEdits[5]->setText(QString::number(eSum, 'f', 0));
     }
-    double sTotal = (0.5 * nSum - 2.8 * eSum) / totalT;
+    double sTotal = (1.5 * nSum - 2.8 * eSum) / totalT;
     sTotal = qRound(sTotal * 100.0) / 100.0;
     if (m_findMark21SLabels[5]) {
         m_findMark21SLabels[5]->setText(QString::number(sTotal, 'f', 2));
@@ -2604,110 +2870,12 @@ bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
         m_findMark21BallsLabel->setText(QString::number(balls));
     }
 
-    if (showGraph && m_findMark21Graph) {
-        // Чистый график без зелёной рамки / фоновых картинок (как эталон из РП).
-        const bool step3Axis = isStep3;
-        constexpr int kW = 640;
-        constexpr int kH = 360;
-        QPixmap canvas(kW, kH);
-        canvas.fill(QColor(0xe8, 0xe8, 0xe8));
-
-        QPainter painter(&canvas);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.setRenderHint(QPainter::TextAntialiasing, true);
-
-        const QRect plot(70, 24, 280, 280);
-        painter.fillRect(plot, QColor(0xe8, 0xe8, 0xe8));
-
-        QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 10);
-        QFont zoneFont(QStringLiteral("Microsoft Sans Serif"), 10, QFont::Bold);
-        painter.setFont(axisFont);
-        painter.setPen(QPen(Qt::black, 1));
-
-        const QStringList yLabels = {
-            QStringLiteral("1,25"),
-            QStringLiteral("1,00"),
-            QStringLiteral("0,75"),
-            QStringLiteral("0,50"),
-            QStringLiteral("0,25"),
-            QStringLiteral("0,00"),
-        };
-        const QStringList zoneLabels = {
-            QStringLiteral("Зона очень высокопродуктивного внимания"),
-            QStringLiteral("Зона высокопродуктивного внимания"),
-            QStringLiteral("Зона среднепродуктивного внимания"),
-            QStringLiteral("Зона низкопродуктивного внимания"),
-            QStringLiteral("Зона очень низкопродуктивного внимания"),
-        };
-
-        for (int i = 0; i < 6; ++i) {
-            const int y = plot.top() + (plot.height() * i) / 5;
-            painter.drawLine(plot.left(), y, plot.right(), y);
-            painter.drawText(
-                QRect(4, y - 10, plot.left() - 8, 20),
-                Qt::AlignRight | Qt::AlignVCenter,
-                yLabels.at(i));
-            if (i < 5) {
-                painter.setFont(zoneFont);
-                const int bandTop = y;
-                const int bandBot = plot.top() + (plot.height() * (i + 1)) / 5;
-                painter.drawText(
-                    QRect(plot.right() + 10, bandTop, kW - plot.right() - 16, bandBot - bandTop),
-                    Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap,
-                    zoneLabels.at(i));
-                painter.setFont(axisFont);
-            }
+    if (showGraph) {
+        const QPixmap canvas = renderFindMark21GraphPixmap(sVals, isStep3);
+        showFindMark21GraphWindow(canvas);
+        if (m_findMark21Graph) {
+            m_findMark21Graph->hide();
         }
-
-        painter.drawLine(plot.left(), plot.top(), plot.left(), plot.bottom());
-        painter.drawLine(plot.left(), plot.bottom(), plot.right(), plot.bottom());
-
-        const QStringList xLabels = step3Axis
-            ? QStringList{
-                  QStringLiteral("1"),
-                  QStringLiteral("2"),
-                  QStringLiteral("3"),
-                  QStringLiteral("4"),
-                  QStringLiteral("5")}
-            : QStringList{
-                  QStringLiteral("0,5"),
-                  QStringLiteral("1"),
-                  QStringLiteral("1,5"),
-                  QStringLiteral("2,0"),
-                  QStringLiteral("2,5")};
-        for (int i = 0; i < 5; ++i) {
-            const int x = plot.left() + (plot.width() * (i + 1)) / 5;
-            painter.drawLine(x, plot.bottom(), x, plot.bottom() + 4);
-            painter.drawText(
-                QRect(x - 24, plot.bottom() + 6, 48, 20),
-                Qt::AlignHCenter | Qt::AlignTop,
-                xLabels.at(i));
-        }
-        painter.drawText(
-            QRect(plot.right() - 40, plot.bottom() + 6, 80, 20),
-            Qt::AlignLeft | Qt::AlignTop,
-            QStringLiteral("t(мин)"));
-
-        auto yFromS = [&](double value) -> int {
-            const double clamped = qBound(0.0, value, 1.25);
-            return plot.bottom() - qRound((clamped / 1.25) * plot.height());
-        };
-
-        QPen pen(QColor(239, 71, 227), 3);
-        painter.setPen(pen);
-        QPoint prev(plot.left() + plot.width() / 5, yFromS(sVals[0]));
-        for (int i = 1; i < 5; ++i) {
-            const QPoint next(
-                plot.left() + (plot.width() * (i + 1)) / 5,
-                yFromS(sVals[i]));
-            painter.drawLine(prev, next);
-            prev = next;
-        }
-        painter.end();
-
-        m_findMark21Graph->setPixmap(canvas);
-        m_findMark21Graph->setFixedSize(canvas.size());
-        m_findMark21Graph->show();
     }
     return true;
 }
@@ -2720,7 +2888,6 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
     const QString resultText =
         ballsText + QStringLiteral(" — ") + m_findMark21Conclusion;
     body = replaceLastHtmlDivInnerById(body, QStringLiteral("idprod"), ballsText);
-    body = replaceLastHtmlDivInnerById(body, QStringLiteral("idstab"), ballsText);
     body = replaceHtmlDivInnerById(body, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
     return body;
 }
@@ -3989,6 +4156,9 @@ void ExerciseHost::loadExercise() {
     }
     updateFindMark21PanelVisibility();
     updateFindMark21TimesForStep();
+    if (m_exerciseId == QStringLiteral("2.1")) {
+        clearFindMark21Panel();
+    }
     updateFindMark22PanelVisibility();
     for (const ExerciseCheckRow &row : m_doneChecks) {
         if (row.box) {
@@ -4282,6 +4452,9 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
     m_exerciseDone = true;
     m_protocolFormed = false;
     m_exerciseRunning = false;
+    if (m_exerciseId == QStringLiteral("2.1")) {
+        clearFindMark21Panel();
+    }
     // 1.21 «2А»: обучающее задание — протокол не нужен, сразу можно запускать следующие.
     if (m_exerciseId == QStringLiteral("1.21")
         && currentStepId().trimmed() == QStringLiteral("2А")) {
@@ -4348,6 +4521,7 @@ void ExerciseHost::clearRootExerciseOverlays() {
 }
 
 void ExerciseHost::shutdownSessionUi() {
+    closeFindMark21GraphWindow();
     m_exerciseRunning = false;
     if (m_patientDisplay) {
         m_patientDisplay->hideDisplay();

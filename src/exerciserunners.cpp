@@ -3633,6 +3633,24 @@ private:
     QTableWidget *m_patientTable = nullptr;
 };
 
+namespace {
+
+void shiftPuzzleLayoutY(PuzzleLayout *layout, int dy) {
+    if (!layout || dy == 0) {
+        return;
+    }
+    layout->templateY += dy;
+    layout->template2Y += dy;
+    for (PuzzleSpriteDef &sprite : layout->sprites) {
+        sprite.y += dy;
+        if (sprite.targetY >= 0) {
+            sprite.targetY += dy;
+        }
+    }
+}
+
+} // namespace
+
 class PuzzlesRunner : public ExerciseRunnerWidget {
 public:
     explicit PuzzlesRunner(QWidget *parent = nullptr) : ExerciseRunnerWidget(parent) {
@@ -3974,15 +3992,7 @@ public:
         }
         // 1.29 (ТЗ 3.1): на 1-м экране во время выполнения — ещё +50 px вниз.
         if (exerciseId == QStringLiteral("1.29")) {
-            constexpr int kExtraDy = 50;
-            layout.templateY += kExtraDy;
-            layout.template2Y += kExtraDy;
-            for (PuzzleSpriteDef &sprite : layout.sprites) {
-                sprite.y += kExtraDy;
-                if (sprite.targetY >= 0) {
-                    sprite.targetY += kExtraDy;
-                }
-            }
+            shiftPuzzleLayoutY(&layout, 50);
         }
 
         m_canvas->setGeometry(0, 0, width(), height());
@@ -4144,6 +4154,11 @@ private:
                 layout.templateX = 10;
                 layout.templateY = 20;
             }
+            if (m_exerciseId == QStringLiteral("1.29")) {
+                // Как на 1-м экране (+50) и ещё +100 вниз на 2-м.
+                shiftPuzzleLayoutY(&layout, 50);
+                shiftPuzzleLayoutY(&layout, 100);
+            }
             m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
             m_patientLoadedExercise = m_exerciseId;
             m_patientLoadedStep = m_stepId;
@@ -4253,7 +4268,13 @@ private:
             return;
         }
         m_syncingSprites = true;
-        m_patientCanvas->applySpritePoses(m_canvas->spritePoses());
+        QVector<PuzzleCanvas::SpritePose> poses = m_canvas->spritePoses();
+        if (m_exerciseId == QStringLiteral("1.29")) {
+            for (PuzzleCanvas::SpritePose &pose : poses) {
+                pose.y += 100;
+            }
+        }
+        m_patientCanvas->applySpritePoses(poses);
         m_syncingSprites = false;
     }
 
@@ -4262,7 +4283,13 @@ private:
             return;
         }
         m_syncingSprites = true;
-        m_canvas->applySpritePoses(m_patientCanvas->spritePoses());
+        QVector<PuzzleCanvas::SpritePose> poses = m_patientCanvas->spritePoses();
+        if (m_exerciseId == QStringLiteral("1.29")) {
+            for (PuzzleCanvas::SpritePose &pose : poses) {
+                pose.y -= 100;
+            }
+        }
+        m_canvas->applySpritePoses(poses);
         m_syncingSprites = false;
     }
 
