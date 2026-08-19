@@ -545,17 +545,18 @@ QMap<QString, QString> buildVariables(
         // Как protocols.cs: <div id='ids…'> </div> без автоподстановки.
         scoreSelected = false;
         score = 0;
-    } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
-               || tmpl.id == QStringLiteral("1.12")
-               || tmpl.id == QStringLiteral("2.11")) {
-        score = activityLevelScoreMax3(checkboxes.activity);
+    } else if (tmpl.id == QStringLiteral("2.12")) {
+        // Как protocols.cs idd3: III уровень → 3 (не activity_help_3, где III → 2).
+        score = activityLevelScore212(checkboxes.activity);
         score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
         if (score < 0) {
             score = 0;
         }
         scoreIsFractional = true;
-    } else if (tmpl.id == QStringLiteral("2.12")) {
-        score = activityLevelScore212(checkboxes.activity);
+    } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
+               || tmpl.id == QStringLiteral("1.12")
+               || tmpl.id == QStringLiteral("2.11")) {
+        score = activityLevelScoreMax3(checkboxes.activity);
         score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
         if (score < 0) {
             score = 0;
