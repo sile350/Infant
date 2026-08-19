@@ -1259,6 +1259,10 @@ public:
         m_sampleHideSeconds = 0;
         m_cardSnaps23.clear();
         m_cardSnaps23.resize(8);
+        if (exerciseId == QStringLiteral("2.3")) {
+            // 6.7: при каждом «Начать упражнение» — чистые карточки без точек прошлого запуска.
+            clearTempCardFiles23();
+        }
         if (m_sampleHideTimer) {
             m_sampleHideTimer->stop();
         }
@@ -1450,6 +1454,12 @@ public:
 
     static QString tempCardPath23(int cardTu) {
         return QDir::temp().filePath(QStringLiteral("infant_2_3_temp%1.png").arg(cardTu));
+    }
+
+    static void clearTempCardFiles23() {
+        for (int tu = 11; tu <= 18; ++tu) {
+            QFile::remove(tempCardPath23(tu));
+        }
     }
 
     void restoreStimulusOnCanvas23() {

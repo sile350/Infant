@@ -2985,107 +2985,6 @@ int findMark22BallsFromS(double value) {
     return 0;
 }
 
-QPixmap renderFindMark22GraphPixmap(double s) {
-    const QString graphPath =
-        ExerciseAssets::exerciseFile(QStringLiteral("2.1"), QStringLiteral("graph11.png"));
-    QPixmap canvas;
-    if (!graphPath.isEmpty()) {
-        canvas = QPixmap(graphPath);
-    }
-
-    const auto coordByValue = [](double rawValue) -> int {
-        const double value = qBound(0.0, rawValue, 1.25);
-        const double pct = value * 100.0 / 1.25;
-        const double px = 180.0 * pct / 100.0;
-        return qRound(226.0 - px);
-    };
-
-    if (!canvas.isNull()) {
-        QPainter painter(&canvas);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        constexpr int kDy = 60;
-        constexpr int kX = 372;
-        const int y = coordByValue(s) + kDy;
-        QPen pen(QColor(239, 71, 227), 5);
-        painter.setPen(pen);
-        painter.drawEllipse(QPoint(kX, y), 6, 6);
-        return canvas;
-    }
-
-    constexpr int kW = 640;
-    constexpr int kH = 360;
-    canvas = QPixmap(kW, kH);
-    canvas.fill(QColor(0xe8, 0xe8, 0xe8));
-
-    QPainter painter(&canvas);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::TextAntialiasing, true);
-
-    const QRect plot(70, 24, 280, 280);
-    painter.fillRect(plot, QColor(0xe8, 0xe8, 0xe8));
-
-    QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 10);
-    QFont zoneFont(QStringLiteral("Microsoft Sans Serif"), 10, QFont::Bold);
-    painter.setFont(axisFont);
-    painter.setPen(QPen(Qt::black, 1));
-
-    const QStringList yLabels = {
-        QStringLiteral("1,25"),
-        QStringLiteral("1,00"),
-        QStringLiteral("0,75"),
-        QStringLiteral("0,50"),
-        QStringLiteral("0,25"),
-        QStringLiteral("0,00"),
-    };
-    const QStringList zoneLabels = {
-        QStringLiteral("Зона очень высокого переключения внимания"),
-        QStringLiteral("Зона высокого переключения внимания"),
-        QStringLiteral("Зона среднего переключения внимания"),
-        QStringLiteral("Зона низкого переключения внимания"),
-        QStringLiteral("Зона очень низкого переключения внимания"),
-    };
-
-    for (int i = 0; i < 6; ++i) {
-        const int y = plot.top() + (plot.height() * i) / 5;
-        painter.drawLine(plot.left(), y, plot.right(), y);
-        painter.drawText(
-            QRect(4, y - 10, plot.left() - 8, 20),
-            Qt::AlignRight | Qt::AlignVCenter,
-            yLabels.at(i));
-        if (i < 5) {
-            painter.setFont(zoneFont);
-            const int bandTop = y;
-            const int bandBot = plot.top() + (plot.height() * (i + 1)) / 5;
-            painter.drawText(
-                QRect(plot.right() + 10, bandTop, kW - plot.right() - 16, bandBot - bandTop),
-                Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap,
-                zoneLabels.at(i));
-            painter.setFont(axisFont);
-        }
-    }
-
-    painter.drawLine(plot.left(), plot.top(), plot.left(), plot.bottom());
-    painter.drawLine(plot.left(), plot.bottom(), plot.right(), plot.bottom());
-
-    const int x = plot.left() + plot.width() / 2;
-    painter.drawLine(x, plot.bottom(), x, plot.bottom() + 4);
-    painter.drawText(
-        QRect(x - 24, plot.bottom() + 6, 48, 20),
-        Qt::AlignHCenter | Qt::AlignTop,
-        QStringLiteral("2,0"));
-    painter.drawText(
-        QRect(plot.right() + 12, plot.bottom() + 6, 72, 20),
-        Qt::AlignLeft | Qt::AlignTop,
-        QStringLiteral("t(мин)"));
-
-    const double clamped = qBound(0.0, s, 1.25);
-    const int markerY = plot.bottom() - qRound((clamped / 1.25) * plot.height());
-    QPen pen(QColor(239, 71, 227), 5);
-    painter.setPen(pen);
-    painter.drawEllipse(QPoint(x, markerY), 6, 6);
-    return canvas;
-}
-
 QString findMark22ConclusionFromBalls(int balls) {
     if (balls >= 10) {
         return QStringLiteral("очень высокий");
@@ -3201,7 +3100,7 @@ void ExerciseHost::ensureFindMark22Panel() {
     m_findMark22CalcButton->setToolTip(QStringLiteral("Рассчитать"));
     m_findMark22CalcButton->setCursor(Qt::PointingHandCursor);
     connect(m_findMark22CalcButton, &ImageButton::clicked, this, [this]() {
-        calculateFindMark22Score(true);
+        calculateFindMark22Score();
         updateContentHeights();
     });
     outer->addWidget(m_findMark22CalcButton, 0, Qt::AlignHCenter);
@@ -3232,10 +3131,9 @@ void ExerciseHost::clearFindMark22Panel() {
     }
     m_findMark22Balls = -1;
     m_findMark22Conclusion.clear();
-    closeFindMark21GraphWindow();
 }
 
-bool ExerciseHost::calculateFindMark22Score(bool showGraph) {
+bool ExerciseHost::calculateFindMark22Score() {
     if (m_exerciseId != QStringLiteral("2.2")) {
         return false;
     }
@@ -3256,9 +3154,6 @@ bool ExerciseHost::calculateFindMark22Score(bool showGraph) {
     }
     m_findMark22Balls = findMark22BallsFromS(s);
     m_findMark22Conclusion = findMark22ConclusionFromBalls(m_findMark22Balls);
-    if (showGraph) {
-        showFindMark21GraphWindow(renderFindMark22GraphPixmap(s));
-    }
     return true;
 }
 
@@ -6460,7 +6355,7 @@ void ExerciseHost::formProtocol() {
         protocolBody = applyFindMark21ScoresToProtocolBody(protocolBody);
     }
     if (m_exerciseId == QStringLiteral("2.2")) {
-        calculateFindMark22Score(false);
+        calculateFindMark22Score();
         protocolBody = applyFindMark22ScoresToProtocolBody(protocolBody);
     }
 
