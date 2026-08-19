@@ -1056,9 +1056,17 @@ protected:
             m_hintToggle->hide();
         }
         teardownPatientPaintUi();
-        // 3.3.3: без скана / «Показать изображение» — после Стоп снова f1 в превью.
+        // 9.1: после Стоп — превью с линией пациента; скан в протокол не добавляем.
         if (m_exerciseId == QStringLiteral("3.3.3")) {
-            m_capturePath.clear();
+            if (!m_canvas.isNull()) {
+                const QString path = QDir::temp().filePath(
+                    QStringLiteral("infant_3_3_3_%1.png")
+                        .arg(QDateTime::currentMSecsSinceEpoch()));
+                m_canvas.save(path);
+                m_capturePath = path;
+            } else {
+                m_capturePath.clear();
+            }
             TimedSessionRunner::finish();
             return;
         }

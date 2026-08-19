@@ -273,7 +273,7 @@ double scoreExercise115Series(const QString &activity, const QString &help) {
     return score;
 }
 
-// Уровень из текста оценки (I–IV / N балл): IV→3, III→2, иначе 0.
+// Уровень из текста оценки (I–IV / N балл): IV→3, III→2, иначе 0 (1.12, 2.11).
 double activityLevelScoreMax3(const QString &activity) {
     if (activity.contains(QStringLiteral("IV уровень"), Qt::CaseInsensitive)
         || activity.contains(QStringLiteral("4 уровень"), Qt::CaseInsensitive)
@@ -286,6 +286,18 @@ double activityLevelScoreMax3(const QString &activity) {
         || activity.contains(QStringLiteral("2 балла"), Qt::CaseInsensitive)
         || activity.contains(QStringLiteral("(2 балл"), Qt::CaseInsensitive)) {
         return 2.0;
+    }
+    return 0.0;
+}
+
+// 2.12: только III уровень → 3; I/II → 0 (как protocols.cs idd3).
+double activityLevelScore212(const QString &activity) {
+    if (activity.contains(QStringLiteral("III уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("3 уровень"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("3 балла"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("(3 балл"), Qt::CaseInsensitive)
+        || activity.contains(QStringLiteral("выполняет задание верно"), Qt::CaseInsensitive)) {
+        return 3.0;
     }
     return 0.0;
 }
@@ -535,9 +547,15 @@ QMap<QString, QString> buildVariables(
         score = 0;
     } else if (tmpl.scoreKind == QStringLiteral("activity_help_3")
                || tmpl.id == QStringLiteral("1.12")
-               || tmpl.id == QStringLiteral("2.11")
-               || tmpl.id == QStringLiteral("2.12")) {
+               || tmpl.id == QStringLiteral("2.11")) {
         score = activityLevelScoreMax3(checkboxes.activity);
+        score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
+        if (score < 0) {
+            score = 0;
+        }
+        scoreIsFractional = true;
+    } else if (tmpl.id == QStringLiteral("2.12")) {
+        score = activityLevelScore212(checkboxes.activity);
         score -= 0.5 * helpPenaltyHalfPoints(checkboxes.help);
         if (score < 0) {
             score = 0;

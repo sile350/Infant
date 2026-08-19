@@ -90,7 +90,7 @@ constexpr int kRemPanelAbsLeft = 1040 + 100;
 constexpr int kRemPanelAbsTop = 80 + 100;
 
 void layoutRemPanelWidget(QWidget *remPanel, QWidget *rightPanel) {
-    if (!remPanel || !rightPanel || !remPanel->isVisible()) {
+    if (!remPanel || !rightPanel) {
         return;
     }
     // Фиксированные координаты (не от sizeHint/центра) — иначе после прогона раскладка «прыгает».
@@ -1675,7 +1675,7 @@ void ExerciseHost::updateChromeLayout() {
             m_shard15Button->raise();
         }
     }
-    if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_remPanel->isVisible() && m_rightPanel) {
+    if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_rightPanel) {
         layoutRemPanelWidget(m_remPanel, m_rightPanel);
     }
     if (m_rightPanel && m_rightCountLabel && m_wrongCountLabel) {
@@ -3199,7 +3199,7 @@ void ExerciseHost::updatePreviewLayout() {
         if (m_previewGenderPanel) {
             m_previewGenderPanel->hide();
         }
-        if (m_remPanel && m_remPanel->isVisible() && m_rightPanel) {
+        if (m_remPanel && m_rightPanel) {
             layoutRemPanelWidget(m_remPanel, m_rightPanel);
         }
         return;
@@ -3617,6 +3617,9 @@ void ExerciseHost::reloadPreviewForCurrentStep() {
             m_previewImage->hide();
         }
         updateExerciseOptionsPanel();
+        if (m_remPanel && m_rightPanel) {
+            layoutRemPanelWidget(m_remPanel, m_rightPanel);
+        }
         return;
     }
     if (m_exerciseId == QStringLiteral("1.22")) {
@@ -4151,9 +4154,7 @@ void ExerciseHost::syncActivityChecksFromOrHtml() {
     if (m_activityTitle) {
         if (m_exerciseId == QStringLiteral("5.4.2") || m_exerciseId == QStringLiteral("3.1.21")) {
             m_activityTitle->setText(QStringLiteral("Баллы"));
-            if (m_exerciseId == QStringLiteral("3.1.21")) {
-                m_activityTitle->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-            }
+            m_activityTitle->setAlignment(Qt::AlignCenter);
         } else {
             m_activityTitle->setText(QStringLiteral("Характер деятельности ребенка:"));
             m_activityTitle->setAlignment(Qt::AlignCenter);
@@ -4243,6 +4244,7 @@ void ExerciseHost::loadExercise() {
     }
 
     m_previewSource = QPixmap();
+    m_capturedImagePath.clear();
     reloadPreviewForCurrentStep();
 
     if (m_exerciseId == QStringLiteral("4.2.2")) {
@@ -4281,6 +4283,14 @@ void ExerciseHost::loadExercise() {
     applyPuzzleOptionsDefaults();
     updateExerciseOptionsPanel();
     updateChromeLayout();
+    if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_rightPanel) {
+        layoutRemPanelWidget(m_remPanel, m_rightPanel);
+        QTimer::singleShot(0, this, [this]() {
+            if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_rightPanel) {
+                layoutRemPanelWidget(m_remPanel, m_rightPanel);
+            }
+        });
+    }
     layoutContent();
     QTimer::singleShot(0, this, [this]() { updateContentHeights(); });
     QTimer::singleShot(50, this, [this]() { updateContentHeights(); });
@@ -4521,9 +4531,6 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
     if (!result.capturedImagePath.isEmpty()) {
         m_previewSource.load(result.capturedImagePath);
         updatePreviewLayout();
-    } else if (m_exerciseId == QStringLiteral("3.3.3")) {
-        // 32.1 / 32.5: без скана — снова f1 в тех же координатах, без уменьшения.
-        reloadPreviewForCurrentStep();
     }
     m_exerciseDone = true;
     m_protocolFormed = false;
@@ -4550,6 +4557,9 @@ void ExerciseHost::handleSessionRunnerFinished(const ExerciseSessionResult &resu
     clearRootExerciseOverlays();
     setExerciseChromeVisible(true);
     raise();
+    if (m_exerciseId == QStringLiteral("4.1.7") && m_remPanel && m_rightPanel) {
+        layoutRemPanelWidget(m_remPanel, m_rightPanel);
+    }
     if (m_exerciseId == QStringLiteral("4.2.1") && m_sessionRunner
         && m_sessionRunnerKind == ExerciseRunnerKind::Digits) {
         if (m_sessionRunner->parentWidget() != m_rightPanel && m_rightPanel) {
