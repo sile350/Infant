@@ -4155,9 +4155,8 @@ private:
                 layout.templateY = 20;
             }
             if (m_exerciseId == QStringLiteral("1.29")) {
-                // Как на 1-м экране (+50) и ещё +100 вниз на 2-м.
+                // Как на 1-м экране: +50 px после loadPuzzleLayout (ТЗ 3.1).
                 shiftPuzzleLayoutY(&layout, 50);
-                shiftPuzzleLayoutY(&layout, 100);
             }
             m_patientCanvas->loadExercise(m_exerciseId, m_stepId, layout);
             m_patientLoadedExercise = m_exerciseId;
@@ -4269,11 +4268,6 @@ private:
         }
         m_syncingSprites = true;
         QVector<PuzzleCanvas::SpritePose> poses = m_canvas->spritePoses();
-        if (m_exerciseId == QStringLiteral("1.29")) {
-            for (PuzzleCanvas::SpritePose &pose : poses) {
-                pose.y += 100;
-            }
-        }
         m_patientCanvas->applySpritePoses(poses);
         m_syncingSprites = false;
     }
@@ -4284,11 +4278,6 @@ private:
         }
         m_syncingSprites = true;
         QVector<PuzzleCanvas::SpritePose> poses = m_patientCanvas->spritePoses();
-        if (m_exerciseId == QStringLiteral("1.29")) {
-            for (PuzzleCanvas::SpritePose &pose : poses) {
-                pose.y -= 100;
-            }
-        }
         m_canvas->applySpritePoses(poses);
         m_syncingSprites = false;
     }

@@ -2517,6 +2517,62 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
     return canvas;
 }
 
+QString locateUiResourceImage(const QString &name) {
+    const QStringList roots = {
+        QCoreApplication::applicationDirPath() + QStringLiteral("/assets/resources"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../assets/resources"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../../assets/resources"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../../../assets/resources"),
+        QDir::currentPath() + QStringLiteral("/assets/resources"),
+        QDir::currentPath()
+            + QStringLiteral("/../old_project/serv9 2025/WindowsFormsApp1/Resources"),
+        QDir::currentPath()
+            + QStringLiteral("/../old_project/serv9 2025/WindowsFormsApp1/bin/Debug/sysImages"),
+    };
+    for (const QString &root : roots) {
+        const QString candidate = QDir(root).filePath(name);
+        if (QFile::exists(candidate)) {
+            return QDir::fromNativeSeparators(candidate);
+        }
+    }
+    return {};
+}
+
+QString locateUiSysImage(const QString &name) {
+    const QStringList roots = {
+        QCoreApplication::applicationDirPath() + QStringLiteral("/assets/sysImages"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../assets/sysImages"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../../assets/sysImages"),
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../../../assets/sysImages"),
+        QDir::currentPath() + QStringLiteral("/assets/sysImages"),
+        QDir::currentPath()
+            + QStringLiteral("/../old_project/serv9 2025/WindowsFormsApp1/bin/Debug/sysImages"),
+        QDir::currentPath()
+            + QStringLiteral("/../old_project/serv9 2025/WindowsFormsApp1/bin/maindata/sysImages"),
+    };
+    for (const QString &root : roots) {
+        const QString candidate = QDir(root).filePath(name);
+        if (QFile::exists(candidate)) {
+            return QDir::fromNativeSeparators(candidate);
+        }
+    }
+    return {};
+}
+
+QString locateMainWindowCloseIcon() {
+    const QStringList candidates = {
+        locateUiResourceImage(QStringLiteral("Закрыть.png")),
+        locateUiResourceImage(QStringLiteral("close.png")),
+        locateUiSysImage(QStringLiteral("close.png")),
+    };
+    for (const QString &path : candidates) {
+        if (!path.isEmpty()) {
+            return path;
+        }
+    }
+    return ExerciseAssets::sysImage(QStringLiteral("close.png"));
+}
+
 class FindMark21GraphWindow final : public QDialog {
 public:
     explicit FindMark21GraphWindow(QWidget *parent = nullptr)
@@ -2531,18 +2587,19 @@ public:
         m_closeButton = new ImageButton(this);
         m_closeButton->setToolTip(QStringLiteral("Закрыть"));
         m_closeButton->setCursor(Qt::PointingHandCursor);
-        const QString closePath = ExerciseAssets::sysImage(QStringLiteral("close.png"));
+        // Как m_bClose в InfantWindow: Закрыть.png / close.png, 36×34.
+        constexpr int kCloseW = 36;
+        constexpr int kCloseH = 34;
+        const QString closePath = locateMainWindowCloseIcon();
         if (!closePath.isEmpty()) {
             m_closeButton->setImagePath(closePath);
-            const QPixmap closePixmap(closePath);
-            m_closeButton->setFixedSize(closePixmap.size());
         } else {
             m_closeButton->setText(QStringLiteral("×"));
-            m_closeButton->setFixedSize(24, 24);
             m_closeButton->setAlignment(Qt::AlignCenter);
             m_closeButton->setStyleSheet(QStringLiteral(
                 "QLabel { background:#2d6b2d; color:#ffffff; font-size:16px; font-weight:bold; }"));
         }
+        m_closeButton->setFixedSize(kCloseW, kCloseH);
         connect(m_closeButton, &ImageButton::clicked, this, &QDialog::hide);
     }
 
@@ -2554,8 +2611,8 @@ public:
         m_image->setFixedSize(pixmap.size());
         setFixedSize(pixmap.size());
         m_image->setGeometry(0, 0, pixmap.width(), pixmap.height());
-        const int closeSize = m_closeButton->height();
-        m_closeButton->move(qMax(0, pixmap.width() - closeSize - 6), 6);
+        constexpr int kCloseW = 36;
+        m_closeButton->move(qMax(0, pixmap.width() - kCloseW - 6), 6);
         m_closeButton->raise();
     }
 
