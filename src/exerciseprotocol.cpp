@@ -1779,6 +1779,13 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
         attrs.remove(colspanRe);
         return QStringLiteral(" width='%1'%2").arg(w, attrs);
     };
+    const QRegularExpression alignAttrRe(
+        QStringLiteral("\\s*align\\s*=\\s*['\"][^'\"]*['\"]"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto setAttrAlign = [&](QString attrs, const QString &align) {
+        attrs.remove(alignAttrRe);
+        return attrs + QStringLiteral(" align='") + align + QLatin1Char('\'');
+    };
 
     // Все <table> протокола — ровно 671px.
     {
@@ -2336,8 +2343,11 @@ QString normalizeSummaryColumnWidthsHtml(QString body) {
                     for (int i = 0; i < tds.size(); ++i) {
                         const QRegularExpressionMatch &td = tds.at(i);
                         newRow += rowInner.mid(cellLast, td.capturedStart() - cellLast);
-                        newRow += td.captured(1) + setAttrWidth(td.captured(2), widths.at(i))
-                            + td.captured(3) + td.captured(4) + td.captured(5);
+                        QString attrs = setAttrWidth(td.captured(2), widths.at(i));
+                        if (imageCutTable && i == 0) {
+                            attrs = setAttrAlign(attrs, QStringLiteral("left"));
+                        }
+                        newRow += td.captured(1) + attrs + td.captured(3) + td.captured(4) + td.captured(5);
                         cellLast = td.capturedEnd();
                     }
                     newRow += rowInner.mid(cellLast);

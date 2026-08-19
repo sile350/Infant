@@ -3165,14 +3165,15 @@ void ExerciseHost::updatePreviewLayout() {
             previewAbsTop = horizontal ? 310 : 240;
         }
         if (m_exerciseId == QStringLiteral("1.20")) {
-            // Как трафарет на холсте (templateY из puzzleslayout).
+            // Как трафарет на холсте (templateY); превью — на 50 px выше.
+            constexpr int kPreviewLift = 50;
             PuzzleLayout layout;
             if (loadPuzzleLayout(m_exerciseId, currentStepId(), &layout)) {
                 previewAbsLeft = layout.templateX;
-                previewAbsTop = layout.templateY;
+                previewAbsTop = layout.templateY - kPreviewLift;
             } else {
                 previewAbsLeft = 1260;
-                previewAbsTop = 300;
+                previewAbsTop = 300 - kPreviewLift;
             }
         }
         if (m_exerciseId == QStringLiteral("1.22")) {
@@ -3239,7 +3240,7 @@ void ExerciseHost::updatePreviewLayout() {
     m_previewImage->setFixedSize(display.size());
     m_previewImage->move(qMax(0, localX), localY);
     m_previewImage->show();
-    // 1.20 до старта: задание по templateY; rotate_hint как при выполнении (1270×200).
+    // 1.20 до старта: задание и rotate_hint на 50 px выше templateY / выполнения.
     if (m_rightPanel) {
         QLabel *previewRotate = m_rightPanel->findChild<QLabel *>(QStringLiteral("dokitPreviewRotateHint"));
         if (m_exerciseId == QStringLiteral("1.20") && !m_exerciseRunning) {
@@ -3254,9 +3255,9 @@ void ExerciseHost::updatePreviewLayout() {
                     previewRotate->setFixedSize(hintPm.size());
                 }
             }
-            // По высоте как placeRotateHint при выполнении (1270×200).
+            // 1270×200 при выполнении; превью — −50 px по вертикали.
             constexpr int kHintAbsX = 1330; // 1450 − 80 − 50 + 10
-            constexpr int kHintAbsY = 200;
+            constexpr int kHintAbsY = 150;
             previewRotate->move(qMax(0, kHintAbsX - rightPanelLeft), kHintAbsY);
             previewRotate->show();
             previewRotate->raise();
