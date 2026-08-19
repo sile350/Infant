@@ -87,7 +87,7 @@ constexpr int kRemThumbW = 180;
 constexpr int kRemThumbH = 233;
 // Как rem: Left=1040, Top=80; ТЗ: +100 вправо; по вертикали — как rem (80).
 constexpr int kRemPanelAbsLeft = 1040 + 100;
-constexpr int kRemPanelAbsTop = 80;
+constexpr int kRemPanelAbsTop = 80 + 30;
 
 void layoutRemPanelWidget(QWidget *remPanel, QWidget *rightPanel) {
     if (!remPanel || !rightPanel) {
