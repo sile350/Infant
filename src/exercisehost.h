@@ -106,7 +106,8 @@ private:
     QString applyFindMark21ScoresToProtocolBody(QString body) const;
     void ensureFindMark22Panel();
     void updateFindMark22PanelVisibility();
-    bool calculateFindMark22Score();
+    void clearFindMark22Panel();
+    bool calculateFindMark22Score(bool showGraph = false);
     QString applyFindMark22ScoresToProtocolBody(QString body) const;
     void ensureDigitsPreviewRunner();
     void connectSessionRunnerFinished();
