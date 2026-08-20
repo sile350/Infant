@@ -2344,6 +2344,87 @@ QString replaceLastHtmlDivInnerById(QString html, const QString &divId, const QS
         + html.mid(last.capturedEnd());
 }
 
+// 2.1: записать балл в колонку «Баллы продуктивн.» последней строки процесса (4-я <td>).
+QString writeFindMark21ProdScoreToLastRow(QString body, const QString &ballsText) {
+    if (body.trimmed().isEmpty()) {
+        return body;
+    }
+    const QString cellInner = QStringLiteral(
+                                  "<div id='idprod' contenteditable='true' style='text-align:center'>%1</div>")
+                                  .arg(ballsText);
+
+    // 1) Любой последний div idprod / idprodN.
+    {
+        const QRegularExpression re(
+            QStringLiteral(
+                "(<div\\b[^>]*\\bid\\s*=\\s*['\"]idprod[^'\"]*['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+            QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatchIterator it = re.globalMatch(body);
+        QRegularExpressionMatch last;
+        bool found = false;
+        while (it.hasNext()) {
+            last = it.next();
+            found = true;
+        }
+        if (found) {
+            return body.left(last.capturedStart())
+                + last.captured(1) + ballsText + last.captured(3)
+                + body.mid(last.capturedEnd());
+        }
+    }
+
+    // 2) Нет idprod — правим 4-ю ячейку последней строки с <!--step…-->.
+    const int marker = body.lastIndexOf(QStringLiteral("<!--s-->"));
+    const int tailStart = marker >= 0 ? marker : 0;
+    const QString head = body.left(tailStart);
+    QString tail = body.mid(tailStart);
+
+    const QRegularExpression trRe(
+        QStringLiteral("(<tr\\b[^>]*>)([\\s\\S]*?)(</tr>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatch lastStepRow;
+    bool foundStep = false;
+    QRegularExpressionMatchIterator trIt = trRe.globalMatch(tail);
+    while (trIt.hasNext()) {
+        const QRegularExpressionMatch m = trIt.next();
+        if (m.captured(2).contains(QStringLiteral("<!--step"), Qt::CaseInsensitive)
+            || m.captured(2).contains(QRegularExpression(
+                   QStringLiteral("^\\s*<td[^>]*>\\s*\\d+\\s*</td>"),
+                   QRegularExpression::CaseInsensitiveOption))) {
+            lastStepRow = m;
+            foundStep = true;
+        }
+    }
+    if (!foundStep) {
+        return body;
+    }
+
+    const QRegularExpression tdRe(
+        QStringLiteral("(<td\\b[^>]*>)([\\s\\S]*?)(</td>)"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QList<QRegularExpressionMatch> tds;
+    QRegularExpressionMatchIterator tdIt = tdRe.globalMatch(lastStepRow.captured(2));
+    while (tdIt.hasNext()) {
+        tds.append(tdIt.next());
+    }
+    // № | OR | HLP | продуктивн. | устойчивость → индекс 3
+    if (tds.size() < 4) {
+        return body;
+    }
+    const int prodCol = (tds.size() >= 5) ? 3 : (tds.size() - 1);
+    const QRegularExpressionMatch &prodTd = tds.at(prodCol);
+    QString newInner = lastStepRow.captured(2);
+    newInner.replace(
+        prodTd.capturedStart(),
+        prodTd.capturedLength(),
+        prodTd.captured(1) + cellInner + prodTd.captured(3));
+
+    const QString newRow =
+        lastStepRow.captured(1) + newInner + lastStepRow.captured(3);
+    tail.replace(lastStepRow.capturedStart(), lastStepRow.capturedLength(), newRow);
+    return head + tail;
+}
+
 double parseLocaleDouble(QString text, bool *ok) {
     text = text.trimmed();
     text.replace(QLatin1Char(','), QLatin1Char('.'));
@@ -2973,15 +3054,21 @@ bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
         if (m_findMark21Graph) {
             m_findMark21Graph->hide();
         }
-        // Как в оригинале: после «Построить график» балл сразу в ячейку протокола.
-        if (m_protocolFormed && m_templateBrowser && m_templateBrowser->document()) {
-            QString html = m_templateBrowser->document()->toHtml();
-            html = applyFindMark21ScoresToProtocolBody(html);
-            const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
-            m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(html, baseDir));
-            finalizeProtocolTemplateDocument(m_templateBrowser->document());
-            if (!m_suppressProtocolAutosave) {
-                saveProtocolEdits();
+        // Как в оригинале: балл в «Баллы продуктивн.» после построения графика (только 2.1).
+        if (m_protocolFormed && m_repository && !m_currentProtocolId.isEmpty()) {
+            QString stored = m_repository->loadProtocolBodyById(m_currentProtocolId);
+            if (!stored.trimmed().isEmpty()) {
+                stored = applyFindMark21ScoresToProtocolBody(stored);
+                QString error;
+                m_repository->updateProtocolBody(m_currentProtocolId, stored, &error);
+                const QString viewHtml = m_repository->loadProtocolViewHtml(
+                    m_exerciseId, m_currentProtocolId, m_patientFio, m_patientBirthDate);
+                if (m_templateBrowser && !viewHtml.isEmpty()) {
+                    m_suppressProtocolAutosave = true;
+                    m_templateBrowser->setHtml(ExerciseAssets::buildProtocolDocumentHtml(viewHtml));
+                    finalizeProtocolTemplateDocument(m_templateBrowser->document());
+                    QTimer::singleShot(400, this, [this]() { m_suppressProtocolAutosave = false; });
+                }
             }
         }
     }
@@ -2992,7 +3079,7 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
     if (body.trimmed().isEmpty()) {
         return body;
     }
-    // 0, если график не строили; иначе — из таблицы «Баллы (продуктивность)».
+    // Только 2.1: без «Построить график» → 0; после — из таблицы «Баллы (продуктивность)».
     int balls = 0;
     if (m_findMark21GraphBuilt) {
         if (m_findMark21BallsLabel) {
@@ -3008,48 +3095,7 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
             balls = m_findMark21Balls;
         }
     }
-    const QString ballsText = QString::number(balls);
-
-    // Только «Баллы продуктивн.» текущей (последней) строки. «Результат: баллы…» — вручную.
-    QString step = currentStepId().trimmed();
-    if (step.isEmpty()) {
-        step = m_sessionStepId.trimmed();
-    }
-    if (step.isEmpty()) {
-        step = QStringLiteral("1");
-    }
-
-    const QStringList candidateIds = {
-        QStringLiteral("idprod") + step,
-        QStringLiteral("idprod"),
-    };
-    for (const QString &id : candidateIds) {
-        if (body.contains(QRegularExpression(
-                QStringLiteral("\\bid\\s*=\\s*['\"]%1['\"]")
-                    .arg(QRegularExpression::escape(id)),
-                QRegularExpression::CaseInsensitiveOption))) {
-            return replaceLastHtmlDivInnerById(body, id, ballsText);
-        }
-    }
-
-    // Любой последний idprod… (старые шаблоны idprod1 / idprod2).
-    const QRegularExpression re(
-        QStringLiteral(
-            "(<div\\b[^>]*\\bid\\s*=\\s*['\"]idprod[^'\"]*['\"][^>]*>)([\\s\\S]*?)(</div>)"),
-        QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatchIterator it = re.globalMatch(body);
-    QRegularExpressionMatch last;
-    bool found = false;
-    while (it.hasNext()) {
-        last = it.next();
-        found = true;
-    }
-    if (!found) {
-        return body;
-    }
-    return body.left(last.capturedStart())
-        + last.captured(1) + ballsText + last.captured(3)
-        + body.mid(last.capturedEnd());
+    return writeFindMark21ProdScoreToLastRow(body, QString::number(balls));
 }
 
 namespace {
@@ -6315,6 +6361,26 @@ void ExerciseHost::formProtocol() {
     }
 
     ProtocolSessionInput session = buildProtocolSession();
+    if (m_exerciseId == QStringLiteral("2.1")) {
+        // Балл сразу в шаблон строки ({{PROD}}): 0 без графика, иначе из таблицы.
+        int balls = 0;
+        if (m_findMark21GraphBuilt) {
+            if (m_findMark21BallsLabel) {
+                const QString labelText = m_findMark21BallsLabel->text().trimmed();
+                if (!labelText.isEmpty()) {
+                    bool ok = false;
+                    const int fromLabel = labelText.toInt(&ok);
+                    balls = ok ? fromLabel : qMax(0, m_findMark21Balls);
+                } else if (m_findMark21Balls >= 0) {
+                    balls = m_findMark21Balls;
+                }
+            } else if (m_findMark21Balls >= 0) {
+                balls = m_findMark21Balls;
+            }
+        }
+        m_findMark21Balls = balls;
+        session.prodBalls = QString::number(balls);
+    }
     if (m_exerciseId == QStringLiteral("1.26") && !session.additional.trimmed().isEmpty()) {
         const QStringList parts = session.additional.split(QLatin1Char(';'));
         const QString stepKey = parts.isEmpty() || parts.at(0).trimmed().isEmpty()

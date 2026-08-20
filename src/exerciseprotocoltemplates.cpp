@@ -481,6 +481,11 @@ QMap<QString, QString> buildVariables(
     vars.insert(QStringLiteral("{{OR}}"), formatProtocolCellText(checkboxes.activity));
     vars.insert(QStringLiteral("{{HLP}}"), formatProtocolCellText(checkboxes.help));
     vars.insert(QStringLiteral("{{TIME}}"), formatProtocolTime(elapsedSeconds).toHtmlEscaped());
+    // 2.1: {{PROD}} — балл продуктивности (остальные шаблоны плейсхолдер не используют).
+    vars.insert(
+        QStringLiteral("{{PROD}}"),
+        tmpl.id == QStringLiteral("2.1") ? session.prodBalls.toHtmlEscaped() : QString());
+    vars.insert(QStringLiteral("{{STAB}}"), QString());
 
     QString stepId = session.stepId.trimmed().isEmpty() ? QStringLiteral("1") : session.stepId;
     QString doneState = session.doneState.trimmed().isEmpty()

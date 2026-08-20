@@ -21,6 +21,8 @@ struct ProtocolSessionInput {
     int picturesShown = 0;
     QString capturedImagePath;
     QString orHtml;
+    // 2.1 «Найди и вычеркни»: балл в колонку «Баллы продуктивн.» при создании строки.
+    QString prodBalls;
 };
 
 class ExerciseProtocol {
