@@ -1,0 +1,42 @@
+{
+  "rotate": false,
+  "select": true,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "квадрат1.png",
+      "selectFile": "вквадрат1.png",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "file": "квадрат2.png",
+      "selectFile": "вквадрат2.png",
+      "x": 300,
+      "y": 80
+    },
+    {
+      "file": "квадрат3.png",
+      "selectFile": "вквадрат3.png",
+      "x": 400,
+      "y": 380
+    },
+    {
+      "file": "квадрат4.png",
+      "selectFile": "вквадрат4.png",
+      "x": 100,
+      "y": 680
+    },
+    {
+      "file": "квадрат5.png",
+      "selectFile": "вквадрат5.png",
+      "x": 300,
+      "y": 720
+    }
+  ],
+  "template": {
+    "file": "tквадрат.png",
+    "x": 800,
+    "y": 150
+  }
+}

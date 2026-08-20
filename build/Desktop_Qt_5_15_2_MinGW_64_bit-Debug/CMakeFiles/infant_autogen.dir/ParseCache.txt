@@ -1448,7 +1448,9 @@ D:/projects/DokitLab/infant/src/e15canvas.h
  mdp:D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include/wctype.h
  mdp:D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/moc_predefs.h
  mdp:D:/projects/DokitLab/infant/src/e15canvas.h
+D:/projects/DokitLab/infant/src/approotpaths.h
 D:/projects/DokitLab/infant/src/exerciseconfig.h
+D:/projects/DokitLab/infant/src/approotpaths.cpp
 D:/projects/DokitLab/infant/src/exercisehost.h
  mmc:Q_OBJECT
  mdp:D:/Qt/5.15.2/mingw81_64/include/QtCore/QList

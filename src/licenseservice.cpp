@@ -1,4 +1,5 @@
 #include "licenseservice.h"
+#include "approotpaths.h"
 #include "custommessagebox.h"
 #include "fieldcrypto.h"
 #include "licenseactivationdialog.h"
@@ -15,6 +16,7 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QStandardPaths>
+#include <QtGlobal>
 
 namespace {
 
@@ -59,25 +61,43 @@ QString wmicFirstValue(const char *wmicClass, const char *property) {
     return {};
 }
 
-QString powershellFirstDiskModel() {
+QString powershellCimValue(const QString &command) {
     QProcess process;
     process.start(
         QStringLiteral("powershell"),
         {QStringLiteral("-NoProfile"),
+         QStringLiteral("-ExecutionPolicy"),
+         QStringLiteral("Bypass"),
          QStringLiteral("-Command"),
-         QStringLiteral("(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).Model")});
-    if (!process.waitForFinished(10000)) {
+         command});
+    if (!process.waitForFinished(15000)) {
         process.kill();
         return {};
     }
     return QString::fromUtf8(process.readAllStandardOutput()).trimmed();
 }
 
+QString powershellFirstDiskModel() {
+    return powershellCimValue(
+        QStringLiteral("(Get-CimInstance Win32_DiskDrive | Select-Object -First 1).Model"));
+}
+
 QString windowsHardwareFingerprint() {
-    const QString processorId = wmicFirstValue("cpu", "ProcessorId");
+    // WMIC устарел на новых Windows — при пустом ответе берём CIM через PowerShell.
+    QString processorId = wmicFirstValue("cpu", "ProcessorId");
+    if (processorId.isEmpty()) {
+        processorId = powershellCimValue(
+            QStringLiteral("(Get-CimInstance Win32_Processor | Select-Object -First 1).ProcessorId"));
+    }
     QString boardSerial = wmicFirstValue("baseboard", "SerialNumber");
+    if (boardSerial.isEmpty()) {
+        boardSerial = powershellCimValue(
+            QStringLiteral("(Get-CimInstance Win32_BaseBoard | Select-Object -First 1).SerialNumber"));
+    }
     if (boardSerial.compare(QStringLiteral("N/A"), Qt::CaseInsensitive) == 0
-        || boardSerial.compare(QStringLiteral("NA"), Qt::CaseInsensitive) == 0) {
+        || boardSerial.compare(QStringLiteral("NA"), Qt::CaseInsensitive) == 0
+        || boardSerial.compare(QStringLiteral("None"), Qt::CaseInsensitive) == 0
+        || boardSerial.compare(QStringLiteral("To be filled by O.E.M."), Qt::CaseInsensitive) == 0) {
         boardSerial = QStringLiteral("0000000000");
     }
     QString diskModel = wmicFirstValue("diskdrive", "Model");
@@ -93,6 +113,17 @@ QString windowsHardwareFingerprint() {
 QString linuxDiskModel() {
     QFile file(QStringLiteral("/sys/block/sda/device/model"));
     if (!file.open(QIODevice::ReadOnly)) {
+        // NVMe / другие диски — не ломаем Linux fingerprint, просто пустая модель.
+        const QStringList candidates = {
+            QStringLiteral("/sys/block/nvme0n1/device/model"),
+            QStringLiteral("/sys/block/vda/device/model"),
+        };
+        for (const QString &path : candidates) {
+            QFile alt(path);
+            if (alt.open(QIODevice::ReadOnly)) {
+                return QString::fromUtf8(alt.readAll()).trimmed();
+            }
+        }
         return {};
     }
     return QString::fromUtf8(file.readAll()).trimmed();
@@ -247,7 +278,7 @@ bool LicenseService::freshActivation() const {
 }
 
 QString LicenseService::localLicensePath() const {
-    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("key/license.json"));
+    return AppRootPaths::licenseFilePath();
 }
 
 QString LicenseService::loadSavedKey() const {
@@ -298,11 +329,20 @@ bool LicenseService::saveKey(const QString &key, QString *errorText, const QStri
         QFile probe(probePath);
         if (!probe.open(QIODevice::WriteOnly)) {
             if (errorText) {
+#ifdef Q_OS_WIN
+                *errorText = QStringLiteral(
+                    "Нет прав на запись в %1.\n"
+                    "Запустите программу из папки с правами записи "
+                    "(не устанавливайте в Program Files без прав администратора) "
+                    "или дайте пользователю доступ на запись к:\n%2")
+                    .arg(dirPath, QCoreApplication::applicationDirPath());
+#else
                 *errorText = QStringLiteral(
                     "Нет прав на запись в %1.\n"
                     "Если dist собирался через sudo, выполните:\n"
                     "  sudo chown -R $USER \"%2\"")
                     .arg(dirPath, QCoreApplication::applicationDirPath());
+#endif
             }
             return false;
         }

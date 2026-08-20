@@ -1,0 +1,15 @@
+{
+  "rotate": false,
+  "select": true,
+  "showTemplate": true,
+  "sprites": [
+    {"file": "пирамида1.png", "selectFile": "впирамида1.png", "x": 100, "y": 100},
+    {"file": "пирамида2.png", "selectFile": "впирамида2.png", "x": 300, "y": 80},
+    {"file": "пирамида3.png", "selectFile": "впирамида3.png", "x": 400, "y": 380},
+    {"file": "пирамида4.png", "selectFile": "впирамида4.png", "x": 100, "y": 680},
+    {"file": "пирамида5.png", "selectFile": "впирамида5.png", "x": 300, "y": 520},
+    {"file": "пирамида6.png", "selectFile": "впирамида6.png", "x": 550, "y": 700},
+    {"file": "пирамида7.png", "selectFile": "впирамида7.png", "x": 750, "y": 700}
+  ],
+  "template": {"file": "tпирамида.png", "x": 800, "y": 150}
+}

@@ -16,6 +16,8 @@ set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
         mainwindow.h
+        src/approotpaths.h
+        src/approotpaths.cpp
         src/infantwindow.cpp
         src/infantwindow.h
         src/models.h
@@ -160,8 +162,12 @@ if(WIN32)
             "${Qt5_DIR}/../../../Tools/mingw1120_64/opt/bin"
             "${Qt5_DIR}/../../../Tools/mingw1310_64/opt/bin"
             "${Qt5_DIR}/../../../Tools/mingw810_64/opt/bin"
+            "${CMAKE_PREFIX_PATH}/../../Tools/mingw1120_64/opt/bin"
+            "${CMAKE_PREFIX_PATH}/../../Tools/mingw1310_64/opt/bin"
             "D:/Qt/Tools/mingw1120_64/opt/bin"
             "D:/Qt/Tools/mingw1310_64/opt/bin"
+            "C:/Qt/Tools/mingw1120_64/opt/bin"
+            "C:/Qt/Tools/mingw1310_64/opt/bin"
         NO_DEFAULT_PATH
     )
     if(INFANT_OPENSSL_DLL_DIR)
@@ -180,6 +186,10 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/assets"
             "$<TARGET_FILE_DIR:infant>/assets"
-        COMMENT "Copying infant assets next to executable"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:infant>/data"
+            "$<TARGET_FILE_DIR:infant>/data/scans"
+            "$<TARGET_FILE_DIR:infant>/key"
+        COMMENT "Copying assets and creating data/key next to executable"
     )
 endif()

@@ -1167,14 +1167,6 @@ void InfantWindow::buildUi() {
     m_pUpr = new ImageButton(m_root);
     m_pUpr->setGeometry(1033, 24, 143, 34);
 
-    // Тестовый переключатель в верхней панели (динамически, без захода в админку).
-    m_dualScreenTabCheck = new QCheckBox(QStringLiteral("Два экрана"), m_root);
-    m_dualScreenTabCheck->setGeometry(1185, 28, 140, 28);
-    m_dualScreenTabCheck->setChecked(AppSettings::dualScreenEnabled());
-    m_dualScreenTabCheck->setCursor(Qt::PointingHandCursor);
-    m_dualScreenTabCheck->setToolTip(QStringLiteral("Показывать упражнение на втором мониторе"));
-    m_dualScreenTabCheck->hide();
-
     m_logo1 = new QLabel(m_root);
     m_logo1->setAttribute(Qt::WA_TranslucentBackground, true);
     m_logo1->setStyleSheet("background: transparent;");
@@ -1892,19 +1884,6 @@ void InfantWindow::applyLegacyStyle() {
     setImage(m_pAna, "anaoff.png");
     setImage(m_pProto, "protoff.png");
     setImage(m_pUpr, "uproff.png");
-    if (m_dualScreenTabCheck) {
-        m_dualScreenTabCheck->setStyleSheet(
-            QStringLiteral(
-                "QCheckBox {"
-                "  color: white;"
-                "  font-family: 'Microsoft Sans Serif';"
-                "  font-size: 11pt;"
-                "  font-weight: bold;"
-                "  background: transparent;"
-                "  spacing: 6px;"
-                "}"
-            ) + checkBoxIndicatorCss());
-    }
 
     applyEnterLogos();
 
@@ -2151,9 +2130,6 @@ void InfantWindow::bindSignals() {
     connect(m_dualScreenCheck, &QCheckBox::toggled, this, [this](bool checked) {
         applyDualScreenSetting(checked);
     });
-    connect(m_dualScreenTabCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        applyDualScreenSetting(checked);
-    });
 }
 
 void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
@@ -2242,9 +2218,6 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
     if (m_dualScreenCheck) {
         m_dualScreenCheck->setVisible(admin);
     }
-    if (m_dualScreenTabCheck) {
-        m_dualScreenTabCheck->setVisible(workScreen);
-    }
     m_userOpenPatients->raise();
 
     m_bBack->setVisible(patients || workScreen);
@@ -2288,9 +2261,6 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
         m_pAna->raise();
         m_pProto->raise();
         m_pUpr->raise();
-        if (m_dualScreenTabCheck) {
-            m_dualScreenTabCheck->raise();
-        }
         m_bSave->raise();
         m_bPrint->raise();
         if (anamnesis) {
@@ -2308,11 +2278,6 @@ void InfantWindow::setScreen(ScreenMode mode, bool pushHistory) {
             m_dualScreenCheck->blockSignals(true);
             m_dualScreenCheck->setChecked(AppSettings::dualScreenEnabled());
             m_dualScreenCheck->blockSignals(false);
-        }
-        if (m_dualScreenTabCheck) {
-            m_dualScreenTabCheck->blockSignals(true);
-            m_dualScreenTabCheck->setChecked(AppSettings::dualScreenEnabled());
-            m_dualScreenTabCheck->blockSignals(false);
         }
         refreshUsers();
     }
@@ -2503,11 +2468,6 @@ void InfantWindow::applyDualScreenSetting(bool enabled) {
         m_dualScreenCheck->blockSignals(true);
         m_dualScreenCheck->setChecked(enabled);
         m_dualScreenCheck->blockSignals(false);
-    }
-    if (m_dualScreenTabCheck) {
-        m_dualScreenTabCheck->blockSignals(true);
-        m_dualScreenTabCheck->setChecked(enabled);
-        m_dualScreenTabCheck->blockSignals(false);
     }
     if (m_exerciseHost) {
         m_exerciseHost->setDualScreenEnabled(enabled);
@@ -2822,6 +2782,12 @@ void InfantWindow::applyCompactAnamnesisLineSpacing() {
     if (!doc || doc->isEmpty()) {
         return;
     }
+    // Сохраняем курсор/скролл: mergeBlockFormat иначе может увести каретку в начало.
+    const QTextCursor savedCursor = m_anamnesisEdit->textCursor();
+    const int savedScroll = m_anamnesisEdit->verticalScrollBar()
+        ? m_anamnesisEdit->verticalScrollBar()->value()
+        : 0;
+
     QTextCursor cursor(doc);
     cursor.beginEditBlock();
     for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
@@ -2833,6 +2799,11 @@ void InfantWindow::applyCompactAnamnesisLineSpacing() {
         cursor.mergeBlockFormat(fmt);
     }
     cursor.endEditBlock();
+
+    m_anamnesisEdit->setTextCursor(savedCursor);
+    if (m_anamnesisEdit->verticalScrollBar()) {
+        m_anamnesisEdit->verticalScrollBar()->setValue(savedScroll);
+    }
 #endif
 }
 
@@ -4055,7 +4026,12 @@ void InfantWindow::tryAutoSaveAnamnesis(bool forceRefreshPatients) {
     m_anamnesisSaveInProgress = true;
     setAnamnesisDbControlsEnabled(false);
 
+#ifndef Q_OS_WIN
     prepareAnamnesisDocumentForOutput();
+#else
+    // На Windows prepareAnamnesisDocumentForOutput() делает setHtml/RTF-reload
+    // и сбрасывает курсор в начало — при автосохранении во время редактирования нельзя.
+#endif
     QString patientId = m_currentPatientId;
     QString fio;
     QString dr;
@@ -4296,6 +4272,13 @@ void InfantWindow::changeDocumentFontSize(int pointSize, bool persistProfile) {
     m_lastAnamnesisRtf.clear();
     applyAnamnesisFontToEntireDocument(pointSize);
 #else
+    const QTextCursor savedCursor = m_anamnesisEdit->textCursor();
+    const int savedScroll = m_anamnesisEdit->verticalScrollBar()
+        ? m_anamnesisEdit->verticalScrollBar()->value()
+        : 0;
+    const int savedPos = savedCursor.position();
+    const int savedAnchor = savedCursor.anchor();
+
     if (!m_lastAnamnesisRtf.isEmpty()) {
         QString rtf = QString::fromLatin1(m_lastAnamnesisRtf);
         for (int size = 21; size <= 28; ++size) {
@@ -4321,6 +4304,18 @@ void InfantWindow::changeDocumentFontSize(int pointSize, bool persistProfile) {
 
     applyAnamnesisFont(pointSize);
     applyCompactAnamnesisLineSpacing();
+
+    // Восстановить позицию после setHtml / RTF paste (иначе каретка в начале).
+    QTextCursor restored(m_anamnesisEdit->document());
+    const int docEnd = m_anamnesisEdit->document()->characterCount() - 1;
+    const int pos = qBound(0, savedPos, qMax(0, docEnd));
+    const int anchor = qBound(0, savedAnchor, qMax(0, docEnd));
+    restored.setPosition(anchor);
+    restored.setPosition(pos, QTextCursor::KeepAnchor);
+    m_anamnesisEdit->setTextCursor(restored);
+    if (m_anamnesisEdit->verticalScrollBar()) {
+        m_anamnesisEdit->verticalScrollBar()->setValue(savedScroll);
+    }
 #endif
     if (persistProfile && m_templates) {
         writeProfileConfig(m_templates->currentText(), pointSize);
@@ -4851,7 +4846,7 @@ void InfantWindow::setWorkChromeVisible(bool visible) {
         && (m_currentScreen == ScreenMode::Anamnesis || m_currentScreen == ScreenMode::Protocols);
     const QWidgetList chromeWidgets = {
         m_bBack, m_bList, m_bExit, m_bInfo,
-        m_pAna, m_pProto, m_pUpr, m_dualScreenTabCheck, m_patientTitle, m_userOpenPatients
+        m_pAna, m_pProto, m_pUpr, m_patientTitle, m_userOpenPatients
     };
     for (QWidget *widget : chromeWidgets) {
         if (widget) {
@@ -4902,7 +4897,7 @@ void InfantWindow::setWorkChromeVisible(bool visible) {
 void InfantWindow::raiseChromeWidgets() {
     const QWidgetList chromeWidgets = {
         m_bBack, m_bList, m_bExit, m_bSave, m_bPrint, m_bPicPrint, m_bUpload, m_bSettings, m_bInfo,
-        m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr, m_dualScreenTabCheck,
+        m_bClose, m_bLine, m_bUp, m_pAna, m_pProto, m_pUpr,
         m_patientTitle, m_userOpenPatients
     };
     for (QWidget *widget : chromeWidgets) {

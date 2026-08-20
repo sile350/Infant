@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QtGlobal>
 
 namespace {
 
@@ -23,11 +24,25 @@ QString bundledSettingsFilePath() {
     return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("assets/ex/names/настройки.txt"));
 }
 
-QString userSettingsFilePath() {
+QString portableSettingsFilePath() {
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("data/настройки.txt"));
+}
+
+QString appConfigSettingsFilePath() {
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
         + QStringLiteral("/DokitLabInfant");
     QDir().mkpath(dir);
     return QDir(dir).filePath(QStringLiteral("настройки.txt"));
+}
+
+QString userSettingsFilePathForWrite() {
+#ifdef Q_OS_WIN
+    // Портативная Windows-сборка: настройки рядом с exe в data/.
+    QDir().mkpath(QFileInfo(portableSettingsFilePath()).absolutePath());
+    return portableSettingsFilePath();
+#else
+    return appConfigSettingsFilePath();
+#endif
 }
 
 bool parseDualScreenValue(const QString &content) {
@@ -42,16 +57,46 @@ bool parseDualScreenValue(const QString &content) {
     return false;
 }
 
+bool tryReadDualScreen(const QString &path, bool *ok) {
+    *ok = false;
+    if (!QFile::exists(path)) {
+        return false;
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    *ok = true;
+    return parseDualScreenValue(QString::fromUtf8(file.readAll()));
+}
+
 } // namespace
 
 bool AppSettings::dualScreenEnabled() {
-    const QString userPath = userSettingsFilePath();
-    if (QFile::exists(userPath)) {
-        QFile userFile(userPath);
-        if (userFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            return parseDualScreenValue(QString::fromUtf8(userFile.readAll()));
+    bool ok = false;
+    // Windows: сначала portable data/настройки.txt; Linux — AppConfig; затем fallbacks.
+#ifdef Q_OS_WIN
+    {
+        const bool value = tryReadDualScreen(portableSettingsFilePath(), &ok);
+        if (ok) {
+            return value;
         }
     }
+#endif
+    {
+        const bool value = tryReadDualScreen(appConfigSettingsFilePath(), &ok);
+        if (ok) {
+            return value;
+        }
+    }
+#ifndef Q_OS_WIN
+    {
+        const bool value = tryReadDualScreen(portableSettingsFilePath(), &ok);
+        if (ok) {
+            return value;
+        }
+    }
+#endif
 
     const QString bundledPath = bundledSettingsFilePath();
     QFile bundledFile(bundledPath);
@@ -62,7 +107,7 @@ bool AppSettings::dualScreenEnabled() {
 }
 
 void AppSettings::setDualScreenEnabled(bool enabled) {
-    const QString path = userSettingsFilePath();
+    const QString path = userSettingsFilePathForWrite();
     QDir().mkpath(QFileInfo(path).absolutePath());
 
     QStringList lines;

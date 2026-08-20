@@ -1,3 +1,5 @@
+#include "src/approotpaths.h"
+#include "src/custommessagebox.h"
 #include "src/infantwindow.h"
 #include "src/licenseservice.h"
 #include "src/repository.h"
@@ -15,6 +17,13 @@ int main(int argc, char *argv[])
 
     const SingleInstance singleInstance;
     if (!singleInstance.isPrimary()) {
+        return 0;
+    }
+
+    // data/, data/scans/, key/ рядом с exe — и на Windows, и на Linux.
+    QString layoutError;
+    if (!AppRootPaths::ensureWritableLayout(&layoutError)) {
+        CustomMessageBox::showError(nullptr, layoutError);
         return 0;
     }
 

@@ -152,16 +152,20 @@ bool LocalDatabase::ensureSchema() {
 }
 
 QString LocalDatabase::databasePath() const {
+    // Основной путь: {exe}/data/base.db (Windows и Linux).
+    // Fallback — только если рядом уже лежит готовая data/ (разработка / старые layout).
+    const QString preferred = QCoreApplication::applicationDirPath() + QStringLiteral("/data");
     const QStringList roots = {
-        QCoreApplication::applicationDirPath() + "/data",
-        QCoreApplication::applicationDirPath() + "/../data",
-        QDir::currentPath() + "/data"
+        preferred,
+        QCoreApplication::applicationDirPath() + QStringLiteral("/../data"),
+        QDir::currentPath() + QStringLiteral("/data"),
     };
     for (const QString &root : roots) {
         QDir dir(root);
-        if (dir.exists() || root.startsWith(QCoreApplication::applicationDirPath())) {
-            return dir.filePath("base.db");
+        if (dir.exists() || root == preferred
+            || root.startsWith(QCoreApplication::applicationDirPath())) {
+            return dir.filePath(QStringLiteral("base.db"));
         }
     }
-    return QCoreApplication::applicationDirPath() + "/data/base.db";
+    return preferred + QStringLiteral("/base.db");
 }

@@ -1,0 +1,27 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "tкастрюля.png",
+      "x": 700,
+      "y": 100
+    },
+    {
+      "file": "кастрюля21.png",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "file": "кастрюля22.png",
+      "x": 140,
+      "y": 140
+    }
+  ],
+  "template": {
+    "file": "tкастрюля.png",
+    "x": 700,
+    "y": 100
+  }
+}

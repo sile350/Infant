@@ -1,0 +1,8 @@
+{
+  "id": "1.19",
+  "kind": "done_time",
+  "scoreKind": "none",
+  "dateRow": "<tr><td width='200' valign='top'>Дата/специалист</td><td width='471' valign='top'>{{DATE}}   {{USER}}</td></tr>",
+  "initialBlock": "<tr><td width='200' valign='top'>Результат: вывод об уровне развития</td><td width='471' valign='top'><div contenteditable='true'></div></td></tr><tr><td width='200' valign='top'>Примечание</td><td width='471' valign='top'><div contenteditable='true'></div></td></tr><tr><td align='center' colspan='2' width='671' style='width:671px'>Процесс выполнения диагностической методики</td></tr></table><!--s--><table style='table-layout:fixed;width:671px' border='1' cellspacing='0' cellpadding='0' width='671'><colgroup><col width='106'><col width='127'><col width='223'><col width='215'></colgroup><tr><td width='106' align='left' valign='top'>Изображение<br>/Кол-во<br>частей и вид<br>разреза</td><td width='137' valign='top'>Факт выполнения / время</td><td width='223' align='center'>Характер деятельности ребенка</td><td width='215' align='center'>Виды помощи</td></tr>",
+  "rowTemplate": "<tr><!--step{{STEP}}--><td width='106' align='left' valign='top'>{{ADDITIONAL}}</td><td width='137'>{{DONE}}/{{TIME}}</td><td width='223' valign='top'><div contenteditable='true'>{{OR}}</div></td><td width='215' valign='top'><div contenteditable='true'>{{HLP}}</div></td></tr>"
+}

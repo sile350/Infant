@@ -1,0 +1,471 @@
+{
+	"AUTOGEN_COMMAND_LINE_LENGTH_MAX" : 32000,
+	"BUILD_DIR" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/infant_autogen",
+	"CMAKE_BINARY_DIR" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release",
+	"CMAKE_CURRENT_BINARY_DIR" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release",
+	"CMAKE_CURRENT_SOURCE_DIR" : "D:/projects/DokitLab/infant",
+	"CMAKE_EXECUTABLE" : "D:/CMake/bin/cmake.exe",
+	"CMAKE_LIST_FILES" : 
+	[
+		"D:/projects/DokitLab/infant/CMakeLists.txt",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineSystem.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeSystem.cmake.in",
+		"D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/CMakeFiles/3.31.0-rc2/CMakeSystem.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeNinjaFindMake.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeSystemSpecificInitialize.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows-Initialize.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineCXXCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows-Determine-CXX.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineCompilerId.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCompilerIdDetection.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/ADSP-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/ARMCC-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/ARMClang-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/AppleClang-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Clang-DetermineCompilerInternal.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Borland-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Clang-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Clang-DetermineCompilerInternal.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Compaq-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Cray-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/CrayClang-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Embarcadero-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Fujitsu-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/FujitsuClang-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/GHS-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/GNU-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/HP-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/IAR-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/IBMClang-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Intel-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/IntelLLVM-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/LCC-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/MSVC-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/NVHPC-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/NVIDIA-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/OpenWatcom-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/OrangeC-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/PGI-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/PathScale-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/SCO-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/SunPro-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/TI-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/TIClang-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Tasking-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/VisualAge-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/Watcom-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/XL-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/XLClang-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/zOS-CXX-DetermineCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/IBMCPP-CXX-DetermineVersionInternal.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeFindBinUtils.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/GNU-FindBinUtils.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCXXCompiler.cmake.in",
+		"D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/CMakeFiles/3.31.0-rc2/CMakeCXXCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeSystemSpecificInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeGenericSystem.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeInitializeConfigs.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/WindowsPaths.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCXXInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeLanguageInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/GNU-CXX.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/GNU.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Compiler/CMakeCommonCompilerMacros.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows-GNU-CXX.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows-GNU.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineRCCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeRCCompiler.cmake.in",
+		"D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/CMakeFiles/3.31.0-rc2/CMakeRCCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeRCInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows-windres.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeTestRCCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Internal/CMakeRCLinkerInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Internal/CMakeCommonLinkerInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCommonLanguageInclude.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeTestCXXCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeTestCompilerCommon.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineCompilerABI.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Internal/CMakeDetermineLinkerId.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeParseImplicitIncludeInfo.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeParseImplicitLinkInfo.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeParseLibraryArchitecture.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeTestCompilerCommon.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCXXCompilerABI.cpp",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeDetermineCompilerSupport.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Internal/FeatureTesting.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCXXCompiler.cmake.in",
+		"D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/CMakeFiles/3.31.0-rc2/CMakeCXXCompiler.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Windows-GNU-CXX-ABI.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Internal/CMakeCXXLinkerInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Internal/CMakeCommonLinkerInformation.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Linker/GNU-CXX.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Linker/GNU.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Linker/Windows-GNU-CXX.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Linker/Windows-GNU.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/Platform/Linker/GNU.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5/Qt5ConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5/Qt5Config.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5/Qt5ConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5/Qt5Config.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5/Qt5ModuleLocation.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5WidgetsConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5WidgetsConfig.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5GuiConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5GuiConfig.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Core/Qt5CoreConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Core/Qt5CoreConfig.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Core/Qt5CoreConfigExtras.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Core/Qt5CoreConfigExtrasMkspecDir.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Core/Qt5CoreMacros.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeParseArguments.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QGifPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QICNSPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QICOPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QInsightTrackerPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QJpegPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QMinimalIntegrationPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QOffscreenIntegrationPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QSvgIconPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QSvgPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QTgaPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QTiffPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QTuioTouchPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QVirtualKeyboardPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QWbmpPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QWebGLIntegrationPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QWebpPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QWindowsDirect2DIntegrationPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QWindowsIntegrationPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5Gui_QXdgDesktopPortalThemePlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Gui/Qt5GuiConfigExtras.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5Widgets_QWindowsVistaStylePlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5WidgetsConfigExtras.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5WidgetsMacros.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeParseArguments.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Network/Qt5NetworkConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Network/Qt5NetworkConfig.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Network/Qt5Network_QGenericEnginePlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5PrintSupport/Qt5PrintSupportConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5PrintSupport/Qt5PrintSupportConfig.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5PrintSupport/Qt5PrintSupport_QWindowsPrinterSupportPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Sql/Qt5SqlConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Sql/Qt5SqlConfig.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Sql/Qt5Sql_QODBCDriverPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Sql/Qt5Sql_QPSQLDriverPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Sql/Qt5Sql_QSQLiteDriverPlugin.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Concurrent/Qt5ConcurrentConfigVersion.cmake",
+		"D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Concurrent/Qt5ConcurrentConfig.cmake",
+		"D:/CMake/share/cmake-3.31/Modules/GNUInstallDirs.cmake"
+	],
+	"CMAKE_SOURCE_DIR" : "D:/projects/DokitLab/infant",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/infant_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "infant_autogen/timestamp",
+	"HEADERS" : 
+	[
+		[
+			"D:/projects/DokitLab/infant/mainwindow.h",
+			"MU",
+			"EWIEGA46WW/moc_mainwindow.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/apiclient.h",
+			"MU",
+			"UVLADIE3JM/moc_apiclient.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/approotpaths.h",
+			"MU",
+			"UVLADIE3JM/moc_approotpaths.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/appsettings.h",
+			"MU",
+			"UVLADIE3JM/moc_appsettings.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/custommessagebox.h",
+			"MU",
+			"UVLADIE3JM/moc_custommessagebox.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/e126canvas.h",
+			"MU",
+			"UVLADIE3JM/moc_e126canvas.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/e15canvas.h",
+			"MU",
+			"UVLADIE3JM/moc_e15canvas.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseassets.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseassets.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseconfig.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseconfig.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exercisehost.h",
+			"MU",
+			"UVLADIE3JM/moc_exercisehost.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocol.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseprotocol.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocolcreate.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseprotocolcreate.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocoltemplates.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciseprotocoltemplates.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciserunnerwidget.h",
+			"MU",
+			"UVLADIE3JM/moc_exerciserunnerwidget.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exercisesession.h",
+			"MU",
+			"UVLADIE3JM/moc_exercisesession.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/fieldcrypto.h",
+			"MU",
+			"UVLADIE3JM/moc_fieldcrypto.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/imagebutton.h",
+			"MU",
+			"UVLADIE3JM/moc_imagebutton.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/infantwindow.h",
+			"MU",
+			"UVLADIE3JM/moc_infantwindow.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/licenseactivationdialog.h",
+			"MU",
+			"UVLADIE3JM/moc_licenseactivationdialog.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/licenseservice.h",
+			"MU",
+			"UVLADIE3JM/moc_licenseservice.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/localdatabase.h",
+			"MU",
+			"UVLADIE3JM/moc_localdatabase.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/models.h",
+			"MU",
+			"UVLADIE3JM/moc_models.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/onlypexercise.h",
+			"MU",
+			"UVLADIE3JM/moc_onlypexercise.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/patientdisplay.h",
+			"MU",
+			"UVLADIE3JM/moc_patientdisplay.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/protocoleditguard.h",
+			"MU",
+			"UVLADIE3JM/moc_protocoleditguard.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/puzzlecanvas.h",
+			"MU",
+			"UVLADIE3JM/moc_puzzlecanvas.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/puzzlelayout.h",
+			"MU",
+			"UVLADIE3JM/moc_puzzlelayout.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/remembercanvas.h",
+			"MU",
+			"UVLADIE3JM/moc_remembercanvas.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/repository.h",
+			"MU",
+			"UVLADIE3JM/moc_repository.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/singleinstance.h",
+			"MU",
+			"UVLADIE3JM/moc_singleinstance.cpp",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/wolfrunner.h",
+			"MU",
+			"UVLADIE3JM/moc_wolfrunner.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/infant_autogen/include",
+	"MOC_COMPILATION_FILE" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/infant_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : 
+	[
+		"QT_CONCURRENT_LIB",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
+		"QT_PRINTSUPPORT_LIB",
+		"QT_SQL_LIB",
+		"QT_WIDGETS_LIB"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"D:/Qt/5.15.2/mingw81_64/include",
+		"D:/Qt/5.15.2/mingw81_64/include/QtWidgets",
+		"D:/Qt/5.15.2/mingw81_64/include/QtGui",
+		"D:/Qt/5.15.2/mingw81_64/include/QtANGLE",
+		"D:/Qt/5.15.2/mingw81_64/include/QtCore",
+		"D:/Qt/5.15.2/mingw81_64/mkspecs/win32-g++",
+		"D:/Qt/5.15.2/mingw81_64/include/QtNetwork",
+		"D:/Qt/5.15.2/mingw81_64/include/QtPrintSupport",
+		"D:/Qt/5.15.2/mingw81_64/include/QtSql",
+		"D:/Qt/5.15.2/mingw81_64/include/QtConcurrent",
+		"D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++",
+		"D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/x86_64-w64-mingw32",
+		"D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/backward",
+		"D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include",
+		"D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include-fixed",
+		"D:/Qt/Tools/mingw810_64/x86_64-w64-mingw32/include"
+	],
+	"MOC_MACRO_NAMES" : [ "Q_OBJECT", "Q_GADGET", "Q_NAMESPACE", "Q_NAMESPACE_EXPORT" ],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"D:/Qt/Tools/mingw810_64/bin/c++.exe",
+		"-std=gnu++17",
+		"-dM",
+		"-E",
+		"-c",
+		"D:/CMake/share/cmake-3.31/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/infant_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 8,
+	"PARSE_CACHE_FILE" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/CMakeFiles/infant_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "D:/Qt/5.15.2/mingw81_64/bin/moc.exe",
+	"QT_UIC_EXECUTABLE" : "D:/Qt/5.15.2/mingw81_64/bin/uic.exe",
+	"QT_VERSION_MAJOR" : 5,
+	"QT_VERSION_MINOR" : 15,
+	"SETTINGS_FILE" : "D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Release/CMakeFiles/infant_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[ "D:/projects/DokitLab/infant/main.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/mainwindow.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/apiclient.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/approotpaths.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/appsettings.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/custommessagebox.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/e126canvas.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/e15canvas.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exerciseassets.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exerciseconfig.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exercisehost.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/exerciseprotocol.cpp", "MU", null ],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocolcreate.cpp",
+			"MU",
+			null
+		],
+		[
+			"D:/projects/DokitLab/infant/src/exerciseprotocoltemplates.cpp",
+			"MU",
+			null
+		],
+		[ "D:/projects/DokitLab/infant/src/exerciserunners.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/fieldcrypto.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/imagebutton.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/infantwindow.cpp", "MU", null ],
+		[
+			"D:/projects/DokitLab/infant/src/licenseactivationdialog.cpp",
+			"MU",
+			null
+		],
+		[ "D:/projects/DokitLab/infant/src/licenseservice.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/localdatabase.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/onlypexercise.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/patientdisplay.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/protocoleditguard.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/puzzlecanvas.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/puzzleslayout.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/remembercanvas.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/repository.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/singleinstance.cpp", "MU", null ],
+		[ "D:/projects/DokitLab/infant/src/wolfrunner.cpp", "MU", null ]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : false,
+	"VERBOSITY" : 0
+}

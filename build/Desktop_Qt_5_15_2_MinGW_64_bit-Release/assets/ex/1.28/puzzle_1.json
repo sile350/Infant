@@ -1,0 +1,11 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [],
+  "template": {
+    "file": "traf1.png",
+    "x": 500,
+    "y": 20
+  }
+}

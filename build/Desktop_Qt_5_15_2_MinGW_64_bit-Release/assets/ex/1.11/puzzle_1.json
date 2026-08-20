@@ -1,0 +1,11 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [],
+  "template": {
+    "file": "f1.png",
+    "x": 651,
+    "y": 132
+  }
+}

@@ -1,4 +1,32 @@
 infant_autogen/timestamp: \
+	D:/CMake/share/cmake-3.31/Modules/CMakeCXXInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeCommonLanguageInclude.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeGenericSystem.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeInitializeConfigs.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeLanguageInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeParseArguments.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeRCInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeSystemSpecificInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/CMakeSystemSpecificInitialize.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Compiler/CMakeCommonCompilerMacros.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Compiler/GNU-CXX.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Compiler/GNU.cmake \
+	D:/CMake/share/cmake-3.31/Modules/GNUInstallDirs.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Internal/CMakeCXXLinkerInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Internal/CMakeCommonLinkerInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Internal/CMakeRCLinkerInformation.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Linker/GNU-CXX.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Linker/GNU.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Linker/GNU.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Linker/Windows-GNU-CXX.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Linker/Windows-GNU.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Windows-GNU-CXX-ABI.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Windows-GNU-CXX.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Windows-GNU.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Windows-Initialize.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Windows-windres.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/Windows.cmake \
+	D:/CMake/share/cmake-3.31/Modules/Platform/WindowsPaths.cmake \
 	D:/Qt/5.15.2/mingw81_64/include/QtCore/QDate \
 	D:/Qt/5.15.2/mingw81_64/include/QtCore/QFlags \
 	D:/Qt/5.15.2/mingw81_64/include/QtCore/QList \
@@ -233,26 +261,6 @@ infant_autogen/timestamp: \
 	D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5WidgetsConfigVersion.cmake \
 	D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5WidgetsMacros.cmake \
 	D:/Qt/5.15.2/mingw81_64/lib/cmake/Qt5Widgets/Qt5Widgets_QWindowsVistaStylePlugin.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeCXXInformation.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeCommonLanguageInclude.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeGenericSystem.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeInitializeConfigs.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeLanguageInformation.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeParseArguments.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeRCInformation.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeSystemSpecificInformation.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeSystemSpecificInitialize.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Compiler/CMakeCommonCompilerMacros.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Compiler/GNU-CXX.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Compiler/GNU.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/GNUInstallDirs.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX-ABI.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-GNU-CXX.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-GNU.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-Initialize.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows-windres.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/Windows.cmake \
-	D:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/Platform/WindowsPaths.cmake \
 	D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include-fixed/limits.h \
 	D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include-fixed/syslimits.h \
 	D:/Qt/Tools/mingw810_64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/algorithm \
@@ -429,15 +437,17 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/CMakeLists.txt \
 	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/.qtc/package-manager/auto-setup.cmake \
 	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/.qtc/package-manager/maintenance_tool_provider.cmake \
-	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/CMakeFiles/3.30.5/CMakeCXXCompiler.cmake \
-	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/CMakeFiles/3.30.5/CMakeRCCompiler.cmake \
-	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/CMakeFiles/3.30.5/CMakeSystem.cmake \
+	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/CMakeFiles/3.31.0-rc2/CMakeCXXCompiler.cmake \
+	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/CMakeFiles/3.31.0-rc2/CMakeRCCompiler.cmake \
+	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/CMakeFiles/3.31.0-rc2/CMakeSystem.cmake \
 	D:/projects/DokitLab/infant/build/Desktop_Qt_5_15_2_MinGW_64_bit-Debug/infant_autogen/moc_predefs.h \
 	D:/projects/DokitLab/infant/main.cpp \
 	D:/projects/DokitLab/infant/mainwindow.cpp \
 	D:/projects/DokitLab/infant/mainwindow.h \
 	D:/projects/DokitLab/infant/src/apiclient.cpp \
 	D:/projects/DokitLab/infant/src/apiclient.h \
+	D:/projects/DokitLab/infant/src/approotpaths.cpp \
+	D:/projects/DokitLab/infant/src/approotpaths.h \
 	D:/projects/DokitLab/infant/src/appsettings.cpp \
 	D:/projects/DokitLab/infant/src/appsettings.h \
 	D:/projects/DokitLab/infant/src/custommessagebox.cpp \
@@ -492,4 +502,4 @@ infant_autogen/timestamp: \
 	D:/projects/DokitLab/infant/src/singleinstance.h \
 	D:/projects/DokitLab/infant/src/wolfrunner.cpp \
 	D:/projects/DokitLab/infant/src/wolfrunner.h \
-	D:/Qt/Tools/CMake_64/bin/cmake.exe
+	D:/CMake/bin/cmake.exe

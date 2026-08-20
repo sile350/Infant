@@ -1,0 +1,14 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {"file": "31.png", "x": 815, "y": 54},
+    {"file": "32.png", "x": 815, "y": 185},
+    {"file": "33.png", "x": 815, "y": 319},
+    {"file": "34.png", "x": 815, "y": 455},
+    {"file": "35.png", "x": 815, "y": 591},
+    {"file": "36.png", "x": 815, "y": 727}
+  ],
+  "template": {"file": "traf3.png", "x": 1000, "y": 131}
+}

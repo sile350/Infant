@@ -1,0 +1,12 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": false,
+  "sprites": [
+    {"file": "мишка41.png", "x": 100, "y": 100},
+    {"file": "мишка42.png", "x": 130, "y": 130},
+    {"file": "мишка43.png", "x": 130, "y": 170},
+    {"file": "мишка44.png", "x": 150, "y": 170}
+  ],
+  "template": {"file": "etмишка4.png", "x": 550, "y": 0}
+}

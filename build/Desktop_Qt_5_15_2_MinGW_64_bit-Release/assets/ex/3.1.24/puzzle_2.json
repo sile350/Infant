@@ -1,0 +1,57 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "21.png",
+      "x": 333,
+      "y": 120
+    },
+    {
+      "file": "22.png",
+      "x": 333,
+      "y": 306
+    },
+    {
+      "file": "23.png",
+      "x": 333,
+      "y": 492
+    },
+    {
+      "file": "24.png",
+      "x": 333,
+      "y": 678
+    },
+    {
+      "file": "25.png",
+      "x": 478,
+      "y": 718
+    },
+    {
+      "file": "26.png",
+      "x": 622,
+      "y": 718
+    },
+    {
+      "file": "27.png",
+      "x": 766,
+      "y": 718
+    },
+    {
+      "file": "28.png",
+      "x": 910,
+      "y": 718
+    },
+    {
+      "file": "26.png",
+      "x": 1054,
+      "y": 718
+    }
+  ],
+  "template": {
+    "file": "fone2.png",
+    "x": 500,
+    "y": 120
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {"file": "31.png", "x": 40, "y": 860},
+    {"file": "32.png", "x": 185, "y": 860},
+    {"file": "33.png", "x": 330, "y": 860},
+    {"file": "34.png", "x": 475, "y": 860},
+    {"file": "35.png", "x": 620, "y": 860},
+    {"file": "36.png", "x": 765, "y": 860},
+    {"file": "37.png", "x": 910, "y": 860},
+    {"file": "38.png", "x": 1055, "y": 860},
+    {"file": "39.png", "x": 1200, "y": 860},
+    {"file": "310.png", "x": 1345, "y": 860},
+    {"file": "311.png", "x": 1490, "y": 860},
+    {"file": "312.png", "x": 1635, "y": 860},
+    {"file": "t1.png", "x": 576, "y": 13, "tx": 576, "ty": 13, "returnable": true},
+    {"file": "t2.png", "x": 742, "y": 13, "tx": 742, "ty": 13, "returnable": true},
+    {"file": "t3.png", "x": 925, "y": 13, "tx": 925, "ty": 13, "returnable": true},
+    {"file": "t4.png", "x": 1095, "y": 13, "tx": 1095, "ty": 13, "returnable": true},
+    {"file": "t5.png", "x": 1269, "y": 13, "tx": 1269, "ty": 13, "returnable": true},
+    {"file": "t6.png", "x": 1459, "y": 13, "tx": 1459, "ty": 13, "returnable": true}
+  ],
+  "template": {"file": "traf.png", "x": 550, "y": 0}
+}

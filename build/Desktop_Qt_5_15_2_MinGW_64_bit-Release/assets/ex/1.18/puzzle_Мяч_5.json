@@ -1,0 +1,42 @@
+{
+  "rotate": false,
+  "select": false,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "tмяч5.png",
+      "x": 700,
+      "y": 100
+    },
+    {
+      "file": "мяч51.png",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "file": "мяч52.png",
+      "x": 130,
+      "y": 130
+    },
+    {
+      "file": "мяч53.png",
+      "x": 140,
+      "y": 140
+    },
+    {
+      "file": "мяч54.png",
+      "x": 150,
+      "y": 150
+    },
+    {
+      "file": "мяч55.png",
+      "x": 60,
+      "y": 160
+    }
+  ],
+  "template": {
+    "file": "tмяч5.png",
+    "x": 700,
+    "y": 100
+  }
+}

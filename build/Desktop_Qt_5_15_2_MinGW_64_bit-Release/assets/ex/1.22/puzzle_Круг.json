@@ -1,0 +1,48 @@
+{
+  "rotate": false,
+  "select": true,
+  "showTemplate": true,
+  "sprites": [
+    {
+      "file": "круг1.png",
+      "selectFile": "вкруг1.png",
+      "x": 130,
+      "y": 100
+    },
+    {
+      "file": "круг2.png",
+      "selectFile": "вкруг2.png",
+      "x": 100,
+      "y": 280
+    },
+    {
+      "file": "круг3.png",
+      "selectFile": "вкруг3.png",
+      "x": 150,
+      "y": 500
+    },
+    {
+      "file": "круг4.png",
+      "selectFile": "вкруг4.png",
+      "x": 100,
+      "y": 600
+    },
+    {
+      "file": "круг5.png",
+      "selectFile": "вкруг5.png",
+      "x": 330,
+      "y": 600
+    },
+    {
+      "file": "круг6.png",
+      "selectFile": "вкруг6.png",
+      "x": 500,
+      "y": 600
+    }
+  ],
+  "template": {
+    "file": "tкруг.png",
+    "x": 800,
+    "y": 150
+  }
+}

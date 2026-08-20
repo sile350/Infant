@@ -1,0 +1,22 @@
+{
+  "rotate": true,
+  "select": false,
+  "showTemplate": false,
+  "sprites": [
+    {
+      "file": "матрешка21.png",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "file": "матрешка22.png",
+      "x": 130,
+      "y": 130
+    }
+  ],
+  "template": {
+    "file": "etматрешка2.png",
+    "x": 700,
+    "y": 100
+  }
+}
