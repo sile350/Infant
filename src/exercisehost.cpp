@@ -2978,17 +2978,41 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
         return body;
     }
     const QString ballsText = QString::number(m_findMark21Balls);
-    // Только «Баллы продуктивн.» текущей (последней) строки. «Результат: баллы…» — вручную.
-    const QString step = currentStepId().trimmed();
-    if (!step.isEmpty()) {
-        const QString stepId = QStringLiteral("idprod") + step;
-        if (body.contains(stepId, Qt::CaseInsensitive)) {
-            body = replaceHtmlDivInnerById(body, stepId, ballsText);
-            return body;
-        }
+    // Только «Баллы продуктивн.» текущей строки. «Результат: баллы…» — вручную.
+    QString step = currentStepId().trimmed();
+    if (step.isEmpty()) {
+        step = m_sessionStepId.trimmed();
     }
-    body = replaceLastHtmlDivInnerById(body, QStringLiteral("idprod"), ballsText);
-    return body;
+    if (step.isEmpty()) {
+        step = QStringLiteral("1");
+    }
+
+    const QString stepProdId = QStringLiteral("idprod") + step;
+    if (body.contains(QRegularExpression(
+            QStringLiteral("\\bid\\s*=\\s*['\"]%1['\"]")
+                .arg(QRegularExpression::escape(stepProdId)),
+            QRegularExpression::CaseInsensitiveOption))) {
+        return replaceHtmlDivInnerById(body, stepProdId, ballsText);
+    }
+
+    // Любой последний idprod / idprodN (старые и новые шаблоны).
+    const QRegularExpression re(
+        QStringLiteral(
+            "(<div\\b[^>]*\\bid\\s*=\\s*['\"]idprod[^'\"]*['\"][^>]*>)([\\s\\S]*?)(</div>)"),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator it = re.globalMatch(body);
+    QRegularExpressionMatch last;
+    bool found = false;
+    while (it.hasNext()) {
+        last = it.next();
+        found = true;
+    }
+    if (!found) {
+        return body;
+    }
+    return body.left(last.capturedStart())
+        + last.captured(1) + ballsText + last.captured(3)
+        + body.mid(last.capturedEnd());
 }
 
 namespace {
