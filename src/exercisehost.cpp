@@ -2408,15 +2408,16 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
         const int xs[] = {164, 216, 270, 321, 372};
 
         if (step3Axis) {
-            // Полностью закрыть старые подписи 0,5…2,5 и «t(мин)» (bbox ~y=280..352).
+            // Не трогать исходную ось бланка (y=291): затереть только подписи ниже неё.
             const QColor bg(232, 232, 232);
-            painter.fillRect(90, 275, 430, 90, bg);
-            // Восстановить нижнюю границу поля графика.
-            painter.setPen(QPen(Qt::black, 1));
-            painter.drawLine(150, 286, 386, 286);
+            painter.fillRect(100, 293, 420, 70, bg);
+            // Нижняя ось t — на месте исходной, той же толщины, что вертикальная.
+            constexpr int kAxisY = 291;
+            painter.setPen(QPen(Qt::black, 2));
+            painter.drawLine(140, kAxisY, 400, kAxisY);
             QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 11);
             painter.setFont(axisFont);
-            painter.setPen(QPen(Qt::black, 1));
+            painter.setPen(QPen(Qt::black, 2));
             const QStringList xLabels = {
                 QStringLiteral("1"),
                 QStringLiteral("2"),
@@ -2425,15 +2426,19 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
                 QStringLiteral("5"),
             };
             for (int i = 0; i < 5; ++i) {
-                painter.drawLine(xs[i], 286, xs[i], 292);
+                painter.drawLine(xs[i], kAxisY, xs[i], kAxisY + 7);
                 painter.drawText(
-                    QRect(xs[i] - 16, 296, 32, 22),
+                    QRect(xs[i] - 16, kAxisY + 10, 32, 22),
                     Qt::AlignHCenter | Qt::AlignTop,
                     xLabels.at(i));
             }
             QFont tFont(QStringLiteral("Microsoft Sans Serif"), 12, QFont::Bold);
             painter.setFont(tFont);
-            painter.drawText(QRect(400, 294, 90, 24), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("t(мин)"));
+            painter.setPen(QPen(Qt::black, 1));
+            painter.drawText(
+                QRect(408, kAxisY + 6, 90, 24),
+                Qt::AlignLeft | Qt::AlignVCenter,
+                QStringLiteral("t(мин)"));
         }
 
         QPen pen(QColor(239, 71, 227), 5);
