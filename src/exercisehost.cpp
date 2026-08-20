@@ -2408,12 +2408,12 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
         const int xs[] = {164, 216, 270, 321, 372};
 
         if (step3Axis) {
-            // Не трогать исходную ось бланка (y=291): затереть только подписи ниже неё.
+            // На бланке graph11 нижняя шкала t и подписи 0,5…2,5 лежат около y=329…350.
+            // Затираем этот блок и рисуем 1…5 на том же месте (ниже поля S).
             const QColor bg(232, 232, 232);
-            painter.fillRect(100, 293, 420, 70, bg);
-            // Нижняя ось t — на месте исходной, той же толщины, что вертикальная.
-            constexpr int kAxisY = 291;
-            painter.setPen(QPen(Qt::black, 2));
+            painter.fillRect(100, 295, 430, 70, bg);
+            constexpr int kAxisY = 330;
+            painter.setPen(QPen(Qt::black, 3));
             painter.drawLine(140, kAxisY, 400, kAxisY);
             QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 11);
             painter.setFont(axisFont);
@@ -2426,7 +2426,7 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
                 QStringLiteral("5"),
             };
             for (int i = 0; i < 5; ++i) {
-                painter.drawLine(xs[i], kAxisY, xs[i], kAxisY + 7);
+                painter.drawLine(xs[i], kAxisY, xs[i], kAxisY + 8);
                 painter.drawText(
                     QRect(xs[i] - 16, kAxisY + 10, 32, 22),
                     Qt::AlignHCenter | Qt::AlignTop,
@@ -2436,7 +2436,7 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
             painter.setFont(tFont);
             painter.setPen(QPen(Qt::black, 1));
             painter.drawText(
-                QRect(408, kAxisY + 6, 90, 24),
+                QRect(408, kAxisY + 4, 90, 28),
                 Qt::AlignLeft | Qt::AlignVCenter,
                 QStringLiteral("t(мин)"));
         }
