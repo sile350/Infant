@@ -2412,7 +2412,7 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
             // Затираем этот блок и рисуем 1…5 на том же месте (ниже поля S).
             const QColor bg(232, 232, 232);
             painter.fillRect(100, 295, 430, 70, bg);
-            constexpr int kAxisY = 332;
+            constexpr int kAxisY = 330;
             painter.setPen(QPen(Qt::black, 3));
             // Слева до края поля (как на бланке); справа — чуть за «5», без длинного хвоста.
             painter.drawLine(100, kAxisY, 410, kAxisY);
