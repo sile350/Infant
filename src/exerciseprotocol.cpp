@@ -7242,8 +7242,19 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         }
 
         QList<QPair<int, QString>> replacements;
-        replacements.append(qMakePair(er.activityCol, makeEditable(er.activity)));
-        replacements.append(qMakePair(er.helpCol, makeEditable(er.help)));
+        auto cellPlain = [&](int col) -> QString {
+            if (col < 0 || col >= tds.size()) {
+                return QString();
+            }
+            return htmlFragmentToPlainText(tds.at(col).captured(2)).trimmed();
+        };
+        auto preferEditor = [](const QString &editor, const QString &stored) {
+            return editor.trimmed().isEmpty() && !stored.isEmpty() ? stored : editor;
+        };
+        replacements.append(qMakePair(
+            er.activityCol, makeEditable(preferEditor(er.activity, cellPlain(er.activityCol)))));
+        replacements.append(qMakePair(
+            er.helpCol, makeEditable(preferEditor(er.help, cellPlain(er.helpCol)))));
         const QRegularExpression existingIdRe(
             QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
             QRegularExpression::CaseInsensitiveOption);
@@ -7256,11 +7267,17 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             if (idMatch.hasMatch()) {
                 scoreId = idMatch.captured(1);
             }
+            const QString storedPlain =
+                htmlFragmentToPlainText(tds.at(col).captured(2)).trimmed();
+            // Не затирать уже сохранённые баллы пустым чтением из редактора.
+            const QString writeValue = value.trimmed().isEmpty() && !storedPlain.isEmpty()
+                ? storedPlain
+                : value.trimmed();
             replacements.append(qMakePair(
                 col,
                 QStringLiteral(
                     "<div id='%1' contenteditable='true' style='text-align:center'>%2</div>")
-                    .arg(scoreId, value.toHtmlEscaped())));
+                    .arg(scoreId, writeValue.toHtmlEscaped())));
         };
         appendBallsCell(er.ballsCol, QStringLiteral("idballs"), er.score);
         appendBallsCell(er.stabCol, QStringLiteral("idstab"), er.scoreStab);

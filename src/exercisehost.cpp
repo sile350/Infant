@@ -2385,8 +2385,7 @@ int findMark21BallsFromS(double value) {
 }
 
 QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
-    // Всегда чистый бланк graph11.png (без образцов). Для задания 3 — та же сетка,
-    // подпись оси t: 1…5 мин вместо 0,5…2,5.
+    // Чистый бланк graph11.png (без образцов). Для задания 3 перерисовываем ось t: 1…5 мин.
     const QString graphPath =
         ExerciseAssets::exerciseFile(QStringLiteral("2.1"), QStringLiteral("graph11.png"));
     QPixmap canvas;
@@ -2397,6 +2396,7 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
     if (!canvas.isNull()) {
         QPainter painter(&canvas);
         painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
 
         const auto coordByValue = [](double rawValue) -> int {
             const double value = qBound(0.0, rawValue, 1.25);
@@ -2408,9 +2408,13 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
         const int xs[] = {164, 216, 270, 321, 372};
 
         if (step3Axis) {
-            // Затереть подписи 0,5…2,5 на бланке и нарисовать 1…5.
-            painter.fillRect(140, 300, 280, 36, QColor(0xe8, 0xe8, 0xe8));
-            QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 10);
+            // Полностью закрыть старые подписи 0,5…2,5 и «t(мин)» (bbox ~y=280..352).
+            const QColor bg(232, 232, 232);
+            painter.fillRect(90, 275, 430, 90, bg);
+            // Восстановить нижнюю границу поля графика.
+            painter.setPen(QPen(Qt::black, 1));
+            painter.drawLine(150, 286, 386, 286);
+            QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 11);
             painter.setFont(axisFont);
             painter.setPen(QPen(Qt::black, 1));
             const QStringList xLabels = {
@@ -2421,12 +2425,15 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
                 QStringLiteral("5"),
             };
             for (int i = 0; i < 5; ++i) {
+                painter.drawLine(xs[i], 286, xs[i], 292);
                 painter.drawText(
-                    QRect(xs[i] - 18, 304, 36, 20),
+                    QRect(xs[i] - 16, 296, 32, 22),
                     Qt::AlignHCenter | Qt::AlignTop,
                     xLabels.at(i));
             }
-            painter.drawText(QRect(390, 304, 72, 20), Qt::AlignLeft | Qt::AlignTop, QStringLiteral("t(мин)"));
+            QFont tFont(QStringLiteral("Microsoft Sans Serif"), 12, QFont::Bold);
+            painter.setFont(tFont);
+            painter.drawText(QRect(400, 294, 90, 24), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("t(мин)"));
         }
 
         QPen pen(QColor(239, 71, 227), 5);
