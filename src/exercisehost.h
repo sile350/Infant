@@ -234,6 +234,7 @@ private:
     QPixmap m_findMark21GraphBase;
     QDialog *m_findMark21GraphWindow = nullptr;
     int m_findMark21Balls = -1;
+    bool m_findMark21GraphBuilt = false;
     QString m_findMark21Conclusion;
     QWidget *m_findMark22Panel = nullptr;
     QLineEdit *m_findMark22NEdit = nullptr;

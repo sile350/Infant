@@ -2876,6 +2876,7 @@ void ExerciseHost::clearFindMark21Panel() {
         m_findMark21Graph->hide();
     }
     m_findMark21Balls = -1;
+    m_findMark21GraphBuilt = false;
     m_findMark21Conclusion.clear();
     closeFindMark21GraphWindow();
 }
@@ -2962,6 +2963,9 @@ bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
     if (m_findMark21BallsLabel) {
         m_findMark21BallsLabel->setText(QString::number(balls));
     }
+    if (showGraph) {
+        m_findMark21GraphBuilt = true;
+    }
 
     if (showGraph) {
         const QPixmap canvas = renderFindMark21GraphPixmap(sVals, isStep3);
@@ -2969,16 +2973,44 @@ bool ExerciseHost::buildFindMark21Graph(bool showGraph) {
         if (m_findMark21Graph) {
             m_findMark21Graph->hide();
         }
+        // Как в оригинале: после «Построить график» балл сразу в ячейку протокола.
+        if (m_protocolFormed && m_templateBrowser && m_templateBrowser->document()) {
+            QString html = m_templateBrowser->document()->toHtml();
+            html = applyFindMark21ScoresToProtocolBody(html);
+            const QString baseDir = ExerciseAssets::exerciseDir(m_exerciseId);
+            m_templateBrowser->setHtml(ExerciseAssets::prepareTemplateHtml(html, baseDir));
+            finalizeProtocolTemplateDocument(m_templateBrowser->document());
+            if (!m_suppressProtocolAutosave) {
+                saveProtocolEdits();
+            }
+        }
     }
     return true;
 }
 
 QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
-    if (m_findMark21Balls < 0 || body.trimmed().isEmpty()) {
+    if (body.trimmed().isEmpty()) {
         return body;
     }
-    const QString ballsText = QString::number(m_findMark21Balls);
-    // Только «Баллы продуктивн.» текущей строки. «Результат: баллы…» — вручную.
+    // 0, если график не строили; иначе — из таблицы «Баллы (продуктивность)».
+    int balls = 0;
+    if (m_findMark21GraphBuilt) {
+        if (m_findMark21BallsLabel) {
+            const QString labelText = m_findMark21BallsLabel->text().trimmed();
+            if (!labelText.isEmpty()) {
+                bool ok = false;
+                const int fromLabel = labelText.toInt(&ok);
+                balls = ok ? fromLabel : qMax(0, m_findMark21Balls);
+            } else if (m_findMark21Balls >= 0) {
+                balls = m_findMark21Balls;
+            }
+        } else if (m_findMark21Balls >= 0) {
+            balls = m_findMark21Balls;
+        }
+    }
+    const QString ballsText = QString::number(balls);
+
+    // Только «Баллы продуктивн.» текущей (последней) строки. «Результат: баллы…» — вручную.
     QString step = currentStepId().trimmed();
     if (step.isEmpty()) {
         step = m_sessionStepId.trimmed();
@@ -2987,15 +3019,20 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
         step = QStringLiteral("1");
     }
 
-    const QString stepProdId = QStringLiteral("idprod") + step;
-    if (body.contains(QRegularExpression(
-            QStringLiteral("\\bid\\s*=\\s*['\"]%1['\"]")
-                .arg(QRegularExpression::escape(stepProdId)),
-            QRegularExpression::CaseInsensitiveOption))) {
-        return replaceHtmlDivInnerById(body, stepProdId, ballsText);
+    const QStringList candidateIds = {
+        QStringLiteral("idprod") + step,
+        QStringLiteral("idprod"),
+    };
+    for (const QString &id : candidateIds) {
+        if (body.contains(QRegularExpression(
+                QStringLiteral("\\bid\\s*=\\s*['\"]%1['\"]")
+                    .arg(QRegularExpression::escape(id)),
+                QRegularExpression::CaseInsensitiveOption))) {
+            return replaceLastHtmlDivInnerById(body, id, ballsText);
+        }
     }
 
-    // Любой последний idprod / idprodN (старые и новые шаблоны).
+    // Любой последний idprod… (старые шаблоны idprod1 / idprod2).
     const QRegularExpression re(
         QStringLiteral(
             "(<div\\b[^>]*\\bid\\s*=\\s*['\"]idprod[^'\"]*['\"][^>]*>)([\\s\\S]*?)(</div>)"),
@@ -4284,6 +4321,7 @@ void ExerciseHost::loadExercise() {
     m_protocolSavedThisSession = false;
     m_cursorInBallsColumn = false;
     m_findMark21Balls = -1;
+    m_findMark21GraphBuilt = false;
     m_findMark21Conclusion.clear();
     m_findMark22Balls = -1;
     m_findMark22Conclusion.clear();
@@ -6428,7 +6466,7 @@ void ExerciseHost::formProtocol() {
     }
 
     if (m_exerciseId == QStringLiteral("2.1")) {
-        buildFindMark21Graph(false);
+        // Без «Построить график» → 0; после построения → значение из таблицы «Баллы».
         protocolBody = applyFindMark21ScoresToProtocolBody(protocolBody);
     }
     if (m_exerciseId == QStringLiteral("2.2")) {
