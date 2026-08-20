@@ -2414,8 +2414,8 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
             painter.fillRect(100, 295, 430, 70, bg);
             constexpr int kAxisY = 330;
             painter.setPen(QPen(Qt::black, 3));
-            // Как на бланке: от левого края поля до зоны «t(мин)».
-            painter.drawLine(137, kAxisY, 484, kAxisY);
+            // Слева до края поля (как на бланке); справа — чуть за «5», без длинного хвоста.
+            painter.drawLine(100, kAxisY, 400, kAxisY);
             QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 11);
             painter.setFont(axisFont);
             painter.setPen(QPen(Qt::black, 2));
@@ -2437,7 +2437,7 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
             painter.setFont(tFont);
             painter.setPen(QPen(Qt::black, 1));
             painter.drawText(
-                QRect(490, kAxisY - 2, 90, 28),
+                QRect(408, kAxisY - 2, 90, 28),
                 Qt::AlignLeft | Qt::AlignVCenter,
                 QStringLiteral("t(мин)"));
         }
