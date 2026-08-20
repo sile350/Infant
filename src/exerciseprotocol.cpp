@@ -6937,9 +6937,11 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         QString activity;
         QString help;
         QString score;
+        QString scoreStab;
         int activityCol = 0;
         int helpCol = 1;
         int ballsCol = -1;
+        int stabCol = -1;
         bool activityInFirstCol = false;
     };
     QList<EditorRow> editorDataRows;
@@ -6953,6 +6955,7 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         int activityCol = -1;
         int helpCol = -1;
         int ballsCol = -1;
+        int stabCol = -1;
         for (int r = 0; r < table->rows() && headerRow < 0; ++r) {
             for (int c = 0; c < table->columns(); ++c) {
                 const QString h = readTableCellText(table, r, c);
@@ -6976,10 +6979,16 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
                     helpCol = c;
                     headerRow = r;
                 }
-                if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && h.length() <= 12
-                    && c > 0) {
-                    ballsCol = c;
+                // 2.1: две колонки баллов — «продуктивн.» и «устойчивость внимания».
+                if (h.contains(QStringLiteral("устойчив"), Qt::CaseInsensitive) && c > 0) {
+                    stabCol = c;
                     headerRow = r;
+                } else if (h.contains(QStringLiteral("Баллы"), Qt::CaseInsensitive) && c > 0) {
+                    if (h.contains(QStringLiteral("продуктивн"), Qt::CaseInsensitive)
+                        || h.length() <= 16) {
+                        ballsCol = c;
+                        headerRow = r;
+                    }
                 }
             }
             if (headerRow == -2) {
@@ -7010,9 +7019,11 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
             er.activity = readTableCellMultilineText(table, r, activityCol);
             er.help = readTableCellMultilineText(table, r, helpCol);
             er.score = ballsCol >= 0 ? readTableCellText(table, r, ballsCol) : QString();
+            er.scoreStab = stabCol >= 0 ? readTableCellText(table, r, stabCol) : QString();
             er.activityCol = activityCol;
             er.helpCol = helpCol;
             er.ballsCol = ballsCol;
+            er.stabCol = stabCol;
             er.activityInFirstCol = activityInFirstCol;
             editorDataRows.append(er);
         }
@@ -7233,21 +7244,26 @@ QString ExerciseProtocol::mergeOrHlpBallsEditorIntoStoredBody(
         QList<QPair<int, QString>> replacements;
         replacements.append(qMakePair(er.activityCol, makeEditable(er.activity)));
         replacements.append(qMakePair(er.helpCol, makeEditable(er.help)));
-        if (er.ballsCol >= 0 && er.ballsCol < tds.size()) {
-            QString scoreId = QStringLiteral("idballs");
-            const QRegularExpression existingIdRe(
-                QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
-                QRegularExpression::CaseInsensitiveOption);
-            const QRegularExpressionMatch idMatch = existingIdRe.match(tds.at(er.ballsCol).captured(2));
+        const QRegularExpression existingIdRe(
+            QStringLiteral("\\bid\\s*=\\s*['\"]([^'\"]+)['\"]"),
+            QRegularExpression::CaseInsensitiveOption);
+        auto appendBallsCell = [&](int col, const QString &defaultId, const QString &value) {
+            if (col < 0 || col >= tds.size()) {
+                return;
+            }
+            QString scoreId = defaultId;
+            const QRegularExpressionMatch idMatch = existingIdRe.match(tds.at(col).captured(2));
             if (idMatch.hasMatch()) {
                 scoreId = idMatch.captured(1);
             }
             replacements.append(qMakePair(
-                er.ballsCol,
+                col,
                 QStringLiteral(
                     "<div id='%1' contenteditable='true' style='text-align:center'>%2</div>")
-                    .arg(scoreId, er.score.toHtmlEscaped())));
-        }
+                    .arg(scoreId, value.toHtmlEscaped())));
+        };
+        appendBallsCell(er.ballsCol, QStringLiteral("idballs"), er.score);
+        appendBallsCell(er.stabCol, QStringLiteral("idstab"), er.scoreStab);
         std::sort(replacements.begin(), replacements.end(),
                   [](const QPair<int, QString> &a, const QPair<int, QString> &b) {
                       return a.first > b.first;

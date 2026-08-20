@@ -2385,9 +2385,10 @@ int findMark21BallsFromS(double value) {
 }
 
 QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
-    const QString graphName =
-        step3Axis ? QStringLiteral("graph2.png") : QStringLiteral("graph11.png");
-    const QString graphPath = ExerciseAssets::exerciseFile(QStringLiteral("2.1"), graphName);
+    // Всегда чистый бланк graph11.png (без образцов). Для задания 3 — та же сетка,
+    // подпись оси t: 1…5 мин вместо 0,5…2,5.
+    const QString graphPath =
+        ExerciseAssets::exerciseFile(QStringLiteral("2.1"), QStringLiteral("graph11.png"));
     QPixmap canvas;
     if (!graphPath.isEmpty()) {
         canvas = QPixmap(graphPath);
@@ -2406,6 +2407,28 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
         constexpr int kDy = 60;
         const int xs[] = {164, 216, 270, 321, 372};
 
+        if (step3Axis) {
+            // Затереть подписи 0,5…2,5 на бланке и нарисовать 1…5.
+            painter.fillRect(140, 300, 280, 36, QColor(0xe8, 0xe8, 0xe8));
+            QFont axisFont(QStringLiteral("Microsoft Sans Serif"), 10);
+            painter.setFont(axisFont);
+            painter.setPen(QPen(Qt::black, 1));
+            const QStringList xLabels = {
+                QStringLiteral("1"),
+                QStringLiteral("2"),
+                QStringLiteral("3"),
+                QStringLiteral("4"),
+                QStringLiteral("5"),
+            };
+            for (int i = 0; i < 5; ++i) {
+                painter.drawText(
+                    QRect(xs[i] - 18, 304, 36, 20),
+                    Qt::AlignHCenter | Qt::AlignTop,
+                    xLabels.at(i));
+            }
+            painter.drawText(QRect(390, 304, 72, 20), Qt::AlignLeft | Qt::AlignTop, QStringLiteral("t(мин)"));
+        }
+
         QPen pen(QColor(239, 71, 227), 5);
         painter.setPen(pen);
         QPoint prev(xs[0], coordByValue(sVals[0]) + kDy);
@@ -2417,7 +2440,7 @@ QPixmap renderFindMark21GraphPixmap(const double sVals[5], bool step3Axis) {
         return canvas;
     }
 
-    // Запасной вариант без graph11.png / graph2.png.
+    // Запасной вариант без graph11.png.
     constexpr int kW = 640;
     constexpr int kH = 360;
     canvas = QPixmap(kW, kH);
@@ -2942,10 +2965,16 @@ QString ExerciseHost::applyFindMark21ScoresToProtocolBody(QString body) const {
         return body;
     }
     const QString ballsText = QString::number(m_findMark21Balls);
-    const QString resultText =
-        ballsText + QStringLiteral(" — ") + m_findMark21Conclusion;
+    // Только «Баллы продуктивн.» текущей (последней) строки. «Результат: баллы…» — вручную.
+    const QString step = currentStepId().trimmed();
+    if (!step.isEmpty()) {
+        const QString stepId = QStringLiteral("idprod") + step;
+        if (body.contains(stepId, Qt::CaseInsensitive)) {
+            body = replaceHtmlDivInnerById(body, stepId, ballsText);
+            return body;
+        }
+    }
     body = replaceLastHtmlDivInnerById(body, QStringLiteral("idprod"), ballsText);
-    body = replaceHtmlDivInnerById(body, QStringLiteral("idvivod"), resultText.toHtmlEscaped());
     return body;
 }
 
@@ -6193,9 +6222,10 @@ void ExerciseHost::formProtocol() {
     QString existingBody = partlySave
         ? m_repository->loadLastExerciseProtocolBody(m_patientId, m_exerciseId)
         : QString();
-    // 3.1.16 / 3.1.20 / 3.1.21 / 3.1.24: перед допиской строки сохранить OR/HLP из редактора в тело.
+    // 2.1 / 3.1.16 / 3.1.20 / 3.1.21 / 3.1.24: перед допиской строки сохранить OR/HLP/баллы из редактора.
     if (partlySave && !existingBody.trimmed().isEmpty() && m_templateBrowser
-        && (m_exerciseId == QStringLiteral("3.1.16")
+        && (m_exerciseId == QStringLiteral("2.1")
+            || m_exerciseId == QStringLiteral("3.1.16")
             || m_exerciseId == QStringLiteral("3.1.20")
             || m_exerciseId == QStringLiteral("3.1.21")
             || m_exerciseId == QStringLiteral("3.1.24"))) {
